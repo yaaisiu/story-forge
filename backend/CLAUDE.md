@@ -22,6 +22,45 @@ This directory holds the Python FastAPI backend.
 - Agent tests with mocked `LLMProvider`: `tests/unit/agents/`
 - E2E: `tests/e2e/`
 
+## Running tests
+
+Two tiers, separated by the `integration` pytest marker (registered in `pyproject.toml`):
+
+```bash
+uv run pytest -m "not integration"   # unit only — no Postgres, no network
+uv run pytest -m integration         # integration only — needs Postgres
+uv run pytest                        # both
+```
+
+Integration tests run against a throwaway database, never your dev data. The
+session fixture in `tests/conftest.py` `CREATE DATABASE story_forge_test`, runs
+`alembic upgrade head`, yields, then `DROP`s it. Each test gets a `db_conn`
+(async psycopg) wrapped in a transaction that is rolled back on teardown, so
+tests stay isolated without rebuilding the schema between them.
+
+Prerequisites for the integration tier:
+- Postgres up (`docker compose up -d` from the repo root).
+- `backend/.env` defines `TEST_DATABASE_URL` — a **distinct** DB name
+  (`story_forge_test`) on the same server as `DATABASE_URL`. `.env` is
+  user-managed (never edited by the agent); the template lives in `.env.example`.
+
+Alembic's `env.py` only injects `settings.database_url` when no URL was supplied,
+so the fixture can point migrations at the test DB by setting `sqlalchemy.url` in
+a `Config` it builds itself.
+
+## Adding a setting that tests or the app read from `.env`
+
+Recurring recipe (e.g. `TEST_DATABASE_URL` here; Neo4j creds and LLM API keys
+later). The agent never edits `.env`, so every new setting follows three steps:
+
+1. Add a **non-functional placeholder** to the matching `.env.example` (repo-root
+   or `backend/`), plus the field on `Settings` in `config.py`.
+2. Hand the user a **ready-to-run command** to append the real value to their
+   `.env` — derive it from an existing line where possible (e.g. copy
+   `DATABASE_URL` and swap the db name), so they don't hand-edit secrets.
+3. Flag that the **dependent tests/app stay red until the user sets it** — don't
+   race ahead to run the dependent step before they confirm it's in place.
+
 ## Running locally
 
 ```bash

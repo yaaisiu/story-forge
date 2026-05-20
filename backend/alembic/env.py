@@ -17,8 +17,14 @@ from story_forge.config import settings
 # Alembic Config object
 config = context.config
 
-# Inject the URL from pydantic-settings so secrets stay in .env.
-config.set_main_option("sqlalchemy.url", settings.database_url)
+# Inject the URL from pydantic-settings so secrets stay in .env — but only if a
+# caller has not already supplied one. The integration-test fixture builds a
+# Config in code and sets `sqlalchemy.url` to the test database before invoking
+# Alembic; we must not clobber that. The CLI path leaves the alembic.ini
+# placeholder in place, which we treat as "unset" and replace from settings.
+_INI_PLACEHOLDER = "driver://user:pass@localhost/dbname"
+if config.get_main_option("sqlalchemy.url") in (None, "", _INI_PLACEHOLDER):
+    config.set_main_option("sqlalchemy.url", settings.database_url)
 
 if config.config_file_name is not None:
     fileConfig(config.config_file_name)

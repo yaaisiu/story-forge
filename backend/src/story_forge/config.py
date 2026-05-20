@@ -26,6 +26,16 @@ class Settings(BaseSettings):
         default="postgresql+psycopg://storyforge:replace-me@127.0.0.1:5432/storyforge",
         description="SQLAlchemy URL using psycopg 3 sync driver (used by Alembic).",
     )
+    test_database_url: str = Field(
+        default="postgresql+psycopg://storyforge:replace-me@127.0.0.1:5432/story_forge_test",
+        description=(
+            "URL of the throwaway integration-test database. The pytest session "
+            "fixture creates this DB, runs `alembic upgrade head`, then drops it; "
+            "it must name a DB distinct from `database_url` so dev data is never "
+            "touched. Default password is a non-functional placeholder — the real "
+            "value comes from backend/.env (TEST_DATABASE_URL) or CI env."
+        ),
+    )
 
     # --- Neo4j ---
     neo4j_uri: str = "bolt://127.0.0.1:7687"

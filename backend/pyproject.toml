@@ -73,3 +73,6 @@ ignore_errors = true
 testpaths = ["tests"]
 asyncio_mode = "auto"
 addopts = "-ra --strict-markers --strict-config"
+markers = [
+  "integration: needs a real Postgres (uses the story_forge_test DB fixture). Skip with -m 'not integration'.",
+]

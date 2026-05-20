@@ -10,11 +10,11 @@ should start. Keep it short and literal. Do not delete the markers.
 
 ## ▶ Session handoff (read this first)
 
-- **Next session:** Session 1 — Persistence foundation (test harness first, then schema)
-- **Read before starting:** this file, spec §6.4 (data model, note `order_index`) and §6.3 (project structure), `backend/CLAUDE.md`, `backend/src/story_forge/CLAUDE.md`
-- **Verify on disk:** Postgres running with pgvector (`docker compose ps` → postgres healthy; user-managed `.env` + `backend/.env` exist but are gitignored — do not open them); no `backend/alembic/versions/*.py` yet (only `.gitkeep`); no `adapters/` dir yet; no `tests/conftest.py` test-DB fixture yet — Session 1 creates these
-- **Last session ended:** 2026-05-20 — Session 1 groundwork only (no production code). Backend gate green. Postgres verified up locally. Test-DB approach decided (fixture-managed `story_forge_test`).
-- **Open blocks/questions:** none blocking. First work step is the **failing migration test** driven by the new `tests/conftest.py` fixture (test-first order). The Session 2 (langdetect) and Session 3 (chunking threshold) decisions remain deferred — see "Blocked / questions".
+- **Next session:** Session 2 — Upload + language detection + parsing
+- **Read before starting:** this file, spec §3.1 (upload & text splitting), §7 (ingest pipeline, step by step), §6.4 (data model — `stories`/`projects`) and §6.3 (project structure — `api/stories.py`), `backend/CLAUDE.md`, `backend/src/story_forge/CLAUDE.md`
+- **Verify on disk:** Postgres running with pgvector (`docker compose ps` → postgres healthy; user-managed `.env` + `backend/.env` exist but are gitignored — do not open them); `backend/.env` must define `TEST_DATABASE_URL` for the integration suite to run (per `backend/CLAUDE.md` "Running tests"); Session 1 anchors present — `backend/alembic/versions/*_create_document_tree.py`, `adapters/postgres_repo.py`, `domain/models.py`, `tests/conftest.py` (test-DB fixture), `tests/integration/`; no `api/stories.py` yet, no parsing/detection helpers in `domain/` yet — Session 2 creates these
+- **Last session ended:** 2026-05-20 — Session 1 complete. Postgres document-tree schema + async-psycopg repo + integration-test harness landed; backend gate green (11 tests). On branch `session-1-persistence-foundation`, headed for a private-repo PR (CI validates the new pgvector service path).
+- **Open blocks/questions:** First work step is a **failing upload-endpoint / parser test** (test-first). **Decide in-session: language-detection library** (`langdetect` vs `fasttext`) — see "Blocked / questions"; resolve before writing the detection helper. Session 3 (chunking threshold) decision still deferred.
 
 <!-- ─────────────────────────── END HANDOFF ──────────────────────────── -->
 
@@ -31,19 +31,19 @@ without updating the handoff block.
 
 ---
 
-### Session 1 — Persistence foundation `[ ]`
+### Session 1 — Persistence foundation `[x]`
 
 _No LLM, no HTTP. Pure schema + repository._
 
 _Test-DB harness comes first (it's the failing-test scaffolding), then the schema._
 
-- [ ] **Test harness:** add `test_database_url` to `config.py` + `backend/.env.example`; `tests/conftest.py` session fixture that `CREATE DATABASE story_forge_test` → `alembic upgrade head` → yields → `DROP DATABASE`; an `integration` pytest marker so unit tests need no Postgres
-- [ ] **CI:** add a `pgvector/pgvector:0.8.1-pg17-bookworm` service container + test env to the backend job in `.github/workflows/ci.yml` (currently runs `pytest` with no DB)
-- [ ] **Docs:** README + `backend/CLAUDE.md` — infra-up, test-DB lifecycle, unit-only vs integration commands
-- [ ] Domain models (Pydantic) for the document tree: `Project`, `Story`, `Chapter`, `Scene`, `Paragraph` (`domain/`, I/O-pure)
-- [ ] First Alembic migration: create `projects`, `stories`, `chapters`, `scenes`, `paragraphs` (spec §6.4, `order_index` not `order`); enable the `vector` extension via `op.execute` if absent
-- [ ] `adapters/postgres_repo.py` — async psycopg session + basic CRUD for the new tables
-- [ ] Tests: migration up/down; repo CRUD (integration, against `story_forge_test`)
+- [x] **Test harness:** add `test_database_url` to `config.py` + `backend/.env.example`; `tests/conftest.py` session fixture that `CREATE DATABASE story_forge_test` → `alembic upgrade head` → yields → `DROP DATABASE`; an `integration` pytest marker so unit tests need no Postgres
+- [x] **CI:** add a `pgvector/pgvector:0.8.1-pg17-bookworm` service container + test env to the backend job in `.github/workflows/ci.yml` (currently runs `pytest` with no DB)
+- [x] **Docs:** README + `backend/CLAUDE.md` — infra-up, test-DB lifecycle, unit-only vs integration commands
+- [x] Domain models (Pydantic) for the document tree: `Project`, `Story`, `Chapter`, `Scene`, `Paragraph` (`domain/`, I/O-pure)
+- [x] First Alembic migration: create `projects`, `stories`, `chapters`, `scenes`, `paragraphs` (spec §6.4, `order_index` not `order`); enable the `vector` extension via `op.execute` if absent
+- [x] `adapters/postgres_repo.py` — async psycopg session + basic CRUD for the new tables (C/R/D; generic Update deferred to the Session 4 reorder, where `order_index` renumber is the realistic update)
+- [x] Tests: migration up/down; repo CRUD (integration, against `story_forge_test`)
 
 **Done when:** `alembic upgrade head` builds the schema and repo CRUD tests pass (locally + CI).
 **Resume anchor:** migration file under `backend/alembic/versions/` + `adapters/postgres_repo.py` exist; domain models present; `tests/conftest.py` test-DB fixture present.
@@ -110,6 +110,7 @@ _No feature UI yet — just the shell M0 never built._
 ### Cross-cutting (do as the relevant session touches it)
 
 - [ ] Update spec §10 if any open question hardens (extraction granularity, etc.)
+- [ ] **Embedding read path** — `adapters/postgres_repo.py` reads `NULL AS embedding` (paragraphs never store embeddings in M1). When the embedding pipeline lands, add the `pgvector` dep + `register_vector_async`, switch `get_paragraph`/`list_paragraphs` to `SELECT ... embedding`, and start writing the column. (Codex review note, 2026-05-20.)
 
 ### Blocked / questions
 
@@ -118,6 +119,10 @@ _No feature UI yet — just the shell M0 never built._
 
 ### Decided
 
+- **2026-05-20 — Primary keys are app-generated UUIDs (`uuid4`), not serial integers.** Paragraph/entity IDs are referenced cross-store (Neo4j `source_paragraph_id`, `entity_mentions.paragraph_id`), so store-independent stable IDs avoid sequence coordination between Postgres and Neo4j. DB carries `gen_random_uuid()` as a safety default; the repo inserts the model's id explicitly.
+- **2026-05-20 — The document-tree migration is hand-written raw SQL (`op.execute`), not `op.create_table`.** A faithful 1:1 transcription of spec §6.4 — including `vector(768)` — without pulling a pgvector SQLAlchemy type into the dep set just to express one column. `target_metadata` stays `None`; no ORM layer (repo is raw async psycopg, columns map 1:1 to domain fields).
+- **2026-05-20 — Repo scope is Create/Read/Delete for now; generic Update deferred.** The realistic update is renumbering `order_index` on reorder, which lands with chunking persistence (Session 4); not added speculatively.
+- **2026-05-20 — Recipe for adding an `.env`-backed setting recorded in `backend/CLAUDE.md`** (retro outcome): placeholder in `.env.example` → hand the user an append command → dependent tests stay red until set. Captures the friction this session so Neo4j creds / LLM keys don't re-derive it.
 - **2026-05-20 — Integration tests use a dedicated `story_forge_test` DB, fixture-managed in the same Postgres instance.** A pytest session fixture creates it, runs `alembic upgrade head`, yields, then drops it. Chosen over an ephemeral compose service / testcontainers: no new dependency, dev data untouched, deterministic. CI gets a pgvector service container.
 - **2026-05-20 — Sibling ordering column is `order_index` (plain integer ordinal).** Avoids `order` (SQL reserved word → forced quoting); same name used end-to-end (DB / Pydantic / JSON), no mapping layer. Integer ordinal renumbered on reorder; fractional/lexical rank deferred as speculative. Spec §6.4 amended (inline note), SQL updated.
 - **2026-05-20 — M1 sliced into 6 resumable sessions** (this file's structure). Each session is one-conversation-sized, ends green + committed, and records a resume anchor in the handoff block. Driven by `/wrap-session` (end) and `/resume-session` (start).
@@ -125,6 +130,7 @@ _No feature UI yet — just the shell M0 never built._
 
 ### Done in previous sessions
 
+- **2026-05-20 — Session 1 complete: persistence foundation.** Postgres document tree (Project → Story → Chapter → Scene → Paragraph, spec §6.4) shipped end to end: I/O-pure Pydantic domain models (`domain/models.py`, UUID PKs, `order_index`); a raw-SQL Alembic migration (cascade FKs, `vector(768)`, `CREATE EXTENSION vector`, child-lookup indexes, reversible downgrade); an async-psycopg repo (`adapters/postgres_repo.py`, C/R/D). Integration-test harness landed: `tests/conftest.py` owns a throwaway `story_forge_test` DB (create → `alembic upgrade head` → yield → drop) with a transactional `db_conn`, and an `integration` marker so unit tests need no Postgres. CI backend job gained a `pgvector/pgvector:0.8.1-pg17-bookworm` service container + `TEST_DATABASE_URL`. Docs: README "Running tests" + status → M1; `backend/CLAUDE.md` test-DB lifecycle. Backend gate green — 11 tests (1 unit + 10 integration), ruff + mypy clean. Incidental: fixed the Alembic ruff post-write hook (`console_scripts` → `exec`, it had never run) and refreshed `.secrets.baseline` for the CI throwaway password + Alembic URL placeholder. **Process (retro):** added the "Adding a setting that tests/app read from `.env`" recipe to `backend/CLAUDE.md`; rejected splitting incidental fixes into separate commits (squash-merge collapses them anyway; the commit body discloses them).
 - **2026-05-20 — Session 1 groundwork (no production code).** Amended spec §6.4: `order` → `order_index` with a naming/ordering convention note (squash-merged to `main`). Added the `/retro` process-retrospective skill, referenced from `/wrap-session`. Decided the test-DB approach (fixture-managed `story_forge_test`). Diagnosed why `docker compose up postgres` failed (missing root `.env`); user created `.env`/`backend/.env` themselves and verified Postgres + pgvector running locally. Clarified `backend/.env.example` DATABASE_URL password sourcing (and refreshed `.secrets.baseline` rather than using a leak-prone allowlist pragma). Hardened secret handling: tracked `.claude/settings.json` denies agent `Read`/`Edit`/`Write` on `.env`, plus matching `CLAUDE.md` security clauses. Expanded Session 1 task list with the test harness + CI Postgres service + docs work that must precede the schema. Fixed a `/wrap-session` ordering bug — the `/retro` prompt now runs *before* the bookkeeping steps so their output is captured (it previously ran last, leaving the wrap stale).
 - **2026-05-20 — M1 planning.** Restructured this file into 6 sessions; added `/wrap-session` and `/resume-session` skills and referenced them in root `CLAUDE.md`. No production code written.
 - **2026-05-19 — M0 (Setup) complete.** Repo skeleton scaffolded end-to-end:

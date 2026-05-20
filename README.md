@@ -46,8 +46,10 @@ docker compose up -d
 # Wait for healthchecks — the one-shot neo4j-init service applies infra/neo4j/init.cypher automatically.
 # pgvector's CREATE EXTENSION runs once on first Postgres start via the mounted init.sql.
 
-# 5. Install backend deps + run tests
-(cd backend && uv sync && uv run pytest -q)
+# 5. Install backend deps + run unit tests (no DB needed)
+(cd backend && uv sync && uv run pytest -m "not integration" -q)
+#    The integration suite additionally needs Postgres up (step 4) and a
+#    TEST_DATABASE_URL line in backend/.env — see "Running tests" below.
 
 # 6. Install frontend deps + start dev server
 (cd frontend && npm install && npm run dev)
@@ -75,6 +77,24 @@ cd backend && uv run uvicorn story_forge.main:app --reload --port 8000
 cd frontend && npm run dev
 ```
 
+### Running tests
+
+The backend suite splits into two tiers, separated by the `integration` marker:
+
+- **Unit** — pure, no Postgres. `cd backend && uv run pytest -m "not integration" -q`
+- **Integration** — exercise a real Postgres. `cd backend && uv run pytest -m integration -q`
+  (or just `uv run pytest -q` for both).
+
+Integration tests never touch your dev database. A pytest session fixture owns a
+throwaway DB end to end: it `CREATE DATABASE story_forge_test`, runs
+`alembic upgrade head`, yields for the session, then `DROP`s it. Two prerequisites:
+
+1. Postgres is up (`docker compose up -d` — step 4 above).
+2. `backend/.env` defines `TEST_DATABASE_URL` pointing at a **distinct** DB name
+   (`story_forge_test`) on that server. The `backend/.env.example` template carries
+   the line; the simplest fill is to copy your `DATABASE_URL` and swap the trailing
+   db name to `story_forge_test`. CI sets this via its Postgres service container.
+
 ### Verification commands
 
 Everything that CI runs, locally:
@@ -84,7 +104,7 @@ Everything that CI runs, locally:
 POSTGRES_USER=v POSTGRES_PASSWORD=v POSTGRES_DB=v NEO4J_AUTH=neo4j/v \
   docker compose config --quiet
 
-# backend
+# backend (pytest -q runs both tiers; needs Postgres up + TEST_DATABASE_URL — see "Running tests")
 (cd backend && uv sync && uv run ruff check . \
    && uv run ruff format --check . && uv run mypy && uv run pytest -q)
 
@@ -140,4 +160,4 @@ See `SECURITY.md` for the vulnerability-reporting channel.
 
 ## Status
 
-Active development. Current milestone: **M0 (Setup)** — see `PLAN_SHORT.md`.
+Active development. Current milestone: **M1 (Upload & structure)** — see `PLAN_SHORT.md`.
