@@ -22,6 +22,32 @@ This directory holds the Python FastAPI backend.
 - Agent tests with mocked `LLMProvider`: `tests/unit/agents/`
 - E2E: `tests/e2e/`
 
+## Running tests
+
+Two tiers, separated by the `integration` pytest marker (registered in `pyproject.toml`):
+
+```bash
+uv run pytest -m "not integration"   # unit only — no Postgres, no network
+uv run pytest -m integration         # integration only — needs Postgres
+uv run pytest                        # both
+```
+
+Integration tests run against a throwaway database, never your dev data. The
+session fixture in `tests/conftest.py` `CREATE DATABASE story_forge_test`, runs
+`alembic upgrade head`, yields, then `DROP`s it. Each test gets a `db_conn`
+(async psycopg) wrapped in a transaction that is rolled back on teardown, so
+tests stay isolated without rebuilding the schema between them.
+
+Prerequisites for the integration tier:
+- Postgres up (`docker compose up -d` from the repo root).
+- `backend/.env` defines `TEST_DATABASE_URL` — a **distinct** DB name
+  (`story_forge_test`) on the same server as `DATABASE_URL`. `.env` is
+  user-managed (never edited by the agent); the template lives in `.env.example`.
+
+Alembic's `env.py` only injects `settings.database_url` when no URL was supplied,
+so the fixture can point migrations at the test DB by setting `sqlalchemy.url` in
+a `Config` it builds itself.
+
 ## Running locally
 
 ```bash
