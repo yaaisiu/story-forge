@@ -10,8 +10,14 @@ prove cascade deletes. The only realistic update is renumbering `order_index`
 on reorder, which arrives with the chunking-persistence work; it is not added
 speculatively here.
 
-`embedding` is intentionally not written: it stays NULL until the embedding
-pipeline lands in a later milestone.
+`embedding` is intentionally not written, and the read paths deliberately return
+it as `NULL AS embedding` rather than selecting the real `vector(768)` column.
+Reason: nothing writes embeddings yet, and reading the real column needs the
+pgvector psycopg type registered (`register_vector_async`) or psycopg hands back
+a string that fails Pydantic's `list[float] | None`. When the embedding pipeline
+lands (it adds the `pgvector` dependency + type registration), switch these reads
+to `SELECT ... embedding` and start writing the column. Tracked in PLAN_SHORT
+cross-cutting so the read path is not silently left returning None.
 """
 
 from __future__ import annotations

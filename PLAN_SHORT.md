@@ -110,6 +110,7 @@ _No feature UI yet — just the shell M0 never built._
 ### Cross-cutting (do as the relevant session touches it)
 
 - [ ] Update spec §10 if any open question hardens (extraction granularity, etc.)
+- [ ] **Embedding read path** — `adapters/postgres_repo.py` reads `NULL AS embedding` (paragraphs never store embeddings in M1). When the embedding pipeline lands, add the `pgvector` dep + `register_vector_async`, switch `get_paragraph`/`list_paragraphs` to `SELECT ... embedding`, and start writing the column. (Codex review note, 2026-05-20.)
 
 ### Blocked / questions
 

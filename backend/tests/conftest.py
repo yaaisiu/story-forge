@@ -40,6 +40,29 @@ def _libpq_kwargs(sqlalchemy_url: str) -> dict[str, object]:
     }
 
 
+def _assert_disposable_test_db(test_db_name: object) -> None:
+    """Refuse to run if `TEST_DATABASE_URL` could destroy real data.
+
+    The session fixture `DROP DATABASE ... WITH (FORCE)` on this name, so a
+    misconfigured env (pointing at the dev/app DB) would wipe it at test startup.
+    Two cheap guards: it must not be the app database, and it must follow the
+    `*test*` naming convention.
+    """
+    if not isinstance(test_db_name, str) or not test_db_name:
+        raise RuntimeError("TEST_DATABASE_URL has no database name")
+    app_db_name = make_url(settings.database_url).database
+    if test_db_name == app_db_name:
+        raise RuntimeError(
+            f"refusing to run integration tests: TEST_DATABASE_URL names the app "
+            f"database ({test_db_name!r}); it must be a separate throwaway DB"
+        )
+    if "test" not in test_db_name.lower():
+        raise RuntimeError(
+            f"refusing to DROP {test_db_name!r}: a disposable test DB name must "
+            f"contain 'test' (e.g. story_forge_test)"
+        )
+
+
 def _build_alembic_cfg() -> Config:
     """Alembic Config pinned to the test DB, with absolute paths so it runs
     correctly regardless of the working directory pytest was invoked from."""
@@ -60,6 +83,7 @@ def _migrated_test_db() -> Iterator[None]:
     """Create the test DB, migrate it to head, drop it when the session ends."""
     params = _libpq_kwargs(settings.test_database_url)
     test_db_name = params["dbname"]
+    _assert_disposable_test_db(test_db_name)
     admin_params = {**params, "dbname": "postgres"}
 
     def _drop_and_create() -> None:
