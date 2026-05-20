@@ -1,0 +1,79 @@
+# --- Secrets ---
+# Block every .env, allow only .env.example
+**/.env
+**/.env.*
+!**/.env.example
+
+# --- Python ---
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+*.egg
+build/
+dist/
+.eggs/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+.coverage.*
+htmlcov/
+.tox/
+.nox/
+.venv/
+venv/
+env/
+
+# --- Node ---
+node_modules/
+dist/
+.vite/
+.cache/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# --- Build / generated ---
+*.tsbuildinfo
+.parcel-cache/
+
+# --- IDE / OS ---
+.vscode/
+.idea/
+*.swp
+*.swo
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# --- Logs ---
+*.log
+logs/
+
+# --- Local databases / model artifacts ---
+*.db
+*.sqlite
+*.sqlite3
+*.gguf
+*.bin
+*.safetensors
+*.pt
+*.pth
+
+# --- Scratch ---
+scratch/
+.scratch/
+*.scratch.md
+TODO.local.md
+
+# --- Backups left from earlier doc revisions ---
+*.bak
+*.bak.md
+*.v0.1.bak.md
+
+# --- Scaffolding source (copied into the real CLAUDE.md files; not part of the product) ---
+claude-md-templates.md
+
+# --- Local Claude Code settings (machine-specific, may hold permission grants) ---
+.claude/settings.local.json

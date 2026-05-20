@@ -1,0 +1,105 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  backend:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install uv
+        uses: astral-sh/setup-uv@v6
+        with:
+          python-version: "3.12"
+      - name: Install dependencies
+        run: uv sync --frozen
+      - name: Ruff (lint)
+        run: uv run ruff check .
+      - name: Ruff (format check)
+        run: uv run ruff format --check .
+      - name: Mypy (strict)
+        run: uv run mypy
+      - name: Pytest
+        run: uv run pytest -q
+
+  frontend:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+      - name: Install dependencies
+        run: npm ci
+      - name: ESLint
+        run: npm run lint
+      - name: Prettier check
+        run: npm run format:check
+      - name: Build
+        run: npm run build
+      - name: npm audit (high/critical)
+        run: npm audit --audit-level=high
+
+  security:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install detect-secrets
+        run: pip install detect-secrets==1.5.0
+      - name: Secret scan against baseline
+        run: detect-secrets scan --baseline .secrets.baseline
+      - name: Dependency-age + non-exact-pin sweep
+        run: python3 scripts/check_dependency_age.py
+      - name: docker compose config (syntax + env interpolation)
+        env:
+          POSTGRES_USER: cival
+          POSTGRES_PASSWORD: civalpw
+          POSTGRES_DB: cival
+          NEO4J_AUTH: neo4j/civalpw
+        run: docker compose config --quiet
+      - name: Trivy scan — neo4j
+        uses: aquasecurity/trivy-action@0.32.0
+        with:
+          image-ref: neo4j:5.26.25-community-bullseye
+          severity: HIGH,CRITICAL
+          exit-code: "1"
+          ignore-unfixed: true
+      - name: Trivy scan — pgvector
+        uses: aquasecurity/trivy-action@0.32.0
+        with:
+          image-ref: pgvector/pgvector:0.8.1-pg17-bookworm
+          severity: HIGH,CRITICAL
+          exit-code: "1"
+          ignore-unfixed: true
+      - name: Trivy scan — ollama (upstream base for our wrapper)
+        uses: aquasecurity/trivy-action@0.32.0
+        with:
+          image-ref: ollama/ollama:0.22.1
+          severity: HIGH,CRITICAL
+          exit-code: "1"
+          ignore-unfixed: true
+
+  ollama-cloud-smoke:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Cloud-tier reachability smoke test
+        # Script exits 0 when the secret is unset (forks, missing key) — CI passes.
+        env:
+          OLLAMA_CLOUD_API_KEY: ${{ secrets.OLLAMA_CLOUD_API_KEY }}
+        run: python3 scripts/check_ollama_cloud.py

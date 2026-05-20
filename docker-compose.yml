@@ -1,0 +1,141 @@
+# Story Forge — local development infrastructure.
+#
+# Security posture (see spec §6.7):
+#   - All published ports are bound to 127.0.0.1 only — no LAN exposure.
+#   - All services run on a private bridge network; no `network_mode: host`.
+#   - `no-new-privileges` is enforced on every container.
+#   - Image tags are pinned to specific patches:
+#       * neo4j:5.26.25-community-bullseye — 5.26 is Neo4j's LTS line; patch .25
+#         was first cut weeks before this pin (Docker Hub's `last_updated` of
+#         2026-05-08 reflects a base-OS rebuild, not first publication).
+#       * pgvector/pgvector:0.8.1-pg17-bookworm — last_updated 2026-02-13.
+#       * ollama/ollama:0.22.1 (consumed via the wrapper in infra/ollama/) —
+#         released 2026-04-28, 21 days old at time of pin.
+#     The actual freshness/CVE check is performed by Trivy in CI.
+#   - Postgres and Neo4j official images drop to non-root for the server
+#     process internally. Ollama's upstream image runs as root, so we wrap it
+#     in infra/ollama/Dockerfile to run as UID 10001.
+
+name: story-forge
+
+networks:
+  storyforge_net:
+    driver: bridge
+
+volumes:
+  neo4j_data:
+  neo4j_logs:
+  postgres_data:
+  ollama_models:
+
+services:
+  # -------------------------------------------------------------------------
+  # Neo4j Community — knowledge graph
+  # -------------------------------------------------------------------------
+  neo4j:
+    image: neo4j:5.26.25-community-bullseye
+    container_name: storyforge-neo4j
+    restart: unless-stopped
+    networks: [storyforge_net]
+    ports:
+      - "127.0.0.1:7474:7474"  # HTTP / Browser
+      - "127.0.0.1:7687:7687"  # Bolt
+    environment:
+      NEO4J_AUTH: "${NEO4J_AUTH:?must be set in .env, format neo4j/PASSWORD}"
+      # Accept the Neo4j EULA for the Community edition.
+      NEO4J_ACCEPT_LICENSE_AGREEMENT: "yes"
+      # Keep telemetry off — see spec §6.7 "no telemetry".
+      NEO4J_server_metrics_enabled: "false"
+    volumes:
+      - neo4j_data:/data
+      - neo4j_logs:/logs
+    security_opt:
+      - no-new-privileges:true
+    healthcheck:
+      # The bullseye image ships wget; HTTP 7474 returning 200 is "Neo4j is up".
+      test: ["CMD-SHELL", "wget --quiet --tries=1 --spider http://localhost:7474/ || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 30s
+
+  # -------------------------------------------------------------------------
+  # Neo4j init — one-shot service that applies infra/neo4j/init.cypher
+  # after the main neo4j service passes its healthcheck. Exits 0 on success.
+  # init.cypher uses IF NOT EXISTS so re-runs are idempotent.
+  # -------------------------------------------------------------------------
+  neo4j-init:
+    image: neo4j:5.26.25-community-bullseye
+    container_name: storyforge-neo4j-init
+    networks: [storyforge_net]
+    depends_on:
+      neo4j:
+        condition: service_healthy
+    environment:
+      NEO4J_AUTH: "${NEO4J_AUTH:?must be set in .env, format neo4j/PASSWORD}"
+    volumes:
+      - ./infra/neo4j/init.cypher:/init/init.cypher:ro
+    entrypoint: ["/bin/bash", "-c"]
+    command:
+      - |
+        set -euo pipefail
+        export NEO4J_USERNAME="$${NEO4J_AUTH%%/*}"
+        export NEO4J_PASSWORD="$${NEO4J_AUTH#*/}"
+        cypher-shell -a bolt://neo4j:7687 \
+          -u "$$NEO4J_USERNAME" -p "$$NEO4J_PASSWORD" \
+          -f /init/init.cypher
+    security_opt:
+      - no-new-privileges:true
+    restart: "no"
+
+  # -------------------------------------------------------------------------
+  # Postgres + pgvector — relational store for document tree, edit_history, embeddings
+  # -------------------------------------------------------------------------
+  postgres:
+    image: pgvector/pgvector:0.8.1-pg17-bookworm
+    container_name: storyforge-postgres
+    restart: unless-stopped
+    networks: [storyforge_net]
+    ports:
+      - "127.0.0.1:5432:5432"
+    environment:
+      POSTGRES_USER: "${POSTGRES_USER:?must be set in .env}"
+      POSTGRES_PASSWORD: "${POSTGRES_PASSWORD:?must be set in .env}"
+      POSTGRES_DB: "${POSTGRES_DB:?must be set in .env}"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      # `CREATE EXTENSION vector;` runs once on first data-directory init.
+      - ./infra/postgres/init/01-pgvector.sql:/docker-entrypoint-initdb.d/01-pgvector.sql:ro
+    security_opt:
+      - no-new-privileges:true
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U \"$$POSTGRES_USER\" -d \"$$POSTGRES_DB\""]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+
+  # -------------------------------------------------------------------------
+  # Ollama — local LLM server (small tier). Wrapped to run as non-root.
+  # -------------------------------------------------------------------------
+  ollama:
+    build:
+      context: ./infra/ollama
+      dockerfile: Dockerfile
+    image: storyforge/ollama:0.22.1-nonroot
+    container_name: storyforge-ollama
+    restart: unless-stopped
+    networks: [storyforge_net]
+    ports:
+      - "127.0.0.1:11434:11434"
+    volumes:
+      - ollama_models:/var/lib/ollama
+    security_opt:
+      - no-new-privileges:true
+    healthcheck:
+      # `ollama list` exits 0 once the local daemon is reachable.
+      test: ["CMD", "ollama", "list"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 20s

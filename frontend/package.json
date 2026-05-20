@@ -1,0 +1,30 @@
+{
+  "name": "story-forge-frontend",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "description": "Story Forge frontend — React + Vite + TypeScript. M0 ships a single /health check page.",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc --noEmit && vite build",
+    "preview": "vite preview",
+    "lint": "eslint .",
+    "format": "prettier --write .",
+    "format:check": "prettier --check ."
+  },
+  "dependencies": {
+    "react": "19.0.5",
+    "react-dom": "19.0.5"
+  },
+  "devDependencies": {
+    "@eslint/js": "10.0.1",
+    "@types/react": "19.2.14",
+    "@types/react-dom": "19.2.3",
+    "@vitejs/plugin-react": "6.0.1",
+    "eslint": "10.3.0",
+    "prettier": "3.8.3",
+    "typescript": "6.0.3",
+    "typescript-eslint": "8.59.2",
+    "vite": "8.0.10"
+  }
+}

@@ -1,0 +1,45 @@
+# Pre-commit hooks for Story Forge.
+# Install:  pre-commit install && pre-commit install --hook-type pre-push
+# See spec section 6.7 + ADR/CLAUDE.md for the policy.
+
+repos:
+  # --- Secret scan: every staged file checked against the baseline ---
+  - repo: https://github.com/Yelp/detect-secrets
+    rev: v1.5.0
+    hooks:
+      - id: detect-secrets
+        args: ["--baseline", ".secrets.baseline"]
+
+  # --- Backend Python: ruff (lint) + ruff (format) ---
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.15.12
+    hooks:
+      - id: ruff
+        name: ruff check (backend)
+        args: ["--fix"]
+        files: ^backend/.+\.py$
+      - id: ruff-format
+        name: ruff format (backend)
+        files: ^backend/.+\.py$
+
+  # --- Whitespace / EOL hygiene ---
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v6.0.0
+    hooks:
+      - id: trailing-whitespace
+      - id: end-of-file-fixer
+      - id: check-yaml
+      - id: check-toml
+      - id: check-merge-conflict
+      - id: check-added-large-files
+        args: ["--maxkb=512"]
+
+  # --- Dependency-age / non-exact-pin sweep (pre-push only — slow, network) ---
+  - repo: local
+    hooks:
+      - id: dep-age
+        name: Dependency-age + exact-pin check
+        entry: python3 scripts/check_dependency_age.py
+        language: system
+        pass_filenames: false
+        stages: [pre-push]
