@@ -113,6 +113,7 @@ _No feature UI yet — just the shell M0 never built._
 
 ### Decided
 
+- **2026-05-20 — Sibling ordering column is `order_index` (plain integer ordinal).** Avoids `order` (SQL reserved word → forced quoting); same name used end-to-end (DB / Pydantic / JSON), no mapping layer. Integer ordinal renumbered on reorder; fractional/lexical rank deferred as speculative. Spec §6.4 amended (inline note), SQL updated.
 - **2026-05-20 — M1 sliced into 6 resumable sessions** (this file's structure). Each session is one-conversation-sized, ends green + committed, and records a resume anchor in the handoff block. Driven by `/wrap-session` (end) and `/resume-session` (start).
 - **2026-05-20 — API client generator: `openapi-typescript`** (over `orval`/`hey-api`). Emits TS types + a tiny typed `openapi-fetch` client from the backend's `openapi.json`; we hand-write the TanStack Query hooks in `src/lib/api/`, keeping them plain/commented for an outsider. Chosen for the smallest dependency surface and most legible data layer in a portfolio repo.
 

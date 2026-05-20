@@ -372,9 +372,9 @@ story-forge/
 ```sql
 projects        (id, name, language, world_id, style_anchor, created_at)
 stories         (id, project_id, title, raw_text, ingested_at)
-chapters        (id, story_id, order, title, summary)
-scenes          (id, chapter_id, order, title, summary)
-paragraphs      (id, scene_id, order, content, content_normalized, embedding vector(768))
+chapters        (id, story_id, order_index, title, summary)
+scenes          (id, chapter_id, order_index, title, summary)
+paragraphs      (id, scene_id, order_index, content, content_normalized, embedding vector(768))
 entity_mentions (id, paragraph_id, entity_id, span_start, span_end, confidence)
 edit_history    (id, scope, scope_id, before, after, intent, source, model, prompt, accepted, context, timestamp)
 worlds          (id, name, description)  -- optional shared graph parent
@@ -397,6 +397,11 @@ worlds          (id, name, description)  -- optional shared graph parent
 ```
 
 **Multi-tenancy strategy:** simple filter via `project_id` / `world_id` property on every node. Neo4j multi-database (separate DB per project) would be cleaner but requires Enterprise. Property-based is sufficient for PoC.
+
+**Naming & ordering conventions:**
+
+- **No SQL reserved words as column names.** Sibling ordering uses `order_index` (not `order`, which is reserved in Postgres and the SQL standard, forcing quoting everywhere). The same name is used end-to-end — DB column, Pydantic field, and JSON — so there is no DB↔API mapping layer to reason about.
+- **Ordering is a plain integer ordinal**, renumbered across siblings of one parent on reorder/insert. At PoC scale (dozens of chapters/scenes, hundreds of paragraphs per story) this is cheap. A fractional/lexical rank (float or LexoRank) would avoid sibling renumbers but is speculative complexity we are not adding now; revisit via an ADR only if reordering becomes hot at scale.
 
 ### 6.5 LLM provider abstraction & agent orchestration (CRITICAL)
 
