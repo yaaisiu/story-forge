@@ -48,6 +48,19 @@ Alembic's `env.py` only injects `settings.database_url` when no URL was supplied
 so the fixture can point migrations at the test DB by setting `sqlalchemy.url` in
 a `Config` it builds itself.
 
+## Adding a setting that tests or the app read from `.env`
+
+Recurring recipe (e.g. `TEST_DATABASE_URL` here; Neo4j creds and LLM API keys
+later). The agent never edits `.env`, so every new setting follows three steps:
+
+1. Add a **non-functional placeholder** to the matching `.env.example` (repo-root
+   or `backend/`), plus the field on `Settings` in `config.py`.
+2. Hand the user a **ready-to-run command** to append the real value to their
+   `.env` — derive it from an existing line where possible (e.g. copy
+   `DATABASE_URL` and swap the db name), so they don't hand-edit secrets.
+3. Flag that the **dependent tests/app stay red until the user sets it** — don't
+   race ahead to run the dependent step before they confirm it's in place.
+
 ## Running locally
 
 ```bash
