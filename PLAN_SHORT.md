@@ -10,11 +10,11 @@ should start. Keep it short and literal. Do not delete the markers.
 
 ## ▶ Session handoff (read this first)
 
-- **Next session:** Session 1 — Persistence foundation
-- **Read before starting:** this file, spec §6.4 (data model) and §6.3 (project structure), `backend/src/story_forge/CLAUDE.md`
-- **Verify on disk:** no `backend/alembic/versions/*.py` yet (only `.gitkeep`); no `adapters/` dir yet — Session 1 creates both
-- **Last session ended:** 2026-05-20 — restructured M1 into 6 resumable sessions; added `/wrap-session` + `/resume-session` skills. No code written.
-- **Open blocks/questions:** see "Blocked / questions" below
+- **Next session:** Session 1 — Persistence foundation (test harness first, then schema)
+- **Read before starting:** this file, spec §6.4 (data model, note `order_index`) and §6.3 (project structure), `backend/CLAUDE.md`, `backend/src/story_forge/CLAUDE.md`
+- **Verify on disk:** Postgres running with pgvector (`docker compose ps` → postgres healthy; user-managed `.env` + `backend/.env` exist but are gitignored — do not open them); no `backend/alembic/versions/*.py` yet (only `.gitkeep`); no `adapters/` dir yet; no `tests/conftest.py` test-DB fixture yet — Session 1 creates these
+- **Last session ended:** 2026-05-20 — Session 1 groundwork only (no production code). Backend gate green. Postgres verified up locally. Test-DB approach decided (fixture-managed `story_forge_test`).
+- **Open blocks/questions:** none blocking. First work step is the **failing migration test** driven by the new `tests/conftest.py` fixture (test-first order). The Session 2 (langdetect) and Session 3 (chunking threshold) decisions remain deferred — see "Blocked / questions".
 
 <!-- ─────────────────────────── END HANDOFF ──────────────────────────── -->
 
@@ -35,13 +35,18 @@ without updating the handoff block.
 
 _No LLM, no HTTP. Pure schema + repository._
 
-- [ ] Domain models (Pydantic) for the document tree: `Project`, `Story`, `Chapter`, `Scene`, `Paragraph` (`domain/`, I/O-pure)
-- [ ] First Alembic migration: create `projects`, `stories`, `chapters`, `scenes`, `paragraphs` (spec §6.4); enable the `vector` extension via `op.execute` if absent
-- [ ] `adapters/postgres_repo.py` — async psycopg session + basic CRUD for the new tables
-- [ ] Tests: migration up/down; repo CRUD (integration, real Postgres from compose)
+_Test-DB harness comes first (it's the failing-test scaffolding), then the schema._
 
-**Done when:** `alembic upgrade head` builds the schema and repo CRUD tests pass.
-**Resume anchor:** migration file under `backend/alembic/versions/` + `adapters/postgres_repo.py` exist; domain models present.
+- [ ] **Test harness:** add `test_database_url` to `config.py` + `backend/.env.example`; `tests/conftest.py` session fixture that `CREATE DATABASE story_forge_test` → `alembic upgrade head` → yields → `DROP DATABASE`; an `integration` pytest marker so unit tests need no Postgres
+- [ ] **CI:** add a `pgvector/pgvector:0.8.1-pg17-bookworm` service container + test env to the backend job in `.github/workflows/ci.yml` (currently runs `pytest` with no DB)
+- [ ] **Docs:** README + `backend/CLAUDE.md` — infra-up, test-DB lifecycle, unit-only vs integration commands
+- [ ] Domain models (Pydantic) for the document tree: `Project`, `Story`, `Chapter`, `Scene`, `Paragraph` (`domain/`, I/O-pure)
+- [ ] First Alembic migration: create `projects`, `stories`, `chapters`, `scenes`, `paragraphs` (spec §6.4, `order_index` not `order`); enable the `vector` extension via `op.execute` if absent
+- [ ] `adapters/postgres_repo.py` — async psycopg session + basic CRUD for the new tables
+- [ ] Tests: migration up/down; repo CRUD (integration, against `story_forge_test`)
+
+**Done when:** `alembic upgrade head` builds the schema and repo CRUD tests pass (locally + CI).
+**Resume anchor:** migration file under `backend/alembic/versions/` + `adapters/postgres_repo.py` exist; domain models present; `tests/conftest.py` test-DB fixture present.
 
 ### Session 2 — Upload + language detection + parsing `[ ]`
 
@@ -113,12 +118,14 @@ _No feature UI yet — just the shell M0 never built._
 
 ### Decided
 
+- **2026-05-20 — Integration tests use a dedicated `story_forge_test` DB, fixture-managed in the same Postgres instance.** A pytest session fixture creates it, runs `alembic upgrade head`, yields, then drops it. Chosen over an ephemeral compose service / testcontainers: no new dependency, dev data untouched, deterministic. CI gets a pgvector service container.
 - **2026-05-20 — Sibling ordering column is `order_index` (plain integer ordinal).** Avoids `order` (SQL reserved word → forced quoting); same name used end-to-end (DB / Pydantic / JSON), no mapping layer. Integer ordinal renumbered on reorder; fractional/lexical rank deferred as speculative. Spec §6.4 amended (inline note), SQL updated.
 - **2026-05-20 — M1 sliced into 6 resumable sessions** (this file's structure). Each session is one-conversation-sized, ends green + committed, and records a resume anchor in the handoff block. Driven by `/wrap-session` (end) and `/resume-session` (start).
 - **2026-05-20 — API client generator: `openapi-typescript`** (over `orval`/`hey-api`). Emits TS types + a tiny typed `openapi-fetch` client from the backend's `openapi.json`; we hand-write the TanStack Query hooks in `src/lib/api/`, keeping them plain/commented for an outsider. Chosen for the smallest dependency surface and most legible data layer in a portfolio repo.
 
 ### Done in previous sessions
 
+- **2026-05-20 — Session 1 groundwork (no production code).** Amended spec §6.4: `order` → `order_index` with a naming/ordering convention note (squash-merged to `main`). Added the `/retro` process-retrospective skill, referenced from `/wrap-session`. Decided the test-DB approach (fixture-managed `story_forge_test`). Diagnosed why `docker compose up postgres` failed (missing root `.env`); user created `.env`/`backend/.env` themselves and verified Postgres + pgvector running locally. Clarified `backend/.env.example` DATABASE_URL password sourcing. Expanded Session 1 task list with the test harness + CI Postgres service + docs work that must precede the schema.
 - **2026-05-20 — M1 planning.** Restructured this file into 6 sessions; added `/wrap-session` and `/resume-session` skills and referenced them in root `CLAUDE.md`. No production code written.
 - **2026-05-19 — M0 (Setup) complete.** Repo skeleton scaffolded end-to-end:
   - Foundation: `LICENSE` (MIT), `SECURITY.md`, `.gitignore`, setup-first `README.md`, root `CLAUDE.md`.
