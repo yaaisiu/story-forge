@@ -1,6 +1,6 @@
 ---
 name: wrap-session
-description: End-of-session ritual for Story Forge. Runs the green-state checks (report-only), updates PLAN_SHORT.md (check off tasks, strike obsolete ones, append a dated Done line, refresh Blocked/Decided), rewrites the Session handoff block to point at the next session, checks spec/plan consistency, and reminds you to commit with portfolio hygiene. Run near the end of every working conversation. Pairs with /resume-session, which reads the handoff block this writes.
+description: End-of-session ritual for Story Forge. Runs the green-state checks (report-only), prompts the process retrospective (/retro) early so its outcomes are captured, updates PLAN_SHORT.md (check off tasks, strike obsolete ones, append a dated Done line, refresh Blocked/Decided), rewrites the Session handoff block to point at the next session, checks spec/plan consistency, and reminds you to commit with portfolio hygiene. Run near the end of every working conversation. Pairs with /resume-session, which reads the handoff block this writes.
 ---
 
 # Wrap a Story Forge session
@@ -33,32 +33,50 @@ report failures clearly, but do not refuse to wrap — the user decides whether 
 Summarize each as pass/fail with the failing output. If something is red, say so plainly
 in the wrap-up and in the handoff block — never record a red session as cleanly closed.
 
-## 2. Update the task lists in PLAN_SHORT.md
+## 2. Process retrospective — prompt `/retro`
+
+Run this **before** the bookkeeping steps below, not after — this is the ordering that
+makes the wrap honest. The retrospective can change skills, `CLAUDE.md`, or settings (and
+commit them), so it must happen *first*; then the Done line, handoff, and commit steps that
+follow naturally capture whatever it changed. (Putting retro last leaves the bookkeeping
+stale and tempts a second wrap pass that re-fires retro.)
+
+Prompt the user to run **`/retro`** (a separate, human-in-the-loop skill): it reflects on
+whether the skills and `CLAUDE.md` rules served this session and proposes any new/changed
+skill or rule. Kept separate so it stays deliberate, but referenced here so it is never
+silently skipped.
+
+**Once per session:** if `/retro` already ran this session, don't re-prompt — just fold its
+outcomes into the steps below. If the session was routine and nothing felt like friction,
+say so — a retro skipped *by choice* is fine; a forgotten one is not.
+
+## 3. Update the task lists in PLAN_SHORT.md
 
 - Check off (`[x]`) every task actually completed and verified this session.
 - ~~Strike through~~ (don't delete) tasks that became obsolete; add a brief reason.
 - Add any tasks that emerged. Keep them in the right session block.
 - If a whole session finished, mark its `[ ]` heading `[x]`.
 
-## 3. Refresh Decided / Blocked / questions
+## 4. Refresh Decided / Blocked / questions
 
 - Move any decision made this session into **Decided** with the date and a one-line rationale.
 - Update **Blocked / questions**: remove resolved items, add new blockers, keep deferred
   ones with their "decide in Session N" note.
 
-## 4. Append a Done line
+## 5. Append a Done line
 
 Add one dated bullet to **Done in previous sessions** summarizing what was accomplished
-(what works, what tests pass, what's left). Write it for an outsider — this is public.
+(what works, what tests pass, what's left), **including any process changes the
+retrospective produced**. Write it for an outsider — this is public.
 
-## 5. Check spec / plan consistency
+## 6. Check spec / plan consistency
 
 If the work revealed the spec was wrong or incomplete: **stop.** The spec
 (`story-forge-poc-spec.md`) is the source of truth and must be amended first, then
 `PLAN_LONG.md` and `PLAN_SHORT.md` reconciled with it before the session is considered
 wrapped. Note any amendment in the Done line and the relevant ADR if architectural.
 
-## 6. Rewrite the Session handoff block
+## 7. Rewrite the Session handoff block
 
 Overwrite the `▶ Session handoff` block (between the markers) so it describes the **next**
 session. Fill every field literally:
@@ -68,21 +86,13 @@ session. Fill every field literally:
 - **Last session ended:** today's date + one line on where you stopped (note any red checks).
 - **Open blocks/questions:** point to the Blocked/questions section or restate the decision the next session must make first.
 
-## 7. Remind about commit hygiene
+## 8. Remind about commit hygiene
 
 Story Forge keeps `main` clean (squash-merge per feature, curated messages — see root
 `CLAUDE.md`). Remind the user to commit this session's work on a feature branch with a
-message a stranger could read, ready for squash-merge. **Commit only when the user asks** —
-do not auto-commit. Offer the `commit` / `commit-push-pr` skills if useful.
-
-## 8. Process retrospective — prompt `/retro`
-
-Wrapping closes out the *work*; the retrospective sharpens the *process*. Before the final
-report, prompt the user to run **`/retro`** (a separate, human-in-the-loop skill): it
-reflects on whether the skills and `CLAUDE.md` rules served this session and proposes any
-new/changed skill or rule. It is kept separate so it stays deliberate, but referenced here
-so it is never silently skipped. If the session was routine and nothing felt like friction,
-say so — a retro skipped *by choice* is fine; a forgotten one is not.
+message a stranger could read, ready for squash-merge — this covers any changes the
+retrospective produced too. **Commit only when the user asks** — do not auto-commit. Offer
+the `commit` / `commit-push-pr` skills if useful.
 
 ## 9. Report
 
