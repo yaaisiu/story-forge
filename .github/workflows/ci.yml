@@ -91,21 +91,21 @@ jobs:
           NEO4J_AUTH: neo4j/civalpw
         run: docker compose config --quiet
       - name: Trivy scan — neo4j
-        uses: aquasecurity/trivy-action@v0.32.0
+        uses: aquasecurity/trivy-action@v0.36.0
         with:
           image-ref: neo4j:5.26.25-community-bullseye
           severity: HIGH,CRITICAL
           exit-code: "1"
           ignore-unfixed: true
       - name: Trivy scan — pgvector
-        uses: aquasecurity/trivy-action@v0.32.0
+        uses: aquasecurity/trivy-action@v0.36.0
         with:
           image-ref: pgvector/pgvector:0.8.1-pg17-bookworm
           severity: HIGH,CRITICAL
           exit-code: "1"
           ignore-unfixed: true
       - name: Trivy scan — ollama (upstream base for our wrapper)
-        uses: aquasecurity/trivy-action@v0.32.0
+        uses: aquasecurity/trivy-action@v0.36.0
         with:
           image-ref: ollama/ollama:0.22.1
           severity: HIGH,CRITICAL
