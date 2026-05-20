@@ -31,7 +31,12 @@ No production code is written before tests for it exist.
 ### 3. Two-horizon planning — read and update every session
 
 - **`PLAN_LONG.md`** — strategic, V1/V2/V3 milestones, stable.
-- **`PLAN_SHORT.md`** — tactical, current milestone broken into tasks. Read at session start. Update at session end. Check off completed tasks. Add new ones. Strike through (don't delete) obsolete ones.
+- **`PLAN_SHORT.md`** — tactical, current milestone broken into one-conversation sessions. Read at session start. Update at session end. Check off completed tasks. Add new ones. Strike through (don't delete) obsolete ones.
+
+The current milestone is sliced into numbered **sessions**, each sized for a single conversation. The top of `PLAN_SHORT.md` carries a **Session handoff** block that always points at where the next session starts. Two skills maintain this loop — use them actively, but they assist the workflow, they don't replace judgement:
+
+- **`/resume-session`** — run at the **start** of every working conversation. Reads the handoff block, verifies the on-disk anchors, surveys git, opens the named spec sections, and reports drift before any code is written. If the user hasn't run it, offer to.
+- **`/wrap-session`** — run **near the end** of every working conversation. Reports the green-state checks, updates the task lists, refreshes Decided/Blocked, appends a dated Done line, rewrites the handoff block for the next session, and reminds about commit hygiene. When you sense a session is wrapping up, suggest it — don't let work end with the plan stale.
 
 When implementation forces a spec change: **stop**. Propose the change. Once approved, update both plan files before resuming. Plans, spec, and code must not drift apart.
 
