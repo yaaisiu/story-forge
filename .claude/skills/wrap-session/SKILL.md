@@ -75,7 +75,16 @@ Story Forge keeps `main` clean (squash-merge per feature, curated messages — s
 message a stranger could read, ready for squash-merge. **Commit only when the user asks** —
 do not auto-commit. Offer the `commit` / `commit-push-pr` skills if useful.
 
-## 8. Report
+## 8. Process retrospective — prompt `/retro`
+
+Wrapping closes out the *work*; the retrospective sharpens the *process*. Before the final
+report, prompt the user to run **`/retro`** (a separate, human-in-the-loop skill): it
+reflects on whether the skills and `CLAUDE.md` rules served this session and proposes any
+new/changed skill or rule. It is kept separate so it stays deliberate, but referenced here
+so it is never silently skipped. If the session was routine and nothing felt like friction,
+say so — a retro skipped *by choice* is fine; a forgotten one is not.
+
+## 9. Report
 
 Give a short close-out: checks pass/fail, what got checked off, what the next session is,
 and any open question carried forward. The user should be able to close the terminal here
