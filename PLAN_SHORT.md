@@ -15,6 +15,7 @@
 - [ ] LLM Protocol + minimal `OllamaProvider` adapter (local tier only at first)
 - [ ] `ChunkingAgent` with Jinja2 prompt (`prompts/chunking.pl.j2`, `prompts/chunking.en.j2`) + Pydantic output schema; auto-chunking via local Ollama, falling back to Ollama Cloud for longer texts
 - [ ] Manual / hybrid chunking modes (anchors inserted by user, agent fills the rest)
+- [ ] Frontend tooling: add Tailwind + shadcn/ui base, React Router, and a TanStack Query provider in `src/app/` (none are scaffolded yet — M0 was bare); convert or remove the M0 `/health` page, which uses a forbidden `useEffect(fetch...)`
 - [ ] Frontend: upload screen (file picker, drag-drop, language indicator)
 - [ ] Frontend: outline view (markdown-style editor with `## Chapter` / `### Scene` markers; live preview)
 - [ ] Frontend: TanStack Query + the generated API client (`src/lib/api/`)
@@ -24,6 +25,11 @@
 ### Blocked / questions
 
 - Which auto-chunking trigger heuristic decides "long enough → use Ollama Cloud instead of local"? Probably word-count threshold; needs a number.
+- **Decide before coding:** language-detection library — `langdetect` (pure-Python, tiny, no model download) vs `fasttext` (faster/more accurate, needs the `lid.176` model artifact). Both must satisfy the exact-pin ≥14-day rule. _(Deferred to M1 by decision 2026-05-20; revisit with a grounded comparison at that task.)_
+
+### Decided
+
+- **2026-05-20 — API client generator: `openapi-typescript`** (over `orval`/`hey-api`). Emits TS types + a tiny typed `openapi-fetch` client from the backend's `openapi.json`; we hand-write the TanStack Query hooks in `src/lib/api/`, keeping them plain/commented for an outsider. Chosen for the smallest dependency surface and most legible data layer in a portfolio repo.
 
 ### Done in previous sessions
 
