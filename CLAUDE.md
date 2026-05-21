@@ -54,6 +54,8 @@ If a directory's `CLAUDE.md` contradicts this root file, the more specific (dire
 
 These are enforced by CI and pre-commit hooks, but you must respect them when writing code:
 
+When *I* propose relaxing one of these §6.7 rules, neither refuse reflexively nor silently comply: run the stop-and-amend-spec-first flow — flag that it touches a stated non-negotiable, surface the tradeoff with a written rationale a stranger would accept, get the explicit decision, amend `story-forge-poc-spec.md` first, then reconcile `CLAUDE.md` / skills / plan.
+
 - Every dependency (`pyproject.toml` / `package.json`) pinned to an exact version, **minimum 14 days old at time of pin**. No exceptions without explicit conversation. Docker image tags in `docker-compose.yml` follow a parallel rule with a **shorter 7-day soak** — pinned exact tag, ≥7 days old, CVE-scanned (Trivy), because official base images are signed/vendored and freshness reduces CVE exposure (rationale in spec §6.7). Use the `/pin-image` skill for image pins; `/add-dependency` for packages.
 - No secrets in code. Only `.env.example`. `.env` is gitignored.
 - **Claude never reads, creates, or edits `.env` / `backend/.env`.** Secret material is user-managed; the agent only ever touches `.env.example` templates and hands the user commands to run themselves. (Enforced deterministically by `deny` rules in `.claude/settings.json`, not just convention.)
@@ -73,6 +75,13 @@ This repo is public. Treat every commit as something a stranger might read:
 - Throwaway experiments live as untracked scratch files (covered by `.gitignore`), not as branches that may accidentally get pushed.
 - README, ADRs, CLAUDE.md files, and inline comments are written for an outsider.
 - Generated artifacts (screenshots of the agent activity panel, sample graphs) belong in `docs/`, not as random files at the root.
+
+### Merge flow
+
+Per feature (and at session close): feature branch → **open a PR so CI actually runs** (the only place the service-container / image-scan jobs execute) → await checks **and** code review (e.g. Codex) → **fold review notes into the branch before merging** (don't merge known-flagged code; document + track anything deliberately deferred) → **squash-merge** to `main` with a curated message. The session-close bookkeeping is its own `docs: close Session N` PR (see `/wrap-session`); the feature is merged before that wrap runs.
+
+- **Green-main bar.** Don't merge on red CI. The one exception: a failure that is *pre-existing, unrelated to the PR, and diagnosed* — merge is allowed if that's stated explicitly and tracked.
+- **Split unrelated bugs out.** A pre-existing infra/bug discovery that isn't this PR's concern gets its own GitHub issue, not scope-creep. Small *incidental* fixes the PR already touches can ride along, disclosed in the commit body.
 
 ## How to communicate with me
 
