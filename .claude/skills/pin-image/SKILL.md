@@ -47,6 +47,22 @@ These flags mirror `.github/workflows/ci.yml` exactly. If the image is CVE-heavy
 other OS variants of the same version (`-trixie` vs `-ubi10` vs `-bookworm`) and pick the
 cleanest base — variant choice can swing the OS-package count from dozens to zero.
 
+**If the scan output can't be read back, stop iterating locally — let CI scan.** Large
+images (multi-GB, e.g. `ollama`) make the `docker run` slow enough that the harness
+auto-backgrounds it, and a backgrounded shell is sandboxed: its stdout *and* even
+`--output`/bind-mounted file writes never reach the real disk, so every read comes back
+empty. Don't burn cycles fighting it (this cost ~10 cycles in Issue #4). Instead: scaffold
+a **header-only** `infra/trivy/<image>.trivyignore` (waives nothing, documents intent),
+wire it, bump the tag, and **push** — the CI Trivy step enumerates the exact CVEs in its
+log. Transcribe those into the waiver in a follow-up commit. Local Trivy is best-effort
+here; CI is the source of truth.
+
+**Scan *every* image the security job scans, up front — not just the one you're bumping.**
+The Trivy steps run sequentially and the job aborts on the first failure, so a red image
+*masks* CVE-staleness in every image after it. This has bitten twice: neo4j masked pgvector
+(#2), then fixing pgvector unmasked a stale ollama (#4). Sweep all of `docker-compose.yml`'s
+images before declaring the job will go green.
+
 ## 4. Decide: clean tag, or scoped waiver
 
 - **OS-package CVEs** are fixed by choosing a fresher rebuild or a cleaner base variant —
@@ -59,6 +75,12 @@ cleanest base — variant choice can swing the OS-package count from dozens to z
   it's unreachable in a 127.0.0.1-bound single-user deployment, the fixed-in version, and
   "drop when upstream bumps"). Wire it to that one scan step via the action's
   `trivyignores:` input — never repo-wide, so other images stay strict.
+
+Whenever you add or change a waiver, also record it in **`infra/trivy/WAIVERS.md`** — the
+consolidated review register (every waived CVE across images, with fixed-in version + drop
+condition) checked periodically for upstream fixes. The scoped `.trivyignore` stays the
+functional source; `WAIVERS.md` is the index. Keep them in sync, and have each scoped file
+backreference the register.
 
 ## 5. Apply the tag consistently
 
