@@ -1,0 +1,39 @@
+# Trivy waivers — neo4j image only (wired to the neo4j scan step in
+# .github/workflows/ci.yml via the `trivyignores:` input; NOT applied to the
+# pgvector or ollama scans, which stay strict).
+#
+# Context (Issue #2): the neo4j base image is pinned to
+# neo4j:5.26.25-community-ubi10. Switching from the Debian (`-trixie`) base to
+# Red Hat UBI-10 already eliminated all 14 HIGH/CRITICAL OS-package CVEs
+# (including 2 CRITICAL gnutls) — those are NOT waived, they are fixed by the
+# base choice. What remains are 3 HIGH CVEs in the netty jars that Neo4j 5.26.25
+# bundles itself. They are identical across every base variant and cannot be
+# fixed without a new Neo4j release that bumps netty to >= 4.1.133.Final.
+#
+# Why these are acceptable for THIS deployment (spec §6.7 accept-with-justification):
+#   - Story Forge runs Neo4j bound to 127.0.0.1 only, single trusted user,
+#     non-root container, no-new-privileges. There is no untrusted network peer.
+#   - None of the three is data-disclosure or RCE. Two are denial-of-service
+#     (resource exhaustion); the third is an HTTP client-codec response-desync
+#     bug reachable only when Neo4j acts as an outbound HTTP client against a
+#     malicious server — a path this deployment never exercises.
+#   - All three are fixed in netty 4.1.133.Final (released 2026-05-04). Drop this
+#     file the moment a Neo4j 5.26.x patch ships that bundle; re-scan should pass
+#     clean with no waiver.
+#
+# Revisit: each Neo4j patch bump (next time the image tag is updated).
+
+# CVE-2026-42583 — netty-codec (Lz4FrameDecoder): a stream of small LZ4 frames
+# forces repeated large buffer allocation -> memory exhaustion (DoS). Fixed in
+# 4.1.133.Final by enforcing maxDecompressedLength.
+CVE-2026-42583
+
+# CVE-2026-42584 — netty-codec-http (HttpClientCodec): response desynchronization
+# mis-pairing pipelined HEAD/GET with 1xx responses (client-side parsing bug,
+# not DoS). Not reachable: we do not drive Neo4j as an HTTP client.
+CVE-2026-42584
+
+# CVE-2026-42587 — netty-codec-http (HttpContentDecompressor): maxAllocation
+# bypass via br/zstd/snappy Content-Encoding -> decompression-bomb DoS. Fixed in
+# 4.1.133.Final.
+CVE-2026-42587
