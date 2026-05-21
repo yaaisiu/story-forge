@@ -5,6 +5,10 @@ description: Add or bump a Python (pyproject.toml) or JS (package.json) dependen
 
 # Add a dependency (Story Forge security baseline)
 
+This skill is for **package** dependencies (`pyproject.toml` / `package.json`). For Docker
+image tags, use `/pin-image` instead — images follow a parallel but distinct rule (≥7-day
+soak, Trivy CVE gate, scoped waivers; spec §6.7).
+
 Story Forge pins **every** dependency to an exact version that is **≥14 days old**
 at time of pin, with **no known HIGH/CRITICAL advisory** (spec §6.7). CI's `security`
 job and the `check_dependency_age.py` pre-push hook will reject anything that violates
