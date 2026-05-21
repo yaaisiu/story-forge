@@ -17,7 +17,7 @@ jobs:
       # Pinned to the same pgvector image the security job Trivy-scans and that
       # docker-compose runs locally.
       postgres:
-        image: pgvector/pgvector:0.8.1-pg17-bookworm
+        image: pgvector/pgvector:0.8.2-pg17-trixie
         env:
           POSTGRES_USER: storyforge
           POSTGRES_PASSWORD: ci_only_throwaway_pw
@@ -104,10 +104,14 @@ jobs:
       - name: Trivy scan — pgvector
         uses: aquasecurity/trivy-action@v0.36.0
         with:
-          image-ref: pgvector/pgvector:0.8.1-pg17-bookworm
+          image-ref: pgvector/pgvector:0.8.2-pg17-trixie
           severity: HIGH,CRITICAL
           exit-code: "1"
           ignore-unfixed: true
+          # Waives residual Debian OS CVEs (no fresher pgvector rebuild exists
+          # yet) and the bundled gosu/Go-stdlib CVEs, each with a per-CVE RCE
+          # assessment. See the file for justification. Scoped to this step only.
+          trivyignores: infra/trivy/pgvector.trivyignore
       - name: Trivy scan — ollama (upstream base for our wrapper)
         uses: aquasecurity/trivy-action@v0.36.0
         with:

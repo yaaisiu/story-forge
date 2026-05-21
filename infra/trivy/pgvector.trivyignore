@@ -1,0 +1,108 @@
+# Trivy waivers — pgvector image only (wired to the pgvector scan step in
+# .github/workflows/ci.yml via the `trivyignores:` input; NOT applied to the
+# neo4j or ollama scans, which stay strict).
+#
+# Context (Issue #4): the relational store is pinned to
+# pgvector/pgvector:0.8.2-pg17-trixie. 0.8.2 is the CVE-fix release that
+# supersedes the original 0.8.1 pin; trixie (Debian 13.4) is the cleanest base
+# pgvector ships — 9 OS CVEs vs bookworm's 13, and pgvector has no UBI variant.
+#
+# Two unusual things about this waiver, both deliberate and pre-approved:
+#
+#   1. AGE BEND (spec §6.7, "no exceptions without explicit conversation").
+#      Every pgvector tag — all PG majors, both bases — was rebuilt 2026-05-15.
+#      0.8.2-pg17-trixie was therefore 6 days old at pin time (2026-05-21),
+#      inside the 7-day image soak. Pinned anyway, by explicit user decision:
+#      it is a CVE-*fix* release from a known official publisher, a serious
+#      flaw in a ~6-day-old rebuild would most likely already be public, and
+#      waiting only prolongs exposure to the *known* CVEs the bump addresses.
+#
+#   2. OS-PACKAGE CVEs ARE WAIVED HERE (atypical — normally we *fix* OS CVEs by
+#      choosing a fresher rebuild or a cleaner base, never waive them). There
+#      is no fresher rebuild to move to: 0.8.2-pg17-trixie IS the newest pgvector
+#      image, and these are freshly-disclosed Debian advisories whose fixes
+#      (deb13u1/deb13u4/257.13 etc.) upstream has not yet baked into a rebuild.
+#      Going *older* is strictly worse (0.8.1-pg17-trixie carries 42 OS CVEs).
+#      So the only choices were "wait for an upstream rebuild" or "pin now and
+#      waive with justification"; the latter was chosen after a per-CVE RCE
+#      assessment (below) confirmed none is a network-reachable RCE in this
+#      127.0.0.1-bound, single-user, non-root, no-new-privileges deployment.
+#
+# All waivers across images are also indexed in infra/trivy/WAIVERS.md (the
+# review register: fixed-in versions + drop conditions, checked periodically).
+#
+# Revisit: every pgvector tag bump. Drop the OS entries the moment a rebuilt
+# pgvector image ships Debian's fixed packages (re-scan should pass without
+# them); drop the gosu/stdlib entries when upstream rebuilds gosu on a patched
+# Go toolchain.
+
+# ───────────────────────── OS packages (Debian 13.4) ─────────────────────────
+# None reachable as RCE here. Postgres's own TLS uses OpenSSL, not gnutls;
+# gnutls is only a transitive library. DTLS is never used. No systemd/D-Bus
+# daemon runs in the container (Postgres is PID 1 via gosu). Bound to 127.0.0.1,
+# single trusted user. See per-CVE notes.
+
+# CVE-2026-42010 — gnutls (CRITICAL): TLS authentication bypass via NUL byte in
+# username. Not reachable: Postgres TLS is OpenSSL-based; gnutls handles no auth
+# path we expose.
+CVE-2026-42010
+# CVE-2026-33845 — gnutls (CRITICAL): DoS via DTLS zero-length fragment. DoS
+# only, and no DTLS endpoint exists.
+CVE-2026-33845
+# CVE-2026-33846 — gnutls (HIGH): DoS via heap buffer overflow in DTLS
+# handshake. DoS, no DTLS path.
+CVE-2026-33846
+# CVE-2026-3833 — gnutls (HIGH): policy bypass, case-sensitive nameConstraints
+# comparison. Cert-validation correctness bug, not RCE; gnutls unused for our TLS.
+CVE-2026-3833
+# CVE-2026-42009 — gnutls (HIGH): DoS via DTLS packet reordering. DoS, no DTLS.
+CVE-2026-42009
+# CVE-2026-42011 — gnutls (HIGH): security bypass via incorrect name-constraint
+# handling. Not RCE; gnutls unused for our TLS.
+CVE-2026-42011
+# CVE-2026-29111 — systemd/libsystemd0+libudev1 (HIGH): "arbitrary code execution
+# or DoS via spurious IPC". The code-exec path requires the systemd manager
+# processing crafted IPC; this image runs no systemd init and no D-Bus, so the
+# attack surface is absent — libsystemd0/libudev1 are linked libraries only.
+CVE-2026-29111
+# CVE-2026-4878 — libcap2 (HIGH): local privilege escalation via TOCTOU race in
+# cap_set_file(). Requires an already-present local unprivileged attacker inside
+# the container; no remote vector.
+CVE-2026-4878
+
+# ──────────────── Bundled dependency: gosu Go stdlib (gobinary) ───────────────
+# gosu is a setuid step-down wrapper: it drops root and exec()s Postgres. It
+# opens no sockets, makes no TLS connection, and parses no URLs, archives, or
+# mail — so every one of these stdlib CVEs sits in unreachable code. Identical
+# across all base variants; fixable only by an upstream gosu rebuild on a patched
+# Go toolchain. Same class as the neo4j netty waiver.
+
+# CVE-2025-68121 — crypto/tls (CRITICAL): incorrect cert validation on TLS
+# session resumption. gosu makes no TLS connections.
+CVE-2025-68121
+# CVE-2025-58183 — archive/tar (HIGH): unbounded allocation parsing GNU sparse map.
+CVE-2025-58183
+# CVE-2025-61726 — net/url (HIGH): memory exhaustion in query-parameter parsing.
+CVE-2025-61726
+# CVE-2025-61728 — archive/zip (HIGH): excessive CPU building archive index.
+CVE-2025-61728
+# CVE-2025-61729 — crypto/x509 (HIGH): DoS via crafted certificate.
+CVE-2025-61729
+# CVE-2026-25679 — net/url (HIGH): incorrect IPv6 host-literal parsing.
+CVE-2026-25679
+# CVE-2026-32280 — crypto/x509 (HIGH): DoS in certificate-chain building.
+CVE-2026-32280
+# CVE-2026-32281 — crypto/x509 (HIGH): DoS via inefficient chain validation.
+CVE-2026-32281
+# CVE-2026-32283 — crypto/tls (HIGH): DoS via multiple TLS 1.3 key updates.
+CVE-2026-32283
+# CVE-2026-33811 — net (HIGH): long CNAME via cgo DNS resolver (LookupCNAME).
+CVE-2026-33811
+# CVE-2026-33814 — net/http2 (HIGH): infinite loop on crafted SETTINGS frames.
+CVE-2026-33814
+# CVE-2026-39820 — net/mail (HIGH): crafted input to ParseAddress / ParseAddressList.
+CVE-2026-39820
+# CVE-2026-39836 — net (HIGH): panic in Dial/LookupPort on NUL byte (Windows).
+CVE-2026-39836
+# CVE-2026-42499 — net/mail (HIGH): DoS via consumePhrase on pathological input.
+CVE-2026-42499

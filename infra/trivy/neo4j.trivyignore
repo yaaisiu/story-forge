@@ -21,6 +21,9 @@
 #     file the moment a Neo4j 5.26.x patch ships that bundle; re-scan should pass
 #     clean with no waiver.
 #
+# All waivers across images are also indexed in infra/trivy/WAIVERS.md (the
+# review register: fixed-in versions + drop conditions, checked periodically).
+#
 # Revisit: each Neo4j patch bump (next time the image tag is updated).
 
 # CVE-2026-42583 — netty-codec (Lz4FrameDecoder): a stream of small LZ4 frames
