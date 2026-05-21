@@ -80,3 +80,29 @@ parsing — all of these sit in unreachable code. Same class as the netty waiver
 | CVE-2026-39820 | HIGH | net/mail | 1.25.10 / 1.26.3 |
 | CVE-2026-39836 | HIGH | net (Dial/LookupPort, Windows) | 1.25.10 / 1.26.3 |
 | CVE-2026-42499 | HIGH | net/mail | 1.25.10 / 1.26.3 |
+
+## ollama — `ollama/ollama:0.24.0` (scanned upstream; consumed via `infra/ollama/` wrapper)
+
+Scoped file: `infra/trivy/ollama.trivyignore` · Issue #4 · added 2026-05-21.
+Class: **compiled-in** Go stdlib + `buger/jsonparser` in the ollama server binary
+— no ollama tag fixes them, only an upstream rebuild on a patched Go toolchain.
+Bumped 0.22.1 → 0.24.0 to minimise residual (dropped the CRITICAL + 6 others).
+12 HIGH, 0 CRITICAL. Reachability: ollama is 127.0.0.1-bound, single trusted
+user, backend is the only client; CVEs are mostly DoS (self-inflicted only) plus
+two outbound-TLS cert-validation issues (need MITM). **Drop when** upstream
+rebuilds ollama on patched Go.
+
+| CVE | Pkg | Sev | Class | Fixed in | Why not reachable here |
+|---|---|---|---|---|---|
+| CVE-2026-32285 | buger/jsonparser | HIGH | DoS (crafted JSON) | jsonparser 1.1.2 | JSON from trusted local backend only |
+| CVE-2026-25679 | net/url | HIGH | IPv6 host-literal parsing | Go 1.25.8 / 1.26.1 | parsing DoS; trusted caller |
+| CVE-2026-27137 | crypto/x509 | HIGH | email-constraint enforcement | Go 1.26.1 | cert-validation correctness, not RCE; outbound TLS only |
+| CVE-2026-32280 | crypto/x509 | HIGH | DoS (chain building) | Go 1.25.9 / 1.26.2 | DoS; outbound TLS only |
+| CVE-2026-32281 | crypto/x509 | HIGH | DoS (chain validation) | Go 1.25.9 / 1.26.2 | DoS; outbound TLS only |
+| CVE-2026-32283 | crypto/tls | HIGH | DoS (TLS 1.3 key updates) | Go 1.25.9 / 1.26.2 | DoS; trusted peer |
+| CVE-2026-33810 | crypto/x509 | HIGH | cert-validation issue | Go 1.26.2 | correctness; outbound TLS, needs MITM |
+| CVE-2026-33811 | net (cgo resolver) | HIGH | DoS (long CNAME) | Go 1.25.10 / 1.26.3 | DoS; trusted DNS |
+| CVE-2026-33814 | net/http2 | HIGH | DoS (SETTINGS infinite loop) | Go 1.25.10 / 1.26.3 | DoS; only our backend connects |
+| CVE-2026-39820 | net/mail | HIGH | DoS (ParseAddress) | Go 1.25.10 / 1.26.3 | ollama parses no mail; effectively unreachable |
+| CVE-2026-39836 | net | HIGH | panic (NUL in Dial, Windows) | Go 1.25.10 / 1.26.3 | Linux container; Windows-specific |
+| CVE-2026-42499 | net/mail | HIGH | DoS (consumePhrase) | Go 1.25.10 / 1.26.3 | ollama parses no mail; effectively unreachable |
