@@ -23,21 +23,10 @@ from alembic import command
 from alembic.config import Config
 from sqlalchemy.engine import make_url
 
+from story_forge.adapters.db import libpq_kwargs
 from story_forge.config import settings
 
 _BACKEND_DIR = Path(__file__).resolve().parent.parent
-
-
-def _libpq_kwargs(sqlalchemy_url: str) -> dict[str, object]:
-    """Translate a `postgresql+psycopg://…` URL into psycopg connect kwargs."""
-    url = make_url(sqlalchemy_url)
-    return {
-        "host": url.host,
-        "port": url.port,
-        "user": url.username,
-        "password": url.password,
-        "dbname": url.database,
-    }
 
 
 def _assert_disposable_test_db(test_db_name: object) -> None:
@@ -81,7 +70,7 @@ def alembic_cfg() -> Config:
 @pytest.fixture(scope="session")
 def _migrated_test_db() -> Iterator[None]:
     """Create the test DB, migrate it to head, drop it when the session ends."""
-    params = _libpq_kwargs(settings.test_database_url)
+    params = libpq_kwargs(settings.test_database_url)
     test_db_name = params["dbname"]
     _assert_disposable_test_db(test_db_name)
     admin_params = {**params, "dbname": "postgres"}
@@ -110,7 +99,7 @@ async def db_conn(_migrated_test_db: None) -> AsyncIterator[psycopg.AsyncConnect
     Each test runs inside a transaction that is rolled back on teardown, so tests
     stay isolated without re-creating the schema between them.
     """
-    params = _libpq_kwargs(settings.test_database_url)
+    params = libpq_kwargs(settings.test_database_url)
     conn = await psycopg.AsyncConnection.connect(autocommit=False, **params)  # type: ignore[arg-type]
     try:
         yield conn
