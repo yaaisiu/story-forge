@@ -54,7 +54,7 @@ If a directory's `CLAUDE.md` contradicts this root file, the more specific (dire
 
 These are enforced by CI and pre-commit hooks, but you must respect them when writing code:
 
-- Every dependency pinned to an exact version, **minimum 14 days old at time of pin**. No exceptions without explicit conversation. Same rule applies to Docker image tags in `docker-compose.yml` — pinned, ≥14 days old, CVE-scanned (Trivy).
+- Every dependency (`pyproject.toml` / `package.json`) pinned to an exact version, **minimum 14 days old at time of pin**. No exceptions without explicit conversation. Docker image tags in `docker-compose.yml` follow a parallel rule with a **shorter 7-day soak** — pinned exact tag, ≥7 days old, CVE-scanned (Trivy), because official base images are signed/vendored and freshness reduces CVE exposure (rationale in spec §6.7). Use the `/pin-image` skill for image pins; `/add-dependency` for packages.
 - No secrets in code. Only `.env.example`. `.env` is gitignored.
 - **Claude never reads, creates, or edits `.env` / `backend/.env`.** Secret material is user-managed; the agent only ever touches `.env.example` templates and hands the user commands to run themselves. (Enforced deterministically by `deny` rules in `.claude/settings.json`, not just convention.)
 - `.env.example` placeholders must be **non-functional** (e.g. `USE_ROOT_POSTGRES_PASSWORD`, `replace-me-with-openssl-rand-hex-24`) — never real or working default credentials, even for `127.0.0.1`-bound local services.
