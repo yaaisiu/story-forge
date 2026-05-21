@@ -8,6 +8,8 @@ tolerant of unrelated keys leaking in via process env without crashing.
 
 from __future__ import annotations
 
+from pathlib import Path
+
 from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
@@ -51,6 +53,16 @@ class Settings(BaseSettings):
     openai_api_key: str = ""
     xai_api_key: str = ""
     openrouter_api_key: str = ""
+
+    # --- Uploads ---
+    upload_dir: Path = Field(
+        default=Path("var/uploads"),
+        description=(
+            "Sandbox directory for original uploaded files (spec §6.7). Resolved "
+            "relative to the process working directory; created on first upload "
+            "with no-exec permissions. Stored outside the package, gitignored."
+        ),
+    )
 
     # --- Backend behaviour ---
     log_level: str = "INFO"

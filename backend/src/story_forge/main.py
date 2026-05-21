@@ -5,6 +5,7 @@ from __future__ import annotations
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
+from story_forge.api import stories
 from story_forge.config import settings
 
 app = FastAPI(
@@ -20,6 +21,9 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
+app.include_router(stories.router)
 
 
 @app.get("/health")
