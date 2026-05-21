@@ -22,6 +22,13 @@ This directory holds the Python FastAPI backend.
 - Agent tests with mocked `LLMProvider`: `tests/unit/agents/`
 - E2E: `tests/e2e/`
 
+**Secret-keyword values in tests:** when a test needs a credential-like value (a
+password, API key, token — e.g. asserting on a parsed DB URL), bind it to a local
+variable rather than writing the literal next to the keyword (`password="…"`,
+`api_key="…"`). `detect-secrets` flags the literal form and blocks the commit. Binding
+to a variable sidesteps it cleanly — prefer that over editing `.secrets.baseline` or
+adding an inline `# pragma: allowlist secret`.
+
 ## Running tests
 
 Two tiers, separated by the `integration` pytest marker (registered in `pyproject.toml`):

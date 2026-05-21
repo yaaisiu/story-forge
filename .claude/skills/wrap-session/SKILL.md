@@ -1,6 +1,6 @@
 ---
 name: wrap-session
-description: End-of-session ritual for Story Forge. Runs the green-state checks (report-only), prompts the process retrospective (/retro) early so its outcomes are captured, updates PLAN_SHORT.md (check off tasks, strike obsolete ones, append a dated Done line, refresh Blocked/Decided), rewrites the Session handoff block to point at the next session, checks spec/plan consistency, and reminds you to commit with portfolio hygiene. Run near the end of every working conversation. Pairs with /resume-session, which reads the handoff block this writes.
+description: End-of-session ritual for Story Forge. Run AFTER the feature work is committed/PR'd/merged (it closes out the plan, not the feature). Runs the green-state checks (report-only), prompts the process retrospective (/retro) early so its outcomes are captured, updates PLAN_SHORT.md (check off tasks, strike obsolete ones, append a dated Done line, refresh Blocked/Decided), rewrites the Session handoff block to point at the next session, checks spec/plan consistency, and commits its own bookkeeping as a docs: close Session N change. Run near the end of every working conversation. Pairs with /resume-session, which reads the handoff block this writes.
 ---
 
 # Wrap a Story Forge session
@@ -13,6 +13,21 @@ delimited by `<!-- ── HANDOFF ── -->` / `<!-- ── END HANDOFF ── 
 block's shape stable so the pair keeps working without extra glue.
 
 Work through the steps in order.
+
+## 0. Preflight — the feature should already be merged
+
+`/wrap-session` closes out the **plan**, not the feature work. The usual order is:
+commit the implementation on a feature branch → push → open a PR → await **CI + Codex
+review** → fold review fixes + your own review → **squash-merge to `main`** → *then* run
+`/wrap-session`. This skill produces the separate **`docs: close Session N`** bookkeeping
+commit; it does **not** replace the feature PR.
+
+So before wrapping, confirm the session's implementation is committed and (normally)
+merged. If it isn't, **stop and do that first** — wrapping over uncommitted feature work
+forces a stale Done line and a second wrap pass. The green-state checks below then run
+against the merged result. This default is skippable in whole or part **by explicit
+agreement** (e.g. a docs-only session with nothing to PR, or deliberately bundling the
+plan bookkeeping into the feature branch) — surface the order, don't enforce it blindly.
 
 ## 1. Run the green-state checks (report-only)
 
@@ -86,13 +101,16 @@ session. Fill every field literally:
 - **Last session ended:** today's date + one line on where you stopped (note any red checks).
 - **Open blocks/questions:** point to the Blocked/questions section or restate the decision the next session must make first.
 
-## 8. Remind about commit hygiene
+## 8. Commit the wrap's own output
 
-Story Forge keeps `main` clean (squash-merge per feature, curated messages — see root
-`CLAUDE.md`). Remind the user to commit this session's work on a feature branch with a
-message a stranger could read, ready for squash-merge — this covers any changes the
-retrospective produced too. **Commit only when the user asks** — do not auto-commit. Offer
-the `commit` / `commit-push-pr` skills if useful.
+By the preflight, the *feature* is already merged — what's uncommitted now is **this
+wrap's bookkeeping**: the `PLAN_SHORT.md` edits, the rewritten handoff, and anything the
+retrospective produced (skill / `CLAUDE.md` changes). Story Forge keeps `main` clean
+(squash-merge, curated messages — see root `CLAUDE.md`), so land these on a short
+governance branch and squash-merge as a **`docs: close Session N`** commit (bundling the
+retro changes is fine — see how `#7` closed the prior session). A docs/governance-only
+change still goes via PR so CI runs. **Commit only when the user asks** — do not
+auto-commit. Offer the `commit` / `commit-push-pr` skills if useful.
 
 ## 9. Report
 
