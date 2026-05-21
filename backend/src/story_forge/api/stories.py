@@ -59,7 +59,8 @@ async def upload_story(
     suffix = Path(file.filename or "").suffix.lower()
     if suffix not in _ALLOWED_TYPES:
         raise HTTPException(status_code=415, detail=f"unsupported file type: {suffix or 'none'!r}")
-    declared = (file.content_type or "").lower()
+    # Strip any parameters (e.g. "text/plain; charset=utf-8") before matching.
+    declared = (file.content_type or "").split(";")[0].strip().lower()
     if declared not in _GENERIC_TYPES and declared not in _ALLOWED_TYPES[suffix]:
         raise HTTPException(
             status_code=415, detail=f"content type {declared!r} does not match {suffix}"

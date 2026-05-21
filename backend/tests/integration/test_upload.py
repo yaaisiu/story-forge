@@ -138,6 +138,15 @@ async def test_rejects_mismatched_content_type(client: AsyncClient) -> None:
     assert resp.status_code == 415
 
 
+async def test_accepts_content_type_with_charset_parameter(client: AsyncClient) -> None:
+    # Browsers send e.g. "text/plain; charset=utf-8"; the parameter must not 415 it.
+    resp = await client.post(
+        "/stories/upload",
+        files={"file": ("story.txt", _EN_TEXT.encode("utf-8"), "text/plain; charset=utf-8")},
+    )
+    assert resp.status_code == 201, resp.text
+
+
 async def test_rejects_oversize_file(client: AsyncClient, monkeypatch: pytest.MonkeyPatch) -> None:
     from story_forge.api import stories
 

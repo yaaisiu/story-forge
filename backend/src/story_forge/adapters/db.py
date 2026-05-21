@@ -21,15 +21,22 @@ from story_forge.config import settings
 
 
 def libpq_kwargs(sqlalchemy_url: str) -> dict[str, object]:
-    """Translate a `postgresql+psycopg://…` SQLAlchemy URL into psycopg kwargs."""
+    """Translate a `postgresql+psycopg://…` SQLAlchemy URL into psycopg kwargs.
+
+    Query-string options (`sslmode`, `connect_timeout`, `target_session_attrs`, …)
+    are preserved — managed Postgres commonly requires them, and dropping them
+    silently would break a valid `DATABASE_URL`.
+    """
     url = make_url(sqlalchemy_url)
-    return {
+    kwargs: dict[str, object] = {
         "host": url.host,
         "port": url.port,
         "user": url.username,
         "password": url.password,
         "dbname": url.database,
     }
+    kwargs.update(url.query)
+    return kwargs
 
 
 async def get_connection() -> AsyncIterator[AsyncConnection]:
