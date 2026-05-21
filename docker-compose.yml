@@ -5,12 +5,16 @@
 #   - All services run on a private bridge network; no `network_mode: host`.
 #   - `no-new-privileges` is enforced on every container.
 #   - Image tags are pinned to specific patches:
-#       * neo4j:5.26.25-community-trixie — 5.26 is Neo4j's LTS line; patch .25
+#       * neo4j:5.26.25-community-ubi10 — 5.26 is Neo4j's LTS line; patch .25
 #         was first cut weeks before this pin (Docker Hub's `last_updated` of
 #         2026-05-08 reflects a base-OS rebuild, not first publication). The
-#         `-bullseye` variant was dropped at .25 (last bullseye is 5.26.24), so
-#         we pin the Debian-13 `-trixie` variant — same toolset (wget/bash/
-#         cypher-shell), newer base OS. (Issue #2.)
+#         `-bullseye` variant was dropped at .25 (last bullseye is 5.26.24).
+#         We pin the Red Hat UBI-10 variant over `-trixie`: Trivy shows the
+#         Debian-13 base carrying 14 HIGH/CRITICAL OS-package CVEs (incl. 2
+#         CRITICAL gnutls), while UBI-10 shows 0 — Red Hat ships the patched
+#         packages. Both variants still carry 3 HIGH netty CVEs bundled by
+#         Neo4j itself (no base variant can fix those); those are waived with
+#         justification in infra/trivy/neo4j.trivyignore. (Issue #2.)
 #       * pgvector/pgvector:0.8.1-pg17-bookworm — last_updated 2026-02-13.
 #       * ollama/ollama:0.22.1 (consumed via the wrapper in infra/ollama/) —
 #         released 2026-04-28, 21 days old at time of pin.
@@ -36,7 +40,7 @@ services:
   # Neo4j Community — knowledge graph
   # -------------------------------------------------------------------------
   neo4j:
-    image: neo4j:5.26.25-community-trixie
+    image: neo4j:5.26.25-community-ubi10
     container_name: storyforge-neo4j
     restart: unless-stopped
     networks: [storyforge_net]
@@ -55,7 +59,7 @@ services:
     security_opt:
       - no-new-privileges:true
     healthcheck:
-      # The trixie image ships wget; HTTP 7474 returning 200 is "Neo4j is up".
+      # The ubi10 image ships wget; HTTP 7474 returning 200 is "Neo4j is up".
       test: ["CMD-SHELL", "wget --quiet --tries=1 --spider http://localhost:7474/ || exit 1"]
       interval: 10s
       timeout: 5s
@@ -68,7 +72,7 @@ services:
   # init.cypher uses IF NOT EXISTS so re-runs are idempotent.
   # -------------------------------------------------------------------------
   neo4j-init:
-    image: neo4j:5.26.25-community-trixie
+    image: neo4j:5.26.25-community-ubi10
     container_name: storyforge-neo4j-init
     networks: [storyforge_net]
     depends_on:
