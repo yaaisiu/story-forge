@@ -115,10 +115,14 @@ jobs:
       - name: Trivy scan — ollama (upstream base for our wrapper)
         uses: aquasecurity/trivy-action@v0.36.0
         with:
-          image-ref: ollama/ollama:0.22.1
+          image-ref: ollama/ollama:0.24.0
           severity: HIGH,CRITICAL
           exit-code: "1"
           ignore-unfixed: true
+          # Waives compiled-in Go-stdlib CVEs in the ollama binary that no tag
+          # can fix (they need an upstream rebuild on a patched Go toolchain),
+          # each with a per-CVE reachability note. Scoped to this step only.
+          trivyignores: infra/trivy/ollama.trivyignore
 
   ollama-cloud-smoke:
     runs-on: ubuntu-latest

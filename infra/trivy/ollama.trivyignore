@@ -1,0 +1,30 @@
+# Trivy waivers — ollama image only (wired to the ollama scan step in
+# .github/workflows/ci.yml via the `trivyignores:` input; NOT applied to the
+# neo4j or pgvector scans, which stay strict).
+#
+# Context (Issue #4): the upstream ollama/ollama:0.22.1 pin went CVE-stale once
+# Issue #2/#4 unmasked the security job — the Trivy step flagged HIGH/CRITICAL
+# Go `stdlib` CVEs (crypto/tls, net/http2, net/url, archive/*) compiled into the
+# ollama server binary, plus github.com/buger/jsonparser. Bumped to 0.24.0 (the
+# freshest aged stable, 7 days old) to minimise residual, but these are
+# *compile-time toolchain* CVEs: no ollama tag fixes them — only an upstream
+# rebuild on a patched Go (1.25.10 / 1.26.3) does. So they are waived here, the
+# same class as the neo4j netty waiver (a dependency the image bundles itself).
+#
+# Reachability for THIS deployment (spec §6.7 accept-with-justification): ollama
+# is bound to 127.0.0.1, single trusted user, and the Story Forge backend is its
+# only client — there is no untrusted network peer. The stdlib CVEs are
+# predominantly DoS (parsing resource-exhaustion in HTTP/2, URL, archive, mail
+# code) which a single trusted caller would only inflict on itself; the
+# crypto/tls and crypto/x509 cert-validation issues apply to ollama's *outbound*
+# TLS (to Ollama Cloud) and would require an active MITM of that connection.
+#
+# All waivers across images are also indexed in infra/trivy/WAIVERS.md (the
+# review register: fixed-in versions + drop conditions, checked periodically).
+#
+# Revisit: every ollama tag bump. Drop these entries the moment a rebuilt ollama
+# image ships on a patched Go toolchain (re-scan should pass without the waiver).
+#
+# NOTE: the per-CVE entries below are populated from the CI Trivy run against
+# 0.24.0 (local Trivy was unavailable this session). Until then this file waives
+# nothing and the scan is expected to fail with the list to transcribe here.

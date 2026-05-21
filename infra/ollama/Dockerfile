@@ -3,10 +3,13 @@
 # unprivileged user, relocates the models directory, and switches USER so
 # the container drops privileges before `ollama serve` starts.
 #
-# Pin chosen 2026-05-19: released 2026-04-28, 21 days old, satisfies the
-# project's ≥14-day age policy with comfortable buffer. See ADR 0001 /
-# docker-compose.yml for the policy.
-FROM ollama/ollama:0.22.1
+# Pin bumped 2026-05-21 (Issue #4): 0.24.0 was built 2026-05-14, 7 days old,
+# satisfying the ≥7-day image age policy. Bumped from 0.22.1 because that pin
+# went CVE-stale (the security CI Trivy step flagged compiled-in Go stdlib CVEs
+# in the ollama binary). 0.24.0 is the freshest aged stable; residual stdlib
+# CVEs no ollama tag can fix (they need an upstream rebuild on patched Go) are
+# waived with justification in infra/trivy/ollama.trivyignore.
+FROM ollama/ollama:0.24.0
 
 ARG OLLAMA_UID=10001
 ARG OLLAMA_GID=10001

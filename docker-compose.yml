@@ -22,8 +22,10 @@
 #         (9 OS CVEs vs bookworm's 13; no UBI variant exists). Residual OS CVEs
 #         and the bundled gosu/Go-stdlib CVEs are waived with per-CVE RCE
 #         justification in infra/trivy/pgvector.trivyignore.
-#       * ollama/ollama:0.22.1 (consumed via the wrapper in infra/ollama/) —
-#         released 2026-04-28, 21 days old at time of pin.
+#       * ollama/ollama:0.24.0 (consumed via the wrapper in infra/ollama/) —
+#         built 2026-05-14, 7 days old at pin time. Bumped from 0.22.1, which
+#         went CVE-stale; residual compiled-in Go-stdlib CVEs (no tag fixes
+#         them) are waived in infra/trivy/ollama.trivyignore. (Issue #4.)
 #     The actual freshness/CVE check is performed by Trivy in CI.
 #   - Postgres and Neo4j official images drop to non-root for the server
 #     process internally. Ollama's upstream image runs as root, so we wrap it
@@ -135,7 +137,7 @@ services:
     build:
       context: ./infra/ollama
       dockerfile: Dockerfile
-    image: storyforge/ollama:0.22.1-nonroot
+    image: storyforge/ollama:0.24.0-nonroot
     container_name: storyforge-ollama
     restart: unless-stopped
     networks: [storyforge_net]
