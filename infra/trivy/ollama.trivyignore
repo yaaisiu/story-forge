@@ -1,0 +1,67 @@
+# Trivy waivers — ollama image only (wired to the ollama scan step in
+# .github/workflows/ci.yml via the `trivyignores:` input; NOT applied to the
+# neo4j or pgvector scans, which stay strict).
+#
+# Context (Issue #4): the upstream ollama/ollama:0.22.1 pin went CVE-stale once
+# Issue #2/#4 unmasked the security job — the Trivy step flagged HIGH/CRITICAL
+# Go `stdlib` CVEs (crypto/tls, net/http2, net/url, archive/*) compiled into the
+# ollama server binary, plus github.com/buger/jsonparser. Bumped to 0.24.0 (the
+# freshest aged stable, 7 days old) to minimise residual, but these are
+# *compile-time toolchain* CVEs: no ollama tag fixes them — only an upstream
+# rebuild on a patched Go (1.25.10 / 1.26.3) does. So they are waived here, the
+# same class as the neo4j netty waiver (a dependency the image bundles itself).
+#
+# Reachability for THIS deployment (spec §6.7 accept-with-justification): ollama
+# is bound to 127.0.0.1, single trusted user, and the Story Forge backend is its
+# only client — there is no untrusted network peer. The stdlib CVEs are
+# predominantly DoS (parsing resource-exhaustion in HTTP/2, URL, archive, mail
+# code) which a single trusted caller would only inflict on itself; the
+# crypto/tls and crypto/x509 cert-validation issues apply to ollama's *outbound*
+# TLS (to Ollama Cloud) and would require an active MITM of that connection.
+#
+# All waivers across images are also indexed in infra/trivy/WAIVERS.md (the
+# review register: fixed-in versions + drop conditions, checked periodically).
+#
+# Revisit: every ollama tag bump. Drop these entries the moment a rebuilt ollama
+# image ships on a patched Go toolchain (re-scan should pass without the waiver).
+#
+# The 0.24.0 set (12 HIGH, 0 CRITICAL) was enumerated by the CI Trivy run on
+# commit 282e3da (local Trivy was unavailable this session). The bump from
+# 0.22.1 already dropped the CRITICAL crypto/tls resumption CVE and 6 others.
+
+# ─────────────── Bundled dependency: github.com/buger/jsonparser ───────────────
+# CVE-2026-32285 — DoS via crafted JSON triggering a panic / unbounded work in
+# the parser. Fixed in jsonparser 1.1.2. Reached only by JSON the trusted local
+# backend sends to ollama; a single trusted caller would only affect itself.
+CVE-2026-32285
+
+# ──────────────────── Bundled: Go stdlib (ollama binary) ───────────────────────
+# Compiled into the ollama server binary; fixable only by an upstream rebuild on
+# a patched Go toolchain (versions noted per CVE). Predominantly DoS in parsing
+# code a single trusted localhost caller would only inflict on itself; the two
+# crypto/x509 cert-validation issues affect ollama's *outbound* TLS and need an
+# active MITM to exploit.
+
+# CVE-2026-25679 — net/url: incorrect IPv6 host-literal parsing. Fixed Go 1.25.8 / 1.26.1.
+CVE-2026-25679
+# CVE-2026-27137 — crypto/x509: incorrect enforcement of email constraints in cert
+# validation (validation-correctness, not RCE). Fixed Go 1.26.1.
+CVE-2026-27137
+# CVE-2026-32280 — crypto/x509: DoS in certificate-chain building. Fixed Go 1.25.9 / 1.26.2.
+CVE-2026-32280
+# CVE-2026-32281 — crypto/x509: DoS via inefficient chain validation. Fixed Go 1.25.9 / 1.26.2.
+CVE-2026-32281
+# CVE-2026-32283 — crypto/tls: DoS via multiple TLS 1.3 key updates. Fixed Go 1.25.9 / 1.26.2.
+CVE-2026-32283
+# CVE-2026-33810 — crypto/x509: certificate-validation issue (correctness). Fixed Go 1.26.2.
+CVE-2026-33810
+# CVE-2026-33811 — net (cgo resolver): DoS via very long CNAME in LookupCNAME. Fixed Go 1.25.10 / 1.26.3.
+CVE-2026-33811
+# CVE-2026-33814 — net/http2: infinite loop on crafted SETTINGS frames (DoS). Fixed Go 1.25.10 / 1.26.3.
+CVE-2026-33814
+# CVE-2026-39820 — net/mail: DoS via crafted ParseAddress / ParseAddressList input. Fixed Go 1.25.10 / 1.26.3.
+CVE-2026-39820
+# CVE-2026-39836 — net: panic in Dial / LookupPort on NUL byte (Windows). Fixed Go 1.25.10 / 1.26.3.
+CVE-2026-39836
+# CVE-2026-42499 — net/mail: DoS via consumePhrase on pathological input. Fixed Go 1.25.10 / 1.26.3.
+CVE-2026-42499

@@ -15,9 +15,17 @@
 #         packages. Both variants still carry 3 HIGH netty CVEs bundled by
 #         Neo4j itself (no base variant can fix those); those are waived with
 #         justification in infra/trivy/neo4j.trivyignore. (Issue #2.)
-#       * pgvector/pgvector:0.8.1-pg17-bookworm — last_updated 2026-02-13.
-#       * ollama/ollama:0.22.1 (consumed via the wrapper in infra/ollama/) —
-#         released 2026-04-28, 21 days old at time of pin.
+#       * pgvector/pgvector:0.8.2-pg17-trixie — CVE-fix release over 0.8.1;
+#         all pgvector tags were rebuilt 2026-05-15 (6 days old at pin time, a
+#         §6.7 age-bend taken by explicit decision for a CVE-fix release — see
+#         Issue #4). trixie (Debian 13.4) is the cleanest base pgvector ships
+#         (9 OS CVEs vs bookworm's 13; no UBI variant exists). Residual OS CVEs
+#         and the bundled gosu/Go-stdlib CVEs are waived with per-CVE RCE
+#         justification in infra/trivy/pgvector.trivyignore.
+#       * ollama/ollama:0.24.0 (consumed via the wrapper in infra/ollama/) —
+#         built 2026-05-14, 7 days old at pin time. Bumped from 0.22.1, which
+#         went CVE-stale; residual compiled-in Go-stdlib CVEs (no tag fixes
+#         them) are waived in infra/trivy/ollama.trivyignore. (Issue #4.)
 #     The actual freshness/CVE check is performed by Trivy in CI.
 #   - Postgres and Neo4j official images drop to non-root for the server
 #     process internally. Ollama's upstream image runs as root, so we wrap it
@@ -99,7 +107,7 @@ services:
   # Postgres + pgvector — relational store for document tree, edit_history, embeddings
   # -------------------------------------------------------------------------
   postgres:
-    image: pgvector/pgvector:0.8.1-pg17-bookworm
+    image: pgvector/pgvector:0.8.2-pg17-trixie
     container_name: storyforge-postgres
     restart: unless-stopped
     networks: [storyforge_net]
@@ -129,7 +137,7 @@ services:
     build:
       context: ./infra/ollama
       dockerfile: Dockerfile
-    image: storyforge/ollama:0.22.1-nonroot
+    image: storyforge/ollama:0.24.0-nonroot
     container_name: storyforge-ollama
     restart: unless-stopped
     networks: [storyforge_net]
