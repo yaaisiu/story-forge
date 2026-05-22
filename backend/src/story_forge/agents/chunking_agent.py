@@ -14,7 +14,7 @@ database identities (those are assigned when the outline is persisted).
 
 from __future__ import annotations
 
-from pydantic import BaseModel, ValidationError
+from pydantic import BaseModel, ValidationError, field_validator
 
 from story_forge.adapters.llm.base import LLMProvider, ModelTier
 from story_forge.prompts import PromptNotFound, render_messages
@@ -28,6 +28,17 @@ class SceneProposal(BaseModel):
     title: str | None = None
     summary: str
     paragraph_range: tuple[int, int]  # [start_index, end_index], paragraphs 0-based
+
+    @field_validator("paragraph_range")
+    @classmethod
+    def _ordered_and_non_negative(cls, value: tuple[int, int]) -> tuple[int, int]:
+        # Reject malformed ranges so they trigger a retry rather than passing as a
+        # successful outline. The upper bound (end < paragraph count) needs the
+        # document's paragraph count and is enforced at persistence (Session 4).
+        start, end = value
+        if start < 0 or end < start:
+            raise ValueError(f"paragraph_range must be ordered and non-negative, got {value}")
+        return value
 
 
 class ChapterProposal(BaseModel):
