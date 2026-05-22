@@ -10,6 +10,7 @@ from __future__ import annotations
 import json
 
 import httpx
+import pytest
 
 from story_forge.adapters.llm.base import Message
 from story_forge.adapters.llm.ollama import OllamaProvider
@@ -84,3 +85,18 @@ async def test_sends_bearer_token_for_cloud_free() -> None:
     await provider.complete([Message(role="user", content="hi")], "cloud_free")
 
     assert seen["auth"] == f"Bearer {cloud_key}"
+
+
+async def test_raises_on_http_error_status() -> None:
+    # A 5xx from Ollama surfaces as an HTTP error (the router handles failover
+    # later; the provider does not silently swallow it).
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(503, json={"error": "model loading"})
+
+    provider = OllamaProvider(
+        host="http://127.0.0.1:11434",
+        model="qwen3.5",
+        transport=httpx.MockTransport(handler),
+    )
+    with pytest.raises(httpx.HTTPStatusError):
+        await provider.complete([Message(role="user", content="hi")], "local_small")

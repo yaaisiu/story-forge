@@ -14,11 +14,10 @@ database identities (those are assigned when the outline is persisted).
 
 from __future__ import annotations
 
-from jinja2 import TemplateNotFound
 from pydantic import BaseModel, ValidationError
 
 from story_forge.adapters.llm.base import LLMProvider, ModelTier
-from story_forge.prompts import render_messages
+from story_forge.prompts import PromptNotFound, render_messages
 
 DEFAULT_LOCAL_MAX_WORDS = 4000
 
@@ -97,7 +96,7 @@ class ChunkingAgent:
             word_count = len(raw_text.split())
         try:
             messages = render_messages("chunking", language, raw_text=raw_text)
-        except TemplateNotFound as exc:
+        except PromptNotFound as exc:
             raise ChunkingError(f"no chunking prompt for language {language!r}") from exc
 
         tier = select_chunking_tier(
@@ -107,6 +106,10 @@ class ChunkingAgent:
         )
         schema = ChunkingProposal.model_json_schema()
 
+        # Retry covers parse/schema failures only — a sampling model can return
+        # valid JSON on a second pass. Network errors and rate limits are not
+        # retried here; cross-provider failover is the router's job (spec §6.5,
+        # later milestone), so a provider HTTP error propagates to the caller.
         last_error: ValidationError | None = None
         for _ in range(self._max_retries + 1):
             result = await self._provider.complete(messages, tier, schema)

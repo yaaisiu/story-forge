@@ -13,9 +13,18 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Literal
 
-from jinja2 import Environment, FileSystemLoader, StrictUndefined
+from jinja2 import Environment, FileSystemLoader, StrictUndefined, TemplateNotFound
 
 from story_forge.adapters.llm.base import Message
+
+
+class PromptNotFound(Exception):
+    """No prompt template exists for the requested name/language.
+
+    Wraps Jinja2's `TemplateNotFound` so callers (agents) depend on this layer's
+    error, not on the templating library — keeping jinja2 out of the agent layer.
+    """
+
 
 _PROMPTS_DIR = Path(__file__).parent
 
@@ -38,10 +47,12 @@ _ROLE_MARKERS: dict[str, Literal["system", "user", "assistant"]] = {
 def render_messages(name: str, language: str, /, **context: object) -> list[Message]:
     """Render `<name>.<language>.j2` into chat messages.
 
-    Raises `jinja2.TemplateNotFound` if no template exists for that language —
-    callers translate that into their own domain error.
+    Raises `PromptNotFound` if no template exists for that language.
     """
-    template = _env.get_template(f"{name}.{language}.j2")
+    try:
+        template = _env.get_template(f"{name}.{language}.j2")
+    except TemplateNotFound as exc:
+        raise PromptNotFound(f"no prompt template {name!r} for language {language!r}") from exc
     return _split_into_messages(template.render(**context))
 
 
