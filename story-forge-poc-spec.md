@@ -409,6 +409,8 @@ This section defines the most-demonstrated part of the architecture: how the sys
 
 **Hardware constraint:** development happens on a machine **without a discrete GPU** (or with 8GB VRAM at most). This is a non-negotiable input to the cascade design — we can't run a 70B local model. We can run a small local model (Qwen3.5 9B Q4_K_M class) for cheap tasks, and we need a remote tier for medium-weight tasks that doesn't burn paid tokens.
 
+On a **fully GPU-less host** the local_small tier is impractical (CPU-only 9B inference is too slow for interactive use), so agents that prefer local_small default to **cloud_free** until a GPU-backed local tier is configured. Because Local Small and Cloud Free both speak the Ollama API, this is a host/config flip in `OllamaProvider`, not a code-path change.
+
 **Three-tier model strategy:**
 
 | Tier | Use case | Provider(s) |
@@ -475,7 +477,7 @@ The agent catalog for V1:
 
 | Agent | Input | Output | Preferred tier |
 |-------|-------|--------|----------------|
-| `ChunkingAgent` | raw story text | hierarchical outline (chapters/scenes/paragraph ranges) | local_small |
+| `ChunkingAgent` | raw story text | hierarchical outline (chapters/scenes/paragraph ranges) | local_small (cloud_free when no local GPU) |
 | `PreNERAgent` | paragraph text | candidate spans (no LLM; spaCy) | n/a |
 | `ExtractionAgent` | paragraph + known entities + custom types | candidate entities + relations | cloud_free |
 | `MatchingAgent` | candidate + graph | Stage 1+2 decision (fuzzy + embedding; no LLM) | n/a |
@@ -531,7 +533,8 @@ This is the most important flow in V1. I'm spelling it out in detail so the deve
           ↓
 ┌──────────────────────────────────────────────────────────────────┐
 │ Step 2: Structure (auto/manual/hybrid — user choice)             │
-│ - If auto: ChunkingAgent (local_small) proposes hierarchy         │
+│ - If auto: ChunkingAgent (local_small, or cloud_free on a         │
+│   GPU-less host) proposes hierarchy                               │
 │ - UI shows proposed outline, user accepts/edits                  │
 │ - Save chapters/scenes/paragraphs to Postgres                    │
 └──────────────────────────────────────────────────────────────────┘

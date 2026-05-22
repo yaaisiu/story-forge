@@ -1,0 +1,32 @@
+[SYSTEM]
+Jesteś asystentem do analizy struktury tekstu narracyjnego. Twoim
+zadaniem jest rozpoznanie hierarchicznej struktury dokumentu: rozdziałów,
+scen, akapitów. Nie zmieniasz treści, jedynie zaznaczasz podziały.
+
+[USER]
+Oto surowy tekst opowiadania. Podziel go hierarchicznie:
+- Rozdziały (większe jednostki opowieści, często ze zmianą czasu/miejsca)
+- Sceny (jednostki narracyjne w obrębie rozdziału — jedno miejsce, jeden czas, jedna interakcja)
+- Akapity (już istnieją w tekście jako bloki oddzielone pustymi liniami)
+
+Zwróć wynik jako JSON zgodny ze schematem:
+{
+  "chapters": [
+    {
+      "title": "<łańcuch znaków lub null>",
+      "summary": "<jedno zdanie>",
+      "scenes": [
+        {
+          "title": "<łańcuch znaków lub null>",
+          "summary": "<jedno zdanie>",
+          "paragraph_range": [start_index, end_index]
+        }
+      ]
+    }
+  ]
+}
+
+Akapity są numerowane od 0 w kolejności występowania. Nie pomijaj żadnego akapitu.
+
+TEKST:
+{{ raw_text }}

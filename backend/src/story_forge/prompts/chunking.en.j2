@@ -1,0 +1,32 @@
+[SYSTEM]
+You are an assistant for analyzing the structure of narrative text. Your
+task is to identify the hierarchical structure of a document: chapters,
+scenes, paragraphs. You do not modify content, only mark divisions.
+
+[USER]
+Here is the raw text of a story. Split it hierarchically:
+- Chapters (larger story units, often with a shift of time/place)
+- Scenes (narrative units within a chapter — one place, one time, one interaction)
+- Paragraphs (already exist in the text as blocks separated by blank lines)
+
+Return the result as JSON matching the schema:
+{
+  "chapters": [
+    {
+      "title": "<string or null>",
+      "summary": "<one sentence>",
+      "scenes": [
+        {
+          "title": "<string or null>",
+          "summary": "<one sentence>",
+          "paragraph_range": [start_index, end_index]
+        }
+      ]
+    }
+  ]
+}
+
+Paragraphs are numbered from 0 in their order of occurrence. Skip no paragraph.
+
+TEXT:
+{{ raw_text }}
