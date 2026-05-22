@@ -78,7 +78,7 @@ This repo is public. Treat every commit as something a stranger might read:
 
 ### Merge flow
 
-Per feature (and at session close): feature branch → **open a PR so CI actually runs** (the only place the service-container / image-scan jobs execute) → await checks **and** code review (e.g. Codex) → **fold review notes into the branch before merging** (don't merge known-flagged code; document + track anything deliberately deferred) → **squash-merge** to `main` with a curated message. The session-close bookkeeping is its own `docs: close Session N` PR (see `/wrap-session`); the feature is merged before that wrap runs.
+Per feature (and at session close): feature branch → **open a PR so CI actually runs** (the only place the service-container / image-scan jobs execute) → await checks **and** code review — your own (run **`/review-pr`**, the Story Forge review skill) plus external (e.g. Codex); they are complementary, not redundant → **fold review notes into the branch before merging** (don't merge known-flagged code; document + track anything deliberately deferred) → **squash-merge** to `main` with a curated message. The session-close bookkeeping is its own `docs: close Session N` PR (see `/wrap-session`); the feature is merged before that wrap runs.
 
 - **Green-main bar.** Don't merge on red CI. The one exception: a failure that is *pre-existing, unrelated to the PR, and diagnosed* — merge is allowed if that's stated explicitly and tracked.
 - **Split unrelated bugs out.** A pre-existing infra/bug discovery that isn't this PR's concern gets its own GitHub issue, not scope-creep. Small *incidental* fixes the PR already touches can ride along, disclosed in the commit body.
