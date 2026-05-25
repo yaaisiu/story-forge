@@ -31,6 +31,17 @@ _DOCX_SUFFIX = ".docx"
 _BLANK_LINE = re.compile(r"\n[ \t]*\n+")
 
 
+def split_paragraphs(text: str) -> list[str]:
+    """Split `text` into paragraph blocks on blank lines, stripped, empties dropped.
+
+    The one canonical blank-line rule, shared by the text parser and the chunker so
+    paragraph indexing matches end to end (`domain/chunking.py`, the agent's
+    `paragraph_range`). Assumes line endings are already normalised.
+    """
+    blocks = (block.strip() for block in _BLANK_LINE.split(text))
+    return [block for block in blocks if block]
+
+
 class ParseError(ValueError):
     """Raised for input the caller should reject (unknown format, corrupt file)."""
 
@@ -59,8 +70,7 @@ def _parse_text(data: bytes) -> ParsedDocument:
     except UnicodeDecodeError as exc:
         raise ParseError("file is not valid UTF-8 text") from exc
     raw_text = text.replace("\r\n", "\n").replace("\r", "\n")
-    paragraphs = [block.strip() for block in _BLANK_LINE.split(raw_text)]
-    return ParsedDocument(raw_text=raw_text, paragraphs=[p for p in paragraphs if p])
+    return ParsedDocument(raw_text=raw_text, paragraphs=split_paragraphs(raw_text))
 
 
 def _parse_docx(data: bytes) -> ParsedDocument:

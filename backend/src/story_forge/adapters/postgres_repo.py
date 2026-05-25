@@ -82,6 +82,24 @@ async def get_story(conn: AsyncConnection, story_id: UUID) -> Story | None:
         return await cur.fetchone()
 
 
+async def get_story_for_update(conn: AsyncConnection, story_id: UUID) -> Story | None:
+    """Locking variant of `get_story` — `SELECT ... FOR UPDATE`.
+
+    Serializes concurrent writers against the same story row for the rest of the
+    transaction. Used by the structure route to close a read-before-write race:
+    without the lock, two parallel POSTs can each observe an empty outline and
+    both insert a tree, producing duplicates. With it, the second request blocks
+    until the first commits, then re-reads the now-non-empty outline and 409s.
+    """
+    async with conn.cursor(row_factory=class_row(Story)) as cur:
+        await cur.execute(
+            "SELECT id, project_id, title, raw_text, ingested_at FROM stories "
+            "WHERE id = %s FOR UPDATE",
+            (story_id,),
+        )
+        return await cur.fetchone()
+
+
 # --- Chapter ---------------------------------------------------------------
 
 
