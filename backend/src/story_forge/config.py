@@ -56,8 +56,12 @@ class Settings(BaseSettings):
 
     # --- Chunking (ingest step 2, spec §6.5/§7) ---
     chunking_model: str = Field(
-        default="gpt-oss:120b-cloud",
-        description="Ollama model the ChunkingAgent calls (cloud_free default tier).",
+        default="gpt-oss:20b-cloud",
+        description=(
+            "Ollama model the ChunkingAgent calls (cloud_free default tier). The 20b "
+            "variant sits on Ollama Cloud's Low Usage tier (lighter quota than 120b) "
+            "and is plenty for chunking — a structural JSON task, not deep PL prose."
+        ),
     )
     chunking_local_max_words: int = Field(
         default=4000,

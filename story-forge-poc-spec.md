@@ -285,7 +285,7 @@ Critical constraint: the entity graph is the **factual anchor**. Rewriting MUST 
 | Relational DB | PostgreSQL | Document tree, edit_history, project metadata |
 | Vector store | pgvector (Postgres extension) | One less DB to maintain than a separate Chroma |
 | Local LLM (small) | Ollama, Qwen3.5 9B Q4_K_M | Fits 8GB VRAM (~6.96 GB at 32K ctx), strong multilingual including Polish, ~55 t/s on RTX 3070-class hardware |
-| LLM (medium, free) | Ollama Cloud (`gpt-oss:120b-cloud` or similar) | Free tier with 5h session / 7-day weekly limits, identical API to local Ollama, no local GPU needed |
+| LLM (medium, free) | Ollama Cloud (`gpt-oss:20b-cloud` for chunking, larger variants for heavier tasks) | Free tier with 5h session / 7-day weekly limits, identical API to local Ollama, no local GPU needed |
 | Cloud LLM (strong, paid) | Provider-agnostic (see §6.5) | Anthropic / OpenAI / Grok via individual adapters; OpenRouter as meta-provider for model variety and cost arbitrage |
 | Embeddings | sentence-transformers (local) | Multilingual PL/EN, no API costs |
 | NER baseline | spaCy `pl_core_news_lg` + `en_core_web_lg` | Pre-LLM filter, token savings |
@@ -416,7 +416,7 @@ On a **fully GPU-less host** the local_small tier is impractical (CPU-only 9B in
 | Tier | Use case | Provider(s) |
 |------|----------|-------------|
 | **Local small** | Chunking, summarization, pre-NER assist, simple JSON extraction | Ollama running Qwen3.5 9B Q4_K_M (or fallback Qwen3 8B, Phi-4 Mini) on dev machine |
-| **Cloud free / cheap** | Entity extraction batch passes, judge calls, draft suggestions | Ollama Cloud free tier (`gpt-oss:120b-cloud` and similar level-1 models) — identical Ollama API, no local GPU needed; bound by 5h session / 7-day weekly GPU-time quotas |
+| **Cloud free / cheap** | Entity extraction batch passes, judge calls, draft suggestions | Ollama Cloud free tier (`gpt-oss:20b-cloud` for structural / JSON tasks like chunking, `gpt-oss:120b-cloud` or Qwen3.5 cloud variants for heavier passes) — identical Ollama API, no local GPU needed; bound by 5h session / 7-day weekly GPU-time quotas |
 | **Cloud strong (paid)** | Heavy editing, full rewrites, style transfer, long-context work | Anthropic and OpenAI as primary; Grok (xAI) as alternative; OpenRouter as meta-provider for model variety and cost arbitrage |
 
 The Local Small and Cloud Free tiers BOTH speak the Ollama API. That's a deliberate architecture choice: one adapter (`OllamaProvider`) handles both, the only difference is the host URL and an optional API key. This drastically reduces the number of code paths.
@@ -646,7 +646,7 @@ This is the most important flow in V1. I'm spelling it out in detail so the deve
 ### Milestone 1 — Upload & structure (3-5 days)
 - Upload endpoint
 - Language detection, docx/md/txt parsing
-- ChunkingAgent: auto-chunking with local Ollama (Qwen3.5 9B Q4_K_M) for cheap cases, Ollama Cloud (`gpt-oss:120b-cloud`) for longer texts
+- ChunkingAgent: auto-chunking with local Ollama (Qwen3.5 9B Q4_K_M) for cheap cases, Ollama Cloud (`gpt-oss:20b-cloud` or similar level-1 model) for longer texts
 - Manual chunking UI (markdown editor with preview)
 - Outline view, save to Postgres
 
