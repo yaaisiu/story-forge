@@ -45,7 +45,7 @@ def _scene(start: int, end: int, title: str | None = None) -> SceneProposal:
 
 async def test_manual_mode_does_not_call_the_agent() -> None:
     agent = _StubAgent([])
-    coord = ChunkingCoordinator(agent)  # type: ignore[arg-type]
+    coord = ChunkingCoordinator(agent)
     outline = await coord.build_outline(
         raw_text="## One\n### A\nBody.\n", language="en", mode="manual"
     )
@@ -68,7 +68,7 @@ async def test_hybrid_fills_an_untitled_scene_in_a_titled_chapter() -> None:
         ]
     )
     agent = _StubAgent([proposal])
-    coord = ChunkingCoordinator(agent)  # type: ignore[arg-type]
+    coord = ChunkingCoordinator(agent)
     outline = await coord.build_outline(raw_text=raw, language="en", mode="hybrid")
 
     assert len(agent.calls) == 1
@@ -84,7 +84,7 @@ async def test_hybrid_preserves_a_scene_anchor_before_the_first_chapter() -> Non
     # titled scene. Hybrid must preserve the scene anchor, not re-LLM the span.
     raw = "### Cold Open\nPrologue body.\n## One\n### A\nFirst.\n"
     agent = _StubAgent([])  # zero proposals queued — any LLM call is a regression
-    coord = ChunkingCoordinator(agent)  # type: ignore[arg-type]
+    coord = ChunkingCoordinator(agent)
     outline = await coord.build_outline(raw_text=raw, language="en", mode="hybrid")
     assert agent.calls == []
     assert [c.title for c in outline.chapters] == [None, "One"]
@@ -96,7 +96,7 @@ async def test_hybrid_preserves_a_scene_anchor_before_the_first_chapter() -> Non
 async def test_hybrid_with_everything_marked_makes_no_agent_call() -> None:
     raw = "## One\n### A\nBody one.\n## Two\n### B\nBody two.\n"
     agent = _StubAgent([])
-    coord = ChunkingCoordinator(agent)  # type: ignore[arg-type]
+    coord = ChunkingCoordinator(agent)
     outline = await coord.build_outline(raw_text=raw, language="en", mode="hybrid")
     assert agent.calls == []
     assert [c.title for c in outline.chapters] == ["One", "Two"]
@@ -108,7 +108,7 @@ async def test_auto_mode_converts_proposal_over_whole_text() -> None:
         chapters=[ChapterProposal(title="Whole", summary="c", scenes=[_scene(0, 2, "All")])]
     )
     agent = _StubAgent([proposal])
-    coord = ChunkingCoordinator(agent)  # type: ignore[arg-type]
+    coord = ChunkingCoordinator(agent)
     outline = await coord.build_outline(raw_text=raw, language="en", mode="auto")
     assert len(agent.calls) == 1
     assert outline.chapters[0].title == "Whole"
@@ -129,7 +129,7 @@ def test_proposal_to_outline_enforces_paragraph_upper_bound() -> None:
 async def test_auto_mode_guards_text_over_the_word_budget() -> None:
     long_text = " ".join(["word"] * 50)
     agent = _StubAgent([])
-    coord = ChunkingCoordinator(agent, max_input_words=10)  # type: ignore[arg-type]
+    coord = ChunkingCoordinator(agent, max_input_words=10)
     with pytest.raises(ChunkingTooLongError):
         await coord.build_outline(raw_text=long_text, language="en", mode="auto")
     assert agent.calls == []  # guarded before any LLM call

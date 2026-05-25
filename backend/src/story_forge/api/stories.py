@@ -20,6 +20,7 @@ from pydantic import BaseModel
 from story_forge.adapters.db import get_connection
 from story_forge.adapters.postgres_repo import (
     get_project,
+    get_story,
     get_story_for_update,
     insert_chapter,
     insert_paragraph,
@@ -117,11 +118,14 @@ def get_chunking_coordinator(request: Request) -> ChunkingCoordinator:
     return coordinator
 
 
+ChunkingMode = Literal["auto", "manual", "hybrid"]
+
+
 class StructureResponse(BaseModel):
     """What the structure route returns once the outline is persisted."""
 
     story_id: UUID
-    mode: str
+    mode: ChunkingMode
     chapter_count: int
     scene_count: int
     paragraph_count: int
@@ -130,7 +134,7 @@ class StructureResponse(BaseModel):
 @router.post("/{story_id}/structure", status_code=201)
 async def structure_story(
     story_id: UUID,
-    mode: Literal["auto", "manual", "hybrid"],
+    mode: ChunkingMode,
     conn: Annotated[AsyncConnection, Depends(get_connection)],
     coordinator: Annotated[ChunkingCoordinator, Depends(get_chunking_coordinator)],
 ) -> StructureResponse:
@@ -141,16 +145,17 @@ async def structure_story(
     mode, and inserts chapters → scenes → paragraphs. One-shot: the accept/edit
     loop is the frontend's job (Session 6). Re-structuring is refused (409) rather
     than silently appending a second tree.
+
+    Locking strategy: the outline is built *without* holding a DB write lock,
+    because auto/hybrid awaits an LLM call that can take seconds. The story row
+    is then `SELECT ... FOR UPDATE`-locked only for the small write window —
+    re-check `list_chapters` under the lock, then insert. Two concurrent POSTs
+    serialize on the lock: the second sees the persisted tree and 409s instead
+    of duplicating.
     """
-    # SELECT ... FOR UPDATE locks the story row for the rest of the transaction,
-    # serializing concurrent structure POSTs on the same story so the 409 guard
-    # below isn't a non-atomic read-before-write (Codex review note, PR #13).
-    story = await get_story_for_update(conn, story_id)
+    story = await get_story(conn, story_id)
     if story is None:
         raise HTTPException(status_code=404, detail="story not found")
-    if await list_chapters(conn, story_id):
-        raise HTTPException(status_code=409, detail="story already has a structure")
-
     project = await get_project(conn, story.project_id)
     language = project.language if project is not None else "en"
 
@@ -163,6 +168,14 @@ async def structure_story(
     except ChunkingError as exc:
         # Unusable LLM output, give-up after retries, or no prompt for the language.
         raise HTTPException(status_code=502, detail=str(exc)) from exc
+
+    # Take the lock now — the writes are the short, hot path; the LLM call above
+    # is done. Re-fetch under the lock so a vanished-meanwhile story is still
+    # honestly 404'd, then re-check `list_chapters` for the 409 race.
+    if await get_story_for_update(conn, story_id) is None:
+        raise HTTPException(status_code=404, detail="story not found")
+    if await list_chapters(conn, story_id):
+        raise HTTPException(status_code=409, detail="story already has a structure")
 
     chapters, scenes, paragraphs = outline_to_tree(outline, story_id)
     for chapter in chapters:

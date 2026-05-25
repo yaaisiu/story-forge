@@ -94,7 +94,7 @@ async def test_manual_mode_persists_the_tree(
         "### Dusk\nNightfall.\n"
     )
     story = await _make_story(db_conn, raw)
-    coordinator = ChunkingCoordinator(_StubAgent())  # type: ignore[arg-type]
+    coordinator = ChunkingCoordinator(_StubAgent())
     client: AsyncClient = make_client(coordinator)  # type: ignore[operator]
 
     resp = await client.post(f"/stories/{story.id}/structure", params={"mode": "manual"})
@@ -133,7 +133,7 @@ async def test_hybrid_mode_fills_untitled_scene_and_persists(
         ]
     )
     agent = _StubAgent(proposal)
-    coordinator = ChunkingCoordinator(agent)  # type: ignore[arg-type]
+    coordinator = ChunkingCoordinator(agent)
     client: AsyncClient = make_client(coordinator)  # type: ignore[operator]
 
     resp = await client.post(f"/stories/{story.id}/structure", params={"mode": "hybrid"})
@@ -145,7 +145,7 @@ async def test_hybrid_mode_fills_untitled_scene_and_persists(
 
 
 async def test_unknown_story_is_404(make_client: object) -> None:
-    coordinator = ChunkingCoordinator(_StubAgent())  # type: ignore[arg-type]
+    coordinator = ChunkingCoordinator(_StubAgent())
     client: AsyncClient = make_client(coordinator)  # type: ignore[operator]
     missing = UUID("00000000-0000-0000-0000-000000000000")
     resp = await client.post(f"/stories/{missing}/structure", params={"mode": "manual"})
@@ -156,7 +156,7 @@ async def test_restructuring_an_already_structured_story_is_409(
     make_client: object, db_conn: psycopg.AsyncConnection
 ) -> None:
     story = await _make_story(db_conn, "## One\n### A\nBody.\n")
-    coordinator = ChunkingCoordinator(_StubAgent())  # type: ignore[arg-type]
+    coordinator = ChunkingCoordinator(_StubAgent())
     client: AsyncClient = make_client(coordinator)  # type: ignore[operator]
 
     first = await client.post(f"/stories/{story.id}/structure", params={"mode": "manual"})
@@ -167,7 +167,7 @@ async def test_restructuring_an_already_structured_story_is_409(
 
 async def test_invalid_mode_is_422(make_client: object, db_conn: psycopg.AsyncConnection) -> None:
     story = await _make_story(db_conn, "## One\n### A\nBody.\n")
-    coordinator = ChunkingCoordinator(_StubAgent())  # type: ignore[arg-type]
+    coordinator = ChunkingCoordinator(_StubAgent())
     client: AsyncClient = make_client(coordinator)  # type: ignore[operator]
     resp = await client.post(f"/stories/{story.id}/structure", params={"mode": "sideways"})
     assert resp.status_code == 422

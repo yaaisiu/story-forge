@@ -22,7 +22,9 @@ size; full window-and-stitch for auto is a tracked follow-up.
 
 from __future__ import annotations
 
-from story_forge.agents.chunking_agent import ChunkingAgent, ChunkingError, ChunkingProposal
+from typing import Protocol
+
+from story_forge.agents.chunking_agent import ChunkingError, ChunkingProposal
 from story_forge.domain.chunking import (
     Outline,
     OutlineChapter,
@@ -36,6 +38,19 @@ from story_forge.domain.parsing import split_paragraphs
 DEFAULT_MAX_INPUT_WORDS = 8000
 
 _MODES = ("auto", "manual", "hybrid")
+
+
+class OutlineProposer(Protocol):
+    """What the coordinator needs from an agent: outline-from-text, mockable.
+
+    A structural type so the live `ChunkingAgent` satisfies it without inheritance
+    and tests can pass a stub that records calls — no concrete-class coupling, no
+    `type: ignore` on the test fakes.
+    """
+
+    async def propose_outline(
+        self, *, raw_text: str, language: str, word_count: int | None = None
+    ) -> ChunkingProposal: ...
 
 
 class OutlineRangeError(ChunkingError):
@@ -79,7 +94,7 @@ class ChunkingCoordinator:
 
     def __init__(
         self,
-        agent: ChunkingAgent,
+        agent: OutlineProposer,
         *,
         max_input_words: int = DEFAULT_MAX_INPUT_WORDS,
     ) -> None:

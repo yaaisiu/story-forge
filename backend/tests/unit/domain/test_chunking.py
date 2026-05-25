@@ -10,7 +10,15 @@ paragraph blocks on blank lines, exactly like `domain/parsing.py`.
 
 from __future__ import annotations
 
-from story_forge.domain.chunking import Outline, parse_manual_outline
+from uuid import UUID
+
+from story_forge.domain.chunking import (
+    Outline,
+    OutlineChapter,
+    OutlineScene,
+    outline_to_tree,
+    parse_manual_outline,
+)
 
 
 def test_two_chapters_two_scenes() -> None:
@@ -83,3 +91,51 @@ def test_unmarked_text_is_one_implicit_chapter_and_scene() -> None:
 
 def test_empty_text_yields_empty_outline() -> None:
     assert parse_manual_outline("   \n\n  ").chapters == []
+
+
+def test_outline_to_tree_assigns_order_and_threads_foreign_keys() -> None:
+    # Two chapters, second with two scenes — locks the order_index numbering, the
+    # chapter.id → scene.chapter_id → paragraph.scene_id threading, and the
+    # propagation of optional summaries from the Outline nodes onto the rows.
+    story_id = UUID("11111111-1111-1111-1111-111111111111")
+    outline = Outline(
+        chapters=[
+            OutlineChapter(
+                title="One",
+                summary="first",
+                scenes=[OutlineScene(title="A", paragraphs=["alpha."], summary="s-a")],
+            ),
+            OutlineChapter(
+                title=None,  # implicit chapter — title stays None on the row
+                scenes=[
+                    OutlineScene(title="B", paragraphs=["beta.", "gamma."]),
+                    OutlineScene(title=None, paragraphs=["delta."]),
+                ],
+            ),
+        ]
+    )
+    chapters, scenes, paragraphs = outline_to_tree(outline, story_id)
+
+    assert [(c.story_id, c.order_index, c.title, c.summary) for c in chapters] == [
+        (story_id, 0, "One", "first"),
+        (story_id, 1, None, None),
+    ]
+    # Scenes carry the host chapter's generated id, ordered within their chapter.
+    assert [(s.chapter_id, s.order_index, s.title, s.summary) for s in scenes] == [
+        (chapters[0].id, 0, "A", "s-a"),
+        (chapters[1].id, 0, "B", None),
+        (chapters[1].id, 1, None, None),
+    ]
+    # Paragraphs flatten in scene-visit order; order_index resets per scene.
+    assert [(p.scene_id, p.order_index, p.content) for p in paragraphs] == [
+        (scenes[0].id, 0, "alpha."),
+        (scenes[1].id, 0, "beta."),
+        (scenes[1].id, 1, "gamma."),
+        (scenes[2].id, 0, "delta."),
+    ]
+
+
+def test_outline_to_tree_on_empty_outline_returns_empty_lists() -> None:
+    story_id = UUID("22222222-2222-2222-2222-222222222222")
+    chapters, scenes, paragraphs = outline_to_tree(Outline(), story_id)
+    assert (chapters, scenes, paragraphs) == ([], [], [])
