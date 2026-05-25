@@ -44,6 +44,12 @@ path the tests assert — find the cases nobody wrote a test for. Check, concret
 - **Logic & control flow** — off-by-one, inverted conditions, wrong boundary (`<` vs `<=`),
   early return skipping cleanup, unreachable branches, loop that retries with identical
   inputs (does the retry actually *do* anything different?).
+- **Dispatch-level confusion in nested structures** — when code branches on a property at
+  one level of a tree (e.g. `if chapter.title is None`), check that the invariant being
+  preserved isn't at the *neighboring* level. The hybrid-chunking bug (PR #13) dispatched
+  on chapter-untitled and re-LLM'd the whole span, silently discarding an explicitly-titled
+  scene the author put *before* the first chapter heading (an explicit child of an implicit
+  parent). Walk one level past the branch you wrote.
 - **Edge / empty / malformed inputs** — empty string/list, `None`/`null`, zero, missing
   dict keys, unexpected types, oversize input, non-UTF-8 bytes, duplicate or out-of-range
   values (e.g. a `paragraph_range` that overlaps, reverses, or skips paragraphs).
@@ -78,7 +84,11 @@ unsure it's real, say so and how to confirm — don't drop it, don't overstate i
 
 - **Simplicity** — minimum code for the problem. Flag speculative features, abstractions for
   single-use code, configurability nobody asked for, dead config (a `Settings` field/knob
-  with no reader).
+  with no reader). **Count both sides** when weighing a small abstraction: noise it *adds*
+  (a new class/file) vs noise it *removes* (type-ignores, repeated boilerplate, branches).
+  An abstraction that net-removes existing debt is a refactor, not speculation — simplicity
+  argues *for* it, not against. (Story Forge example: a `Protocol` that replaces a concrete
+  class type and drops a dozen `# type: ignore[arg-type]` markers in tests.)
 - **Surgical** — no "improvements" to adjacent untouched code, no opportunistic refactors.
   Every changed line should trace to the PR's stated purpose; flag drive-by edits.
 
