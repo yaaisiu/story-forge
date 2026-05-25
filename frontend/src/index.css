@@ -1,0 +1,4 @@
+/* Tailwind v4 single-line import — pulls in preflight + the utility layer.
+ * Project-specific theme tokens (colors, typography) live in tailwind.config
+ * if/when we add them; until then we lean on the defaults. */
+@import "tailwindcss";
