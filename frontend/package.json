@@ -3,7 +3,7 @@
   "private": true,
   "version": "0.0.0",
   "type": "module",
-  "description": "Story Forge frontend — React + Vite + TypeScript. M0 ships a single /health check page.",
+  "description": "Story Forge frontend — React + Vite + TypeScript, React Router + TanStack Query + Tailwind shell. Typed API client generated from the backend's OpenAPI schema.",
   "scripts": {
     "dev": "vite",
     "build": "tsc --noEmit && vite build",

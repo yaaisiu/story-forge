@@ -2,8 +2,11 @@
 //
 // What this test pins down:
 //   1. The app shell can be mounted under React Router + TanStack Query without
-//      throwing. This is the smallest assertion that proves both providers are
-//      wired correctly in src/app/.
+//      throwing, and the QueryClientProvider in the test tree is *load-bearing*:
+//      the QuerySentinel below calls `useQueryClient()`, which throws when no
+//      provider is in scope, so removing the provider wrapper would fail the
+//      test rather than silently passing. This catches the "we thought the
+//      provider chain was wired" class of regression.
 //   2. The root route "/" renders a recognisable landing placeholder. Session 6
 //      will replace the landing content with the real upload screen; until then
 //      we just need *something* deterministic to assert on.
@@ -18,12 +21,23 @@
 import { describe, expect, it } from "vitest";
 import { render, screen } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { QueryClient, QueryClientProvider, useQueryClient } from "@tanstack/react-query";
 
 import { AppShell } from "./AppShell";
 
+// Tiny in-test component that asserts a QueryClientProvider is in scope by
+// calling useQueryClient(). The hook throws when no provider is mounted, which
+// makes the wrapper in the render tree load-bearing: a regression that drops
+// the provider would crash this child and fail the test, rather than passing
+// because nothing in <AppShell> happens to use TanStack Query yet (Session 5
+// hasn't shipped any hooks — the first one lands in Session 6).
+function QuerySentinel() {
+  useQueryClient();
+  return null;
+}
+
 describe("AppShell", () => {
-  it("renders the landing placeholder at /", () => {
+  it("renders the landing placeholder at / under both providers", () => {
     // Fresh QueryClient per test — no cross-test cache bleed. retry: false keeps
     // failing queries from looping in tests.
     const queryClient = new QueryClient({
@@ -33,6 +47,7 @@ describe("AppShell", () => {
     render(
       <QueryClientProvider client={queryClient}>
         <MemoryRouter initialEntries={["/"]}>
+          <QuerySentinel />
           <AppShell />
         </MemoryRouter>
       </QueryClientProvider>,

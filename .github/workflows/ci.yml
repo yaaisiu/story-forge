@@ -67,6 +67,10 @@ jobs:
         run: npm run format:check
       - name: Build
         run: npm run build
+      - name: Vitest
+        # Component/unit tests under src/**/*.test.{ts,tsx}. Runs after Build so
+        # a type error fails first with a clearer message than a vitest crash.
+        run: npm test
       - name: npm audit (high/critical)
         run: npm audit --audit-level=high
 
