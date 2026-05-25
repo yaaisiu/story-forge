@@ -48,7 +48,25 @@ class Settings(BaseSettings):
     ollama_host: str = "http://127.0.0.1:11434"
 
     # --- Cloud LLM keys (all optional — populated in later milestones) ---
+    ollama_cloud_host: str = Field(
+        default="https://ollama.com",
+        description="Ollama Cloud endpoint — the default chunking tier on a GPU-less host.",
+    )
     ollama_cloud_api_key: str = ""
+
+    # --- Chunking (ingest step 2, spec §6.5/§7) ---
+    chunking_model: str = Field(
+        default="gpt-oss:120b-cloud",
+        description="Ollama model the ChunkingAgent calls (cloud_free default tier).",
+    )
+    chunking_local_max_words: int = Field(
+        default=4000,
+        description=(
+            "Word ceiling below which chunking may use the local_small tier — only "
+            "meaningful when a GPU-backed local Ollama is configured; on a GPU-less "
+            "host the agent uses cloud_free regardless (spec §6.5)."
+        ),
+    )
     anthropic_api_key: str = ""
     openai_api_key: str = ""
     xai_api_key: str = ""

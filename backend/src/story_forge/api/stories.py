@@ -10,17 +10,32 @@ frontend, and a `Story` needs a `project_id` to exist.
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Annotated
+from typing import Annotated, Literal
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, UploadFile
+from fastapi import APIRouter, Depends, HTTPException, Request, UploadFile
 from psycopg import AsyncConnection
 from pydantic import BaseModel
 
 from story_forge.adapters.db import get_connection
-from story_forge.adapters.postgres_repo import insert_project, insert_story
+from story_forge.adapters.postgres_repo import (
+    get_project,
+    get_story,
+    insert_chapter,
+    insert_paragraph,
+    insert_project,
+    insert_scene,
+    insert_story,
+    list_chapters,
+)
 from story_forge.adapters.upload_storage import save_upload
+from story_forge.agents.chunking_agent import ChunkingError
+from story_forge.agents.chunking_coordinator import (
+    ChunkingCoordinator,
+    ChunkingTooLongError,
+)
 from story_forge.config import settings
+from story_forge.domain.chunking import outline_to_tree
 from story_forge.domain.language import detect_language
 from story_forge.domain.models import Project, Story
 from story_forge.domain.parsing import ParseError, parse_document
@@ -93,4 +108,71 @@ async def upload_story(
         title=title,
         language=language,
         paragraph_count=len(parsed.paragraphs),
+    )
+
+
+def get_chunking_coordinator(request: Request) -> ChunkingCoordinator:
+    """The app-lifetime coordinator wired in `main.py` (provider + agent + knobs)."""
+    coordinator: ChunkingCoordinator = request.app.state.chunking_coordinator
+    return coordinator
+
+
+class StructureResponse(BaseModel):
+    """What the structure route returns once the outline is persisted."""
+
+    story_id: UUID
+    mode: str
+    chapter_count: int
+    scene_count: int
+    paragraph_count: int
+
+
+@router.post("/{story_id}/structure", status_code=201)
+async def structure_story(
+    story_id: UUID,
+    mode: Literal["auto", "manual", "hybrid"],
+    conn: Annotated[AsyncConnection, Depends(get_connection)],
+    coordinator: Annotated[ChunkingCoordinator, Depends(get_chunking_coordinator)],
+) -> StructureResponse:
+    """Build the document tree for a story (spec §7 step 2) and persist it.
+
+    Reads the story's stored raw text — which already carries the author's
+    `##` / `###` anchors for manual/hybrid — builds the outline in the chosen
+    mode, and inserts chapters → scenes → paragraphs. One-shot: the accept/edit
+    loop is the frontend's job (Session 6). Re-structuring is refused (409) rather
+    than silently appending a second tree.
+    """
+    story = await get_story(conn, story_id)
+    if story is None:
+        raise HTTPException(status_code=404, detail="story not found")
+    if await list_chapters(conn, story_id):
+        raise HTTPException(status_code=409, detail="story already has a structure")
+
+    project = await get_project(conn, story.project_id)
+    language = project.language if project is not None else "en"
+
+    try:
+        outline = await coordinator.build_outline(
+            raw_text=story.raw_text, language=language, mode=mode
+        )
+    except ChunkingTooLongError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    except ChunkingError as exc:
+        # Unusable LLM output, give-up after retries, or no prompt for the language.
+        raise HTTPException(status_code=502, detail=str(exc)) from exc
+
+    chapters, scenes, paragraphs = outline_to_tree(outline, story_id)
+    for chapter in chapters:
+        await insert_chapter(conn, chapter)
+    for scene in scenes:
+        await insert_scene(conn, scene)
+    for paragraph in paragraphs:
+        await insert_paragraph(conn, paragraph)
+
+    return StructureResponse(
+        story_id=story_id,
+        mode=mode,
+        chapter_count=len(chapters),
+        scene_count=len(scenes),
+        paragraph_count=len(paragraphs),
     )
