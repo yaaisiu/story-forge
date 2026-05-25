@@ -2,3 +2,9 @@ node_modules
 dist
 .vite
 package-lock.json
+
+# Auto-generated artifacts — formatting them just re-fails after the next
+# `npm run generate:api` (or the backend `dump_openapi.py` script) regenerates
+# them. See frontend/src/lib/api/CLAUDE.md for the regen flow.
+openapi.json
+src/lib/api/schema.d.ts

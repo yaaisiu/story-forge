@@ -67,7 +67,29 @@ class StoryUploadResponse(BaseModel):
     paragraph_count: int
 
 
-@router.post("/upload", status_code=201)
+class ErrorResponse(BaseModel):
+    """Shape FastAPI's ``HTTPException`` produces — declared so the OpenAPI
+    schema names every non-2xx response the routes can return, instead of just
+    success + the auto-added 422 validation error. Without this, the generated
+    TypeScript client (`frontend/src/lib/api/schema.d.ts`) can't model expected
+    outcomes like 404 / 409 / 502 — leaving frontend error handling untyped.
+    """
+
+    detail: str
+
+
+@router.post(
+    "/upload",
+    status_code=201,
+    responses={
+        400: {"model": ErrorResponse, "description": "Uploaded file is empty or unparseable."},
+        413: {"model": ErrorResponse, "description": "File exceeds the maximum upload size."},
+        415: {
+            "model": ErrorResponse,
+            "description": "Unsupported file extension or content type mismatch.",
+        },
+    },
+)
 async def upload_story(
     file: UploadFile,
     conn: Annotated[AsyncConnection, Depends(get_connection)],
@@ -131,7 +153,23 @@ class StructureResponse(BaseModel):
     paragraph_count: int
 
 
-@router.post("/{story_id}/structure", status_code=201)
+@router.post(
+    "/{story_id}/structure",
+    status_code=201,
+    responses={
+        404: {"model": ErrorResponse, "description": "Story not found."},
+        409: {
+            "model": ErrorResponse,
+            "description": "Story already has a structure (re-structure is refused).",
+        },
+        502: {
+            "model": ErrorResponse,
+            "description": (
+                "Chunking agent failed — LLM unreachable or unusable output after retries."
+            ),
+        },
+    },
+)
 async def structure_story(
     story_id: UUID,
     mode: ChunkingMode,
