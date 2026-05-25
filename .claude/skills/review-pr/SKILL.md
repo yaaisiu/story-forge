@@ -100,6 +100,17 @@ Mostly grep-able — verify, don't assume:
 - `agents/` import the **`LLMProvider` Protocol**, never a concrete adapter (`OllamaProvider`,
   `httpx`, `neo4j`, `psycopg`).
 - `api/` routes are thin — no business logic, no direct DB/graph access; go through domain.
+- **FastAPI routes declare every non-2xx outcome they raise.** Every `HTTPException` a route
+  raises (or maps from a domain exception) must have a matching entry on the decorator's
+  `responses={status: {"model": ErrorResponse, "description": "..."}}` — otherwise the
+  OpenAPI schema shows only the success status + the auto-added 422 validation error, and
+  the generated TypeScript client (`frontend/src/lib/api/schema.d.ts`) can't model the
+  failure paths it must handle. Walk every `raise HTTPException(...)` and every
+  `except ...: raise HTTPException(...)` in the route body and verify the status code
+  appears in `responses=`. The hand-rolled 422 case (where a domain error is mapped to 422
+  with a `{detail: str}` body) is the one trap: declaring it would clobber FastAPI's
+  validation typing — either remap to a different status, or leave 422 alone and document
+  the overload as a cross-cutting follow-up.
 - **Prompts live in `prompts/` as `.j2`**, never inline f-strings in agent code.
 - **LLM output is always Pydantic-validated and retried** — no raw JSON trusted, and the
   schema is *strict* (step 1: malformed-but-parseable must fail, not pass).
@@ -136,6 +147,19 @@ re-litigate those** — spot the things those tools miss:
 - Tests live in the mirrored path (`tests/unit/<src path>/`, `tests/integration/`,
   `tests/unit/agents/`). Credential-like literals bound to a variable (detect-secrets).
 - Do the assertions actually exercise the risk found in step 1, or only the obvious case?
+- **Render-test wrappers must be load-bearing.** Every provider / context / router /
+  fixture wrapping a render test must be exercised by the asserted-on subtree, or by an
+  explicit sentinel component that throws when the wrapper is absent (e.g. a tiny child
+  calling `useQueryClient()` to fail loudly if no `QueryClientProvider` is in scope). A
+  decorative wrapper makes the test pass whether or not the production composition is
+  wired right — the test docstring then *overclaims* what it defends. Rule of thumb: if
+  you can delete the wrapper from the test and the test still passes, the wrapper is a lie.
+- **A new test runner / category / glob is wired into CI before merge.** If this PR adds
+  a test framework (vitest, Playwright, a new pytest marker, a new file glob), check that
+  `.github/workflows/ci.yml` actually invokes it (`grep` the job for the runner name /
+  npm script / pytest invocation). A test that runs only locally is half a test — it
+  defends today's commit but not tomorrow's. Skipping this check structurally bypasses
+  the test-driven rule for the session's headline artifact.
 
 ## 7. Portfolio hygiene (root `CLAUDE.md` → Public-portfolio hygiene)
 
