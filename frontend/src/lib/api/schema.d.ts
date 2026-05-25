@@ -83,6 +83,18 @@ export interface components {
             /** File */
             file: string;
         };
+        /**
+         * ErrorResponse
+         * @description Shape FastAPI's ``HTTPException`` produces — declared so the OpenAPI
+         *     schema names every non-2xx response the routes can return, instead of just
+         *     success + the auto-added 422 validation error. Without this, the generated
+         *     TypeScript client (`frontend/src/lib/api/schema.d.ts`) can't model expected
+         *     outcomes like 404 / 409 / 502 — leaving frontend error handling untyped.
+         */
+        ErrorResponse: {
+            /** Detail */
+            detail: string;
+        };
         /** HTTPValidationError */
         HTTPValidationError: {
             /** Detail */
@@ -176,6 +188,33 @@ export interface operations {
                     "application/json": components["schemas"]["StoryUploadResponse"];
                 };
             };
+            /** @description Uploaded file is empty or unparseable. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description File exceeds the maximum upload size. */
+            413: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Unsupported file extension or content type mismatch. */
+            415: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
             /** @description Validation Error */
             422: {
                 headers: {
@@ -209,6 +248,24 @@ export interface operations {
                     "application/json": components["schemas"]["StructureResponse"];
                 };
             };
+            /** @description Story not found. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Story already has a structure (re-structure is refused). */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
             /** @description Validation Error */
             422: {
                 headers: {
@@ -216,6 +273,15 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+            /** @description Chunking agent failed — LLM unreachable or unusable output after retries. */
+            502: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
         };
