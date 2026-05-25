@@ -18,7 +18,7 @@ import urllib.error
 import urllib.request
 
 URL = "https://ollama.com/api/chat"
-MODEL = "gpt-oss:120b-cloud"
+MODEL = "gpt-oss:20b-cloud"  # the cloud_free default; match what the app actually calls
 
 
 def main() -> int:
