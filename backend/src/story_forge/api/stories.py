@@ -20,7 +20,7 @@ from pydantic import BaseModel
 from story_forge.adapters.db import get_connection
 from story_forge.adapters.postgres_repo import (
     get_project,
-    get_story,
+    get_story_for_update,
     insert_chapter,
     insert_paragraph,
     insert_project,
@@ -142,7 +142,10 @@ async def structure_story(
     loop is the frontend's job (Session 6). Re-structuring is refused (409) rather
     than silently appending a second tree.
     """
-    story = await get_story(conn, story_id)
+    # SELECT ... FOR UPDATE locks the story row for the rest of the transaction,
+    # serializing concurrent structure POSTs on the same story so the 409 guard
+    # below isn't a non-atomic read-before-write (Codex review note, PR #13).
+    story = await get_story_for_update(conn, story_id)
     if story is None:
         raise HTTPException(status_code=404, detail="story not found")
     if await list_chapters(conn, story_id):

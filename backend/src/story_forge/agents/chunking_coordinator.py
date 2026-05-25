@@ -110,18 +110,18 @@ class ChunkingCoordinator:
         return proposal_to_outline(proposal, split_paragraphs(text))
 
     async def _fill_untitled(self, outline: Outline, language: str) -> Outline:
-        """Sub-divide only untitled nodes; preserve every explicit anchor."""
+        """Sub-divide only untitled *scenes*; preserve every explicit anchor.
+
+        The dispatch is per-scene, not per-chapter — an implicit (untitled) chapter
+        can still hold an *explicitly* titled scene (e.g. `### Cold Open` before the
+        first `##`), and that scene anchor must survive. So for every chapter (its
+        title kept as-is, None or otherwise), we walk scenes and only LLM-fill the
+        untitled ones; the proposed chapters from each fill are flattened back to
+        their scenes under the host chapter. Chapters that end up empty (e.g. an
+        implicit one whose only scene held no paragraphs) are dropped.
+        """
         chapters: list[OutlineChapter] = []
         for chapter in outline.chapters:
-            if chapter.title is None:
-                # The author did not mark this span at all — propose its full
-                # chapter/scene structure and splice the chapters in.
-                text = "\n\n".join(p for scene in chapter.scenes for p in scene.paragraphs)
-                if not text:
-                    continue
-                chapters.extend((await self._propose(text, language)).chapters)
-                continue
-            # Titled chapter: keep it, but fill any untitled scenes within it.
             scenes: list[OutlineScene] = []
             for scene in chapter.scenes:
                 if scene.title is None and scene.paragraphs:
@@ -131,5 +131,9 @@ class ChunkingCoordinator:
                         scenes.extend(proposed_chapter.scenes)
                 else:
                     scenes.append(scene)
-            chapters.append(OutlineChapter(title=chapter.title, scenes=scenes))
+            if not scenes and chapter.title is None:
+                continue
+            chapters.append(
+                OutlineChapter(title=chapter.title, scenes=scenes, summary=chapter.summary)
+            )
         return Outline(chapters=chapters)

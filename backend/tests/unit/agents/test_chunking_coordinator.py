@@ -79,6 +79,20 @@ async def test_hybrid_fills_an_untitled_scene_in_a_titled_chapter() -> None:
     assert scenes[1].paragraphs == ["Second.", "Third."]
 
 
+async def test_hybrid_preserves_a_scene_anchor_before_the_first_chapter() -> None:
+    # `### Cold Open` opens an implicit untitled chapter holding an *explicitly*
+    # titled scene. Hybrid must preserve the scene anchor, not re-LLM the span.
+    raw = "### Cold Open\nPrologue body.\n## One\n### A\nFirst.\n"
+    agent = _StubAgent([])  # zero proposals queued — any LLM call is a regression
+    coord = ChunkingCoordinator(agent)  # type: ignore[arg-type]
+    outline = await coord.build_outline(raw_text=raw, language="en", mode="hybrid")
+    assert agent.calls == []
+    assert [c.title for c in outline.chapters] == [None, "One"]
+    assert [s.title for s in outline.chapters[0].scenes] == ["Cold Open"]
+    assert outline.chapters[0].scenes[0].paragraphs == ["Prologue body."]
+    assert [s.title for s in outline.chapters[1].scenes] == ["A"]
+
+
 async def test_hybrid_with_everything_marked_makes_no_agent_call() -> None:
     raw = "## One\n### A\nBody one.\n## Two\n### B\nBody two.\n"
     agent = _StubAgent([])
