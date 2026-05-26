@@ -69,6 +69,12 @@ CVE-2026-29111
 # cap_set_file(). Requires an already-present local unprivileged attacker inside
 # the container; no remote vector.
 CVE-2026-4878
+# CVE-2026-40356 — krb5 (HIGH): MIT Kerberos 5 DoS via integer overflow. Applies
+# to libgssapi-krb5-2 / libk5crypto3 / libkrb5-3 / libkrb5support0 (linked libs
+# only — this image runs no Kerberos service and Postgres uses OpenSSL for TLS).
+# Fixed in Debian 1.21.3-5+deb13u1; not yet baked into a pgvector rebuild.
+# Disclosed in the wave after the Issue #4 waivers landed (2026-05-26).
+CVE-2026-40356
 
 # ──────────────── Bundled dependency: gosu Go stdlib (gobinary) ───────────────
 # gosu is a setuid step-down wrapper: it drops root and exec()s Postgres. It
@@ -106,3 +112,31 @@ CVE-2026-39820
 CVE-2026-39836
 # CVE-2026-42499 — net/mail (HIGH): DoS via consumePhrase on pathological input.
 CVE-2026-42499
+
+# ─── Second wave (disclosed 2026-05-21 → 2026-05-26, same gosu binary) ───
+# Same reachability story: gosu opens no sockets, parses no URLs / mail /
+# archives / certificates, and does no TLS — so every one of these sits in
+# unreachable code. Fixable only by an upstream gosu rebuild on a patched Go
+# toolchain (Go 1.24.8+ / 1.25.2+ cover most; -61727 needs Go 1.24.11 / 1.25.5).
+# Triggered the security-CI failure on PR #18.
+
+# CVE-2025-47912 — net/url (HIGH): Parse permits non-IPv6 in bracketed-host form.
+CVE-2025-47912
+# CVE-2025-58185 — encoding/asn1 (HIGH): unbounded allocation parsing DER payload.
+CVE-2025-58185
+# CVE-2025-58186 — net/http (HIGH): default 1MB header limit can be bypassed.
+CVE-2025-58186
+# CVE-2025-58187 — crypto/x509 (HIGH): inefficient name-constraint check → DoS.
+CVE-2025-58187
+# CVE-2025-58188 — crypto/x509 (HIGH): DSA-public-key cert chain validation issue.
+CVE-2025-58188
+# CVE-2025-58189 — crypto/tls (HIGH): ALPN handshake error path information leak.
+CVE-2025-58189
+# CVE-2025-61723 — std (HIGH): pathological-input parsing time scales superlinearly.
+CVE-2025-61723
+# CVE-2025-61724 — net/textproto (HIGH): Reader.ReadResponse response-building DoS.
+CVE-2025-61724
+# CVE-2025-61725 — net/mail (HIGH): ParseAddress domain-literal construction.
+CVE-2025-61725
+# CVE-2025-61727 — crypto/x509 (HIGH): excluded-subdomain constraint not enforced.
+CVE-2025-61727
