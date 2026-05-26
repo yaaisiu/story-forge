@@ -3,12 +3,13 @@
 // test (the shell render test wraps it in MemoryRouter + QueryClientProvider)
 // and trivial to compose in production (App.tsx wraps it in BrowserRouter +
 // QueryClientProvider). Conventions: frontend/src/CLAUDE.md.
+//
+// The shell deliberately doesn't impose a width / page-chrome container — each
+// feature owns its own <main> + max-width so different screens (a narrow form,
+// a wide editor) can size themselves honestly. Cross-cutting chrome (a nav, a
+// footer) lands here when an actual one is needed.
 import { AppRoutes } from "./routes";
 
 export function AppShell() {
-  return (
-    <main className="mx-auto max-w-2xl p-8 font-sans">
-      <AppRoutes />
-    </main>
-  );
+  return <AppRoutes />;
 }

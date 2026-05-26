@@ -1,4 +1,5 @@
-// App shell render test (Session 5 — Frontend foundation).
+// App shell render test (Session 5 — Frontend foundation; Session 6 — repointed
+// at the upload screen now that "/" hosts the real M1 entry point).
 //
 // What this test pins down:
 //   1. The app shell can be mounted under React Router + TanStack Query without
@@ -7,9 +8,7 @@
 //      provider is in scope, so removing the provider wrapper would fail the
 //      test rather than silently passing. This catches the "we thought the
 //      provider chain was wired" class of regression.
-//   2. The root route "/" renders a recognisable landing placeholder. Session 6
-//      will replace the landing content with the real upload screen; until then
-//      we just need *something* deterministic to assert on.
+//   2. The root route "/" renders the upload screen (Session 6's M1 entry).
 //
 // We mount <AppShell> with our own <MemoryRouter> + <QueryClientProvider> instead
 // of the production <App> so the test controls the router entry and doesn't share
@@ -37,7 +36,7 @@ function QuerySentinel() {
 }
 
 describe("AppShell", () => {
-  it("renders the landing placeholder at / under both providers", () => {
+  it("renders the upload screen at / under both providers", () => {
     // Fresh QueryClient per test — no cross-test cache bleed. retry: false keeps
     // failing queries from looping in tests.
     const queryClient = new QueryClient({
@@ -53,8 +52,10 @@ describe("AppShell", () => {
       </QueryClientProvider>,
     );
 
-    // The landing placeholder identifies itself by a stable test id so we can
-    // change its visible copy in Session 6 without touching this shell test.
-    expect(screen.getByTestId("landing-placeholder")).toBeInTheDocument();
+    // The upload screen's file input is a stable hook the shell render test can
+    // assert on without coupling to the upload feature's specific copy. If
+    // Session 7 replaces "/" with a project-list view, swap this testid for that
+    // view's anchor.
+    expect(screen.getByTestId("upload-file-input")).toBeInTheDocument();
   });
 });

@@ -6,12 +6,18 @@
 // is shared by both code paths.
 import { Route, Routes } from "react-router-dom";
 
-import { Landing } from "./Landing";
+import { OutlineEditor } from "../features/chunking/OutlineEditor";
+import { UploadScreen } from "../features/upload/UploadScreen";
 
 export function AppRoutes() {
   return (
     <Routes>
-      <Route path="/" element={<Landing />} />
+      {/* M1 flow: upload a story → build its outline. The router pushes the
+          uploaded story's raw_text via location.state into the outline editor,
+          so the manual editor opens pre-seeded with the source the user just
+          uploaded. */}
+      <Route path="/" element={<UploadScreen />} />
+      <Route path="/stories/:storyId/structure" element={<OutlineEditor />} />
     </Routes>
   );
 }

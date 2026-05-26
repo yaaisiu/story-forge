@@ -100,6 +100,20 @@ async def get_story_for_update(conn: AsyncConnection, story_id: UUID) -> Story |
         return await cur.fetchone()
 
 
+async def update_story_raw_text(conn: AsyncConnection, story_id: UUID, raw_text: str) -> None:
+    """Overwrite ``stories.raw_text`` for a story.
+
+    Used by the structure route when the caller supplies a ``raw_text`` override
+    in the request body (spec §7 step 2 "user accepts/edits"). The route runs
+    this in the same transaction as the chapters/scenes/paragraphs insert, so a
+    later GET sees the edited source instead of the originally-uploaded copy.
+    """
+    await conn.execute(
+        "UPDATE stories SET raw_text = %s WHERE id = %s",
+        (raw_text, story_id),
+    )
+
+
 # --- Chapter ---------------------------------------------------------------
 
 
