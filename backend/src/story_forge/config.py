@@ -88,7 +88,13 @@ class Settings(BaseSettings):
 
     # --- Backend behaviour ---
     log_level: str = "INFO"
-    backend_cors_origins: str = "http://localhost:5173,http://localhost:3000"
+    # Both `localhost` and `127.0.0.1` for each dev port — Vite binds the dev
+    # server to 127.0.0.1 by default, and the browser's Origin header reflects
+    # the URL bar (not DNS resolution), so a contributor typing either form
+    # must work. Same loopback socket, same trust boundary. Spec §6.7.
+    backend_cors_origins: str = (
+        "http://localhost:5173,http://127.0.0.1:5173,http://localhost:3000,http://127.0.0.1:3000"
+    )
 
     @property
     def cors_origins_list(self) -> list[str]:

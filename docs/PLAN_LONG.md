@@ -8,7 +8,7 @@ The user can upload a draft, chunk it, extract entities/relations with the casca
 
 - [x] **Milestone 0 — Setup** (2-3 days) — completed 2026-05-19
   Docker Compose, FastAPI + React skeleton, CI with security checks, plan files, root and directory-level CLAUDE.md.
-- [ ] **Milestone 1 — Upload & structure** (3-5 days)
+- [x] **Milestone 1 — Upload & structure** (3-5 days) — completed 2026-05-26
   Upload endpoint, language detection, docx/md/txt parsing, ChunkingAgent (local Ollama + Ollama Cloud), manual chunking UI, outline view.
 - [ ] **Milestone 2 — Basic extraction** (5-7 days)
   Three-tier LLM abstraction (local Ollama, Ollama Cloud, paid cloud), OpenRouter meta-provider, ExtractionAgent with JSON-schema validation, PreNERAgent (spaCy), Neo4j writes without dedupe, cytoscape graph viewer, budget tracking, agent activity panel.

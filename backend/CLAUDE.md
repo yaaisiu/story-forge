@@ -73,6 +73,11 @@ later). The agent never edits `.env`, so every new setting follows three steps:
 ```bash
 cd backend
 uv sync
+# First run only — migrate the dev DB. Tests use a throwaway DB (Session 1's
+# conftest fixture), so this gap is invisible until a real request hits an
+# unmigrated `storyforge` DB and 500s with `relation "..." does not exist`.
+# Idempotent; safe to re-run.
+uv run alembic upgrade head
 uv run uvicorn story_forge.main:app --reload --port 8000
 ```
 

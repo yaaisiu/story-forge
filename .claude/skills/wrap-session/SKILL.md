@@ -1,6 +1,6 @@
 ---
 name: wrap-session
-description: End-of-session ritual for Story Forge. Run AFTER the feature work is committed/PR'd/merged (it closes out the plan, not the feature). Runs the green-state checks (report-only), prompts the process retrospective (/retro) early so its outcomes are captured, updates PLAN_SHORT.md (check off tasks, strike obsolete ones, append a dated Done line, refresh Blocked/Decided), rewrites the Session handoff block to point at the next session, checks spec/plan consistency, and commits its own bookkeeping as a docs: close Session N change. Run near the end of every working conversation. Pairs with /resume-session, which reads the handoff block this writes.
+description: End-of-session ritual for Story Forge. Run AFTER the feature work is committed/PR'd/merged (it closes out the plan, not the feature). Runs the green-state checks (report-only), prompts the process retrospective (/retro) early so its outcomes are captured, updates docs/PLAN_SHORT.md (check off tasks, strike obsolete ones, append a dated Done line, refresh Blocked/Decided), rewrites the Session handoff block to point at the next session, checks spec/plan consistency, and commits its own bookkeeping as a docs: close Session N change. Run near the end of every working conversation. Pairs with /resume-session, which reads the handoff block this writes.
 ---
 
 # Wrap a Story Forge session
@@ -8,7 +8,7 @@ description: End-of-session ritual for Story Forge. Run AFTER the feature work i
 This is the **end-of-session** half of the handoff loop. Its job: leave the repo and the
 plan in a state where the next conversation can resume with zero archaeology. It is the
 mirror of `/resume-session` — this skill *writes* the handoff block; that skill *reads*
-it. They share one contract: the `▶ Session handoff` block at the top of `PLAN_SHORT.md`,
+it. They share one contract: the `▶ Session handoff` block at the top of `docs/PLAN_SHORT.md`,
 delimited by `<!-- ── HANDOFF ── -->` / `<!-- ── END HANDOFF ── -->` markers. Keep that
 block's shape stable so the pair keeps working without extra glue.
 
@@ -65,7 +65,7 @@ silently skipped.
 outcomes into the steps below. If the session was routine and nothing felt like friction,
 say so — a retro skipped *by choice* is fine; a forgotten one is not.
 
-## 3. Update the task lists in PLAN_SHORT.md
+## 3. Update the task lists in docs/PLAN_SHORT.md
 
 - Check off (`[x]`) every task actually completed and verified this session.
 - ~~Strike through~~ (don't delete) tasks that became obsolete; add a brief reason.
@@ -88,7 +88,7 @@ retrospective produced**. Write it for an outsider — this is public.
 
 If the work revealed the spec was wrong or incomplete: **stop.** The spec
 (`story-forge-poc-spec.md`) is the source of truth and must be amended first, then
-`PLAN_LONG.md` and `PLAN_SHORT.md` reconciled with it before the session is considered
+`docs/PLAN_LONG.md` and `docs/PLAN_SHORT.md` reconciled with it before the session is considered
 wrapped. Note any amendment in the Done line and the relevant ADR if architectural.
 
 ## 7. Rewrite the Session handoff block
@@ -104,7 +104,7 @@ session. Fill every field literally:
 ## 8. Commit the wrap's own output
 
 By the preflight, the *feature* is already merged — what's uncommitted now is **this
-wrap's bookkeeping**: the `PLAN_SHORT.md` edits, the rewritten handoff, and anything the
+wrap's bookkeeping**: the `docs/PLAN_SHORT.md` edits, the rewritten handoff, and anything the
 retrospective produced (skill / `CLAUDE.md` changes). Story Forge keeps `main` clean
 (squash-merge, curated messages — see root `CLAUDE.md`), so land these on a short
 governance branch and squash-merge as a **`docs: close Session N`** commit (bundling the

@@ -16,7 +16,7 @@ Reason: nothing writes embeddings yet, and reading the real column needs the
 pgvector psycopg type registered (`register_vector_async`) or psycopg hands back
 a string that fails Pydantic's `list[float] | None`. When the embedding pipeline
 lands (it adds the `pgvector` dependency + type registration), switch these reads
-to `SELECT ... embedding` and start writing the column. Tracked in PLAN_SHORT
+to `SELECT ... embedding` and start writing the column. Tracked in docs/PLAN_SHORT.md
 cross-cutting so the read path is not silently left returning None.
 """
 

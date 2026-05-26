@@ -144,7 +144,7 @@ Story Forge is built in the open as a public PoC and doubles as a portfolio piec
 - **Multi-model routing.** One `LLMProvider` Protocol; swappable adapters for local Ollama, Ollama Cloud free tier, Anthropic, OpenAI, Grok, and OpenRouter. A small router picks a tier per call and fails over within a tier (network error, rate limit, schema-parse failure → next configured provider, swap logged).
 - **Clean three-layer backend.** `api/` → `agents/` → `domain/` → `adapters/`. The domain is pure (no I/O); adapters implement protocols; agents compose. Every layer has its own `CLAUDE.md` with conventions.
 - **Security-by-default infra.** Every container non-root, localhost-bound, on a private network. Every dependency pinned to an exact version ≥ 14 days old. Container images CVE-scanned in CI. No telemetry libraries. CORS strict. Secrets only in `.env`.
-- **Spec-and-test-driven workflow.** `story-forge-poc-spec.md` is the source of truth; `PLAN_LONG.md` / `PLAN_SHORT.md` are living plans; ADRs in `docs/decisions/`. The commit history records the discipline.
+- **Spec-and-test-driven workflow.** `story-forge-poc-spec.md` is the source of truth; `docs/PLAN_LONG.md` / `docs/PLAN_SHORT.md` are living plans (conventions in `docs/CLAUDE.md`); ADRs in `docs/decisions/`. The commit history records the discipline.
 
 For the full picture, read `story-forge-poc-spec.md` (the PoC spec), then `docs/decisions/0001-three-tier-llm-strategy.md` (the LLM ADR), then `CLAUDE.md` files at the root and inside each major directory.
 
@@ -160,4 +160,4 @@ See `SECURITY.md` for the vulnerability-reporting channel.
 
 ## Status
 
-Active development. Current milestone: **M1 (Upload & structure)** — see `PLAN_SHORT.md`.
+Active development. **M1 (Upload & structure) complete** as of 2026-05-26; entering **M2 (Basic extraction)** next — see `docs/PLAN_SHORT.md`.

@@ -30,10 +30,10 @@ No production code is written before tests for it exist.
 
 ### 3. Two-horizon planning — read and update every session
 
-- **`PLAN_LONG.md`** — strategic, V1/V2/V3 milestones, stable.
-- **`PLAN_SHORT.md`** — tactical, current milestone broken into one-conversation sessions. Read at session start. Update at session end. Check off completed tasks. Add new ones. Strike through (don't delete) obsolete ones.
+- **`docs/PLAN_LONG.md`** — strategic, V1/V2/V3 milestones, stable.
+- **`docs/PLAN_SHORT.md`** — tactical, current milestone broken into one-conversation sessions. Read at session start. Update at session end. Check off completed tasks. Add new ones. Strike through (don't delete) obsolete ones.
 
-The current milestone is sliced into numbered **sessions**, each sized for a single conversation. The top of `PLAN_SHORT.md` carries a **Session handoff** block that always points at where the next session starts. Two skills maintain this loop — use them actively, but they assist the workflow, they don't replace judgement:
+The current milestone is sliced into numbered **sessions**, each sized for a single conversation. The top of `docs/PLAN_SHORT.md` carries a **Session handoff** block that always points at where the next session starts. Two skills maintain this loop — use them actively, but they assist the workflow, they don't replace judgement:
 
 - **`/resume-session`** — run at the **start** of every working conversation. Reads the handoff block, verifies the on-disk anchors, surveys git, opens the named spec sections, and reports drift before any code is written. If the user hasn't run it, offer to.
 - **`/wrap-session`** — run **near the end** of every working conversation. Reports the green-state checks, updates the task lists, refreshes Decided/Blocked, appends a dated Done line, rewrites the handoff block for the next session, and reminds about commit hygiene. When you sense a session is wrapping up, suggest it — don't let work end with the plan stale.
@@ -63,7 +63,7 @@ When *I* propose relaxing one of these §6.7 rules, neither refuse reflexively n
 - Docker services bind to `127.0.0.1` only. Non-root containers. Private bridge network.
 - No telemetry libraries (no Sentry, PostHog, Mixpanel, analytics SDKs of any kind).
 - API keys never logged. Auth headers stripped from logs.
-- CORS strict — only `http://localhost:5173` and `http://localhost:3000` in dev.
+- CORS strict — only the four loopback origins for the dev frontends in dev: `http://localhost:5173`, `http://127.0.0.1:5173`, `http://localhost:3000`, `http://127.0.0.1:3000`. Both name forms because Vite binds to `127.0.0.1` by default and the browser's `Origin` header reflects the URL bar, not DNS resolution. No wildcards. (Spec §6.7.)
 - See §6.7 of the spec for the full list. Reread before touching infrastructure files.
 
 ## Public-portfolio hygiene
@@ -104,8 +104,9 @@ Per feature (and at session close): feature branch → **open a PR so CI actuall
 ## Reference docs
 
 - `story-forge-poc-spec.md` — full PoC specification, source of truth
-- `PLAN_LONG.md` — strategic milestones
-- `PLAN_SHORT.md` — tactical task list, current milestone
+- `docs/PLAN_LONG.md` — strategic milestones
+- `docs/PLAN_SHORT.md` — tactical task list, current milestone
+- `docs/CLAUDE.md` — plan conventions (handoff-block contract, Decided/Blocked/Done structure, cross-cutting curation rule)
 - `docs/decisions/` — Architecture Decision Records (ADRs)
 
 ---

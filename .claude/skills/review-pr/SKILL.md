@@ -30,7 +30,7 @@ Work through the steps in order. Don't eyeball where a `grep`/command can be exa
 - **The spec.** Open the `story-forge-poc-spec.md` section(s) the PR implements or amends
   (the PR body / commit usually names them). The spec is the source of truth.
 - **The plan.** Read the current-session tasks and the **Decided** / **Blocked** entries in
-  `PLAN_SHORT.md` — the PR must honor decisions already made (or justify changing them).
+  `docs/PLAN_SHORT.md` — the PR must honor decisions already made (or justify changing them).
 - **The conventions.** Read the directory-level `CLAUDE.md` for every area the diff touches
   (`backend/`, `backend/src/story_forge/`, `frontend/`, …) plus the root `CLAUDE.md`.
 
@@ -76,7 +76,7 @@ unsure it's real, say so and how to confirm — don't drop it, don't overstate i
 - Does the change do what the **spec** section says — no more, no less? Flag silent
   divergence from the spec that did **not** go through the stop-and-amend flow.
 - If the PR **amends** the spec: is the amendment actually present, justified, and are
-  `PLAN_SHORT.md` / `PLAN_LONG.md` reconciled with it? Plans, spec, code must not drift.
+  `docs/PLAN_SHORT.md` / `docs/PLAN_LONG.md` reconciled with it? Plans, spec, code must not drift.
 - Does it honor the session's **Decided** entries (e.g. a chosen library, threshold, tier
   default)? A contradiction of a recorded decision is blocking unless the PR re-decides it.
 
@@ -174,9 +174,18 @@ The repo is public; every line is read by a stranger.
 
 - CI: all jobs green? If red, is it *pre-existing, unrelated, and diagnosed* (the only
   allowed exception per the green-main bar), and is that stated + tracked?
-- Are deferred items tracked (a GitHub issue or a `PLAN_SHORT.md` cross-cutting note), not
+- Are deferred items tracked (a GitHub issue or a `docs/PLAN_SHORT.md` cross-cutting note), not
   silently dropped? Unrelated discoveries split out rather than scope-crept in?
 - Have prior review notes (Codex / earlier passes) been folded or explicitly deferred?
+- **Same bug, different fixes — consider folding both.** When `/review-pr` and the other
+  reviewer (Codex) flag the **same bug class** but propose **different mechanisms**, the
+  default isn't "pick one and mark the other duplicate" — it's *consider folding both as
+  defense-in-depth*, especially when the bug is destructive (data loss, silent overwrite,
+  unrecoverable state). Two independent reviewers converging on a class while diverging on
+  mechanism is the signal the bug deserves belt-and-suspenders. Story Forge example:
+  Session 6's empty-`raw_text` overwrite — `/review-pr` proposed a UI-layer disabled-button
+  guard; Codex proposed a hook-layer drop-the-override-when-empty. Both landed (PR #18 +
+  follow-up commit) because either alone could regress without the other catching it.
 
 ## 9. Report
 

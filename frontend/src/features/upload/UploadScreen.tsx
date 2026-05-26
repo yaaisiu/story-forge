@@ -6,7 +6,7 @@
 // each get their own copy without parsing the detail string.
 //
 // Plain Tailwind — no shadcn primitives this session (recorded as "B now,
-// A when needed" in PLAN_SHORT.md Decided). When an actual interactive
+// A when needed" in docs/PLAN_SHORT.md Decided). When an actual interactive
 // primitive earns its place (a modal, a combobox), we hand-vendor that one
 // component from the shadcn docs and document it in
 // `frontend/src/components/ui/CLAUDE.md`.
