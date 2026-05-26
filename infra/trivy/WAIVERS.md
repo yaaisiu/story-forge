@@ -19,7 +19,18 @@ docker run --rm -v /var/run/docker.sock:/var/run/docker.sock \
   --ignorefile /tmp/ignore <IMAGE>:<TAG>
 ```
 
-**Last reviewed:** 2026-05-21.
+**Last reviewed:** 2026-05-26.
+
+> **Pattern note (pgvector CVE-rot recurrence).** Since 2026-05-21 the pgvector
+> image has gone from green → red twice on freshly-disclosed Debian/Go advisories
+> against the *same* `0.8.2-pg17-trixie` rebuild — once at Issue #4, then again on
+> PR #18 with 11 additional CVEs. The image is frozen at upstream's 2026-05-15
+> rebuild; the Trivy DB isn't. We waive scoped, per-CVE, with reachability
+> justifications and drop them when an upstream rebuild lands — but if this
+> happens a third time, **strongly consider building our own Postgres+pgvector
+> image** (`postgres:17-trixie` base + `apt-get install postgresql-17-pgvector`
+> in a Dockerfile we control). That's slightly beyond PoC scope today; documenting
+> the option here so a reader knows we're aware of the treadmill.
 
 ---
 
@@ -38,9 +49,10 @@ Class: **bundled** netty jars Neo4j ships itself (no base variant fixes them).
 
 ## pgvector — `pgvector/pgvector:0.8.2-pg17-trixie`
 
-Scoped file: `infra/trivy/pgvector.trivyignore` · Issue #4 · added 2026-05-21.
-Pinned at 6 days old (§6.7 age-bend for a CVE-fix release — see scoped file header).
-None reachable as RCE on a 127.0.0.1 single-user non-root container.
+Scoped file: `infra/trivy/pgvector.trivyignore` · Issue #4 · added 2026-05-21,
+extended 2026-05-26 (PR for second CVE wave). Pinned at 6 days old (§6.7
+age-bend for a CVE-fix release — see scoped file header). None reachable as RCE
+on a 127.0.0.1 single-user non-root container.
 
 **OS packages (Debian 13.4) — atypical waiver.** Normally OS CVEs are *fixed* by
 a fresher rebuild, not waived; here `0.8.2-pg17-trixie` is already the newest
@@ -58,6 +70,7 @@ the fixed packages** (re-scan should clear them without the waiver).
 | CVE-2026-42011 | gnutls | HIGH | name-constraint bypass | 3.8.9-3+deb13u4 | not RCE; gnutls unused for our TLS |
 | CVE-2026-29111 | systemd (libsystemd0/libudev1) | HIGH | arb. code exec or DoS via spurious IPC | 257.13-1~deb13u1 | no systemd/D-Bus daemon in container; libs only |
 | CVE-2026-4878 | libcap2 | HIGH | local privesc (TOCTOU race) | 1:2.75-10+deb13u1 | needs local attacker already inside container |
+| CVE-2026-40356 | krb5 (libgssapi-krb5-2/libk5crypto3/libkrb5-3/libkrb5support0) | HIGH | DoS via integer overflow | 1.21.3-5+deb13u1 | no Kerberos service in container; linked libs only — added 2026-05-26 |
 
 **Bundled — `gosu` Go stdlib (gobinary).** gosu is a setuid step-down wrapper
 that drops root and `exec`s Postgres: no sockets, no TLS, no URL/archive/mail
@@ -80,6 +93,16 @@ parsing — all of these sit in unreachable code. Same class as the netty waiver
 | CVE-2026-39820 | HIGH | net/mail | 1.25.10 / 1.26.3 |
 | CVE-2026-39836 | HIGH | net (Dial/LookupPort, Windows) | 1.25.10 / 1.26.3 |
 | CVE-2026-42499 | HIGH | net/mail | 1.25.10 / 1.26.3 |
+| CVE-2025-47912 | HIGH | net/url (Parse non-IPv6 in bracketed host) | 1.24.8 / 1.25.2 — added 2026-05-26 |
+| CVE-2025-58185 | HIGH | encoding/asn1 (unbounded DER allocation) | 1.24.8 / 1.25.2 — added 2026-05-26 |
+| CVE-2025-58186 | HIGH | net/http (1MB header limit bypass) | 1.24.8 / 1.25.2 — added 2026-05-26 |
+| CVE-2025-58187 | HIGH | crypto/x509 (inefficient name-constraint check) | 1.24.9 / 1.25.3 — added 2026-05-26 |
+| CVE-2025-58188 | HIGH | crypto/x509 (DSA public-key chain validation) | 1.24.8 / 1.25.2 — added 2026-05-26 |
+| CVE-2025-58189 | HIGH | crypto/tls (ALPN handshake error leak) | 1.24.8 / 1.25.2 — added 2026-05-26 |
+| CVE-2025-61723 | HIGH | std (pathological-input superlinear scaling) | 1.24.8 / 1.25.2 — added 2026-05-26 |
+| CVE-2025-61724 | HIGH | net/textproto (Reader.ReadResponse memory bloat) | 1.24.8 / 1.25.2 — added 2026-05-26 |
+| CVE-2025-61725 | HIGH | net/mail (ParseAddress domain-literal) | 1.24.8 / 1.25.2 — added 2026-05-26 |
+| CVE-2025-61727 | HIGH | crypto/x509 (excluded-subdomain constraint not enforced) | 1.24.11 / 1.25.5 — added 2026-05-26 |
 
 ## ollama — `ollama/ollama:0.24.0` (scanned upstream; consumed via `infra/ollama/` wrapper)
 
