@@ -97,6 +97,30 @@ describe("useStructureStory", () => {
   });
 
   it.each([
+    ["empty string", ""],
+    ["whitespace only", "   \n  \t  "],
+  ])(
+    "drops the override when rawText is %s (defense-in-depth, prevents destructive overwrite)",
+    async (_label, value) => {
+      // The OutlineEditor UI already disables submit when its textarea is
+      // empty (see OutlineEditor.tsx:73), but a programmatic caller — or a
+      // future regression that re-enables the button — could still slip an
+      // empty string through. The hook treats empty/whitespace the same as
+      // "no override" so the backend keeps the stored raw_text instead of
+      // overwriting it.
+      const fetchMock = vi.fn().mockResolvedValue(jsonResponse(201, SAMPLE_RESPONSE));
+      vi.stubGlobal("fetch", fetchMock);
+
+      const { result } = renderHook(() => useStructureStory(), { wrapper: buildWrapper() });
+      result.current.mutate({ storyId: STORY_ID, mode: "manual", rawText: value });
+
+      await waitFor(() => expect(result.current.isSuccess).toBe(true));
+      const [, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+      expect(JSON.parse(init.body as string)).toEqual({ raw_text: null });
+    },
+  );
+
+  it.each([
     [404, "story not found"],
     [409, "story already has a structure"],
     [502, "chunking agent failed"],

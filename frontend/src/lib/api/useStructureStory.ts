@@ -42,10 +42,16 @@ export function useStructureStory(): UseMutationResult<
     mutationFn: async ({ storyId, mode, rawText }) => {
       const query = new URLSearchParams({ mode });
       const path = `/stories/${storyId}/structure?${query.toString()}`;
-      // Always send the body (even when the editor wasn't involved) so the
-      // backend route signature stays consistent; the field is optional and
-      // `null` means "use the stored raw_text".
-      return postJsonBody<StructureResponse>(path, { raw_text: rawText ?? null });
+      // Defense-in-depth: treat undefined OR empty/whitespace rawText as "no
+      // override" → send `null` so the backend uses the stored copy instead of
+      // overwriting it. The OutlineEditor UI already disables submit when its
+      // textarea is empty (so this path shouldn't fire from the happy flow),
+      // but a programmatic caller — or a future UI regression — can't slip
+      // an empty string past this guard. The bug shape that motivated the
+      // belt-and-suspenders: a deep-link refresh dropped the seed text →
+      // empty editor → submit would have overwritten stored raw_text with "".
+      const hasOverride = typeof rawText === "string" && rawText.trim().length > 0;
+      return postJsonBody<StructureResponse>(path, { raw_text: hasOverride ? rawText : null });
     },
   });
 }
