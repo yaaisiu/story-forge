@@ -14,6 +14,11 @@
 //   4. Switching to auto mode hides the textarea and sends `raw_text: null` so
 //      the backend uses the stored copy.
 //   5. A 409 ("already structured") renders the re-structure-specific copy.
+//   6. With an empty editor in manual/hybrid (e.g. deep-link refresh, no
+//      router state), Build outline is disabled and an inline hint explains
+//      why — closes the silent-clear-stored-raw_text footgun.
+//   7. After a successful build, the submit button is disabled and relabeled
+//      so a second click can't trigger a 409.
 
 import type { ReactNode } from "react";
 
@@ -119,6 +124,12 @@ describe("OutlineEditor", () => {
     const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
     expect(url).toMatch(new RegExp(`/stories/${STORY_ID}/structure\\?mode=manual$`));
     expect(JSON.parse(init.body as string)).toEqual({ raw_text: INITIAL_RAW });
+
+    // After success the submit button is disabled and relabeled so a second
+    // click can't trigger the backend's 409 re-structure refusal.
+    const submit = screen.getByTestId("outline-submit");
+    expect(submit).toBeDisabled();
+    expect(submit).toHaveTextContent(/built/i);
   });
 
   it("switching to auto mode hides the editor and sends raw_text: null", async () => {
@@ -143,6 +154,22 @@ describe("OutlineEditor", () => {
     const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
     expect(url).toMatch(new RegExp(`/stories/${STORY_ID}/structure\\?mode=auto$`));
     expect(JSON.parse(init.body as string)).toEqual({ raw_text: null });
+  });
+
+  it("disables submit + shows the empty hint when manual/hybrid editor is empty", () => {
+    // Simulates a deep link / refresh where router state didn't carry raw_text.
+    // Without the guard the user could click Build outline and the backend
+    // would silently overwrite stored raw_text with "" — see the override-and-
+    // persist path in backend/src/story_forge/api/stories.py.
+    renderEditor("");
+    expect(screen.getByTestId("outline-submit")).toBeDisabled();
+    expect(screen.getByTestId("outline-empty-hint")).toBeInTheDocument();
+
+    // Auto mode bypasses the editor entirely → submit re-enables (the LLM
+    // will work off the stored raw_text on the backend).
+    fireEvent.click(screen.getByTestId("outline-mode-auto"));
+    expect(screen.getByTestId("outline-submit")).not.toBeDisabled();
+    expect(screen.queryByTestId("outline-empty-hint")).not.toBeInTheDocument();
   });
 
   it("on a 409, surfaces the already-structured message", async () => {

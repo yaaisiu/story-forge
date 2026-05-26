@@ -19,6 +19,7 @@ import { useMemo, useState } from "react";
 import { useLocation, useParams } from "react-router-dom";
 
 import { ApiError, useStructureStory, type ChunkingMode } from "../../lib/api/useStructureStory";
+import { cn } from "../../lib/utils";
 import { countOutline, parseManualOutline } from "./outlineParse";
 
 interface OutlineEditorLocationState {
@@ -62,8 +63,23 @@ export function OutlineEditor() {
   // the backend; auto sends null so the route uses the stored raw_text.
   const showEditor = mode !== "auto";
 
+  // Refuse to submit a whitespace-only manual/hybrid edit. Without this guard,
+  // a user who deep-links here (refresh, manual URL, lost router state) starts
+  // with an empty textarea, and clicking Build outline would POST raw_text=""
+  // — the backend would parse zero chapters and *overwrite* stored raw_text
+  // with empty string. Disabling the button is the simplest UX that closes
+  // that footgun; the cross-cutting GET /stories/{id} would let us repopulate
+  // from the server instead, but that route doesn't exist yet.
+  const editorIsEmpty = showEditor && rawText.trim().length === 0;
+  const submitDisabled = structure.isPending || structure.isSuccess || editorIsEmpty;
+  const submitLabel = structure.isPending
+    ? "Building…"
+    : structure.isSuccess
+      ? "Outline built ✓"
+      : "Build outline";
+
   function handleSubmit() {
-    if (!storyId) return;
+    if (!storyId || submitDisabled) return;
     structure.mutate({
       storyId,
       mode,
@@ -88,12 +104,12 @@ export function OutlineEditor() {
           <label
             key={m}
             data-testid={`outline-mode-${m}`}
-            className={
-              "cursor-pointer rounded border px-3 py-1.5 text-sm transition-colors " +
-              (mode === m
+            className={cn(
+              "cursor-pointer rounded border px-3 py-1.5 text-sm transition-colors",
+              mode === m
                 ? "border-blue-600 bg-blue-50 text-blue-900"
-                : "border-gray-300 bg-white text-gray-800 hover:border-gray-400")
-            }
+                : "border-gray-300 bg-white text-gray-800 hover:border-gray-400",
+            )}
           >
             <input
               type="radio"
@@ -134,13 +150,21 @@ export function OutlineEditor() {
         </div>
       )}
 
+      {editorIsEmpty && (
+        <p data-testid="outline-empty-hint" className="text-sm text-amber-700" role="status">
+          Editor is empty — paste your story source (with <code>##</code> / <code>###</code>{" "}
+          markers), or go back and upload a file.
+        </p>
+      )}
+
       <button
         type="button"
+        data-testid="outline-submit"
         onClick={handleSubmit}
-        disabled={structure.isPending}
+        disabled={submitDisabled}
         className="self-start rounded bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:bg-gray-300"
       >
-        {structure.isPending ? "Building…" : "Build outline"}
+        {submitLabel}
       </button>
 
       {structure.isSuccess && (

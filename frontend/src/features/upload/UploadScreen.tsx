@@ -16,6 +16,7 @@ import { useState, type ChangeEvent, type DragEvent } from "react";
 import { Link } from "react-router-dom";
 
 import { ApiError, useUploadStory } from "../../lib/api/useUploadStory";
+import { cn } from "../../lib/utils";
 
 const ACCEPTED_EXTENSIONS = ".txt,.md,.docx";
 
@@ -82,12 +83,12 @@ export function UploadScreen() {
         }}
         onDragLeave={() => setIsDragging(false)}
         onDrop={handleDrop}
-        className={
-          "flex flex-col items-center justify-center gap-3 rounded-lg border-2 border-dashed p-10 text-center transition-colors " +
-          (isDragging
+        className={cn(
+          "flex flex-col items-center justify-center gap-3 rounded-lg border-2 border-dashed p-10 text-center transition-colors",
+          isDragging
             ? "border-blue-500 bg-blue-50"
-            : "border-gray-300 bg-gray-50 hover:border-gray-400")
-        }
+            : "border-gray-300 bg-gray-50 hover:border-gray-400",
+        )}
       >
         <p className="text-sm text-gray-700">Drag a file here, or</p>
         <label className="cursor-pointer rounded bg-gray-900 px-4 py-2 text-sm font-medium text-white hover:bg-gray-800">

@@ -22,7 +22,7 @@ import { act, fireEvent, render, screen } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { AppShell } from "./app/AppShell";
+import { AppShell } from "../app/AppShell";
 
 const STORY_ID = "00000000-0000-0000-0000-000000000002";
 const SAMPLE_RAW = "## Chapter One\n### Dawn\nLine one.\n\nLine two.\n";
