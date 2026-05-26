@@ -111,6 +111,23 @@
             }
           }
         ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "anyOf": [
+                  {
+                    "$ref": "#/components/schemas/StructureRequestBody"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Body"
+              }
+            }
+          }
+        },
         "responses": {
           "201": {
             "description": "Successful Response",
@@ -255,6 +272,10 @@
           "paragraph_count": {
             "type": "integer",
             "title": "Paragraph Count"
+          },
+          "raw_text": {
+            "type": "string",
+            "title": "Raw Text"
           }
         },
         "type": "object",
@@ -263,10 +284,29 @@
           "story_id",
           "title",
           "language",
-          "paragraph_count"
+          "paragraph_count",
+          "raw_text"
         ],
         "title": "StoryUploadResponse",
-        "description": "What the upload route returns once a story is persisted."
+        "description": "What the upload route returns once a story is persisted.\n\n``raw_text`` is echoed back so the frontend's manual-mode editor (spec \u00a77\nstep 2) has the parsed source to edit. The browser doesn't reliably parse\n.docx itself, so the upload response is the cheapest place to surface it;\navoids a follow-up GET /stories/{id} round-trip that doesn't exist yet."
+      },
+      "StructureRequestBody": {
+        "properties": {
+          "raw_text": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Raw Text"
+          }
+        },
+        "type": "object",
+        "title": "StructureRequestBody",
+        "description": "Optional body for ``POST /stories/{id}/structure``.\n\nWhen ``raw_text`` is provided, the route parses the outline from this payload\ninstead of the story's stored copy AND persists it back to ``stories.raw_text``\nin the same transaction. This is how the frontend manual-mode editor\n(spec \u00a77 step 2 \"user accepts/edits\") commits its source-marker edits without\na separate PATCH route. When ``raw_text`` is omitted or null, the route reads\nthe stored copy and does not modify it \u2014 backwards-compatible."
       },
       "StructureResponse": {
         "properties": {

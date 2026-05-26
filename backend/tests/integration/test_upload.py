@@ -81,6 +81,10 @@ async def test_upload_txt_creates_project_and_story(
     body = resp.json()
     assert body["language"] == "en"
     assert body["title"] == "the-mill"
+    # Raw text echoed back so the frontend manual-mode editor has the source to
+    # edit (spec §7 step 2 "user accepts/edits"). The browser doesn't easily
+    # parse .docx itself, so the response is the cheapest place to surface it.
+    assert body["raw_text"].startswith("John walked into the old mill")
 
     story = await get_story(db_conn, body["story_id"])
     project = await get_project(db_conn, body["project_id"])

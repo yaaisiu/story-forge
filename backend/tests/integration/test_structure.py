@@ -19,6 +19,7 @@ from httpx import ASGITransport, AsyncClient
 
 from story_forge.adapters.db import get_connection
 from story_forge.adapters.postgres_repo import (
+    get_story,
     insert_project,
     insert_story,
     list_chapters,
@@ -171,3 +172,38 @@ async def test_invalid_mode_is_422(make_client: object, db_conn: psycopg.AsyncCo
     client: AsyncClient = make_client(coordinator)  # type: ignore[operator]
     resp = await client.post(f"/stories/{story.id}/structure", params={"mode": "sideways"})
     assert resp.status_code == 422
+
+
+async def test_manual_mode_with_raw_text_override_uses_and_persists_edit(
+    make_client: object, db_conn: psycopg.AsyncConnection
+) -> None:
+    # Spec §7 step 2: "UI shows proposed outline, user accepts/edits". The
+    # frontend manual editor edits the source markers and POSTs the result in
+    # the request body; the route must use that text (not the originally-stored
+    # one) AND update story.raw_text so a later re-read sees the edits — without
+    # a separate PATCH endpoint. This pins both halves.
+    original = "## Orig\n### A\nFoo.\n"
+    story = await _make_story(db_conn, original)
+    coordinator = ChunkingCoordinator(_StubAgent())
+    client: AsyncClient = make_client(coordinator)  # type: ignore[operator]
+
+    edited = "## New\n### B\nBar.\n\nBaz.\n"
+    resp = await client.post(
+        f"/stories/{story.id}/structure",
+        params={"mode": "manual"},
+        json={"raw_text": edited},
+    )
+    assert resp.status_code == 201, resp.text
+    body = resp.json()
+    # Counts reflect the edited text, not the original (which had 1 paragraph,
+    # the edited has 2).
+    assert (body["chapter_count"], body["scene_count"], body["paragraph_count"]) == (1, 1, 2)
+
+    chapters = await list_chapters(db_conn, story.id)
+    assert [c.title for c in chapters] == ["New"]
+
+    # And the stored raw_text is now the edited copy — re-reads see the user's
+    # changes.
+    updated = await get_story(db_conn, story.id)
+    assert updated is not None
+    assert updated.raw_text == edited

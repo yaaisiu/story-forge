@@ -103,6 +103,11 @@ export interface components {
         /**
          * StoryUploadResponse
          * @description What the upload route returns once a story is persisted.
+         *
+         *     ``raw_text`` is echoed back so the frontend's manual-mode editor (spec §7
+         *     step 2) has the parsed source to edit. The browser doesn't reliably parse
+         *     .docx itself, so the upload response is the cheapest place to surface it;
+         *     avoids a follow-up GET /stories/{id} round-trip that doesn't exist yet.
          */
         StoryUploadResponse: {
             /**
@@ -121,6 +126,23 @@ export interface components {
             language: string;
             /** Paragraph Count */
             paragraph_count: number;
+            /** Raw Text */
+            raw_text: string;
+        };
+        /**
+         * StructureRequestBody
+         * @description Optional body for ``POST /stories/{id}/structure``.
+         *
+         *     When ``raw_text`` is provided, the route parses the outline from this payload
+         *     instead of the story's stored copy AND persists it back to ``stories.raw_text``
+         *     in the same transaction. This is how the frontend manual-mode editor
+         *     (spec §7 step 2 "user accepts/edits") commits its source-marker edits without
+         *     a separate PATCH route. When ``raw_text`` is omitted or null, the route reads
+         *     the stored copy and does not modify it — backwards-compatible.
+         */
+        StructureRequestBody: {
+            /** Raw Text */
+            raw_text?: string | null;
         };
         /**
          * StructureResponse
@@ -237,7 +259,11 @@ export interface operations {
             };
             cookie?: never;
         };
-        requestBody?: never;
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["StructureRequestBody"] | null;
+            };
+        };
         responses: {
             /** @description Successful Response */
             201: {

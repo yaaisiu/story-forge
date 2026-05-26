@@ -28,6 +28,7 @@ from story_forge.adapters.postgres_repo import (
     insert_scene,
     insert_story,
     list_chapters,
+    update_story_raw_text,
 )
 from story_forge.adapters.upload_storage import save_upload
 from story_forge.agents.chunking_agent import ChunkingError
@@ -58,13 +59,20 @@ _ALLOWED_TYPES: dict[str, set[str]] = {
 
 
 class StoryUploadResponse(BaseModel):
-    """What the upload route returns once a story is persisted."""
+    """What the upload route returns once a story is persisted.
+
+    ``raw_text`` is echoed back so the frontend's manual-mode editor (spec §7
+    step 2) has the parsed source to edit. The browser doesn't reliably parse
+    .docx itself, so the upload response is the cheapest place to surface it;
+    avoids a follow-up GET /stories/{id} round-trip that doesn't exist yet.
+    """
 
     project_id: UUID
     story_id: UUID
     title: str
     language: str
     paragraph_count: int
+    raw_text: str
 
 
 class ErrorResponse(BaseModel):
@@ -131,6 +139,7 @@ async def upload_story(
         title=title,
         language=language,
         paragraph_count=len(parsed.paragraphs),
+        raw_text=parsed.raw_text,
     )
 
 
@@ -151,6 +160,20 @@ class StructureResponse(BaseModel):
     chapter_count: int
     scene_count: int
     paragraph_count: int
+
+
+class StructureRequestBody(BaseModel):
+    """Optional body for ``POST /stories/{id}/structure``.
+
+    When ``raw_text`` is provided, the route parses the outline from this payload
+    instead of the story's stored copy AND persists it back to ``stories.raw_text``
+    in the same transaction. This is how the frontend manual-mode editor
+    (spec §7 step 2 "user accepts/edits") commits its source-marker edits without
+    a separate PATCH route. When ``raw_text`` is omitted or null, the route reads
+    the stored copy and does not modify it — backwards-compatible.
+    """
+
+    raw_text: str | None = None
 
 
 @router.post(
@@ -175,6 +198,7 @@ async def structure_story(
     mode: ChunkingMode,
     conn: Annotated[AsyncConnection, Depends(get_connection)],
     coordinator: Annotated[ChunkingCoordinator, Depends(get_chunking_coordinator)],
+    body: StructureRequestBody | None = None,
 ) -> StructureResponse:
     """Build the document tree for a story (spec §7 step 2) and persist it.
 
@@ -197,10 +221,14 @@ async def structure_story(
     project = await get_project(conn, story.project_id)
     language = project.language if project is not None else "en"
 
+    # If the caller supplied a raw_text override, parse the outline from it; the
+    # original story.raw_text is overwritten further down (post-lock, so the
+    # write window stays small). Without an override, current behavior.
+    override = body.raw_text if body is not None else None
+    raw_text = override if override is not None else story.raw_text
+
     try:
-        outline = await coordinator.build_outline(
-            raw_text=story.raw_text, language=language, mode=mode
-        )
+        outline = await coordinator.build_outline(raw_text=raw_text, language=language, mode=mode)
     except ChunkingTooLongError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
     except ChunkingError as exc:
@@ -214,6 +242,11 @@ async def structure_story(
         raise HTTPException(status_code=404, detail="story not found")
     if await list_chapters(conn, story_id):
         raise HTTPException(status_code=409, detail="story already has a structure")
+
+    # Persist the source-marker edits in the same transaction as the tree, so a
+    # later read sees the edited raw_text alongside the chapters/scenes it parsed.
+    if override is not None:
+        await update_story_raw_text(conn, story_id, override)
 
     chapters, scenes, paragraphs = outline_to_tree(outline, story_id)
     for chapter in chapters:
