@@ -15,7 +15,7 @@
 // re-cover the per-screen assertions (the per-feature test files do that), it
 // is to prove that the routing + state-passing seam between the two features
 // is actually wired so the M1 milestone is "usable in the browser" (the
-// success criterion in PLAN_SHORT.md).
+// success criterion in docs/PLAN_SHORT.md).
 
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { act, fireEvent, render, screen } from "@testing-library/react";

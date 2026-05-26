@@ -512,7 +512,7 @@ These are non-negotiables that must be in place from the first commit, not bolte
 - **No exposed admin UIs.** Neo4j Browser (port 7474) is bound to localhost only; for any remote access, use SSH tunnel. Same for any future admin endpoints.
 - **Database credentials are random per-environment.** No `postgres/postgres` defaults. Generated on first setup if not set in `.env`.
 - **API keys never logged.** Logging middleware strips `Authorization`, `X-API-Key`, and similar headers/fields before emitting any log line.
-- **CORS strict by default.** Backend allows only `http://localhost:5173` (Vite dev) and `http://localhost:3000`. No wildcard origins, even in dev.
+- **CORS strict by default.** Backend allows only the four loopback origins for the dev frontends: `http://localhost:5173` + `http://127.0.0.1:5173` (Vite dev) and `http://localhost:3000` + `http://127.0.0.1:3000`. No wildcard origins, even in dev. *Why both forms:* the browser-visible Origin header is whatever the URL bar said, not whatever DNS resolved to — and Vite binds the dev server to `127.0.0.1` by default, so contributors who type either form must work without a "your origin is wrong" footgun. Both names point at the same loopback socket; the trust boundary is identical. Amended 2026-05-26 (Session 6 retro) after the original `localhost`-only list silently broke uploads from `127.0.0.1:5173` in the real-browser smoke test.
 - **Frontend dependencies audited.** `npm audit` runs in CI; high/critical issues fail the build.
 - **No telemetry, no analytics.** No `posthog`, `mixpanel`, `sentry`, or similar phoning home. Tool is solo-use; no need to track anything externally.
 - **File uploads sandboxed.** Uploaded documents stored in a dedicated directory outside of webroot; size and MIME type validated; no execution permissions.
@@ -529,6 +529,10 @@ This is the most important flow in V1. I'm spelling it out in detail so the deve
 │ - Validate format (txt/md/docx), size                            │
 │ - Detect language                                                │
 │ - Save raw to storage, create Story record in Postgres           │
+│ - Response echoes parsed raw_text so the frontend manual editor   │
+│   opens pre-seeded (no follow-up GET /stories/{id} needed; the    │
+│   browser cannot reliably parse .docx itself). [§7.1 amended      │
+│   2026-05-26 — Session 6]                                         │
 └──────────────────────────────────────────────────────────────────┘
           ↓
 ┌──────────────────────────────────────────────────────────────────┐
@@ -536,6 +540,10 @@ This is the most important flow in V1. I'm spelling it out in detail so the deve
 │ - If auto: ChunkingAgent (local_small, or cloud_free on a         │
 │   GPU-less host) proposes hierarchy                               │
 │ - UI shows proposed outline, user accepts/edits                  │
+│ - For manual/hybrid: the frontend POSTs the edited source in a    │
+│   raw_text body override; the route uses it AND updates           │
+│   stories.raw_text in the same transaction so the edit survives   │
+│   a later re-read. [§7.2 amended 2026-05-26 — Session 6]          │
 │ - Save chapters/scenes/paragraphs to Postgres                    │
 └──────────────────────────────────────────────────────────────────┘
           ↓

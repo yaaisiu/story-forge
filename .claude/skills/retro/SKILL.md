@@ -64,7 +64,7 @@ For anything the user approves:
 - Land it on a short governance branch and squash-merge to `main` (see root `CLAUDE.md`
   portfolio hygiene) — process changes follow the same clean-history discipline as code.
 - If a change touches the spec or is architectural, **stop** and reconcile
-  `story-forge-poc-spec.md` / `PLAN_LONG.md` / `PLAN_SHORT.md` first, per the workflow rules.
+  `story-forge-poc-spec.md` / `docs/PLAN_LONG.md` / `docs/PLAN_SHORT.md` first, per the workflow rules.
 - Keep skill descriptions truthful after editing — the description is what future sessions
   match against.
 

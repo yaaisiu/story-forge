@@ -13,7 +13,7 @@
 //   422 → either FastAPI validation (e.g. mode not in the enum) or the domain-
 //         level ChunkingTooLongError. The hook returns the raw body via
 //         ApiError.body so the editor can discriminate by shape — tracked as
-//         a cross-cutting follow-up in PLAN_SHORT.md.
+//         a cross-cutting follow-up in docs/PLAN_SHORT.md.
 //   502 → chunking agent failed (LLM unreachable or unusable output)
 
 import { useMutation, type UseMutationResult } from "@tanstack/react-query";

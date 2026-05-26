@@ -13,7 +13,7 @@
 // distinguish FastAPI's `HTTPValidationError` (422 with `detail: ValidationError[]`)
 // from an explicit `HTTPException(status_code=422, detail=str)` should read
 // `err.body` (the raw parsed JSON) and branch on its shape; see the cross-cutting
-// 422-overload note in PLAN_SHORT.md.
+// 422-overload note in docs/PLAN_SHORT.md.
 
 /**
  * Base URL for backend API calls. Defaults to the dev backend on
