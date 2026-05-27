@@ -140,3 +140,39 @@ CVE-2025-61724
 CVE-2025-61725
 # CVE-2025-61727 — crypto/x509 (HIGH): excluded-subdomain constraint not enforced.
 CVE-2025-61727
+
+# ─── Third wave (disclosed 2026-05-26 → 2026-05-27, same gosu binary) ───
+# Same reachability story as waves 1 + 2 reframed for these specific code paths:
+# gosu is a setuid step-down wrapper that drops root and exec()s Postgres — it
+# does not render HTML templates and does not run an HTTP server (let alone a
+# reverse proxy). All three fixed in Go 1.25.10 / 1.26.3 (the same Go release
+# that resolves five of the wave-2 entries); only an upstream gosu rebuild on
+# a patched Go toolchain clears them.
+#
+# **Threshold tripped.** The WAIVERS.md pattern note (added 2026-05-26 after
+# wave 2) recorded a "build our own image if this happens a third time" rule.
+# Wave 3 trips it. Evaluation tracked in Issue #22 — this waiver extension is
+# the *unblock* (so PR #21's CI can go green), not the resolution. Triggered
+# the security-CI failure on PR #21.
+#
+# **Codex P2 correction (2026-05-27):** an earlier draft of these comments
+# mis-attributed CVE-2026-39823 to `net/url` and justified it via "gosu parses
+# no URLs". The actual CVE is in `html/template` (XSS via URLs inside a `<meta>`
+# tag's content attribute), and the justification has to match the real code
+# path. Rationale below now matches NVD + Go vuln-DB GO-2026-4982.
+
+# CVE-2026-39823 — html/template (HIGH): URLs are not correctly escaped inside
+# `<meta>` tag content attributes; ASCII whitespace around `=` bypasses the
+# escaper, enabling XSS in rendered HTML. gosu renders no HTML templates, so
+# the vulnerable code path is never executed.
+CVE-2026-39823
+# CVE-2026-39825 — net/http/httputil (HIGH): ReverseProxy forwards query
+# parameters not visible to the configured Rewrite function once ParseQuery's
+# parameter limit is exceeded. gosu runs no HTTP server, let alone a reverse
+# proxy.
+CVE-2026-39825
+# CVE-2026-39826 — html/template (HIGH): incorrect data escaping when a
+# `<script>` tag has an empty or whitespace-only `type` attribute, enabling
+# XSS. gosu renders no HTML templates, so the vulnerable code path is never
+# executed.
+CVE-2026-39826
