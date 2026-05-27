@@ -65,3 +65,28 @@ CVE-2026-39820
 CVE-2026-39836
 # CVE-2026-42499 — net/mail: DoS via consumePhrase on pathological input. Fixed Go 1.25.10 / 1.26.3.
 CVE-2026-42499
+
+# ─── Third wave (disclosed 2026-05-26 → 2026-05-27, same Go-stdlib backlog) ───
+# Sequential-Trivy unmask: PR #23's pgvector wave-3 waiver let Trivy reach this
+# scan, which then flagged the *same three* Go-stdlib CVEs in the compiled
+# ollama server binary (built on Go 1.26.0, older than the patched 1.25.10/
+# 1.26.3). Fold matches the precedent from PR #6 (Issue #4) where fixing
+# pgvector unmasked ollama and both landed together. Tracked under Issue #22
+# (the build-our-own-image evaluation is pgvector-scoped; ollama remains on
+# upstream).
+
+# CVE-2026-39823 — html/template (HIGH): URLs are not correctly escaped inside
+# `<meta>` tag content attributes; ASCII whitespace around `=` bypasses the
+# escaper, enabling XSS. ollama is a JSON HTTP API server — it renders no HTML
+# templates, so the vulnerable code path is unreachable.
+CVE-2026-39823
+# CVE-2026-39825 — net/http/httputil (HIGH): ReverseProxy forwards query
+# parameters not visible to the configured Rewrite function once ParseQuery's
+# parameter limit is exceeded. ollama is an HTTP *server*, not a reverse
+# proxy; httputil.ReverseProxy is not in its request path.
+CVE-2026-39825
+# CVE-2026-39826 — html/template (HIGH): incorrect data escaping when a
+# `<script>` tag has an empty or whitespace-only `type` attribute. ollama
+# returns JSON and renders no HTML templates, so the vulnerable code path is
+# unreachable.
+CVE-2026-39826

@@ -111,13 +111,16 @@ parsing — all of these sit in unreachable code. Same class as the netty waiver
 | CVE-2025-61724 | HIGH | net/textproto (Reader.ReadResponse memory bloat) | 1.24.8 / 1.25.2 — added 2026-05-26 |
 | CVE-2025-61725 | HIGH | net/mail (ParseAddress domain-literal) | 1.24.8 / 1.25.2 — added 2026-05-26 |
 | CVE-2025-61727 | HIGH | crypto/x509 (excluded-subdomain constraint not enforced) | 1.24.11 / 1.25.5 — added 2026-05-26 |
-| CVE-2026-39823 | HIGH | net/url (Parse/JoinPath/ResolveReference resolve against base) | 1.25.10 / 1.26.3 — added 2026-05-27 (wave 3) |
-| CVE-2026-39825 | HIGH | net/http/httputil (ReverseProxy forwards unexpected params) | 1.25.10 / 1.26.3 — added 2026-05-27 (wave 3) |
-| CVE-2026-39826 | HIGH | html/template (trusted template can bypass CSP via `<script>`) | 1.25.10 / 1.26.3 — added 2026-05-27 (wave 3) |
+| CVE-2026-39823 | HIGH | html/template (XSS via URLs in `<meta>` content attribute; ASCII-whitespace `=` bypass) | 1.25.10 / 1.26.3 — added 2026-05-27 (wave 3; class corrected from net/url after Codex P2) |
+| CVE-2026-39825 | HIGH | net/http/httputil (ReverseProxy forwards params past ParseQuery limit) | 1.25.10 / 1.26.3 — added 2026-05-27 (wave 3) |
+| CVE-2026-39826 | HIGH | html/template (XSS via `<script>` with empty/whitespace `type`) | 1.25.10 / 1.26.3 — added 2026-05-27 (wave 3) |
 
 ## ollama — `ollama/ollama:0.24.0` (scanned upstream; consumed via `infra/ollama/` wrapper)
 
-Scoped file: `infra/trivy/ollama.trivyignore` · Issue #4 · added 2026-05-21.
+Scoped file: `infra/trivy/ollama.trivyignore` · Issue #4 · added 2026-05-21,
+extended 2026-05-27 (PR #23 wave-3 fold — sequential-Trivy unmask after the
+pgvector wave-3 waiver let Trivy reach this scan; same three Go-stdlib CVEs
+fixed in Go 1.25.10/1.26.3 hit ollama's binary, same precedent as PR #6).
 Class: **compiled-in** Go stdlib + `buger/jsonparser` in the ollama server binary
 — no ollama tag fixes them, only an upstream rebuild on a patched Go toolchain.
 Bumped 0.22.1 → 0.24.0 to minimise residual (dropped the CRITICAL + 6 others).
@@ -140,3 +143,6 @@ rebuilds ollama on patched Go.
 | CVE-2026-39820 | net/mail | HIGH | DoS (ParseAddress) | Go 1.25.10 / 1.26.3 | ollama parses no mail; effectively unreachable |
 | CVE-2026-39836 | net | HIGH | panic (NUL in Dial, Windows) | Go 1.25.10 / 1.26.3 | Linux container; Windows-specific |
 | CVE-2026-42499 | net/mail | HIGH | DoS (consumePhrase) | Go 1.25.10 / 1.26.3 | ollama parses no mail; effectively unreachable |
+| CVE-2026-39823 | html/template | HIGH | XSS via URLs in `<meta>` content (added 2026-05-27 wave 3) | Go 1.25.10 / 1.26.3 | ollama returns JSON; renders no HTML templates |
+| CVE-2026-39825 | net/http/httputil | HIGH | ReverseProxy forwards params past ParseQuery limit (added 2026-05-27 wave 3) | Go 1.25.10 / 1.26.3 | ollama is an HTTP server, not a reverse proxy; ReverseProxy unused |
+| CVE-2026-39826 | html/template | HIGH | XSS via `<script>` with empty/whitespace `type` (added 2026-05-27 wave 3) | Go 1.25.10 / 1.26.3 | ollama returns JSON; renders no HTML templates |
