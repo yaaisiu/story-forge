@@ -19,18 +19,25 @@ docker run --rm -v /var/run/docker.sock:/var/run/docker.sock \
   --ignorefile /tmp/ignore <IMAGE>:<TAG>
 ```
 
-**Last reviewed:** 2026-05-26.
+**Last reviewed:** 2026-05-27.
 
-> **Pattern note (pgvector CVE-rot recurrence).** Since 2026-05-21 the pgvector
-> image has gone from green → red twice on freshly-disclosed Debian/Go advisories
-> against the *same* `0.8.2-pg17-trixie` rebuild — once at Issue #4, then again on
-> PR #18 with 11 additional CVEs. The image is frozen at upstream's 2026-05-15
-> rebuild; the Trivy DB isn't. We waive scoped, per-CVE, with reachability
-> justifications and drop them when an upstream rebuild lands — but if this
-> happens a third time, **strongly consider building our own Postgres+pgvector
-> image** (`postgres:17-trixie` base + `apt-get install postgresql-17-pgvector`
-> in a Dockerfile we control). That's slightly beyond PoC scope today; documenting
-> the option here so a reader knows we're aware of the treadmill.
+> **Pattern note (pgvector CVE-rot recurrence) — THRESHOLD TRIPPED 2026-05-27.**
+> Since 2026-05-21 the pgvector image has gone from green → red **three times**
+> on freshly-disclosed Debian/Go advisories against the *same*
+> `0.8.2-pg17-trixie` rebuild: Issue #4 (initial waiver), PR #19 (11 additional
+> CVEs, wave 2), and now PR #21 (3 additional Go-stdlib CVEs, wave 3 — fixed in
+> Go 1.25.10/1.26.3 but gosu unchanged). The image is frozen at upstream's
+> 2026-05-15 rebuild; the Trivy DB isn't. We waive scoped, per-CVE, with
+> reachability justifications and drop them when an upstream rebuild lands.
+>
+> This threshold ("if this happens a third time, strongly consider building our
+> own image") has now tripped. **Evaluation of the proposed Path A recipe —
+> `postgres:17-trixie` base + `apt-get install postgresql-17-pgvector` in a
+> Dockerfile we control — is tracked in [Issue #22](https://github.com/yaaisiu/story-forge/issues/22).**
+> The first task there is verifying the premise: gosu is shipped by the
+> *official* postgres image, not by pgvector, so building our own image only
+> escapes the treadmill if `postgres:17-trixie` rebuilds faster than pgvector
+> does. Issue #22 lays out the verification + the contingency paths if it doesn't.
 
 ---
 
@@ -50,9 +57,10 @@ Class: **bundled** netty jars Neo4j ships itself (no base variant fixes them).
 ## pgvector — `pgvector/pgvector:0.8.2-pg17-trixie`
 
 Scoped file: `infra/trivy/pgvector.trivyignore` · Issue #4 · added 2026-05-21,
-extended 2026-05-26 (PR for second CVE wave). Pinned at 6 days old (§6.7
-age-bend for a CVE-fix release — see scoped file header). None reachable as RCE
-on a 127.0.0.1 single-user non-root container.
+extended 2026-05-26 (PR #19, second CVE wave) and 2026-05-27 (PR for third CVE
+wave — pattern threshold tripped, evaluation tracked in [Issue #22](https://github.com/yaaisiu/story-forge/issues/22)).
+Pinned at 6 days old (§6.7 age-bend for a CVE-fix release — see scoped file
+header). None reachable as RCE on a 127.0.0.1 single-user non-root container.
 
 **OS packages (Debian 13.4) — atypical waiver.** Normally OS CVEs are *fixed* by
 a fresher rebuild, not waived; here `0.8.2-pg17-trixie` is already the newest
@@ -103,6 +111,9 @@ parsing — all of these sit in unreachable code. Same class as the netty waiver
 | CVE-2025-61724 | HIGH | net/textproto (Reader.ReadResponse memory bloat) | 1.24.8 / 1.25.2 — added 2026-05-26 |
 | CVE-2025-61725 | HIGH | net/mail (ParseAddress domain-literal) | 1.24.8 / 1.25.2 — added 2026-05-26 |
 | CVE-2025-61727 | HIGH | crypto/x509 (excluded-subdomain constraint not enforced) | 1.24.11 / 1.25.5 — added 2026-05-26 |
+| CVE-2026-39823 | HIGH | net/url (Parse/JoinPath/ResolveReference resolve against base) | 1.25.10 / 1.26.3 — added 2026-05-27 (wave 3) |
+| CVE-2026-39825 | HIGH | net/http/httputil (ReverseProxy forwards unexpected params) | 1.25.10 / 1.26.3 — added 2026-05-27 (wave 3) |
+| CVE-2026-39826 | HIGH | html/template (trusted template can bypass CSP via `<script>`) | 1.25.10 / 1.26.3 — added 2026-05-27 (wave 3) |
 
 ## ollama — `ollama/ollama:0.24.0` (scanned upstream; consumed via `infra/ollama/` wrapper)
 
