@@ -60,20 +60,24 @@ CVE-2026-42009
 # CVE-2026-42011 — gnutls (HIGH): security bypass via incorrect name-constraint
 # handling. Not RCE; gnutls unused for our TLS.
 CVE-2026-42011
-# CVE-2026-29111 — systemd/libsystemd0+libudev1 (HIGH): "arbitrary code execution
-# or DoS via spurious IPC". The code-exec path requires the systemd manager
-# processing crafted IPC; this image runs no systemd init and no D-Bus, so the
-# attack surface is absent — libsystemd0/libudev1 are linked libraries only.
+# CVE-2026-29111 — systemd/libsystemd0+libudev1 (HIGH): unprivileged IPC API call with
+# malformed data causes systemd to assert and freeze (v250+) or corrupt the stack
+# (v249-) — DoS, not arbitrary code execution (earlier description over-claimed exec).
+# This image runs no systemd init and no D-Bus, so the IPC attack surface is absent —
+# libsystemd0/libudev1 are linked libraries only.
 CVE-2026-29111
 # CVE-2026-4878 — libcap2 (HIGH): local privilege escalation via TOCTOU race in
 # cap_set_file(). Requires an already-present local unprivileged attacker inside
 # the container; no remote vector.
 CVE-2026-4878
-# CVE-2026-40356 — krb5 (HIGH): MIT Kerberos 5 DoS via integer overflow. Applies
+# CVE-2026-40356 — krb5 (HIGH): MIT Kerberos 5 integer *underflow* in NegoEx
+# mechanism causes OOB read → DoS (process crash on gss_accept_sec_context). Applies
 # to libgssapi-krb5-2 / libk5crypto3 / libkrb5-3 / libkrb5support0 (linked libs
 # only — this image runs no Kerberos service and Postgres uses OpenSSL for TLS).
 # Fixed in Debian 1.21.3-5+deb13u1; not yet baked into a pgvector rebuild.
-# Disclosed in the wave after the Issue #4 waivers landed (2026-05-26).
+# Disclosed in the wave after the Issue #4 waivers landed (2026-05-26). Earlier
+# description said "integer overflow" — actually underflow (corrected 2026-05-27
+# during the post-PR-23 audit).
 CVE-2026-40356
 
 # ──────────────── Bundled dependency: gosu Go stdlib (gobinary) ───────────────
@@ -94,7 +98,8 @@ CVE-2025-61726
 CVE-2025-61728
 # CVE-2025-61729 — crypto/x509 (HIGH): DoS via crafted certificate.
 CVE-2025-61729
-# CVE-2026-25679 — net/url (HIGH): incorrect IPv6 host-literal parsing.
+# CVE-2026-25679 — net/url (HIGH): insufficient host/authority component validation in
+# url.Parse (accepts certain invalid URLs that should be rejected). gosu parses no URLs.
 CVE-2026-25679
 # CVE-2026-32280 — crypto/x509 (HIGH): DoS in certificate-chain building.
 CVE-2026-32280
@@ -102,7 +107,9 @@ CVE-2026-32280
 CVE-2026-32281
 # CVE-2026-32283 — crypto/tls (HIGH): DoS via multiple TLS 1.3 key updates.
 CVE-2026-32283
-# CVE-2026-33811 — net (HIGH): long CNAME via cgo DNS resolver (LookupCNAME).
+# CVE-2026-33811 — net (HIGH): cgo DNS LookupCNAME on long CNAME triggers double-free
+# of C memory + crash (higher severity than DoS-only). gosu opens no sockets, runs no
+# DNS lookups.
 CVE-2026-33811
 # CVE-2026-33814 — net/http2 (HIGH): infinite loop on crafted SETTINGS frames.
 CVE-2026-33814
@@ -132,7 +139,8 @@ CVE-2025-58187
 CVE-2025-58188
 # CVE-2025-58189 — crypto/tls (HIGH): ALPN handshake error path information leak.
 CVE-2025-58189
-# CVE-2025-61723 — std (HIGH): pathological-input parsing time scales superlinearly.
+# CVE-2025-61723 — encoding/pem (HIGH): non-linear parse time on invalid PEM inputs;
+# untrusted PEM data exhausts CPU. gosu parses no PEM data.
 CVE-2025-61723
 # CVE-2025-61724 — net/textproto (HIGH): Reader.ReadResponse response-building DoS.
 CVE-2025-61724

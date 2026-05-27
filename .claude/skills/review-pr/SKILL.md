@@ -137,6 +137,20 @@ re-litigate those** — spot the things those tools miss:
   new prompt path that interpolates untrusted content so it gets that scrutiny).
 - A new package/image pin that *slipped past* CI framing (e.g. added but not actually
   scanned, or an image tag change without the `/pin-image` waiver bookkeeping).
+- A **Trivy waiver rationale that names the wrong code path.** When a PR adds or modifies
+  a CVE entry in `infra/trivy/*.trivyignore` or `WAIVERS.md`, verify each CVE's *package
+  attribution* against an authoritative source — `pkg.go.dev/vuln/<GO-id>` for Go
+  ecosystem, `nvd.nist.gov/vuln/detail/<CVE-id>` for universal. **Do not trust Trivy's
+  title field alone**: it sometimes references a *different* CVE in its text, which
+  silently steers a careful but un-verified read to the wrong package. Memorable example
+  (PR #23, caught by Codex P2): CVE-2026-39823's Trivy title began *"CVE-2026-27142
+  fixed a vulnerability in which URLs were not correctly..."* — sounds like `net/url`,
+  but Go vuln-DB / NVD record it as `html/template` (XSS via URLs inside `<meta>`
+  content attribute). The outcome was unchanged (still safely waivable) but the
+  *justification* named the wrong code path, which would mislead the next reviewer
+  assessing "is this still safe?" The 2026-05-27 audit of pre-PR-23 waivers found 39/39
+  package attributions correct, so this isn't yet a repo-wide pattern — but Codex's
+  catch shows the failure mode exists and the check is cheap.
 
 ## 6. Test discipline (root `CLAUDE.md` §2, `backend/CLAUDE.md`)
 
@@ -186,6 +200,21 @@ The repo is public; every line is read by a stranger.
   Session 6's empty-`raw_text` overwrite — `/review-pr` proposed a UI-layer disabled-button
   guard; Codex proposed a hook-layer drop-the-override-when-empty. Both landed (PR #18 +
   follow-up commit) because either alone could regress without the other catching it.
+- **Sequential-Trivy unmask: don't declare "ready to merge" on the first green scan when
+  the PR changes a Trivy waiver or image pin.** The `security` CI job scans images
+  sequentially with `exit-code: 1`, so image N failing prevents Trivy from reaching image
+  N+1; *fixing N can unmask fresh CVEs in N+1 that were hidden the whole time*. Pattern
+  in this repo is 3-for-3:
+    - Issue #2 (neo4j ubi10 pin) → unmasked pgvector CVE-staleness → Issue #4 (own PR)
+    - Issue #4 (pgvector wave-1 waiver) → unmasked ollama 0.22.1 staleness → folded into PR #6
+    - PR #23 (pgvector wave-3 waiver) → unmasked ollama wave-3 → folded into the same PR
+  So: for **waiver-only PRs**, wait for the full CI run on the changed branch (not just
+  the first scan to pass) before writing the review's merge-readiness verdict. For
+  **pin-changing PRs**, the `/pin-image` skill already encodes "scan every image the
+  security job covers up front" — that prerequisite doesn't disappear when the work is
+  in a PR rather than a local scan. If you write the review while one scan is still
+  red, *flag the unmask possibility explicitly* so the next reviewer expects it instead
+  of treating it as a fresh surprise.
 
 ## 9. Report
 
