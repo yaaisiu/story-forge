@@ -42,7 +42,9 @@ CVE-2026-32285
 # crypto/x509 cert-validation issues affect ollama's *outbound* TLS and need an
 # active MITM to exploit.
 
-# CVE-2026-25679 — net/url: incorrect IPv6 host-literal parsing. Fixed Go 1.25.8 / 1.26.1.
+# CVE-2026-25679 — net/url: insufficient host/authority component validation in
+# url.Parse (accepts certain invalid URLs). Parsing DoS-class on URLs from a trusted
+# local caller only. Fixed Go 1.25.8 / 1.26.1.
 CVE-2026-25679
 # CVE-2026-27137 — crypto/x509: incorrect enforcement of email constraints in cert
 # validation (validation-correctness, not RCE). Fixed Go 1.26.1.
@@ -55,7 +57,9 @@ CVE-2026-32281
 CVE-2026-32283
 # CVE-2026-33810 — crypto/x509: certificate-validation issue (correctness). Fixed Go 1.26.2.
 CVE-2026-33810
-# CVE-2026-33811 — net (cgo resolver): DoS via very long CNAME in LookupCNAME. Fixed Go 1.25.10 / 1.26.3.
+# CVE-2026-33811 — net (cgo resolver): long CNAME in LookupCNAME triggers a double-free
+# of C memory + crash (higher severity than the earlier "DoS" description suggested).
+# Reachable only via outbound DNS in cgo mode; trusted DNS source. Fixed Go 1.25.10 / 1.26.3.
 CVE-2026-33811
 # CVE-2026-33814 — net/http2: infinite loop on crafted SETTINGS frames (DoS). Fixed Go 1.25.10 / 1.26.3.
 CVE-2026-33814

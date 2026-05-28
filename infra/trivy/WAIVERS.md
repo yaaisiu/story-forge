@@ -76,9 +76,9 @@ the fixed packages** (re-scan should clear them without the waiver).
 | CVE-2026-3833 | gnutls | HIGH | nameConstraints policy bypass | 3.8.9-3+deb13u4 | not RCE; gnutls unused for our TLS |
 | CVE-2026-42009 | gnutls | HIGH | DoS (DTLS reordering) | 3.8.9-3+deb13u4 | DoS; no DTLS |
 | CVE-2026-42011 | gnutls | HIGH | name-constraint bypass | 3.8.9-3+deb13u4 | not RCE; gnutls unused for our TLS |
-| CVE-2026-29111 | systemd (libsystemd0/libudev1) | HIGH | arb. code exec or DoS via spurious IPC | 257.13-1~deb13u1 | no systemd/D-Bus daemon in container; libs only |
+| CVE-2026-29111 | systemd (libsystemd0/libudev1) | HIGH | DoS via spurious IPC (assert+freeze on v250+, stack corruption on v249-; not arbitrary code execution per NVD) | 257.13-1~deb13u1 | no systemd/D-Bus daemon in container; libs only — description tightened 2026-05-27 after waiver audit |
 | CVE-2026-4878 | libcap2 | HIGH | local privesc (TOCTOU race) | 1:2.75-10+deb13u1 | needs local attacker already inside container |
-| CVE-2026-40356 | krb5 (libgssapi-krb5-2/libk5crypto3/libkrb5-3/libkrb5support0) | HIGH | DoS via integer overflow | 1.21.3-5+deb13u1 | no Kerberos service in container; linked libs only — added 2026-05-26 |
+| CVE-2026-40356 | krb5 (libgssapi-krb5-2/libk5crypto3/libkrb5-3/libkrb5support0) | HIGH | DoS via integer *underflow* in NegoEx → OOB read (corrected from "overflow" 2026-05-27) | 1.21.3-5+deb13u1 | no Kerberos service in container; linked libs only — added 2026-05-26 |
 
 **Bundled — `gosu` Go stdlib (gobinary).** gosu is a setuid step-down wrapper
 that drops root and `exec`s Postgres: no sockets, no TLS, no URL/archive/mail
@@ -96,7 +96,7 @@ parsing — all of these sit in unreachable code. Same class as the netty waiver
 | CVE-2026-32280 | HIGH | crypto/x509 | 1.25.9 / 1.26.2 |
 | CVE-2026-32281 | HIGH | crypto/x509 | 1.25.9 / 1.26.2 |
 | CVE-2026-32283 | HIGH | crypto/tls | 1.25.9 / 1.26.2 |
-| CVE-2026-33811 | HIGH | net (cgo DNS LookupCNAME) | 1.25.10 / 1.26.3 |
+| CVE-2026-33811 | HIGH | net (cgo DNS LookupCNAME on long CNAME → double-free + crash; tightened from DoS-only 2026-05-27) | 1.25.10 / 1.26.3 |
 | CVE-2026-33814 | HIGH | net/http2 | 1.25.10 / 1.26.3 |
 | CVE-2026-39820 | HIGH | net/mail | 1.25.10 / 1.26.3 |
 | CVE-2026-39836 | HIGH | net (Dial/LookupPort, Windows) | 1.25.10 / 1.26.3 |
@@ -107,7 +107,7 @@ parsing — all of these sit in unreachable code. Same class as the netty waiver
 | CVE-2025-58187 | HIGH | crypto/x509 (inefficient name-constraint check) | 1.24.9 / 1.25.3 — added 2026-05-26 |
 | CVE-2025-58188 | HIGH | crypto/x509 (DSA public-key chain validation) | 1.24.8 / 1.25.2 — added 2026-05-26 |
 | CVE-2025-58189 | HIGH | crypto/tls (ALPN handshake error leak) | 1.24.8 / 1.25.2 — added 2026-05-26 |
-| CVE-2025-61723 | HIGH | std (pathological-input superlinear scaling) | 1.24.8 / 1.25.2 — added 2026-05-26 |
+| CVE-2025-61723 | HIGH | encoding/pem (non-linear parse time on invalid PEM; package tightened from "std" 2026-05-27 after audit) | 1.24.8 / 1.25.2 — added 2026-05-26 |
 | CVE-2025-61724 | HIGH | net/textproto (Reader.ReadResponse memory bloat) | 1.24.8 / 1.25.2 — added 2026-05-26 |
 | CVE-2025-61725 | HIGH | net/mail (ParseAddress domain-literal) | 1.24.8 / 1.25.2 — added 2026-05-26 |
 | CVE-2025-61727 | HIGH | crypto/x509 (excluded-subdomain constraint not enforced) | 1.24.11 / 1.25.5 — added 2026-05-26 |
@@ -138,7 +138,7 @@ rebuilds ollama on patched Go.
 | CVE-2026-32281 | crypto/x509 | HIGH | DoS (chain validation) | Go 1.25.9 / 1.26.2 | DoS; outbound TLS only |
 | CVE-2026-32283 | crypto/tls | HIGH | DoS (TLS 1.3 key updates) | Go 1.25.9 / 1.26.2 | DoS; trusted peer |
 | CVE-2026-33810 | crypto/x509 | HIGH | cert-validation issue | Go 1.26.2 | correctness; outbound TLS, needs MITM |
-| CVE-2026-33811 | net (cgo resolver) | HIGH | DoS (long CNAME) | Go 1.25.10 / 1.26.3 | DoS; trusted DNS |
+| CVE-2026-33811 | net (cgo resolver) | HIGH | long CNAME → double-free + crash (tightened from DoS-only 2026-05-27) | Go 1.25.10 / 1.26.3 | reachable only via outbound cgo DNS to a trusted resolver |
 | CVE-2026-33814 | net/http2 | HIGH | DoS (SETTINGS infinite loop) | Go 1.25.10 / 1.26.3 | DoS; only our backend connects |
 | CVE-2026-39820 | net/mail | HIGH | DoS (ParseAddress) | Go 1.25.10 / 1.26.3 | ollama parses no mail; effectively unreachable |
 | CVE-2026-39836 | net | HIGH | panic (NUL in Dial, Windows) | Go 1.25.10 / 1.26.3 | Linux container; Windows-specific |
