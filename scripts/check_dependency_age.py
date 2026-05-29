@@ -36,6 +36,19 @@ PY_EXACT_RE = re.compile(
 # npm exact-pin: just X.Y.Z optionally with -prerelease suffix; no prefix, no wildcards, no spaces
 NPM_EXACT_RE = re.compile(r"^\d+\.\d+\.\d+(?:-[A-Za-z0-9.]+)?$")
 
+# PEP 508 direct reference to a GitHub-release wheel:
+#   name @ https://github.com/<owner>/<repo>/releases/download/<tag>/<file>.whl
+# Used for deps not published on PyPI — notably spaCy pipeline packages
+# (spec §6.7, "Direct-URL wheel channel"). The release-asset URL is immutable and
+# carries the version, so it is exact by construction; the 14-day soak is checked
+# against the GitHub release date instead of a PyPI upload (uv hash-locks the wheel
+# in uv.lock, and OSV does not index these artifacts — see the spec rationale).
+PY_GH_WHEEL_RE = re.compile(
+    r"^(?P<name>[A-Za-z0-9][A-Za-z0-9._-]*)\s+@\s+"
+    r"https://github\.com/(?P<owner>[^/]+)/(?P<repo>[^/]+)/releases/download/"
+    r"(?P<tag>[^/]+)/[^/]+\.whl$"
+)
+
 
 def fetch_json(url: str) -> dict:
     req = urllib.request.Request(
@@ -77,7 +90,24 @@ def npm_release_date(name: str, version: str) -> dt.datetime | None:
     return dt.datetime.fromisoformat(t_str.replace("Z", "+00:00"))
 
 
-def collect_python_deps() -> list[tuple[str, str, str]]:
+def github_release_date(owner: str, repo: str, tag: str) -> dt.datetime | None:
+    """`published_at` of a GitHub release, by tag. Unauthenticated (60/hr is plenty)."""
+    try:
+        data = fetch_json(
+            f"https://api.github.com/repos/{owner}/{repo}/releases/tags/{tag}"
+        )
+    except urllib.error.HTTPError as e:
+        if e.code == 404:
+            return None
+        raise
+    t_str = data.get("published_at")
+    if not t_str:
+        return None
+    return dt.datetime.fromisoformat(t_str.replace("Z", "+00:00"))
+
+
+def collect_python_deps() -> list[tuple[str, str, str, str | None]]:
+    """Return (source, name, version, gh_url) per dep; gh_url set for GitHub wheels."""
     data = tomllib.loads(BACKEND_PYPROJECT.read_text())
     raw_specs: list[tuple[str, str]] = []
     for s in data.get("project", {}).get("dependencies", []):
@@ -88,13 +118,23 @@ def collect_python_deps() -> list[tuple[str, str, str]]:
     for s in data.get("build-system", {}).get("requires", []):
         raw_specs.append(("build-system.requires", s))
 
-    parsed: list[tuple[str, str, str]] = []
+    parsed: list[tuple[str, str, str, str | None]] = []
     for source, raw in raw_specs:
-        m = PY_EXACT_RE.match(raw.strip())
-        if not m:
-            print(f"FAIL: non-exact pin in {source}: {raw!r}", file=sys.stderr)
-            sys.exit(2)
-        parsed.append((source, m.group(1), m.group(2)))
+        spec = raw.strip()
+        exact = PY_EXACT_RE.match(spec)
+        if exact:
+            parsed.append((source, exact.group(1), exact.group(2), None))
+            continue
+        wheel = PY_GH_WHEEL_RE.match(spec)
+        if wheel:
+            # Version lives in the release tag (`<name>-<version>`); exact by URL.
+            tag = wheel.group("tag")
+            version = tag.rsplit("-", 1)[-1]
+            gh = f"{wheel.group('owner')}/{wheel.group('repo')}@{tag}"
+            parsed.append((source, wheel.group("name"), version, gh))
+            continue
+        print(f"FAIL: non-exact pin in {source}: {raw!r}", file=sys.stderr)
+        sys.exit(2)
     return parsed
 
 
@@ -120,17 +160,23 @@ def main() -> int:
     failures: list[str] = []
 
     print("== Python (backend/pyproject.toml) ==")
-    for source, name, version in collect_python_deps():
-        released = pypi_release_date(name, version)
+    for source, name, version, gh_url in collect_python_deps():
+        if gh_url is None:
+            origin, released = "PyPI", pypi_release_date(name, version)
+        else:
+            origin = f"GitHub {gh_url}"
+            owner_repo, tag = gh_url.split("@", 1)
+            owner, repo = owner_repo.split("/", 1)
+            released = github_release_date(owner, repo, tag)
         if released is None:
-            failures.append(f"PyPI {name}=={version}: not found")
-            print(f"  X {source}: {name}=={version} NOT FOUND on PyPI")
+            failures.append(f"{origin} {name}=={version}: not found")
+            print(f"  X {source}: {name}=={version} NOT FOUND on {origin}")
             continue
         ok = released <= CUTOFF
         marker = "ok" if ok else "X "
-        print(f"  {marker} {source}: {name}=={version} released {released.date()}")
+        print(f"  {marker} {source}: {name}=={version} released {released.date()} ({origin})")
         if not ok:
-            failures.append(f"PyPI {name}=={version}: released {released.date()} (<14d)")
+            failures.append(f"{origin} {name}=={version}: released {released.date()} (<14d)")
 
     print()
     print("== npm (frontend/package.json) ==")

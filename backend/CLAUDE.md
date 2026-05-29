@@ -73,6 +73,10 @@ later). The agent never edits `.env`, so every new setting follows three steps:
 ```bash
 cd backend
 uv sync
+# PreNER (spaCy) needs the pretrained model wheels, which are ~950 MB and live in
+# the optional `models` dependency group — NOT installed by default (keeps CI lean;
+# the model-loading tests auto-skip without them). Install them for any real run:
+uv sync --group models
 # First run only — migrate the dev DB. Tests use a throwaway DB (Session 1's
 # conftest fixture), so this gap is invisible until a real request hits an
 # unmigrated `storyforge` DB and 500s with `relation "..." does not exist`.

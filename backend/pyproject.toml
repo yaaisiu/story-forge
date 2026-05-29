@@ -27,6 +27,7 @@ dependencies = [
   "langdetect==1.0.9",
   "jinja2==3.1.6",
   "httpx==0.28.1",
+  "spacy==3.8.14",
 ]
 
 [dependency-groups]
@@ -35,6 +36,18 @@ dev = [
   "mypy==1.20.2",
   "pytest==9.0.3",
   "pytest-asyncio==1.3.0",
+]
+# spaCy pipeline models — heavy (~950 MB) and not on PyPI, so they live in their own
+# group that `uv sync` does NOT install by default: CI stays lean and the model-loading
+# tests auto-skip (see tests/unit/agents/test_prener_agent.py). Run `uv sync --group
+# models` locally to exercise PreNER end-to-end. Pinned as GitHub-release wheels per
+# spec §6.7 "Direct-URL wheel channel": exact by construction (immutable release asset),
+# SHA-256-locked in uv.lock, and 14-day-soak-checked against the GitHub release date by
+# check_dependency_age.py (which scans dependency-groups). Both 3.8.0 wheels published
+# 2024-09-30, compatible with the spacy 3.8.x range. OSV gate is N/A (not indexed).
+models = [
+  "pl_core_news_lg @ https://github.com/explosion/spacy-models/releases/download/pl_core_news_lg-3.8.0/pl_core_news_lg-3.8.0-py3-none-any.whl",
+  "en_core_web_lg @ https://github.com/explosion/spacy-models/releases/download/en_core_web_lg-3.8.0/en_core_web_lg-3.8.0-py3-none-any.whl",
 ]
 
 # --- Hatchling (src layout) -------------------------------------------------
