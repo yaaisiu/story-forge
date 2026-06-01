@@ -42,12 +42,12 @@ NPM_EXACT_RE = re.compile(r"^\d+\.\d+\.\d+(?:-[A-Za-z0-9.]+)?$")
 # Used for deps not published on PyPI — notably spaCy pipeline packages
 # (spec §6.7, "Direct-URL wheel channel"). The release-asset URL is immutable and
 # carries the version, so it is exact by construction; the 14-day soak is checked
-# against the GitHub release date instead of a PyPI upload (uv hash-locks the wheel
-# in uv.lock, and OSV does not index these artifacts — see the spec rationale).
+# against the matching asset's upload timestamp (uv hash-locks the wheel in uv.lock,
+# and OSV does not index these artifacts — see the spec rationale).
 PY_GH_WHEEL_RE = re.compile(
     r"^(?P<name>[A-Za-z0-9][A-Za-z0-9._-]*)\s*@\s*"
     r"https://github\.com/(?P<owner>[^/]+)/(?P<repo>[^/]+)/releases/download/"
-    r"(?P<tag>[^/]+)/[^/]+\.whl$"
+    r"(?P<tag>[^/]+)/(?P<file>[^/]+\.whl)$"
 )
 
 
@@ -90,8 +90,15 @@ def npm_release_date(name: str, version: str) -> dt.datetime | None:
     return dt.datetime.fromisoformat(t_str.replace("Z", "+00:00"))
 
 
-def github_release_date(owner: str, repo: str, tag: str) -> dt.datetime | None:
-    """`published_at` of a GitHub release, by tag.
+def github_asset_date(owner: str, repo: str, tag: str, filename: str) -> dt.datetime | None:
+    """Upload time of a specific release ASSET — not the tag's publish date.
+
+    A wheel can be added to, or replaced on, an *older* release after its tag was
+    published. Since uv hash-locks whatever bytes we pin, gating the soak on the
+    tag's `published_at` would let a freshly-uploaded artifact pass the 14-day rule.
+    We instead read the matching asset's `updated_at` (which moves if the asset is
+    replaced), so the soak reflects when the actual locked artifact appeared.
+    (Codex review, PR #25.)
 
     Authenticates with `GITHUB_TOKEN` when present (lifts the unauthenticated
     60-req/hr/IP limit to 5000, so the check doesn't flake on shared CI runner IPs);
@@ -117,14 +124,23 @@ def github_release_date(owner: str, repo: str, tag: str) -> dt.datetime | None:
                 f"Set GITHUB_TOKEN to raise the limit (CI passes the Actions token)."
             ) from e
         raise
-    t_str = data.get("published_at")
-    if not t_str:
-        return None
-    return dt.datetime.fromisoformat(t_str.replace("Z", "+00:00"))
+    for asset in data.get("assets", []):
+        if asset.get("name") == filename:
+            # `updated_at` >= `created_at`; using it makes a later replacement fail
+            # the soak rather than silently inherit the original upload date.
+            t_str = asset.get("updated_at") or asset.get("created_at")
+            if not t_str:
+                return None
+            return dt.datetime.fromisoformat(t_str.replace("Z", "+00:00"))
+    return None  # the locked wheel is not an asset on that release
 
 
-def collect_python_deps() -> list[tuple[str, str, str, str | None]]:
-    """Return (source, name, version, gh_url) per dep; gh_url set for GitHub wheels."""
+# For a GitHub wheel dep: (owner, repo, tag, asset_filename). None for PyPI deps.
+GhWheel = tuple[str, str, str, str]
+
+
+def collect_python_deps() -> list[tuple[str, str, str, GhWheel | None]]:
+    """Return (source, name, version, gh) per dep; gh set for GitHub-wheel deps."""
     data = tomllib.loads(BACKEND_PYPROJECT.read_text())
     raw_specs: list[tuple[str, str]] = []
     for s in data.get("project", {}).get("dependencies", []):
@@ -135,7 +151,7 @@ def collect_python_deps() -> list[tuple[str, str, str, str | None]]:
     for s in data.get("build-system", {}).get("requires", []):
         raw_specs.append(("build-system.requires", s))
 
-    parsed: list[tuple[str, str, str, str | None]] = []
+    parsed: list[tuple[str, str, str, GhWheel | None]] = []
     for source, raw in raw_specs:
         spec = raw.strip()
         exact = PY_EXACT_RE.match(spec)
@@ -147,7 +163,7 @@ def collect_python_deps() -> list[tuple[str, str, str, str | None]]:
             # Version lives in the release tag (`<name>-<version>`); exact by URL.
             tag = wheel.group("tag")
             version = tag.rsplit("-", 1)[-1]
-            gh = f"{wheel.group('owner')}/{wheel.group('repo')}@{tag}"
+            gh = (wheel.group("owner"), wheel.group("repo"), tag, wheel.group("file"))
             parsed.append((source, wheel.group("name"), version, gh))
             continue
         print(f"FAIL: non-exact pin in {source}: {raw!r}", file=sys.stderr)
@@ -177,14 +193,13 @@ def main() -> int:
     failures: list[str] = []
 
     print("== Python (backend/pyproject.toml) ==")
-    for source, name, version, gh_url in collect_python_deps():
-        if gh_url is None:
+    for source, name, version, gh in collect_python_deps():
+        if gh is None:
             origin, released = "PyPI", pypi_release_date(name, version)
         else:
-            origin = f"GitHub {gh_url}"
-            owner_repo, tag = gh_url.split("@", 1)
-            owner, repo = owner_repo.split("/", 1)
-            released = github_release_date(owner, repo, tag)
+            owner, repo, tag, filename = gh
+            origin = f"GitHub {owner}/{repo}@{tag} asset"
+            released = github_asset_date(owner, repo, tag, filename)
         if released is None:
             failures.append(f"{origin} {name}=={version}: not found")
             print(f"  X {source}: {name}=={version} NOT FOUND on {origin}")

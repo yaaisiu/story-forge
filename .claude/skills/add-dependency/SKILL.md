@@ -106,9 +106,11 @@ explicitly (spec §6.7, "Direct-URL wheel channel"). Do **not** fall back to
    This is **exact by construction** (a release-asset URL is immutable). Find the exact
    wheel URL on the project's GitHub releases page; for spaCy, cross-check the model
    version against `compatibility.json` for your pinned `spacy==` version.
-2. **14-day soak → GitHub release date.** `check_dependency_age.py` already understands
-   this URL shape: it resolves the release tag via the GitHub API and applies the same
-   14-day cutoff (no PyPI lookup). Just run it (step 6) — no manual date math needed.
+2. **14-day soak → GitHub asset upload date.** `check_dependency_age.py` already
+   understands this URL shape: it finds the release asset whose filename matches the
+   locked wheel and checks *its* `updated_at` against the 14-day cutoff (not the tag's
+   publish date — a wheel can be added to an old release later). Just run it (step 6) —
+   no manual date math needed.
 3. **Hash-lock via uv.** `uv lock` records and verifies a SHA-256 for the URL wheel in
    `uv.lock`, same as any distribution. `uv sync` enforces it on install.
 4. **OSV/advisory gate does not apply** — OSV/pip-audit don't index these artifacts.
