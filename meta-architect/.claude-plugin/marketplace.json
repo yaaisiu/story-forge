@@ -1,0 +1,14 @@
+{
+  "name": "meta-architect-local",
+  "description": "Local incubation marketplace for the meta-architect plugin while it lives inside Story Forge, before extraction to its own repository.",
+  "owner": {
+    "name": "yasiu"
+  },
+  "plugins": [
+    {
+      "name": "meta-architect",
+      "source": "./",
+      "description": "Domain-agnostic product architect: writes Markdown design artefacts into an Obsidian-compatible vault and teaches architecture vocabulary as it works. Never writes production code."
+    }
+  ]
+}

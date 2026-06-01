@@ -1,0 +1,8 @@
+{
+  "name": "meta-architect",
+  "description": "A domain-agnostic product architect that produces only Markdown design artefacts (ADRs, decision registers, component notes, invariants, state machines, reviews) into an Obsidian-compatible vault, and teaches architectural vocabulary as a side-effect of real work. Never writes production code.",
+  "version": "0.1.0",
+  "author": {
+    "name": "yasiu"
+  }
+}
