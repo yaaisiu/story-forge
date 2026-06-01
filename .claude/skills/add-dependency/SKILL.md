@@ -89,3 +89,31 @@ It must exit 0 (exit 2 = a non-exact pin slipped in; exit 1 = something is too y
 Tell the user: package, exact version pinned, its age in days, advisory check result,
 and which file + lockfile changed. If you had to choose an older version because the
 newest was <14 days, say so explicitly.
+
+## Special case: dependencies not on PyPI/npm (GitHub-release wheels)
+
+Some dependencies ship only as versioned wheels on **GitHub Releases**, not on
+PyPI/npm — notably spaCy's pretrained pipeline packages (`pl_core_news_lg`,
+`en_core_web_lg`). The steps above assume a registry, so this channel is handled
+explicitly (spec §6.7, "Direct-URL wheel channel"). Do **not** fall back to
+`python -m spacy download` — that's an unpinned runtime fetch.
+
+1. **Pin as a PEP 508 direct-URL reference** in `[project].dependencies`, version in
+   the URL:
+   ```toml
+   "pl_core_news_lg @ https://github.com/explosion/spacy-models/releases/download/pl_core_news_lg-3.8.0/pl_core_news_lg-3.8.0-py3-none-any.whl",
+   ```
+   This is **exact by construction** (a release-asset URL is immutable). Find the exact
+   wheel URL on the project's GitHub releases page; for spaCy, cross-check the model
+   version against `compatibility.json` for your pinned `spacy==` version.
+2. **14-day soak → GitHub asset upload date.** `check_dependency_age.py` already
+   understands this URL shape: it finds the release asset whose filename matches the
+   locked wheel and checks *its* `updated_at` against the 14-day cutoff (not the tag's
+   publish date — a wheel can be added to an old release later). Just run it (step 6) —
+   no manual date math needed.
+3. **Hash-lock via uv.** `uv lock` records and verifies a SHA-256 for the URL wheel in
+   `uv.lock`, same as any distribution. `uv sync` enforces it on install.
+4. **OSV/advisory gate does not apply** — OSV/pip-audit don't index these artifacts.
+   This is the one baseline rule that's genuinely N/A; the residual risk is bounded by
+   the official publisher + the locked hash + the wheel carrying only pipeline
+   weights/config (full rationale in spec §6.7). State this N/A explicitly in the report.

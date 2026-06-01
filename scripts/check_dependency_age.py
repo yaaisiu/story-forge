@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import datetime as dt
 import json
+import os
 import re
 import sys
 import tomllib
@@ -36,11 +37,23 @@ PY_EXACT_RE = re.compile(
 # npm exact-pin: just X.Y.Z optionally with -prerelease suffix; no prefix, no wildcards, no spaces
 NPM_EXACT_RE = re.compile(r"^\d+\.\d+\.\d+(?:-[A-Za-z0-9.]+)?$")
 
+# PEP 508 direct reference to a GitHub-release wheel:
+#   name @ https://github.com/<owner>/<repo>/releases/download/<tag>/<file>.whl
+# Used for deps not published on PyPI — notably spaCy pipeline packages
+# (spec §6.7, "Direct-URL wheel channel"). The release-asset URL is immutable and
+# carries the version, so it is exact by construction; the 14-day soak is checked
+# against the matching asset's upload timestamp (uv hash-locks the wheel in uv.lock,
+# and OSV does not index these artifacts — see the spec rationale).
+PY_GH_WHEEL_RE = re.compile(
+    r"^(?P<name>[A-Za-z0-9][A-Za-z0-9._-]*)\s*@\s*"
+    r"https://github\.com/(?P<owner>[^/]+)/(?P<repo>[^/]+)/releases/download/"
+    r"(?P<tag>[^/]+)/(?P<file>[^/]+\.whl)$"
+)
 
-def fetch_json(url: str) -> dict:
-    req = urllib.request.Request(
-        url, headers={"User-Agent": "story-forge-dep-age-check"}
-    )
+
+def fetch_json(url: str, extra_headers: dict[str, str] | None = None) -> dict:
+    headers = {"User-Agent": "story-forge-dep-age-check", **(extra_headers or {})}
+    req = urllib.request.Request(url, headers=headers)
     with urllib.request.urlopen(req, timeout=20) as resp:  # noqa: S310
         return json.loads(resp.read().decode())
 
@@ -77,7 +90,57 @@ def npm_release_date(name: str, version: str) -> dt.datetime | None:
     return dt.datetime.fromisoformat(t_str.replace("Z", "+00:00"))
 
 
-def collect_python_deps() -> list[tuple[str, str, str]]:
+def github_asset_date(owner: str, repo: str, tag: str, filename: str) -> dt.datetime | None:
+    """Upload time of a specific release ASSET — not the tag's publish date.
+
+    A wheel can be added to, or replaced on, an *older* release after its tag was
+    published. Since uv hash-locks whatever bytes we pin, gating the soak on the
+    tag's `published_at` would let a freshly-uploaded artifact pass the 14-day rule.
+    We instead read the matching asset's `updated_at` (which moves if the asset is
+    replaced), so the soak reflects when the actual locked artifact appeared.
+    (Codex review, PR #25.)
+
+    Authenticates with `GITHUB_TOKEN` when present (lifts the unauthenticated
+    60-req/hr/IP limit to 5000, so the check doesn't flake on shared CI runner IPs);
+    works without one for the handful of calls a local run makes. A 403 is almost
+    always rate-limiting, so it's turned into an actionable message rather than an
+    opaque traceback.
+    """
+    headers = {}
+    token = os.environ.get("GITHUB_TOKEN")
+    if token:
+        headers["Authorization"] = f"Bearer {token}"
+    try:
+        data = fetch_json(
+            f"https://api.github.com/repos/{owner}/{repo}/releases/tags/{tag}",
+            extra_headers=headers,
+        )
+    except urllib.error.HTTPError as e:
+        if e.code == 404:
+            return None
+        if e.code == 403:
+            raise RuntimeError(
+                f"GitHub API 403 for {owner}/{repo}@{tag} — likely rate-limited. "
+                f"Set GITHUB_TOKEN to raise the limit (CI passes the Actions token)."
+            ) from e
+        raise
+    for asset in data.get("assets", []):
+        if asset.get("name") == filename:
+            # `updated_at` >= `created_at`; using it makes a later replacement fail
+            # the soak rather than silently inherit the original upload date.
+            t_str = asset.get("updated_at") or asset.get("created_at")
+            if not t_str:
+                return None
+            return dt.datetime.fromisoformat(t_str.replace("Z", "+00:00"))
+    return None  # the locked wheel is not an asset on that release
+
+
+# For a GitHub wheel dep: (owner, repo, tag, asset_filename). None for PyPI deps.
+GhWheel = tuple[str, str, str, str]
+
+
+def collect_python_deps() -> list[tuple[str, str, str, GhWheel | None]]:
+    """Return (source, name, version, gh) per dep; gh set for GitHub-wheel deps."""
     data = tomllib.loads(BACKEND_PYPROJECT.read_text())
     raw_specs: list[tuple[str, str]] = []
     for s in data.get("project", {}).get("dependencies", []):
@@ -88,13 +151,23 @@ def collect_python_deps() -> list[tuple[str, str, str]]:
     for s in data.get("build-system", {}).get("requires", []):
         raw_specs.append(("build-system.requires", s))
 
-    parsed: list[tuple[str, str, str]] = []
+    parsed: list[tuple[str, str, str, GhWheel | None]] = []
     for source, raw in raw_specs:
-        m = PY_EXACT_RE.match(raw.strip())
-        if not m:
-            print(f"FAIL: non-exact pin in {source}: {raw!r}", file=sys.stderr)
-            sys.exit(2)
-        parsed.append((source, m.group(1), m.group(2)))
+        spec = raw.strip()
+        exact = PY_EXACT_RE.match(spec)
+        if exact:
+            parsed.append((source, exact.group(1), exact.group(2), None))
+            continue
+        wheel = PY_GH_WHEEL_RE.match(spec)
+        if wheel:
+            # Version lives in the release tag (`<name>-<version>`); exact by URL.
+            tag = wheel.group("tag")
+            version = tag.rsplit("-", 1)[-1]
+            gh = (wheel.group("owner"), wheel.group("repo"), tag, wheel.group("file"))
+            parsed.append((source, wheel.group("name"), version, gh))
+            continue
+        print(f"FAIL: non-exact pin in {source}: {raw!r}", file=sys.stderr)
+        sys.exit(2)
     return parsed
 
 
@@ -120,17 +193,22 @@ def main() -> int:
     failures: list[str] = []
 
     print("== Python (backend/pyproject.toml) ==")
-    for source, name, version in collect_python_deps():
-        released = pypi_release_date(name, version)
+    for source, name, version, gh in collect_python_deps():
+        if gh is None:
+            origin, released = "PyPI", pypi_release_date(name, version)
+        else:
+            owner, repo, tag, filename = gh
+            origin = f"GitHub {owner}/{repo}@{tag} asset"
+            released = github_asset_date(owner, repo, tag, filename)
         if released is None:
-            failures.append(f"PyPI {name}=={version}: not found")
-            print(f"  X {source}: {name}=={version} NOT FOUND on PyPI")
+            failures.append(f"{origin} {name}=={version}: not found")
+            print(f"  X {source}: {name}=={version} NOT FOUND on {origin}")
             continue
         ok = released <= CUTOFF
         marker = "ok" if ok else "X "
-        print(f"  {marker} {source}: {name}=={version} released {released.date()}")
+        print(f"  {marker} {source}: {name}=={version} released {released.date()} ({origin})")
         if not ok:
-            failures.append(f"PyPI {name}=={version}: released {released.date()} (<14d)")
+            failures.append(f"{origin} {name}=={version}: released {released.date()} (<14d)")
 
     print()
     print("== npm (frontend/package.json) ==")

@@ -68,6 +68,17 @@ authoring (not just reviewing) needs to hold:
 
 To add a new agent: copy an existing one, change the prompt + schema, register its preferred tier. No god-class to edit.
 
+**Deterministic local NLP is an exception to "no concrete deps in agents."** The
+layering rule above ("agents import the `LLMProvider` Protocol, never a concrete
+adapter") targets network/DB I/O and the multi-provider LLM tier. `PreNERAgent`
+imports spaCy directly (lazily, in `_pipeline`) because it is deterministic, purely
+local compute with no provider choice to abstract — a Protocol would be ceremony for
+a single implementation (Karpathy: no abstractions for single-use code). The reusable
+logic that *doesn't* need spaCy (`candidates_from_entities`, `map_spacy_label`) is
+factored into pure functions so it stays CI-testable without the model. **Revisit
+this** if a second NER backend ever appears (e.g. a finetuned model alongside the
+stock pipelines) — at that point a `NerPipeline` Protocol earns its place.
+
 ## Prompts
 
 Prompts live in `prompts/` as Jinja2 templates (`.j2`). One file per logical prompt. Versioned in git. Loaded via a small helper, not f-strings scattered around the code. Both PL and EN variants per prompt.
