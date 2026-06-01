@@ -62,7 +62,8 @@ state as running it once." Name the source of truth for any fact you assert.>
 
 <The chosen option, stated plainly, and WHY it won — which forces/drivers were decisive.
 This is a record of a *made* decision. An UNRESOLVED choice does not belong in an ADR; it
-belongs in the decision register (proposals/<slug>/decisions.md) and [[open-questions]].>
+belongs in the decision register inside the proposal note (`proposals/<slug>.md`) and
+[[open-questions]].>
 
 ## Consequences
 
