@@ -21,3 +21,9 @@ lesson; no one-off findings.
 - 2026-06-02 Tooling agents with "write only here" guardrails must cover **every write-capable
   path**, including Bash/shell redirection and directory creation, not just explicit Write/Edit
   tools.
+- 2026-06-02 Before flagging filemode or symlink issues, verify against canonical repo state
+  (`git ls-files -s`, `git status`); Windows/UNC views of a WSL checkout can report artifacts
+  that are not real PR changes.
+- 2026-06-02 After a design/structure change, run a consistency pass on path and filename
+  references across templates, skills, README, and examples; stale paths from a superseded
+  design are a recurring smell.
