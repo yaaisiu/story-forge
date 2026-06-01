@@ -37,6 +37,14 @@ Diff the current branch against `main` (`git diff main...HEAD`) and assess:
   home paths or secrets committed.
 - **Design coherence** — for prompt/doctrine/config changes: internal consistency, guardrail
   soundness, schema consistency, no self-contradiction.
+- **Tooling-agent guardrails** — if a changed agent/skill claims to be report-only, vault-only,
+  or docs-only, verify every enabled write-capable path (Write/Edit and shell/Bash mutation such
+  as redirection, `mkdir`, `rm`) is covered by the guardrail.
+- **Path/reference consistency** — after a design or structure change, search templates, skills,
+  README/docs, and examples for stale paths or filenames from the superseded design.
+- **Environment-artifact filter** — before reporting filemode or symlink findings, verify the
+  canonical repo state with `git ls-files -s` and `git status`; Windows/UNC views of WSL
+  checkouts can report artifacts that are not PR changes.
 - Any targeted pass that `lessons.md` tells you this repo needs.
 
 ## 3. Report
