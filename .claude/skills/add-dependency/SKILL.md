@@ -78,9 +78,11 @@ chosen version and its age to the user.
 
 ## 6. Verify
 
-Run the same gate CI runs, from the repo root:
+Run the same gate CI runs. The script lives at repo-root `scripts/`, so use a
+cwd-independent path — this works whether you're at the root or cd'd into `backend/`
+(a recurring foot-gun: `python3 scripts/…` fails with "No such file" from `backend/`):
 ```bash
-python3 scripts/check_dependency_age.py
+python3 "$(git rev-parse --show-toplevel)/scripts/check_dependency_age.py"
 ```
 It must exit 0 (exit 2 = a non-exact pin slipped in; exit 1 = something is too young).
 
