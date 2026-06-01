@@ -90,6 +90,24 @@ Per feature (and at session close): feature branch → **open a PR so CI actuall
 - When the spec is wrong or contradictory: flag it before working around it.
 - Long stretches without check-in are a smell. If you've been working for 30+ minutes without confirming direction, stop and confirm.
 
+## Where knowledge lives — document in the repo, not in agent memory
+
+Durable knowledge belongs in the **project files a human will actually read**, not in
+private agent memory. Decisions, rationales, conventions, and follow-ups go into the
+granular file that owns them — the spec (`story-forge-poc-spec.md`), the plans
+(`docs/PLAN_*.md`), the relevant `CLAUDE.md`, or a skill — so the next contributor (and
+the next session) finds them by reading the repo. This is a public portfolio: the record
+of *how* and *why* we build must be in the open, version-controlled, and reviewable.
+
+- Prefer the most specific home: a layering rule → that directory's `CLAUDE.md`; a
+  workflow rule → here or a skill; a decision → `docs/PLAN_SHORT.md` **Decided**; a roadmap
+  shift → `docs/PLAN_LONG.md`; a spec change → the spec (via the stop-and-amend flow).
+- Agent memory, if used at all, is a temporary scratchpad. **At `/wrap-session`, migrate
+  anything durable out of memory into the proper project file, then clear it** — never let
+  a decision live only in memory where a collaborator can't see it.
+- **Web research runs in the main loop**, not a background subagent — subagents can't
+  surface permission prompts, so `WebSearch`/`WebFetch`/`Bash` get auto-denied for them.
+
 ## Stack reminder (details in spec §6)
 
 - Backend: FastAPI (Python 3.12), `uv` for env management

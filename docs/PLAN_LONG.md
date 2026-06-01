@@ -17,6 +17,16 @@ The user can upload a draft, chunk it, extract entities/relations with the casca
 - [ ] **Milestone 4 — V1 polish** (5-7 days)
   Inline highlights, side panel, manual annotation, properties/relations edit, multi-story, world graph parent.
 
+### Data flywheel — a custom NER model, later
+
+The PreNERAgent (M2) uses stock spaCy pipelines (`pl_core_news_lg`, `en_core_web_lg`)
+as a deliberately recall-first, low-precision baseline. Every entity the user accepts,
+relabels, or corrects through the §3.3 review loop is training data. Once enough has
+accumulated, **finetune a custom spaCy model** on the corrected "Wody Święte" corpus and
+swap it in behind the same agent — at which point a `NerPipeline` Protocol earns its
+place (see `backend/src/story_forge/CLAUDE.md`). Not scheduled; a direction the
+architecture is kept ready for.
+
 ## V2 — Editing
 
 Three modes (inline / dialog / diff), full edit_history pipeline. New agents: `InlineEditAgent`, `DialogAgent`, `DiffRewriteAgent`. Spec §4. Timeline after V1.

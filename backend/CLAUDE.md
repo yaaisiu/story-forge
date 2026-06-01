@@ -22,6 +22,16 @@ This directory holds the Python FastAPI backend.
 - Agent tests with mocked `LLMProvider`: `tests/unit/agents/`
 - E2E: `tests/e2e/`
 
+**Test the agent's contract, not a model's accuracy.** For agents wrapping a
+statistical model (the spaCy PreNER baseline; any future finetuned NER), assert the
+*behaviour we own* — labels mapped to the §3.2 taxonomy, offsets preserved, the right
+spans surfaced/dropped — not whether the model labels each token correctly. The baseline
+is recall-first and *expected* to mislabel (e.g. `en_core_web_lg` tags "Old Bronek" as
+ORG); corrections feed the data flywheel (see `docs/PLAN_LONG.md`). Factor the pure logic
+(label-mapping, filtering, offset wiring) out of the model call so it stays unit-tested in
+CI without loading a heavy model — the model wheels live in the optional `models`
+dependency group and the model-loading tests `skipif`-skip when absent.
+
 **Secret-keyword values in tests:** when a test needs a credential-like value (a
 password, API key, token — e.g. asserting on a parsed DB URL), bind it to a local
 variable rather than writing the literal next to the keyword (`password="…"`,

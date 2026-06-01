@@ -84,6 +84,15 @@ Add one dated bullet to **Done in previous sessions** summarizing what was accom
 (what works, what tests pass, what's left), **including any process changes the
 retrospective produced**. Write it for an outsider — this is public.
 
+## 5b. Migrate any agent memory into project files, then clear it
+
+Per root `CLAUDE.md` ("Where knowledge lives"), durable knowledge belongs in the repo,
+not in private agent memory. If anything was stashed in agent memory this session, move
+each item into its proper project home — a decision → **Decided**; a convention → the
+relevant `CLAUDE.md`; a roadmap note → `docs/PLAN_LONG.md`; a follow-up → the cross-cutting
+list — and then delete the memory entry (and its index line). The wrap is not done while a
+durable fact lives only in memory. A session that used no memory: nothing to do, say so.
+
 ## 6. Check spec / plan consistency
 
 If the work revealed the spec was wrong or incomplete: **stop.** The spec
