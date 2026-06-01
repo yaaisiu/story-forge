@@ -15,6 +15,7 @@ carries it, spec §3.1); we do not auto-detect at this layer.
 
 from __future__ import annotations
 
+from collections.abc import Iterable
 from typing import TYPE_CHECKING
 
 from story_forge.domain.extraction import CandidateSpan
@@ -50,6 +51,33 @@ def map_spacy_label(label: str) -> str | None:
     return _LABEL_TO_TYPE.get(label)
 
 
+def candidates_from_entities(
+    entities: Iterable[tuple[str, str, int, int]],
+) -> list[CandidateSpan]:
+    """Turn raw `(label, text, char_start, char_end)` NER spans into CandidateSpans.
+
+    Pure — no spaCy — so the label-mapping dispatch, the drop-on-unmapped filter and
+    the offset/label wiring are unit-testable in CI without loading a ~950 MB model
+    (the model-loading tests skip there). `PreNERAgent.extract` feeds spaCy's
+    `doc.ents` through this.
+    """
+    candidates: list[CandidateSpan] = []
+    for label, text, char_start, char_end in entities:
+        mapped_type = map_spacy_label(label)
+        if mapped_type is None:
+            continue
+        candidates.append(
+            CandidateSpan(
+                text=text,
+                char_start=char_start,
+                char_end=char_end,
+                spacy_label=label,
+                mapped_type=mapped_type,
+            )
+        )
+    return candidates
+
+
 class PreNERAgent:
     """Per-paragraph spaCy baseline emitting typed `CandidateSpan`s."""
 
@@ -69,19 +97,7 @@ class PreNERAgent:
 
     def extract(self, paragraph_text: str, language: str) -> list[CandidateSpan]:
         """Return the proper-noun candidates spaCy finds in one paragraph."""
-        nlp = self._pipeline(language)
-        candidates: list[CandidateSpan] = []
-        for ent in nlp(paragraph_text).ents:
-            mapped_type = map_spacy_label(ent.label_)
-            if mapped_type is None:
-                continue
-            candidates.append(
-                CandidateSpan(
-                    text=ent.text,
-                    char_start=ent.start_char,
-                    char_end=ent.end_char,
-                    spacy_label=ent.label_,
-                    mapped_type=mapped_type,
-                )
-            )
-        return candidates
+        doc = self._pipeline(language)(paragraph_text)
+        return candidates_from_entities(
+            (ent.label_, ent.text, ent.start_char, ent.end_char) for ent in doc.ents
+        )

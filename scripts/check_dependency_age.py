@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import datetime as dt
 import json
+import os
 import re
 import sys
 import tomllib
@@ -44,16 +45,15 @@ NPM_EXACT_RE = re.compile(r"^\d+\.\d+\.\d+(?:-[A-Za-z0-9.]+)?$")
 # against the GitHub release date instead of a PyPI upload (uv hash-locks the wheel
 # in uv.lock, and OSV does not index these artifacts — see the spec rationale).
 PY_GH_WHEEL_RE = re.compile(
-    r"^(?P<name>[A-Za-z0-9][A-Za-z0-9._-]*)\s+@\s+"
+    r"^(?P<name>[A-Za-z0-9][A-Za-z0-9._-]*)\s*@\s*"
     r"https://github\.com/(?P<owner>[^/]+)/(?P<repo>[^/]+)/releases/download/"
     r"(?P<tag>[^/]+)/[^/]+\.whl$"
 )
 
 
-def fetch_json(url: str) -> dict:
-    req = urllib.request.Request(
-        url, headers={"User-Agent": "story-forge-dep-age-check"}
-    )
+def fetch_json(url: str, extra_headers: dict[str, str] | None = None) -> dict:
+    headers = {"User-Agent": "story-forge-dep-age-check", **(extra_headers or {})}
+    req = urllib.request.Request(url, headers=headers)
     with urllib.request.urlopen(req, timeout=20) as resp:  # noqa: S310
         return json.loads(resp.read().decode())
 
@@ -91,14 +91,31 @@ def npm_release_date(name: str, version: str) -> dt.datetime | None:
 
 
 def github_release_date(owner: str, repo: str, tag: str) -> dt.datetime | None:
-    """`published_at` of a GitHub release, by tag. Unauthenticated (60/hr is plenty)."""
+    """`published_at` of a GitHub release, by tag.
+
+    Authenticates with `GITHUB_TOKEN` when present (lifts the unauthenticated
+    60-req/hr/IP limit to 5000, so the check doesn't flake on shared CI runner IPs);
+    works without one for the handful of calls a local run makes. A 403 is almost
+    always rate-limiting, so it's turned into an actionable message rather than an
+    opaque traceback.
+    """
+    headers = {}
+    token = os.environ.get("GITHUB_TOKEN")
+    if token:
+        headers["Authorization"] = f"Bearer {token}"
     try:
         data = fetch_json(
-            f"https://api.github.com/repos/{owner}/{repo}/releases/tags/{tag}"
+            f"https://api.github.com/repos/{owner}/{repo}/releases/tags/{tag}",
+            extra_headers=headers,
         )
     except urllib.error.HTTPError as e:
         if e.code == 404:
             return None
+        if e.code == 403:
+            raise RuntimeError(
+                f"GitHub API 403 for {owner}/{repo}@{tag} — likely rate-limited. "
+                f"Set GITHUB_TOKEN to raise the limit (CI passes the Actions token)."
+            ) from e
         raise
     t_str = data.get("published_at")
     if not t_str:

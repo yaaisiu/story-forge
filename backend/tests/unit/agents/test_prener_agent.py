@@ -19,7 +19,11 @@ import importlib.util
 
 import pytest
 
-from story_forge.agents.prener_agent import PreNERAgent, map_spacy_label
+from story_forge.agents.prener_agent import (
+    PreNERAgent,
+    candidates_from_entities,
+    map_spacy_label,
+)
 from story_forge.domain.extraction import CandidateSpan
 
 # The pretrained pipeline wheels are ~950 MB and live in the optional `models`
@@ -75,6 +79,33 @@ def test_map_spacy_label_to_taxonomy(label: str, expected: str) -> None:
 def test_map_spacy_label_drops_non_entity_labels(label: str) -> None:
     # Labels with no §3.2 home return None; the agent filters those spans out.
     assert map_spacy_label(label) is None
+
+
+# ── Pure entity → CandidateSpan transform (no model — runs in CI) ─────────────
+
+
+def test_candidates_from_entities_maps_filters_and_wires_offsets() -> None:
+    # This is `extract()`'s real work, exercised without loading a model: mapping
+    # dispatch, dropping unmapped labels, and verbatim offset/label/text wiring.
+    entities = [
+        ("PERSON", "Bronek", 4, 10),  # mappable → Character
+        ("DATE", "this morning", 20, 32),  # unmapped → dropped
+        ("ORG", "The Lodge", 40, 49),  # mappable → Organization
+    ]
+    spans = candidates_from_entities(entities)
+
+    assert [s.mapped_type for s in spans] == ["Character", "Organization"]
+    first = spans[0]
+    assert (first.text, first.char_start, first.char_end, first.spacy_label) == (
+        "Bronek",
+        4,
+        10,
+        "PERSON",
+    )
+
+
+def test_candidates_from_entities_empty() -> None:
+    assert candidates_from_entities([]) == []
 
 
 # ── Extraction against the real spaCy models (Appendix B.2 fixtures) ──────────
