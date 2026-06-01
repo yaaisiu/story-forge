@@ -43,7 +43,7 @@ report failures clearly, but do not refuse to wrap — the user decides whether 
   npm run lint && npm run format:check && npm run build && npm run test
   ```
   (`npm run test` only if a test script exists yet.)
-- **Dependency age** (if any dep changed), from repo root: `python3 scripts/check_dependency_age.py`
+- **Dependency age** (if any dep changed) — cwd-independent path so it runs from `backend/` too (a recurring foot-gun): `python3 "$(git rev-parse --show-toplevel)/scripts/check_dependency_age.py"`
 
 Summarize each as pass/fail with the failing output. If something is red, say so plainly
 in the wrap-up and in the handoff block — never record a red session as cleanly closed.
@@ -60,6 +60,13 @@ Prompt the user to run **`/retro`** (a separate, human-in-the-loop skill): it re
 whether the skills and `CLAUDE.md` rules served this session and proposes any new/changed
 skill or rule. Kept separate so it stays deliberate, but referenced here so it is never
 silently skipped.
+
+**A retro is a reflective pass, not just folding a directive.** Even when the user already
+named a change to make this session, still do the reflection — walk what ran, what *recurred*
+(friction that bit more than once is the signal), and what helped — and surface anything it
+turns up. Folding an explicit instruction is *not* a substitute for the look-back; conflating
+the two is how a recurring foot-gun survives another session (it's how the cwd-invocation
+gotcha did). If the reflection genuinely turns up nothing, say so — but do the pass.
 
 **Once per session:** if `/retro` already ran this session, don't re-prompt — just fold its
 outcomes into the steps below. If the session was routine and nothing felt like friction,
@@ -83,6 +90,15 @@ say so — a retro skipped *by choice* is fine; a forgotten one is not.
 Add one dated bullet to **Done in previous sessions** summarizing what was accomplished
 (what works, what tests pass, what's left), **including any process changes the
 retrospective produced**. Write it for an outsider — this is public.
+
+## 5b. Migrate any agent memory into project files, then clear it
+
+Per root `CLAUDE.md` ("Where knowledge lives"), durable knowledge belongs in the repo,
+not in private agent memory. If anything was stashed in agent memory this session, move
+each item into its proper project home — a decision → **Decided**; a convention → the
+relevant `CLAUDE.md`; a roadmap note → `docs/PLAN_LONG.md`; a follow-up → the cross-cutting
+list — and then delete the memory entry (and its index line). The wrap is not done while a
+durable fact lives only in memory. A session that used no memory: nothing to do, say so.
 
 ## 6. Check spec / plan consistency
 

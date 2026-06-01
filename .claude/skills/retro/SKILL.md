@@ -67,6 +67,10 @@ For anything the user approves:
   `story-forge-poc-spec.md` / `docs/PLAN_LONG.md` / `docs/PLAN_SHORT.md` first, per the workflow rules.
 - Keep skill descriptions truthful after editing — the description is what future sessions
   match against.
+- **Record outcomes in project files, never only in agent memory** (root `CLAUDE.md`,
+  "Where knowledge lives"). A retro's product is an edit to a skill, a `CLAUDE.md`, the
+  spec, or the plan — the granular file the next contributor reads — so the change is
+  visible, reviewed, and version-controlled on this public repo.
 
 ## 6. Report
 
