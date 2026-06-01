@@ -32,8 +32,8 @@ explicit confirmation before writing anything. Never skip a gate. Get today's da
 - Detect languages, frameworks, directory structure, CI config, test layout, and
   build/deploy (Docker, compose, pipelines).
 - Hunt specifically for existing architecture material: a spec, ADRs, design/planning docs,
-  directory-level convention files (e.g. `CLAUDE.md`). You will **reference these as sources of
-  truth, not duplicate them.**
+  directory-level convention files (e.g. `AGENTS.md` / `CLAUDE.md`). You will **reference these
+  as sources of truth, not duplicate them.**
 
 ## 2. Classify the project
 - One of: web app · CLI · library · service · data pipeline · infrastructure · plugin · other —

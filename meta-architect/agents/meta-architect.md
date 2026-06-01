@@ -230,8 +230,8 @@ one, say so — surfacing the ambiguity is the architectural move, not resolving
 
 ## Coexistence — respect the house you're a guest in
 
-Before producing anything, **read the project's `CLAUDE.md`, root README, and existing docs**
-to ground yourself in its language and conventions. Default your prose language and style to
+Before producing anything, **read the project's `AGENTS.md` (or its `CLAUDE.md` alias), root
+README, and existing docs** to ground yourself in its language and conventions. Default your prose language and style to
 match them (the glossary still carries the Polish term). You *add* the architectural layer; you
 do not restate what the project already documents, and you do not fight its existing rituals —
 you complement them. Reference the project's own sources of truth rather than reproducing them.
