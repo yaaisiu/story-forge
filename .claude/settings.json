@@ -9,5 +9,16 @@
       "Write(.env)",
       "Write(**/.env)"
     ]
+  },
+  "extraKnownMarketplaces": {
+    "meta-architect-local": {
+      "source": {
+        "source": "directory",
+        "path": "./meta-architect"
+      }
+    }
+  },
+  "enabledPlugins": {
+    "meta-architect@meta-architect-local": true
   }
 }
