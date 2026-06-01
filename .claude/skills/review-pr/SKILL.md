@@ -215,6 +215,14 @@ The repo is public; every line is read by a stranger.
   in a PR rather than a local scan. If you write the review while one scan is still
   red, *flag the unmask possibility explicitly* so the next reviewer expects it instead
   of treating it as a fresh surprise.
+- **Codex runs in a different environment — filter its artifacts before folding.** Codex may
+  read this repo from a Windows/UNC host (`//?/UNC/wsl.localhost/...`) over a WSL checkout. That
+  view fabricates findings absent from the canonical tree: spurious filemode flips
+  (`100755 => 100644`) and symlink `Function not implemented` diffs. Verify any filemode/symlink
+  finding against the canonical state (`git ls-files -s`, local `git status`) before folding — a
+  "change" not present in the Linux/WSL working tree is the reviewer's environment, not the PR.
+  (Caught 2026-06-02: Codex flagged exec-bit loss on `scripts/*.py` that `git ls-files -s`
+  showed intact as `100755`.)
 
 ## 9. Report
 

@@ -50,6 +50,8 @@ Every major directory has its own `AGENTS.md` with conventions specific to that 
 
 If a directory's `AGENTS.md` contradicts this root file, the more specific (directory-level) file wins for that area — but flag the contradiction so we can fix it.
 
+Each `CLAUDE.md` is a **symlink to its sibling `AGENTS.md`** — one source of truth, read by both Claude Code (`CLAUDE.md`) and Codex/other agents (`AGENTS.md`). Develop on Linux, WSL, or macOS, which honour symlinks; a Windows-native checkout needs `git config core.symlinks true`. Reading the repo through Windows/UNC from WSL can report spurious symlink/filemode diffs — those are host artifacts, not repo changes.
+
 ## Security baseline (always)
 
 These are enforced by CI and pre-commit hooks, but you must respect them when writing code:
