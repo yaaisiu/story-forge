@@ -10,6 +10,13 @@ Story Forge is a local web application that helps a solo author analyze, annotat
 
 ## Workflow rules (non-negotiable)
 
+### 0. Runtime notes for Codex Desktop
+
+When operating from Codex Desktop on the Windows/UNC view of this WSL checkout, read
+`.codex/RUNTIME_NOTES.md` before using local shell results as evidence. These notes describe
+Codex's host boundary only; Claude Code sessions running directly inside WSL should keep using
+their normal Linux shell workflow.
+
 ### 1. Karpathy rules — apply on every change
 
 - **Don't assume. Don't hide confusion. Surface tradeoffs.** State assumptions explicitly. If uncertain, ask. If multiple interpretations exist, present them — don't pick silently.
