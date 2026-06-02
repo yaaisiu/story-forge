@@ -1,15 +1,17 @@
-"""The `LLMProvider` Protocol and its data types (spec §6.5).
+"""The `LLMProvider` Protocol and its data types (spec §6.5/§6.6).
 
 Agents depend on this Protocol, never on a concrete adapter — that is what keeps
 an agent unit-testable against a mock. The three tiers (`local_small`,
 `cloud_free`, `cloud_strong`) are a `ModelTier` literal; the caller (today an
 agent, later the router) picks one per call.
 
-Scope note: spec §6.5 also lists `cost_per_1k_tokens` and `rate_limit_kind` on
-the Protocol. Those exist to feed the cascade router and the token-budget
-dashboard (§6.6), neither of which exists yet — adding them now would be an
-unused abstraction, so they land with the router/budget work. For now the
-Protocol carries only what an agent actually calls: `complete`.
+Every call returns `Usage` alongside the text: the §6.6 cost ledger records one
+row per call, so the provider reports what it actually spent (tokens whenever the
+provider returns them, GPU-seconds for Ollama Cloud, an estimated USD cost for
+paid tiers). Usage is **system-derived** by the adapter that served the call — it
+is never echoed from the caller, so the ledger can't be lied to. The Protocol also
+exposes `cost_per_1k_tokens` and `rate_limit_kind` so the router can pick and the
+dashboard can show price/quota without calling the provider.
 """
 
 from __future__ import annotations
@@ -19,6 +21,19 @@ from typing import Literal, Protocol, runtime_checkable
 from pydantic import BaseModel
 
 ModelTier = Literal["local_small", "cloud_free", "cloud_strong"]
+RateLimitKind = Literal["none", "session_gpu_time", "per_minute_tokens"]
+
+
+class BudgetExceededError(RuntimeError):
+    """A spend ceiling was hit — the caller must pause and ask the user, not retry.
+
+    Control-first (spec §6.6, ADR 0003): the router raises this from its
+    fail-closed pre-dispatch check when `DAILY_BUDGET_USD` is reached, and a paid
+    adapter raises it when the provider itself refuses for lack of credit (e.g.
+    OpenRouter's HTTP 402). It is deliberately *not* an HTTP error: 429/5xx mean
+    "fail over to the next provider", but a budget refusal means "stop and ask" —
+    the router never silently escalates to more spend.
+    """
 
 
 class Message(BaseModel):
@@ -28,16 +43,60 @@ class Message(BaseModel):
     content: str
 
 
+class Usage(BaseModel):
+    """Per-call accounting for the §6.6 cost ledger, system-derived by the adapter.
+
+    All counts are nullable because not every tier reports every unit: free Ollama
+    returns token counts but no USD cost; Ollama Cloud bills in GPU-seconds, not
+    tokens; a provider may omit usage entirely on an error response.
+    """
+
+    model: str  # the concrete model string the adapter sent (not the caller's label)
+    input_tokens: int | None = None
+    output_tokens: int | None = None
+    gpu_seconds: float | None = None  # Ollama Cloud's billing unit
+    cost_estimate: float | None = None  # USD, paid tiers only
+
+
 class CompletionResult(BaseModel):
-    """What a provider returns: the text plus which tier actually served it."""
+    """What a provider returns: the text, which tier served it, and what it cost."""
 
     content: str
     model_tier: ModelTier
+    usage: Usage
+
+
+def estimate_cost(
+    input_tokens: int | None,
+    output_tokens: int | None,
+    cost_per_1k_tokens: tuple[float, float],
+) -> float | None:
+    """USD estimate from token counts and a provider's (input, output) per-1k price.
+
+    Returns `None` when either token count is missing (no honest figure to record)
+    or the provider is free (zero price → no cost row to clutter the ledger).
+    """
+    if input_tokens is None or output_tokens is None:
+        return None
+    price_in, price_out = cost_per_1k_tokens
+    if price_in == 0 and price_out == 0:
+        return None
+    return (input_tokens / 1000) * price_in + (output_tokens / 1000) * price_out
 
 
 @runtime_checkable
 class LLMProvider(Protocol):
     """Async chat-completion contract every provider implements."""
+
+    @property
+    def cost_per_1k_tokens(self) -> tuple[float, float]:
+        """(input, output) USD per 1k tokens; (0, 0) for free tiers."""
+        ...
+
+    @property
+    def rate_limit_kind(self) -> RateLimitKind:
+        """How this provider rate-limits — drives the router's quota handling."""
+        ...
 
     async def complete(
         self,
