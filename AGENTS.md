@@ -132,7 +132,7 @@ of *how* and *why* we build must be in the open, version-controlled, and reviewa
 - Frontend: React + Vite + TypeScript, TanStack Query + Zustand, Tiptap editor
 - Graph DB: Neo4j Community
 - Relational DB: PostgreSQL with pgvector
-- LLM tiers: local Ollama (Qwen3.5 9B Q4_K_M on 8GB VRAM), Ollama Cloud free tier (chunking: `gpt-oss:20b-cloud`; heavier passes: `gpt-oss:120b-cloud` or Qwen3.5 cloud variants), paid cloud (Anthropic / OpenAI / Grok), OpenRouter as meta-provider
+- LLM tiers: local Ollama (Qwen3.5 9B Q4_K_M on 8GB VRAM), Ollama Cloud free tier (chunking: `gpt-oss:20b-cloud`; heavier passes: `gpt-oss:120b-cloud` or Qwen3.5 cloud variants), paid cloud via **OpenRouter** (preferred — one endpoint to many models; the only paid adapter built in M2.S2), with direct Grok / Anthropic / Google / OpenAI adapters as needed. Order + rationale: spec §6.5 / `docs/decisions/0003`
 - Embeddings: sentence-transformers (local, multilingual PL/EN)
 - NER baseline: spaCy `pl_core_news_lg` + `en_core_web_lg`
 - Agents: chunking, extraction, matching, judging — modular modules in `backend/src/story_forge/agents/`, each with its own prompt template and Pydantic output schema

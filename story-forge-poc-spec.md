@@ -21,7 +21,7 @@ The PoC starts with phase 1 (graph + viewer). Phases 2 and 3 are subsequent iter
 - Web app: FastAPI (Python) + React, local backend — clean three-layer architecture (API / domain / adapters), each with its own CLAUDE.md and conventions
 - Bilingual (PL/EN) — multilingual NLP and embeddings as first-class concerns
 - **Agent-based ingest pipeline:** chunking, extraction, matching, and judgment are modular agents wired by an orchestrator, each with its own prompt template, output schema, preferred model tier, and tests
-- **Multi-model routing:** one `LLMProvider` Protocol, multiple swappable adapters — local Ollama, Ollama Cloud free tier, and paid cloud providers (Anthropic, OpenAI, Grok, OpenRouter) — chosen per task by a small router
+- **Multi-model routing:** one `LLMProvider` Protocol, multiple swappable adapters — local Ollama, Ollama Cloud free tier, and paid cloud providers (OpenRouter preferred, plus Grok, Anthropic, Google, OpenAI) — chosen per task by a small router
 - Neo4j as single source of truth for the world; per-story graph + optional merge into a "world graph"
 - Every edit recorded as a (before, after, intent, accepted) tuple — future training corpus
 - **Security-by-default infra:** every container non-root, localhost-bound, on a private network; every dependency pinned and aged; no telemetry; CORS strict; secrets only in `.env`
@@ -286,7 +286,7 @@ Critical constraint: the entity graph is the **factual anchor**. Rewriting MUST 
 | Vector store | pgvector (Postgres extension) | One less DB to maintain than a separate Chroma |
 | Local LLM (small) | Ollama, Qwen3.5 9B Q4_K_M | Fits 8GB VRAM (~6.96 GB at 32K ctx), strong multilingual including Polish, ~55 t/s on RTX 3070-class hardware |
 | LLM (medium, free) | Ollama Cloud (`gpt-oss:20b-cloud` for chunking, larger variants for heavier tasks) | Free tier with 5h session / 7-day weekly limits, identical API to local Ollama, no local GPU needed |
-| Cloud LLM (strong, paid) | Provider-agnostic (see §6.5) | Anthropic / OpenAI / Grok via individual adapters; OpenRouter as meta-provider for model variety and cost arbitrage |
+| Cloud LLM (strong, paid) | Provider-agnostic (see §6.5) | **OpenRouter preferred** (one endpoint → many models); direct Grok / Anthropic / Google / OpenAI adapters built only as needed. Order: Ollama → OpenRouter → Grok → Anthropic → Google → OpenAI (§6.5, `docs/decisions/0003`) |
 | Embeddings | sentence-transformers (local) | Multilingual PL/EN, no API costs |
 | NER baseline | spaCy `pl_core_news_lg` + `en_core_web_lg` | Pre-LLM filter, token savings |
 
@@ -658,7 +658,7 @@ This is the most important flow in V1. I'm spelling it out in detail so the deve
 - FastAPI + React builds, ping-pong endpoint
 - Postgres migrations (Alembic harness, no migrations yet); Neo4j init script applied automatically by a one-shot `neo4j-init` compose service that runs `cypher-shell -f init.cypher` once `neo4j`'s healthcheck passes
 - CI: lint, format, basic tests, dependency age check (≥14 days), `npm audit`, secret scan, container-image CVE scan (Trivy) against the images in `docker-compose.yml`
-- `.env.example` with all required keys (Anthropic, OpenAI, Grok, Ollama Cloud, OpenRouter), pre-commit hooks installed
+- `.env.example` with all required keys (Ollama Cloud, OpenRouter, plus Grok / Anthropic / OpenAI for the direct adapters built as needed; a Google/Gemini key joins when that adapter lands), pre-commit hooks installed
 - Ollama Cloud connectivity test: hit `https://ollama.com/api/chat` with API key, verify free-tier quota status
 - Project plan files initialized: `PLAN_LONG.md` (V1/V2/V3 roadmap) and `PLAN_SHORT.md` (current milestone breakdown)
 
@@ -672,8 +672,8 @@ This is the most important flow in V1. I'm spelling it out in detail so the deve
 **Outcome:** ability to upload text and see its structure.
 
 ### Milestone 2 — Basic extraction (5-7 days)
-- LLM provider abstraction with three tiers (local_small via Ollama, cloud_free via Ollama Cloud, cloud_strong via Anthropic/OpenAI/Grok)
-- OpenRouter adapter scaffolded as a meta-provider for additional model variety
+- LLM provider abstraction with three tiers (local_small via Ollama, cloud_free via Ollama Cloud, cloud_strong via **OpenRouter** — the preferred paid route, reaching Grok/Anthropic/Google/OpenAI through one endpoint; direct vendor adapters built as needed, see §6.5 / `docs/decisions/0003`)
+- `OpenRouterProvider` is the paid adapter built in M2.S2 (not merely scaffolded); direct vendor adapters + integration polish are the optional M2.S6 work
 - ExtractionAgent: prompt engineering, JSON schema, Pydantic validation with retry
 - PreNERAgent: spaCy baseline
 - Save entities to Neo4j without cascade (everything = new entity for now)

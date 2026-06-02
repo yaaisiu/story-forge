@@ -145,12 +145,13 @@ gate, documented (no INV-9); **D6** → ADR 0003 supersedes ADR 0001's provider 
 order: Ollama → OpenRouter → Grok → Anthropic → Google → OpenAI; build OpenRouter only now. Original
 register kept below for history.
 
-The `decompose-requirement` pass on M2.S2 (`proposals/m2s2-llm-router-budget-cap.md`) framed six
-open decisions. They stay **open** until the operator decides; the full Context/Options/Proposal for
-each lives in the proposal's Decision register — summarised here so the queue is visible:
+_The original framing, preserved as history (all six were since **resolved** — see the struck header
+above and `docs/decisions/0003`)._ The `decompose-requirement` pass on M2.S2
+(`proposals/m2s2-llm-router-budget-cap.md`) framed six decisions that were open **at that time**; the
+full Context/Options/Proposal for each lives in the proposal's Decision register:
 - **D1 — budget-knob grain.** Per-call / session / day. *Proposal:* per-day USD hard-stop only
-  (spec-faithful) + per-project/task-type as read-only aggregates. Open: day = local-midnight vs
-  rolling-24h.
+  (spec-faithful) + per-project/task-type as read-only aggregates. (Day-grain → local-midnight,
+  resolved.)
 - **D2 — Anthropic SDK vs hand-rolled `httpx`.** *(dependency-baseline boundary)* *Proposal:*
   hand-rolled httpx for INV-7 uniformity + minimal deps; cost accepted = hand-written usage parsing.
 - **D3 — cap atomicity under concurrency** (the [[toctou]] race). *Proposal:* accept one-call
@@ -160,7 +161,7 @@ each lives in the proposal's Decision register — summarised here so the queue 
 - **D5 — paid-egress enablement gate** *(trust-boundary; ties INV-2/OQ-6)*. *Proposal:* default-deny
   config flag now, rich consent UI in M2.S5 (proposed temporary INV-9).
 - **D6 — ADR-0001 reconciliation.** Amend vs supersede (ADR 0003) vs leave-in-plan. *Proposal:*
-  supersede if D1–D5 accepted as a cluster, else amend. **No ADR authored unprompted.**
+  supersede if D1–D5 accepted as a cluster, else amend. (Outcome: **ADR 0003 authored**, supersedes.)
 - **Gaps for the PO (proposal §8):** G1 quota-exhaustion decision (+ possible spec §6.5 amendment for
   the step-5-vs-hardware contradiction), G2 egress-gate posture, G5 log retention (Expiry/OQ-4).
 - **Lands in:** M2.S2 (next product session). See [[m2s2-llm-router-budget-cap]].

@@ -11,7 +11,7 @@ The user can upload a draft, chunk it, extract entities/relations with the casca
 - [x] **Milestone 1 — Upload & structure** (3-5 days) — completed 2026-05-26
   Upload endpoint, language detection, docx/md/txt parsing, ChunkingAgent (local Ollama + Ollama Cloud), manual chunking UI, outline view.
 - [ ] **Milestone 2 — Basic extraction** (5-7 days)
-  Three-tier LLM abstraction (local Ollama, Ollama Cloud, paid cloud), OpenRouter meta-provider, ExtractionAgent with JSON-schema validation, PreNERAgent (spaCy), Neo4j writes without dedupe, cytoscape graph viewer, budget tracking, agent activity panel.
+  Three-tier LLM abstraction (local Ollama, Ollama Cloud, paid cloud via OpenRouter — the preferred paid route; see `docs/decisions/0003`), ExtractionAgent with JSON-schema validation, PreNERAgent (spaCy), Neo4j writes without dedupe, cytoscape graph viewer, budget tracking, agent activity panel.
 - [ ] **Milestone 3 — Cascade matching** (5-7 days)
   MatchingAgent (fuzzy + embeddings), JudgeAgent (LLM-as-judge), review queue UI with keyboard navigation.
 - [ ] **Milestone 4 — V1 polish** (5-7 days)

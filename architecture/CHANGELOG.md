@@ -47,6 +47,16 @@ so it would have produced the wrong files/tests.
   still called the day-origin a "D1 open item" (D1 resolved = local-midnight). After folding, ran an
   **exhaustive grep sweep** (open-framing / egress-flag / escalate / stale-adapter-list / provider-order)
   to stop the patch-and-recheck cycle — this is the lesson the wrap/retro will encode into `/review-pr`.
+- **Codex fourth pass (2 P2 + 1 P3 — folded) — the source-of-truth lesson in the flesh.** I had
+  amended spec **§6.5** but left the *same fact* stale in its **other homes**: spec §5 hardware-tier
+  table, §9 M2 roadmap, the §1 + §M0 provider/key lists; the root `AGENTS.md` stack reminder; the
+  vault `overview.md` M2 snapshot (M2.S2=anthropic/openai/grok, M2.S6=OpenRouter); and residual
+  "open" framing inside the resolved OQ-8 body. Reconciled all, plus the ones Codex *didn't* flag
+  that a repo-wide sweep caught: `docs/PLAN_LONG.md` M2 bullet, `backend/src/story_forge/AGENTS.md`
+  adapter-layer doc (the M2.S2 implementer reads it), `README.md` routing blurb. Left ADR 0001's
+  original text untouched (append-only history). **Lesson:** a decision touches a fact that lives in
+  many homes; reconciling one (even the authoritative §6.5) is not reconciling the decision —
+  enumerate every home and grep the *whole repo*, not just the PR's already-touched files.
 
 ## 2026-06-02 — Reconciliation: M2.S2 decisions settled (owner) + vault navigability
 

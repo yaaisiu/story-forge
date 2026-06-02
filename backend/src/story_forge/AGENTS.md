@@ -51,10 +51,11 @@ authoring (not just reviewing) needs to hold:
 
 ## LLM adapter
 
-`adapters/llm/` follows the three-tier strategy from spec §6.5:
+`adapters/llm/` follows the three-tier strategy from spec §6.5 (provider order + scope: `docs/decisions/0003`):
 - `OllamaProvider` serves both local small (host=localhost:11434) and cloud free (host=ollama.com with API key)
-- `AnthropicProvider`, `OpenAIProvider`, `GrokProvider` — paid cloud tier
-- `OpenRouterProvider` — meta-provider for additional model variety and cost arbitrage
+- `OpenRouterProvider` — the **preferred paid route** (one OpenAI-compatible endpoint reaching Grok/Claude/Gemini/GPT); **the only paid adapter built in M2.S2**
+- `AnthropicProvider`, `GrokProvider`, `GoogleProvider`, `OpenAIProvider` — direct paid adapters, **built as needed** (deferred past M2.S2)
+- all adapters are hand-rolled over `httpx` (no vendor SDKs), mirroring `OllamaProvider`'s injectable-transport shape
 - `router.py` decides which tier per call and handles cross-provider failover within a tier
 
 ## Agents
