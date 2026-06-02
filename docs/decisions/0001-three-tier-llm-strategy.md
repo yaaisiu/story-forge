@@ -1,6 +1,6 @@
 # ADR 0001 — Three-tier LLM strategy
 
-**Status:** Accepted
+**Status:** Accepted — **provider-priority and quota-degradation consequences superseded by [ADR 0003](0003-llm-router-provider-order-and-budget.md) (2026-06-02)**; the three-tier model and the one-`OllamaProvider`-for-two-tiers decision stand.
 **Date:** 2026-05-19
 **Related spec section:** §6.5
 

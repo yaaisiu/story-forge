@@ -417,7 +417,9 @@ On a **fully GPU-less host** the local_small tier is impractical (CPU-only 9B in
 |------|----------|-------------|
 | **Local small** | Chunking, summarization, pre-NER assist, simple JSON extraction | Ollama running Qwen3.5 9B Q4_K_M (or fallback Qwen3 8B, Phi-4 Mini) on dev machine |
 | **Cloud free / cheap** | Entity extraction batch passes, judge calls, draft suggestions | Ollama Cloud free tier (`gpt-oss:20b-cloud` for structural / JSON tasks like chunking, `gpt-oss:120b-cloud` or Qwen3.5 cloud variants for heavier passes) — identical Ollama API, no local GPU needed; bound by 5h session / 7-day weekly GPU-time quotas |
-| **Cloud strong (paid)** | Heavy editing, full rewrites, style transfer, long-context work | Anthropic and OpenAI as primary; Grok (xAI) as alternative; OpenRouter as meta-provider for model variety and cost arbitrage |
+| **Cloud strong (paid)** | Heavy editing, full rewrites, style transfer, long-context work | **OpenRouter preferred** (one OpenAI-compatible endpoint reaching many models — cost arbitrage, fewer adapters); then direct providers Grok (xAI), Anthropic, Google (Gemini), OpenAI as configured |
+
+**Provider preference order** (across tiers, used by the router): **Ollama** (local_small / cloud_free) → **OpenRouter** → **Grok** → **Anthropic** → **Google** → **OpenAI**. OpenRouter sits first among paid routes because a single OpenAI-compatible adapter reaches most vendor models, so the direct per-vendor adapters are built only as needed (amended 2026-06-02; supersedes the earlier "Anthropic/OpenAI primary" ordering — see `docs/decisions/0003`).
 
 The Local Small and Cloud Free tiers BOTH speak the Ollama API. That's a deliberate architecture choice: one adapter (`OllamaProvider`) handles both, the only difference is the host URL and an optional API key. This drastically reduces the number of code paths.
 
@@ -441,10 +443,13 @@ class LLMProvider(Protocol):
 Concrete adapters:
 - `OllamaProvider(host="http://localhost:11434")` — local small tier
 - `OllamaProvider(host="https://ollama.com", api_key=...)` — Ollama Cloud free tier
-- `AnthropicProvider` — Claude models, paid
-- `OpenAIProvider` — GPT models, paid
-- `GrokProvider` — xAI API, paid alternative
-- `OpenRouterProvider` — meta-provider, broad model selection at varied price points
+- `OpenRouterProvider` — **preferred paid/meta route**, broad model selection (Grok/Claude/Gemini/GPT) at varied price points via one OpenAI-compatible endpoint
+- `GrokProvider` — xAI API, paid (direct; built as needed)
+- `AnthropicProvider` — Claude models, paid (direct; built as needed)
+- `GoogleProvider` — Gemini models, paid (direct; built as needed)
+- `OpenAIProvider` — GPT models, paid (direct; built as needed)
+
+All adapters are hand-rolled over `httpx` (mirroring `OllamaProvider`) rather than per-vendor SDKs — one uniform adapter shape, no extra dependencies, an injectable transport for tests, and the multi-provider swappability stays visible in our own code (`docs/decisions/0003`).
 
 **Router (cascade):**
 
@@ -453,10 +458,16 @@ class LLMRouter:
     def route(self, task: Task) -> LLMProvider:
         # Decision order:
         # 1. If task is light (chunking, summary, simple structured extraction) → local_small
+        #    (on a GPU-less host local_small is unavailable → use the cheapest cloud_free model)
         # 2. If task is medium (entity extraction, judge calls) → cloud_free (Ollama Cloud)
-        # 3. If task is heavy (editing, rewrite, long context) → cloud_strong (preferred provider)
-        # 4. If preferred provider in tier errors/rate-limits → automatic failover to next configured
-        # 5. If cloud_free quota exhausted → degrade to local_small with warning OR pause for user
+        # 3. If task is heavy (editing, rewrite, long context) → cloud_strong, preferring OpenRouter,
+        #    then the direct providers in the configured order
+        # 4. Within-tier failover, error-discriminated: 429 rate-limit / 5xx → fail over to the next
+        #    configured provider; 401 bad-key → fail fast (skip, don't retry); malformed response
+        #    schema → retry the prompt N times then give up (the ChunkingAgent pattern)
+        # 5. If cloud_free quota is exhausted, OR the §6.6 daily budget cap is reached → PAUSE and ask
+        #    the user how to proceed. The router NEVER silently escalates to a paid tier (control-first).
+        #    (The old "degrade to local_small" applies only on a GPU-backed host where that tier exists.)
         ...
 ```
 
@@ -494,10 +505,10 @@ Editing and rewriting modes (V2/V3) become additional agents (`InlineEditAgent`,
 
 ### 6.6 Token budget & cost
 
-- Every LLM operation records: model, input_tokens, output_tokens, cost_estimate
+- Every LLM operation records: model, input_tokens, output_tokens, cost_estimate (paid tiers), and GPU-seconds (Ollama Cloud) — one usage row per call, including refusals and failures so the trail explains *why* a batch stopped. Tier/provider/model are system-derived from the adapter that served the call, never echoed from the caller (so the cost ledger can't be lied to).
 - Dashboard shows: daily/project/per-task-type usage
-- Emergency cap: "stop after exceeding X USD per day"
-- Ollama Cloud usage tracked as GPU-seconds, not tokens (per their billing model); router shows remaining session quota
+- Emergency cap: a per-day USD hard ceiling (`DAILY_BUDGET_USD`). The cap is **fail-closed**: checked *before* dispatch, and when reached the router **pauses and asks the user** how to proceed (raise the cap, switch tier, or stop) — it does not silently kill work, and it does not silently escalate to more spend. Best-effort under concurrency with a bounded one-call overshoot (single-user PoC; a true reserve-then-reconcile lands only if batched concurrent calls do).
+- Ollama Cloud usage tracked as GPU-seconds, not tokens (per their billing model); router shows remaining session quota. GPU-seconds are shown as quota, not converted to a fabricated USD figure.
 
 ### 6.7 Security baseline (day 1)
 

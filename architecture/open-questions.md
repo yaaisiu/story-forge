@@ -3,7 +3,7 @@ type: open-questions
 slug: open-questions
 updated: 2026-06-02
 status: living
-related: ["[[overview]]", "[[project]]", "[[invariants]]"]
+related: ["[[overview]]", "[[project]]", "[[invariants]]", "[[2026-06-02-architecture-review]]"]
 ---
 
 # Open questions — Story Forge
@@ -65,7 +65,13 @@ side effects?
 - **My proposal:** (a), leaning on idempotency (see [[idempotency]]) — paragraphs already have
   stable ids. Needs the candidate/job state machines drawn (see [[overview]] Layer 5). Open.
 
-### OQ-3 — `cloud_free` quota-exhausted behaviour
+### ~~OQ-3 — `cloud_free` quota-exhausted behaviour~~ ✅ Resolved 2026-06-02
+**Resolution** (ADR 0003; spec §6.5 amended): on a GPU-less host the `local_small` degrade target
+becomes the **cheapest cloud_free model**; on genuine cloud_free-quota-exhaustion **or** the daily
+budget cap, the router **pauses and asks the user** — never a silent paid escalation (control-first).
+This also fixed the live intra-spec contradiction (step 5 vs the hardware para). Original framing kept
+below for history.
+
 §6.5 step 5 says "degrade to local_small with warning OR pause for user." On a GPU-less host,
 local_small is impractical — so the real choices narrow. *But what if* the Ollama Cloud weekly
 GPU quota runs out mid-ingest?
@@ -90,7 +96,74 @@ hardening already applied to `ChunkingAgent` and encoded in `/review-pr` §4.
 - **Status:** not a decision so much as a **must-verify** gate for M2.S3. Tracked here so it is
   not forgotten. See [[overview]] Layer 7 (Security).
 
+### ~~OQ-6 — INV-2 consent guard lags the paid-egress risk by ~3 sessions~~ ✅ Resolved 2026-06-02
+**Resolution** (ADR 0003 / D5): option (a) — the per-fragment consent UI stays at M2.S5; M2.S2 ships
+**no** egress gate (the PoC handles no security-sensitive data), with a clear in-code marker at the
+egress point documenting the deferral. The proposed temporary INV-9 is **dropped**. INV-2's full
+guard lands with the M2.S5 panel; until then its enforced guard remains "no-telemetry + chosen-provider
+egress", honestly narrower than the rule. Original framing kept below.
+
+Surfaced by the 2026-06-02 review (`reports/2026-06-02-architecture-review.md`). M2.S2 adds the
+**paid-provider egress paths** (text can leave to Anthropic/OpenAI/etc.) and cost-tracking, but the
+**explicit-consent UI** INV-2 demands ("sending fragment to Anthropic, OK?") is not scheduled until
+**M2.S5**. *But what if* an M2.S3 smoke-test fires a real paid call — text crosses the only real
+[[trust-boundary]] with no consent gate and nothing fails closed.
+- **Options:** (a) accept the window at PoC, documented; (b) land a minimal pre-egress guard *with*
+  the paid adapters in M2.S2 — a default-deny config flag or per-call confirmation — so INV-2's
+  guard ships when the risk does, the consent UI (M2.S5) being the richer version later.
+- **My proposal:** (b). A guard that arrives three sessions after the egress it governs is
+  fail-open by sequencing (see [[fail-closed]]). Decide in M2.S2 planning. Open.
+
+### ~~OQ-7 — INV-5 needs the provider return-shape to grow, and cap-check ordering enforced~~ ✅ Resolved 2026-06-02
+**Resolution** (ADR 0003 / D4 / spec §6.6 amended): option (a) — `CompletionResult` + the Protocol
+grow to carry `model`, `input_tokens`, `output_tokens`, nullable `gpu_seconds`, `cost_estimate`;
+`OllamaProvider` stops discarding the eval counts. One `llm_calls` table, nullable per tier; the
+cap is checked **before** dispatch (fail-closed) with a documented bounded one-call overshoot; tier/
+provider/model are system-derived (INV-7). Lands in M2.S2. Original framing kept below.
+
+Surfaced by the 2026-06-02 review. Today `CompletionResult` (`adapters/llm/base.py`) carries only
+`content` + `model_tier`; `OllamaProvider.complete` **discards** the `prompt_eval_count` /
+`eval_count` token counts Ollama already returns. INV-5 ("record `model, input_tokens,
+output_tokens, cost_estimate`") therefore cannot be satisfied without **growing the return shape**
+(and every adapter populating it), not just adding Protocol fields. Separately, INV-5's "cap check
+**before** dispatch, refused not logged-after" is an **ordering** constraint ([[fail-closed]]) with
+no enforcer yet.
+- **Options:** (a) extend `CompletionResult` with `model_name` + `usage` (input/output tokens) +
+  optional `cost_estimate`, populated per-adapter; (b) a separate post-call usage record keyed off
+  the call. (a) keeps provenance with the call that owns it (see the review's
+  caller-vs-system-derived note — also INV-7's `model_tier` near-miss).
+- **My proposal:** (a) + the router checks-then-dispatches (cap guard before the paid call fires).
+  This is the core of the M2.S2 `decompose-requirement` pass. Open.
+
 ---
+
+### ~~OQ-8 — M2.S2 router + budget decision register (D1–D6)~~ ✅ Resolved 2026-06-02
+**All six resolved** by the owner and recorded in **`docs/decisions/0003`** + `docs/PLAN_SHORT.md`
+Decided (spec §6.5/§6.6 amended): **D1** per-day USD cap + reports; **D2** hand-rolled `httpx` (no
+SDK); **D3** accept bounded one-call overshoot; **D4** one `llm_calls` table; **D5** defer egress
+gate, documented (no INV-9); **D6** → ADR 0003 supersedes ADR 0001's provider strategy. Provider
+order: Ollama → OpenRouter → Grok → Anthropic → Google → OpenAI; build OpenRouter only now. Original
+register kept below for history.
+
+The `decompose-requirement` pass on M2.S2 (`proposals/m2s2-llm-router-budget-cap.md`) framed six
+open decisions. They stay **open** until the operator decides; the full Context/Options/Proposal for
+each lives in the proposal's Decision register — summarised here so the queue is visible:
+- **D1 — budget-knob grain.** Per-call / session / day. *Proposal:* per-day USD hard-stop only
+  (spec-faithful) + per-project/task-type as read-only aggregates. Open: day = local-midnight vs
+  rolling-24h.
+- **D2 — Anthropic SDK vs hand-rolled `httpx`.** *(dependency-baseline boundary)* *Proposal:*
+  hand-rolled httpx for INV-7 uniformity + minimal deps; cost accepted = hand-written usage parsing.
+- **D3 — cap atomicity under concurrency** (the [[toctou]] race). *Proposal:* accept one-call
+  overshoot at PoC, documented; reserve-then-reconcile if batched concurrency lands.
+- **D4 — one usage table, two billing units** (tokens vs GPU-seconds). *Proposal:* one `llm_calls`
+  table, nullable per-tier; don't fabricate a USD value for free-tier GPU time.
+- **D5 — paid-egress enablement gate** *(trust-boundary; ties INV-2/OQ-6)*. *Proposal:* default-deny
+  config flag now, rich consent UI in M2.S5 (proposed temporary INV-9).
+- **D6 — ADR-0001 reconciliation.** Amend vs supersede (ADR 0003) vs leave-in-plan. *Proposal:*
+  supersede if D1–D5 accepted as a cluster, else amend. **No ADR authored unprompted.**
+- **Gaps for the PO (proposal §8):** G1 quota-exhaustion decision (+ possible spec §6.5 amendment for
+  the step-5-vs-hardware contradiction), G2 egress-gate posture, G5 log retention (Expiry/OQ-4).
+- **Lands in:** M2.S2 (next product session). See [[m2s2-llm-router-budget-cap]].
 
 ## Referenced — owned by spec §10 (not duplicated)
 
