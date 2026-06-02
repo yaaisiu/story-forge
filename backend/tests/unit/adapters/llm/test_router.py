@@ -21,6 +21,7 @@ from story_forge.adapters.llm.base import (
     Usage,
 )
 from story_forge.adapters.llm.cost import LlmCallRecord
+from story_forge.adapters.llm.openrouter import OpenRouterProvider
 from story_forge.adapters.llm.router import LLMRouter, RouterConfigError, tier_for_weight
 
 
@@ -252,3 +253,39 @@ async def test_missing_provider_for_tier_is_a_config_error() -> None:
 
     with pytest.raises(RouterConfigError):
         await router.complete(MESSAGES, weight="heavy", task_type="rewrite")
+
+
+async def test_routes_a_real_openrouter_provider_and_records_the_row() -> None:
+    # The M2.S2 "Done when": a routed cloud_strong call via the real
+    # OpenRouterProvider (mock transport) returns and records a usage row whose
+    # tokens/cost were parsed from the provider's response — the full chain, not
+    # a fake provider.
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(
+            200,
+            json={
+                "model": "anthropic/claude-3.5-sonnet",
+                "choices": [{"message": {"role": "assistant", "content": "rewritten"}}],
+                "usage": {"prompt_tokens": 100, "completion_tokens": 50},
+            },
+        )
+
+    provider = OpenRouterProvider(
+        host="https://openrouter.ai/api/v1",
+        model="anthropic/claude-3.5-sonnet",
+        api_key="k",
+        cost_per_1k_tokens=(3.0, 15.0),
+        transport=httpx.MockTransport(handler),
+    )
+    store = FakeCostStore()
+    router = _router({"cloud_strong": [provider]}, store)
+
+    result = await router.complete(MESSAGES, weight="heavy", task_type="rewrite")
+
+    assert result.content == "rewritten"
+    row = store.records[0]
+    assert row.outcome == "success"
+    assert row.provider == "OpenRouterProvider"
+    assert row.model == "anthropic/claude-3.5-sonnet"
+    assert row.input_tokens == 100 and row.output_tokens == 50
+    assert row.cost_estimate == pytest.approx(1.05)  # 100/1k*3 + 50/1k*15
