@@ -68,6 +68,14 @@ so it would have produced the wrong files/tests.
   doc-pointers — which don't contain the decision's keywords. The reconciliation checklist must
   include "update every note that *tracks status* (ADR registry, OQ priority queue, error-handling
   snapshot, doc indexes)", not just every note that *states the fact*.
+- **Codex sixth pass (1 P2 + 1 P3 — folded) — the dated-artifact-as-live class.** The
+  `reports/2026-06-02-architecture-review.md` carried `status: living` and INDEX bills it as the
+  "current health snapshot," so its `risk`/`watch` findings (all resolved the same day by ADR 0003)
+  read as *open* risk. Added a top resolution banner + changed status `living → accepted` — a dated
+  review is a point-in-time record, not a live risk board. Also reframed `README.md`'s quickstart
+  key list to foreground Ollama Cloud + OpenRouter (Google/Gemini "as the adapter lands"). **Lesson:**
+  a *dated* artifact (review report, sweep, snapshot) whose findings get resolved must say so at the
+  top, or it masquerades as current state — `status:` and any "latest/current" framing must match.
 
 ## 2026-06-02 — Reconciliation: M2.S2 decisions settled (owner) + vault navigability
 

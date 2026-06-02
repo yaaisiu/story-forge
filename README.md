@@ -35,7 +35,8 @@ cp backend/.env.example backend/.env
 
 # 2. Fill in the secrets in both .env files
 #    Generate random passwords with: openssl rand -hex 24
-#    Paste real API keys where applicable (Ollama Cloud, Anthropic, OpenAI, Grok, OpenRouter)
+#    Paste real API keys where applicable (Ollama Cloud + OpenRouter; plus Grok / Anthropic / OpenAI
+#    for the direct adapters built as needed — a Google/Gemini key joins when that adapter lands)
 
 # 3. Install pre-commit hooks
 pre-commit install

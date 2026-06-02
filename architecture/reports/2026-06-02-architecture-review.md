@@ -2,11 +2,18 @@
 type: review
 slug: 2026-06-02-architecture-review
 updated: 2026-06-02
-status: living
+status: accepted
 related: ["[[overview]]", "[[invariants]]", "[[open-questions]]", "[[model-tier-routing]]"]
 ---
 
 # Architecture review — 2026-06-02 (OQ-A validation/drift sweep, M0 → M2.S1 + ADRs 0001–0002)
+
+> **✅ Point-in-time snapshot — its findings have since been resolved (same day, 2026-06-02).** This
+> is the dated record of the sweep that *produced* the M2.S2 decisions; it is **not** a live risk
+> board. The `risk`/`watch` items below — quota-exhaustion behaviour, provider priority / stale
+> ADR 0001, the INV-2 egress-vs-consent gap, the INV-5 return-shape + cap-ordering seam — were all
+> **settled the same day** by **`docs/decisions/0003`** + spec §6.5/§6.6 (see [[open-questions]],
+> OQ-3/6/7/8 struck). Read the findings as the *diagnosis that drove the fix*, not as open risk.
 
 This is the **OQ-A** sweep the operator queued in [[open-questions]]: does the code match the
 decisions on record? Are there choices in code with no ADR? And — the explicit ask — **audit each
