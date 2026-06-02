@@ -44,7 +44,7 @@ related: []
 
 ## Awaiting content (populated by later runs)
 - `decisions/` — ADRs (host-project ADRs live in `docs/decisions/`; this folder is for
-  vault-framed decisions once confirmed). Empty (ADR 0003 proposed in the M2.S2 proposal, D6 — not authored).
+  vault-framed decisions once confirmed). Empty — the M2.S2 router/budget decision (D6) was authored as a **host-project** ADR (`docs/decisions/0003`), where product ADRs live; this vault folder stays empty until a vault-framed decision arises.
 - `components/` — per-component (C4 Component altitude) notes. Empty.
 - `state-machines/` — the candidate + ingest-job lifecycles, plus the **LLM-call lifecycle** the
   M2.S2 proposal sketches, to be drawn. Empty.
@@ -52,8 +52,9 @@ related: []
 ## Next steps
 1. ~~Validation/drift sweep over M0→M2.S1 + ADRs 0001–0002~~ ✅ done — [[2026-06-02-architecture-review]].
 2. ~~Forward strategy pass on M2.S2 (LLM router + budget)~~ ✅ done — [[m2s2-llm-router-budget-cap]].
-3. **Operator decides D1–D6** (see [[open-questions]] OQ-8) before/while M2.S2 is built; then choose
-   the first `components/` deep-dive. (Ritual integration still deferred per ADR 0002 — this run is
+3. ~~Operator decides D1–D6~~ ✅ resolved 2026-06-02 ([[open-questions]] OQ-8 struck; `docs/decisions/0003`).
+4. **Next:** build M2.S2 (first failing test: `OpenRouterProvider` vs mocked transport); later, choose
+   the first `components/` deep-dive. (Ritual integration still deferred per ADR 0002 — these runs are
    the *evidence-gathering* for that call, not the wiring.)
 
 _Run log: see [[changelog]]. Seeded by `initialize-project-architecture`; extended by

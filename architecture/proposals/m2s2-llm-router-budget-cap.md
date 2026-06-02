@@ -39,7 +39,8 @@ into Data (a new usage table) and a new HTTP surface (status endpoint).
 **Carried in from today's review** (`reports/2026-06-02-architecture-review.md`): the two **risks** —
 INV-2 consent-guard lagging paid egress (OQ-6) and INV-5's return-shape + cap-ordering seam
 (OQ-7) — plus the **stale ADR-0001** quota-degradation consequence. This proposal is where they get
-designed against. **I propose; the human decides** — nothing here is resolved, no ADR is authored.
+designed against. **I propose; the human decides** *(at decompose time — now **resolved**; the
+decisions are in the banner + `docs/decisions/0003`, and ADR 0003 was authored).*
 
 ---
 
@@ -73,8 +74,9 @@ spec calls it "every LLM operation records: model, input_tokens, output_tokens, 
 *architectural reading* (not a schema dump — the schema, once accepted, lives in an Alembic
 migration per the source-of-truth registry):
 - One row per call: when, which **agent/task-type**, **tier**, **provider**, **model**, the
-  **usage** (input/output tokens *for paid*, **GPU-seconds** for Ollama Cloud — §6.6 says cloud is
-  billed in GPU-seconds, *not* tokens, so the row needs both shapes), **cost_estimate**, **latency**,
+  **usage** — **tokens whenever the provider returns them** (incl. Ollama's `prompt_eval_count`/
+  `eval_count`, kept per INV-5/OQ-7), nullable **GPU-seconds** for Ollama Cloud (its billing unit,
+  §6.6), nullable **cost_estimate** for paid — **latency**,
   and the **outcome** (succeeded / refused-by-cap / failed). The dual unit (tokens vs GPU-seconds) is
   a modelling decision — see register D4.
 - **Aggregation** (daily / per-project / per-task-type — §6.6) is a *read* over this table, not a
@@ -133,7 +135,7 @@ day to roll."
 |---|---|---|
 | **Identity** | n/a — single local user | but *provider* identity (which model served) is recorded — that's Evidence, not Identity |
 | **Intent** | ✅ | the agent's task-type + the user's §6.5 provider-dropdown choice express intent per call |
-| **Policy** | ✅ | budget cap (§6.6), tier decision order (§6.5), the proposed paid-egress gate (D5) |
+| **Policy** | ✅ | budget cap (§6.6), tier decision order (§6.5); paid-egress consent **deferred to M2.S5** (D5 — documented marker, no gate) |
 | **Decision** | ✅ | `router.route()` picks tier+provider; the budget guard allows/refuses |
 | **Access** | n/a inter-user | a provider's API-key *presence* is the only "access" gate; absent key ⇒ that provider is unconfigured, skipped in failover |
 | **Monitoring** | ◻ partial | status endpoint built **here**; the visible panel is M2.S5 |
@@ -183,9 +185,7 @@ flowchart TD
     R -->|medium| T2[cloud_free / Ollama Cloud]
     R -->|heavy| T3[cloud_strong: OpenRouter preferred; direct adapters deferred]
 
-    T3 --> EG{paid-egress<br/>enabled? D5}
-    EG -->|no| REF1[REFUSE · fail-closed · record outcome]
-    EG -->|yes| G{budget guard:<br/>day spend + est < cap?}
+    T3 --> G{budget guard:<br/>day spend + est < cap?}
     G -->|no| REF2[REFUSE · hard-stop · record outcome]
     G -->|yes| P1[provider.complete]
 
@@ -202,7 +202,6 @@ flowchart TD
     FO -->|tier exhausted| EX[ERROR: all providers failed · record]
 
     OK --> RET[CompletionResult + usage] --> A
-    REF1 --> A
     REF2 --> A
     EX --> A
 
@@ -216,10 +215,11 @@ flowchart TD
 
 ### New state machine — the LLM call lifecycle
 States: `requested → guarded → {refused | dispatched} → {succeeded | retrying → (dispatched|exhausted) | fatal}`.
-Terminal: **succeeded**, **refused** (egress-gate or cap), **exhausted** (all in-tier providers
+Terminal: **succeeded**, **refused** (cap), **exhausted** (all in-tier providers
 failed), **fatal** (non-retryable, e.g. malformed request).
-- **Guard** (where invariants are enforced): the egress gate (D5/INV-2) **and** the cap check
-  (INV-5) — both *before* dispatch.
+- **Guard** (where invariants are enforced): the cap check (INV-5), *before* dispatch. *(The egress
+  gate this section originally also named was dropped — D5; consent is the M2.S5 deferral, not a
+  guard here.)*
 - **Effect** (where evidence is born): a usage row on **every** terminal edge — *including refusals
   and failures*, not just successes. A refusal that leaves no trace can't be audited ("why did the
   batch stop?"). This is the Compliance layer happening in real time.
@@ -243,24 +243,27 @@ failed), **fatal** (non-retryable, e.g. malformed request).
 
 ---
 
-## 6. Decision register (open — I propose, the human decides)
+## 6. Decision register — ✅ all resolved 2026-06-02 (`docs/decisions/0003`)
+
+_Each entry keeps its Context/Options as the reasoning record; the **Decision** line is what the
+owner accepted. D1–D4 + D6 were accepted as proposed; **D5 the owner overrode** (chose to defer the
+gate, not build it). Authoritative record: ADR 0003 + `docs/PLAN_SHORT.md` Decided._
 
 **D1 — Where the budget knob lives (per-call / per-session / per-day).**
 - *Context:* §6.6 literally says "emergency cap: stop after exceeding **X USD per day**," and asks
   for daily/project/per-task-type *reporting*.
 - *Options:* (a) per-day USD hard-stop only (spec-faithful) + per-project/task-type as read-only
   aggregates; (b) add a per-session soft ceiling; (c) per-call max-cost guard too.
-- *My proposal:* **(a)** — one hard knob `DAILY_BUDGET_USD`, the rest are reports. Smallest honest
+- *Decision (accepted, ADR 0003):* **(a)** — one hard knob `DAILY_BUDGET_USD`, the rest are reports. Smallest honest
   surface, matches the spec word-for-word; add (b)/(c) only if a real overrun shows the day-grain is
-  too coarse. *Open:* is "day" wall-clock-local or rolling-24h? (I lean local-midnight — simpler to
-  reason about and to display.)
+  too coarse. *Resolved:* "day" = **local-midnight** (simpler to reason about and to display).
 
 **D2 — Anthropic SDK vs hand-rolled `httpx`.** *(crosses the dependency baseline — §6.7 / `/add-dependency`)*
 - *Context:* the paid adapters need an HTTP client. `OllamaProvider` is hand-rolled `httpx` with an
   injectable transport for tests.
 - *Options:* (a) official `anthropic` + `openai` SDKs; (b) hand-rolled `httpx` mirroring
   `OllamaProvider`.
-- *My proposal:* **(b)** for INV-7 uniformity (one adapter shape, one mocked-transport test
+- *Decision (accepted, ADR 0003):* **(b)** for INV-7 uniformity (one adapter shape, one mocked-transport test
   pattern), minimal dependency surface, and portfolio legibility (the swappability is *visible*, not
   buried in an SDK). *Cost I accept (stated, per doctrine):* I hand-write each provider's
   token-usage parsing and retry semantics that the SDK would give free — and SDKs track breaking API
@@ -272,26 +275,26 @@ failed), **fatal** (non-retryable, e.g. malformed request).
 - *Options:* (a) accept one-call overshoot at PoC, documented; (b) serialize paid calls (a Postgres
   advisory lock around check+dispatch); (c) reserve-then-reconcile (debit the estimate before the
   call, true-up after).
-- *My proposal:* **(a)** — single-user sequential ingest makes the race nearly unreachable; (c) is
+- *Decision (accepted, ADR 0003):* **(a)** — single-user sequential ingest makes the race nearly unreachable; (c) is
   the right answer *if* batched concurrent extraction ever lands (M2.S3+). Document the bound.
 
 **D4 — One usage table, two billing units (tokens vs GPU-seconds).**
 - *Context:* §6.6 — paid tiers bill per token; Ollama Cloud bills in GPU-seconds.
 - *Options:* (a) one `llm_calls` table with nullable `input_tokens`/`output_tokens`/`cost_estimate`
   (paid) **and** nullable `gpu_seconds` (cloud-free), discriminated by `tier`; (b) two tables.
-- *My proposal:* **(a)** — one evidence trail is easier to aggregate and to show; the null pattern
-  honestly reflects "this metric doesn't apply to this tier" ([[name the empty box]] at the data
-  level). *Open:* does `cost_estimate` get a synthetic value for GPU-seconds (so one "spend" number
-  exists), or stay null and quota be shown separately? I lean: keep them separate units in the UI,
-  don't fabricate a dollar value for free-tier GPU time.
+- *Decision (accepted, ADR 0003):* **(a)** — one evidence trail is easier to aggregate and to show; the null pattern
+  honestly reflects "this metric doesn't apply to this tier" (naming the empty box, at the data
+  level). *Resolved:* keep them **separate units** — GPU-seconds shown as quota, **no fabricated
+  dollar value** for free-tier GPU time (spec §6.6).
 
 **D5 — Paid-egress enablement gate (INV-2 / OQ-6).** *(crosses the trust boundary)*
 - *Context:* egress opens in M2.S2; consent UI is M2.S5.
 - *Options:* (a) accept the ungated window at PoC, documented; (b) a default-deny config flag
   (`paid providers refuse unless enabled`); (c) a per-call CLI/log confirmation now.
-- *My proposal:* **(b)** — the cheapest guard that makes INV-2 enforced *from the moment the risk
-  exists*, upgraded by the real consent UI later (proposed INV-9). (a) leaves the only real trust
-  boundary unguarded for three sessions; (c) doesn't fit a headless batch.
+- *Decision (owner overrode my proposal):* **(a)** — accept the ungated window, **documented**, until
+  M2.S5. The PoC handles no security-sensitive data, so control/simplicity won over the gate; the
+  proposed default-deny flag (b) and INV-9 are **dropped**. *(My pass had proposed (b); the owner
+  chose (a) — recorded honestly.)*
 
 **D6 — ADR-0001 reconciliation.** *(carried from the review)*
 - *Context:* ADR 0001's "quota exhausted → degrade to local_small" is contradicted by the GPU-less
@@ -299,11 +302,12 @@ failed), **fatal** (non-retryable, e.g. malformed request).
   decision must be recorded *somewhere authoritative*.
 - *Options:* (a) append a dated amendment note to ADR 0001; (b) a thin superseding **ADR 0003**
   capturing the M2.S2 router/quota/budget decisions as a set; (c) leave it in PLAN_SHORT only.
-- *My proposal:* **(b)** if D1–D5 are accepted (they're a coherent decision cluster worth one ADR);
-  else **(a)**. Not (c) — a portfolio reader trusts ADRs. *I will not author either without your
-  explicit go-ahead* (doctrine: never write an ADR unconfirmed).
+- *Decision:* **(b)** — **ADR 0003** authored (the decisions are a coherent cluster worth one record),
+  superseding ADR 0001's provider-priority + quota-degradation consequences; ADR 0001 annotated.
 
-> All six are mirrored into [[open-questions]] and stay **open** until you decide.
+> ✅ Resolved 2026-06-02 — recorded in `docs/decisions/0003` + `docs/PLAN_SHORT.md` Decided; mirrored
+> (struck) in [[open-questions]] OQ-8. D1–D4 + D6 accepted as proposed; **D5 the owner overrode** to
+> (a) (defer the gate).
 
 ---
 
@@ -319,10 +323,10 @@ failed), **fatal** (non-retryable, e.g. malformed request).
   **exhausted**, records the failure, and surfaces a clear error — it must not silently fall to a
   *different* tier (that would cross a cost boundary without consent). Cross-tier escalation is a
   *separate, consent-gated* decision (OQ-3), not a failover default.
-- **…cloud_free GPU quota runs out mid-batch?** OQ-3, still open and now also intra-spec-contradictory
+- **…cloud_free GPU quota runs out mid-batch?** ✅ Resolved (OQ-3 / ADR 0003): **pause-and-ask** — and it was also intra-spec-contradictory
   (§6.5 step 5 "degrade to local_small" vs the §6.5 GPU-less-host paragraph "local_small impractical").
-  The router cannot honour step 5 on this host. Forced decision: **pause-and-ask** (default) or
-  **escalate-to-paid within `DAILY_BUDGET_USD`** (only if pre-authorised). Hand to PO (gap G1).
+  The router cannot honour step 5 on this host. **Decided (G1):** **pause-and-ask** — the owner chose
+  control over unattended spend; no auto-escalate-to-paid. Spec §6.5 step 5 amended to match.
 - **…a 401 bad key?** Fail *fast*, skip that provider, never retry (retrying a bad key wastes the
   failover budget and can trip the provider's abuse throttles). Distinct from 429.
 - **…the cap is hit on call N of a 200-paragraph ingest?** Fail-closed: the in-flight call (if any)
@@ -343,18 +347,16 @@ failed), **fatal** (non-retryable, e.g. malformed request).
 
 ## 8. Gaps for the product owner
 
-- **G1 — Quota-exhaustion behaviour must be decided (OQ-3 + the intra-spec contradiction).** The spec
-  contradicts itself on this host (step 5 vs the hardware para). M2.S2 *forces* the call. Recommend:
-  pause-and-ask by default; escalate-to-paid only within the daily cap if pre-authorised. **This may
-  warrant a one-line spec §6.5 amendment** (the stop-and-amend flow), since it resolves a live
-  internal inconsistency — flagging, not doing.
+- **~~G1 — Quota-exhaustion behaviour~~** ✅ **Resolved:** **pause-and-ask** (no auto-escalate). The
+  spec self-contradiction (step 5 vs the GPU-less-host paragraph) was the trigger; **spec §6.5 step 5
+  amended** via the stop-and-amend flow to resolve it.
 - **~~G2 — Is a default-deny paid-egress gate (D5/INV-9) acceptable for M2.S2~~** ✅ **Resolved:**
   the ungated window is documented-and-accepted until M2.S5 (no security-sensitive data) — no gate
   in M2.S2. This was the single biggest security-posture call in the milestone.
-- **G3 — ADR-0001 reconciliation (D6):** amend vs supersede vs leave-in-plan. Your call on the
-  portfolio record.
-- **G4 — SDK vs httpx (D2)** has a dependency-baseline cost either way; confirm the direction before
-  `/add-dependency` runs.
+- **~~G3 — ADR-0001 reconciliation (D6)~~** ✅ **Resolved:** superseded via **ADR 0003** (ADR 0001
+  annotated superseded-in-part).
+- **~~G4 — SDK vs httpx (D2)~~** ✅ **Resolved:** hand-rolled `httpx` (no SDK). Direct vendor adapters
+  deferred, so no `/add-dependency` run is needed in M2.S2.
 - **G5 — Retention (OQ-4 / Expiry station):** usage rows are cheap, but if §11's full prompt+response
   logs are also written, they accumulate the author's text indefinitely. Decide a posture (document
   "no retention at PoC" *or* a simple cap) — not blocking M2.S2, but the Expiry box is empty.
@@ -363,9 +365,10 @@ failed), **fatal** (non-retryable, e.g. malformed request).
 
 ## Hand-off
 
-- D1–D6 mirrored into [[open-questions]] (as OQ-8…, cross-linked); they stay open.
+- D1–D6 resolved 2026-06-02 (banner / §6); mirrored (struck) in [[open-questions]] OQ-8.
 - New concept notes added to the glossary where they'll recur; `learning-log` + `CHANGELOG` appended.
-- **No ADR authored** (none confirmed). **No production code written** — this is a design artefact.
-- The first failing test the operator writes for M2.S2 (a paid adapter against a mocked transport,
-  per the handoff) should encode the **system-derived usage fields** (OQ-7) and a **cap-refusal
-  path** (INV-5) from the start — the two are the load-bearing contracts, not afterthoughts.
+- **ADR 0003 authored** (`docs/decisions/0003`), superseding ADR 0001's provider-priority +
+  quota-degradation consequences. **No production code written** — this is a design artefact.
+- The first failing test the operator writes for M2.S2 (`OpenRouterProvider` against a mocked
+  transport, per the handoff) should encode the **system-derived usage fields** (OQ-7) and a
+  **cap-refusal path** (INV-5) from the start — the two are the load-bearing contracts, not afterthoughts.

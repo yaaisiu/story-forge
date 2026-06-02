@@ -43,8 +43,9 @@ enumerated the edge cases and framed the options; the decisions below are the ow
    exhausted OR the daily budget cap is reached**, the router **pauses and asks the user** how to
    proceed — it **never** silently escalates to a paid tier.
 5. **Budget.** A per-day USD hard ceiling (`DAILY_BUDGET_USD`), **fail-closed** (checked *before*
-   dispatch). Usage is one row per call in a single `llm_calls` table, nullable per tier (input/output
-   tokens + cost_estimate for paid; GPU-seconds for cloud_free), with daily / project / per-task-type
+   dispatch). Usage is one row per call in a single `llm_calls` table: input/output **tokens whenever
+   the provider returns them** (including Ollama's `eval_count`/`prompt_eval_count` — kept), nullable
+   `cost_estimate` (paid), nullable `gpu_seconds` (Ollama Cloud's billing unit), with daily / project / per-task-type
    aggregation read from it (no parallel counter). Tier/provider/model are **system-derived** from the
    adapter that served the call, never the caller's echoed label. Best-effort under concurrency with a
    bounded one-call overshoot (single-user PoC).

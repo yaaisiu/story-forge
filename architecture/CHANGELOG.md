@@ -28,6 +28,18 @@ so it would have produced the wrong files/tests.
   must not contain active-voice guidance contradicting the decision — annotate rejected options as
   history, don't leave them in the imperative. My pass saw the INV-9 instance but rated it "banner
   covers it"; Codex correctly escalated because the doc is a pre-test reading target.
+- **Codex second pass (4 P2s, all real — folded):** the spot-annotation approach was still a
+  half-measure. Brought the proposal fully to *resolved* state (update-in-place is the proposals'
+  mode anyway): §6 decision register header + each D now read **Decided** not "I propose" (D5 marked
+  as the owner *overriding* my proposed gate); §7 quota "still open" → resolved; §8 G1/G3/G4 struck
+  resolved; hand-off "no ADR authored" → "ADR 0003 authored"; the §2 Policy station, §4 Mermaid
+  `EG` gate node, and §5 state-machine guard no longer show the dropped egress gate. **P2#3:**
+  `INDEX.md` de-staled (ADR 0003 is authored in `docs/decisions/`; OQ-8 struck). **P2#4:** the
+  usage-row wording in spec §6.6 + ADR 0003 + `PLAN_SHORT` corrected — input/output **tokens are kept
+  whenever the provider returns them** (incl. Ollama's eval counts), `gpu_seconds` nullable for Ollama
+  Cloud, `cost_estimate` nullable for paid (the old "tokens for paid only" reading contradicted INV-5).
+  Stronger lesson: when a decompose proposal is *accepted*, resolve its whole body, don't patch
+  cited spots — half-resolved reads as undecided.
 
 ## 2026-06-02 — Reconciliation: M2.S2 decisions settled (owner) + vault navigability
 
