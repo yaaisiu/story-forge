@@ -6,9 +6,10 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from story_forge.adapters.llm.ollama import OllamaProvider
+from story_forge.adapters.llm.postgres_cost_store import PostgresCostStore
 from story_forge.agents.chunking_agent import ChunkingAgent
 from story_forge.agents.chunking_coordinator import ChunkingCoordinator
-from story_forge.api import stories
+from story_forge.api import llm, stories
 from story_forge.config import settings
 
 app = FastAPI(
@@ -30,6 +31,12 @@ app.state.chunking_coordinator = ChunkingCoordinator(
     ChunkingAgent(_chunking_provider, local_max_words=settings.chunking_local_max_words)
 )
 
+# The §6.6 cost ledger. App-lifetime singleton: it opens its own short-lived
+# connection per write so a usage row survives even if the request that triggered
+# the call rolls back. The LLMRouter is wired by its first agent consumer
+# (ExtractionAgent, M2.S3); the status endpoint already reads this store today.
+app.state.cost_store = PostgresCostStore()
+
 app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.cors_origins_list,
@@ -40,6 +47,7 @@ app.add_middleware(
 
 
 app.include_router(stories.router)
+app.include_router(llm.router)
 
 
 @app.get("/health")

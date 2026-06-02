@@ -10,7 +10,7 @@ from __future__ import annotations
 
 import pytest
 
-from story_forge.adapters.llm.base import CompletionResult, Message, ModelTier
+from story_forge.adapters.llm.base import CompletionResult, Message, ModelTier, Usage
 from story_forge.agents.chunking_agent import (
     ChunkingAgent,
     ChunkingError,
@@ -39,7 +39,11 @@ class FakeProvider:
         json_schema: dict[str, object] | None = None,
     ) -> CompletionResult:
         self.calls.append((messages, model_tier))
-        return CompletionResult(content=self._responses.pop(0), model_tier=model_tier)
+        return CompletionResult(
+            content=self._responses.pop(0),
+            model_tier=model_tier,
+            usage=Usage(model="fake"),
+        )
 
 
 async def test_proposes_outline_from_valid_json() -> None:

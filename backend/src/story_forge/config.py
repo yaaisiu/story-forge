@@ -76,6 +76,17 @@ class Settings(BaseSettings):
     xai_api_key: str = ""
     openrouter_api_key: str = ""
 
+    # --- LLM budget (spec §6.6, ADR 0003) ---
+    daily_budget_usd: float = Field(
+        default=5.0,
+        description=(
+            "Per-day USD hard ceiling on paid LLM spend. The router checks it "
+            "before dispatching a paid call (fail-closed) and pauses to ask the "
+            "user when reached — it never silently escalates spend. Free tiers are "
+            "never blocked by it. Surfaced by the GET /llm/status endpoint."
+        ),
+    )
+
     # --- Uploads ---
     upload_dir: Path = Field(
         default=Path("var/uploads"),

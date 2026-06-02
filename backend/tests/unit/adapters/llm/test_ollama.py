@@ -87,6 +87,60 @@ async def test_sends_bearer_token_for_cloud_free() -> None:
     assert seen["auth"] == f"Bearer {cloud_key}"
 
 
+async def test_keeps_token_counts_from_response() -> None:
+    # Ollama reports prompt_eval_count / eval_count; the §6.6 ledger keeps them
+    # even though this tier is free (INV-5) — they are not discarded.
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(
+            200,
+            json={
+                "message": {"content": "x"},
+                "prompt_eval_count": 42,
+                "eval_count": 17,
+            },
+        )
+
+    provider = OllamaProvider(
+        host="http://127.0.0.1:11434",
+        model="qwen3.5",
+        transport=httpx.MockTransport(handler),
+    )
+    result = await provider.complete([Message(role="user", content="hi")], "local_small")
+
+    assert result.usage.model == "qwen3.5"
+    assert result.usage.input_tokens == 42
+    assert result.usage.output_tokens == 17
+    assert result.usage.gpu_seconds is None
+    # Free tier → no USD figure even though tokens are known.
+    assert result.usage.cost_estimate is None
+
+
+async def test_usage_tokens_none_when_response_omits_them() -> None:
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(200, json={"message": {"content": "x"}})
+
+    provider = OllamaProvider(
+        host="http://127.0.0.1:11434",
+        model="qwen3.5",
+        transport=httpx.MockTransport(handler),
+    )
+    result = await provider.complete([Message(role="user", content="hi")], "local_small")
+
+    assert result.usage.input_tokens is None
+    assert result.usage.output_tokens is None
+
+
+def test_cost_and_rate_limit_reflect_tier() -> None:
+    fake_key = "k"  # bound to a var per backend/AGENTS.md credential-literal rule
+    local = OllamaProvider(host="http://127.0.0.1:11434", model="qwen3.5")
+    cloud = OllamaProvider(host="https://ollama.com", model="gpt-oss:120b-cloud", api_key=fake_key)
+
+    assert local.cost_per_1k_tokens == (0.0, 0.0)
+    assert cloud.cost_per_1k_tokens == (0.0, 0.0)
+    assert local.rate_limit_kind == "none"
+    assert cloud.rate_limit_kind == "session_gpu_time"
+
+
 async def test_raises_on_http_error_status() -> None:
     # A 5xx from Ollama surfaces as an HTTP error (the router handles failover
     # later; the provider does not silently swallow it).
