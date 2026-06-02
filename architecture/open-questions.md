@@ -36,6 +36,13 @@ OQ-C is the next architect deep-dive when one is wanted.
 
 > Deferred by design (ADR 0002): wiring these skills into `/resume-session`, `/wrap-session`,
 > `/review-pr` happens *after* living with this vault once — not pre-emptively.
+>
+> **Evidence toward placement (2026-06-02, Session 11):** the owner ran `review-architecture` at
+> **session wrap (end)**, not resume (start), and stated that as a preference. On the merits this is
+> the better attach point — at wrap there is a fresh as-built to diff and the findings seed the next
+> session's step 0. So if/when the ritual is wired, the evidence points at `review-architecture` →
+> **`/wrap-session`** (and `decompose-requirement` → a feature's "step 0"). Integration itself stays
+> deferred; this just records *where* it would go. See `[[2026-06-02-architecture-review-post-m2s2]]` §6.
 
 ---
 
@@ -60,6 +67,11 @@ side effects?
   transaction-ish redo; (c) no recovery at PoC (re-upload).
 - **My proposal:** (a), leaning on idempotency (see [[idempotency]]) — paragraphs already have
   stable ids. Needs the candidate/job state machines drawn (see [[overview]] Layer 5). Open.
+- **Now concrete (post-M2.S2 sweep, 2026-06-02):** the `LLMRouter` already *raises*
+  `BudgetExceededError` / `QuotaExhaustedError` mid-call (pause-and-ask), but **no caller catches it
+  to make the batch resumable**. The proposal §7 "cap hit on call N of a 200-paragraph ingest → pause
+  resumably" lands in **M2.S3/S4** when `ExtractionAgent` does batch dispatch — that is where the
+  catcher + resume-from-last-done belongs. See `[[2026-06-02-architecture-review-post-m2s2]]`.
 
 ### ~~OQ-3 — `cloud_free` quota-exhausted behaviour~~ ✅ Resolved 2026-06-02
 **Resolution** (ADR 0003; spec §6.5 amended): on a GPU-less host the `local_small` degrade target
@@ -161,6 +173,28 @@ full Context/Options/Proposal for each lives in the proposal's Decision register
 - **Gaps for the PO (proposal §8):** G1 quota-exhaustion decision (+ possible spec §6.5 amendment for
   the step-5-vs-hardware contradiction), G2 egress-gate posture, G5 log retention (Expiry/OQ-4).
 - **Lands in:** M2.S2 (next product session). See [[m2s2-llm-router-budget-cap]].
+
+### OQ-9 — `latency` is promised in three homes but recorded in none
+Raised by the post-M2.S2 sweep (`[[2026-06-02-architecture-review-post-m2s2]]`). INV-5 says a usage
+row records "… **(and latency)**"; the `[[m2s2-llm-router-budget-cap]]` proposal repeats it; the
+**M2.S5 panel task** (`docs/PLAN_SHORT.md`) lists **latency** as a shown column. But the as-built
+`llm_calls` table / `LlmCallRecord` record **no latency**, and spec §6.6's enumeration doesn't list
+it either.
+- **Options:** (a) add a `latency_ms` column + capture it in the router now (cheap; the S5 panel will
+  want it); (b) trim INV-5 + the proposal to match spec + as-built (latency not recorded at PoC).
+- **My proposal:** (a) — it's a one-column migration and the panel already promises it; capturing
+  wall-clock around `provider.complete` is trivial and system-derived. Decide **before M2.S5**. Open.
+
+### OQ-10 — Malformed-`200`-envelope: record + fail over, don't crash
+Raised by the post-M2.S2 sweep; predicted by the proposal §7. A provider returning `200` with a
+broken body (missing `choices`/`message`, an error shaped as success, a proxy injecting JSON) raises
+a parse error *inside* `provider.complete()`; the router catches `HTTPStatusError` + `RequestError`
+but **not** this, so it neither records a row nor fails over.
+- **Options:** (a) a typed `ProviderResponseError` the adapters raise on an unparseable envelope and
+  the router treats like a 5xx (record failure, fail over); (b) leave as an uncaught 500 (status quo).
+- **My proposal:** (a). Already tracked as a `docs/PLAN_SHORT.md` **M2.S3 cross-cutting** item; lands
+  when the router first meets a real Pydantic schema. Distinguish **envelope-malformed → failover the
+  provider** from **schema-invalid → retry the prompt** (the latter stays in the agent). Open.
 
 ## Referenced — owned by spec §10 (not duplicated)
 
