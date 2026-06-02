@@ -14,11 +14,22 @@ related: ["[[overview]]", "[[invariants]]", "[[open-questions]]", "[[model-tier-
 > route built in M2.S2** (hand-rolled `httpx`, no SDK); per-day USD cap with **pause-and-ask** on
 > exhaustion/cap (no silent escalation); INV-5 usage-shape grows; egress consent deferred to M2.S5
 > (documented, no INV-9). This note stays as the design briefing; the decisions below are now closed.
+>
+> **⚠ Reading note for the M2.S2 implementer.** The body below is the *pre-decision* exploration —
+> it predates the resolution and is kept as design history (the rejected options are the point of a
+> decompose). Two threads in it are **superseded** and must NOT be followed as build instructions:
+> **(1) scope** — anywhere it says to build direct `Anthropic`/`OpenAI`/`Grok` adapters (Requirement,
+> §3, the §4 `T3` node) is overruled by *OpenRouter-only in M2.S2; direct vendor adapters deferred*;
+> **(2) the egress gate** — the default-deny enablement gate / proposed INV-9 (§4 `EG` node, §5, §7
+> Layer 7, §8 G2, register D5) was **rejected**: egress consent is deferred to M2.S5 with a documented
+> in-code marker, no gate ships in M2.S2. The settled scope is the banner + `docs/decisions/0003`.
 
-**Requirement (operator):** build the paid-cloud adapters (`AnthropicProvider`, `OpenAIProvider`,
-`GrokProvider`), the `LLMRouter` (tier decision order + within-tier failover), per-call cost
-tracking, an emergency daily budget cap (hard-stop), and a status endpoint surfacing budget +
-Ollama Cloud GPU-quota. Sources of truth: **spec §6.5** (provider abstraction, router, failover)
+**Requirement (operator, as decomposed):** the paid-cloud LLM tier — provider adapter(s), the
+`LLMRouter` (tier decision order + within-tier failover), per-call cost tracking, an emergency daily
+budget cap (hard-stop), and a status endpoint surfacing budget + Ollama Cloud GPU-quota. **Scope
+settled after this pass (banner / ADR 0003):** M2.S2 builds only the extended Ollama seam +
+`OpenRouterProvider`; the direct vendor adapters (`Anthropic`/`OpenAI`/`Grok`/`Google`) are deferred
+to as-needed. Sources of truth: **spec §6.5** (provider abstraction, router, failover)
 and **§6.6** (token budget & cost). This note **references** them; it does not restate the schema
 or the decision order verbatim.
 
@@ -90,10 +101,11 @@ the distinction (review §6).
 **7. Security — threat model, abuse paths.** Two surfaces:
 - **Egress consent (OQ-6, INV-2).** This is the load-bearing security finding. M2.S2 opens paid
   egress paths; the explicit per-fragment consent UI is M2.S5. **A guard that ships three sessions
-  after the risk it governs is fail-open by sequencing.** Proposal D5: a *default-deny enablement
-  gate* lands **with** the paid adapters (config flag; paid providers refuse unless explicitly
-  enabled), so INV-2 has *some* enforced guard from the moment egress is possible — the rich consent
-  UI is the later, richer version, not the first one.
+  after the risk it governs is fail-open by sequencing.** → **Resolved (D5, ADR 0003): the gate
+  below was *proposed and NOT adopted*** — the owner deferred consent to M2.S5 (no security-sensitive
+  data), with a documented in-code marker at the egress point rather than a config gate. *(Superseded
+  proposal, kept as history:* a default-deny enablement gate lands with the paid adapters so INV-2 has
+  some enforced guard from the moment egress is possible.*)*
 - **Key handling (INV-6).** M2.S2 is the first code holding paid API keys. Keys come only from
   `.env` (agent never touches it). The redaction guard INV-6 *names* (strip `Authorization` /
   `X-API-Key` from logs) must be **confirmed to exist** before any provider request is logged — the
@@ -144,8 +156,10 @@ invariant pressure:
   (`ChunkingAgent` via `OllamaProvider`) must keep compiling — the growth is additive.
 - `adapters/llm/ollama.py` — **must stop discarding** `prompt_eval_count`/`eval_count` (OQ-7) and
   start reporting GPU-seconds if the cloud response carries them.
-- `adapters/llm/{anthropic,openai,grok}.py` — **new**, each mirroring the mocked-transport test
-  shape (`tests/unit/adapters/llm/test_ollama.py` is the pattern).
+- `adapters/llm/openrouter.py` — **new** (the only paid adapter built in M2.S2), mirroring the
+  mocked-transport test shape (`tests/unit/adapters/llm/test_ollama.py` is the pattern). *(The
+  `{anthropic,openai,grok,google}.py` direct adapters this section originally listed are deferred —
+  see the banner reading-note.)*
 - `adapters/llm/router.py` — **new**; the decision order + failover + the budget guard call.
 - A **new repo + migration** for the usage table (`adapters/…_repo.py` + Alembic).
 - `api/` — **new status route** (declares its non-2xx outcomes per `backend/CLAUDE.md` "API routes").
@@ -167,7 +181,7 @@ flowchart TD
     A[Agent: complete task] --> R[LLMRouter.route task]
     R -->|light| T1[local_small]
     R -->|medium| T2[cloud_free / Ollama Cloud]
-    R -->|heavy| T3[cloud_strong: Anthropic→OpenAI→Grok]
+    R -->|heavy| T3[cloud_strong: OpenRouter preferred; direct adapters deferred]
 
     T3 --> EG{paid-egress<br/>enabled? D5}
     EG -->|no| REF1[REFUSE · fail-closed · record outcome]
@@ -221,11 +235,11 @@ failed), **fatal** (non-retryable, e.g. malformed request).
 - **INV-7 — strengthen.** The recorded tier/provider/model must be **system-derived** (from the
   adapter that actually served the call), never the caller's echoed `model_tier`. Otherwise the cost
   ledger and the audit trail can be quietly wrong.
-- **Proposed INV-9 [TEMPORARY · M2-scoped, like INV-8]** — *No paid egress without an explicit
-  enablement gate.* Until the M2.S5 consent UI exists, every `cloud_strong` provider **fails closed**
-  unless the operator has set the enablement flag (D5). Lifespan: superseded by the per-fragment
-  consent UI (M2.S5) which makes INV-2's full guard real. Listing it temporary prevents "we'll add
-  consent later" from meaning "egress is ungated for three sessions." *Propose only — fold on accept.*
+- **~~Proposed INV-9 [TEMPORARY · M2-scoped, like INV-8]~~ — NOT ADOPTED (D5, ADR 0003).** The
+  proposal was *No paid egress without an explicit enablement gate* — every `cloud_strong` provider
+  fails closed unless an enablement flag is set. The owner **rejected** it: egress consent is deferred
+  to M2.S5 (no security-sensitive data) with a documented in-code marker, and no gate ships in M2.S2.
+  Kept here as design history; INV-9 was never folded into [[invariants]].
 
 ---
 
@@ -281,7 +295,7 @@ failed), **fatal** (non-retryable, e.g. malformed request).
 
 **D6 — ADR-0001 reconciliation.** *(carried from the review)*
 - *Context:* ADR 0001's "quota exhausted → degrade to local_small" is contradicted by the GPU-less
-  reality (spec §6.5 line 412). M2.S2 codifies the router's actual quota-exhaustion behaviour, so the
+  reality (spec §6.5 GPU-less-host paragraph). M2.S2 codifies the router's actual quota-exhaustion behaviour, so the
   decision must be recorded *somewhere authoritative*.
 - *Options:* (a) append a dated amendment note to ADR 0001; (b) a thin superseding **ADR 0003**
   capturing the M2.S2 router/quota/budget decisions as a set; (c) leave it in PLAN_SHORT only.
@@ -306,7 +320,7 @@ failed), **fatal** (non-retryable, e.g. malformed request).
   *different* tier (that would cross a cost boundary without consent). Cross-tier escalation is a
   *separate, consent-gated* decision (OQ-3), not a failover default.
 - **…cloud_free GPU quota runs out mid-batch?** OQ-3, still open and now also intra-spec-contradictory
-  (§6.5 step 5 "degrade to local_small" vs §6.5 line 412 "local_small impractical on GPU-less host").
+  (§6.5 step 5 "degrade to local_small" vs the §6.5 GPU-less-host paragraph "local_small impractical").
   The router cannot honour step 5 on this host. Forced decision: **pause-and-ask** (default) or
   **escalate-to-paid within `DAILY_BUDGET_USD`** (only if pre-authorised). Hand to PO (gap G1).
 - **…a 401 bad key?** Fail *fast*, skip that provider, never retry (retrying a bad key wastes the
@@ -334,9 +348,9 @@ failed), **fatal** (non-retryable, e.g. malformed request).
   pause-and-ask by default; escalate-to-paid only within the daily cap if pre-authorised. **This may
   warrant a one-line spec §6.5 amendment** (the stop-and-amend flow), since it resolves a live
   internal inconsistency — flagging, not doing.
-- **G2 — Is a default-deny paid-egress gate (D5/INV-9) acceptable for M2.S2,** or do you want the
-  ungated window documented-and-accepted until M2.S5? This is the single biggest security posture
-  call in the milestone.
+- **~~G2 — Is a default-deny paid-egress gate (D5/INV-9) acceptable for M2.S2~~** ✅ **Resolved:**
+  the ungated window is documented-and-accepted until M2.S5 (no security-sensitive data) — no gate
+  in M2.S2. This was the single biggest security-posture call in the milestone.
 - **G3 — ADR-0001 reconciliation (D6):** amend vs supersede vs leave-in-plan. Your call on the
   portfolio record.
 - **G4 — SDK vs httpx (D2)** has a dependency-baseline cost either way; confirm the direction before

@@ -11,6 +11,24 @@ related: []
 Append-only audit trail of writes into the vault. Newest entries at the top. History also lives
 in `updated` fields (freshness) and git (diffs); this is the human-readable "what changed when".
 
+## 2026-06-02 — Review fold (PR #34): accepted-proposal honesty + stable refs
+
+Folded the own-`/review-pr` should-fix + a Codex first-pass review (two P2s, same class) into the
+M2.S2 proposal. The `accepted` briefing still carried *pre-decision* active-voice guidance that
+contradicted the settled scope — and the handoff points the implementer at it before writing tests,
+so it would have produced the wrong files/tests.
+- **Codex P2 ×2 + the same class my pass under-rated:** rescoped every "build direct vendor adapters"
+  spot (Requirement, §3, §4 `T3` node) to OpenRouter-only; struck/annotated the rejected default-deny
+  egress gate + proposed INV-9 (§4 `EG` node noted, §5, §7 Layer 7, §8 G2) as superseded history. Added
+  a **⚠ Reading note** to the proposal banner naming both superseded threads so nothing in the body
+  reads as a build instruction.
+- **Own should-fix:** 4 fragile "spec §6.5 line 412" references → stable "§6.5 GPU-less-host paragraph"
+  (proposal ×2, this changelog, ADR 0003).
+- Lesson (for `/review-pr`): an *accepted* design briefing that the handoff cites as orienting context
+  must not contain active-voice guidance contradicting the decision — annotate rejected options as
+  history, don't leave them in the imperative. My pass saw the INV-9 instance but rated it "banner
+  covers it"; Codex correctly escalated because the doc is a pre-test reading target.
+
 ## 2026-06-02 — Reconciliation: M2.S2 decisions settled (owner) + vault navigability
 
 Not an architect skill run — a host-repo update folding the owner's decisions back into the vault so
@@ -52,7 +70,7 @@ the two review risks (OQ-6 consent-vs-egress, OQ-7 return-shape + cap-ordering) 
   two invariant *clarifications* (INV-5 best-effort-with-bounded-overshoot; INV-7 tier must be
   system-derived) — folded into `invariants.md` only on acceptance, not yet.
 - **Gaps for PO:** G1 quota-exhaustion decision (+ flagged a live **intra-spec** contradiction: §6.5
-  step 5 "degrade to local_small" vs §6.5 line 412 "local_small impractical on GPU-less host" — may
+  step 5 "degrade to local_small" vs the §6.5 GPU-less-host paragraph "local_small impractical" — may
   need a one-line spec amendment via the stop-and-amend flow), G2 egress posture, G3–G6.
 - **Glossary +2** → 16: [[failover]], [[toctou]]. Learning-log +3. INDEX regenerated (proposals/reports
   section added; next-steps 1–2 marked done). **No production code written** (design artefact only).

@@ -14,7 +14,7 @@ ADR 0001 set the three-tier strategy (`local_small` / `cloud_free` / `cloud_stro
 left open, and two facts on the ground reshaped them:
 
 - The dev host is **GPU-less**, so `local_small` is unavailable and ADR 0001's "quota exhausted →
-  degrade to local_small" consequence is unreachable (already half-acknowledged in spec §6.5 line ~412;
+  degrade to local_small" consequence is unreachable (already half-acknowledged in the spec §6.5 GPU-less-host paragraph;
   flagged as stale in `architecture/reports/2026-06-02-architecture-review.md`).
 - The owner prioritises **control over convenience** for spend, and the PoC handles no
   security-sensitive data.
