@@ -120,6 +120,18 @@ of *how* and *why* we build must be in the open, version-controlled, and reviewa
 - Prefer the most specific home: a layering rule → that directory's `AGENTS.md`; a
   workflow rule → here or a skill; a decision → `docs/PLAN_SHORT.md` **Decided**; a roadmap
   shift → `docs/PLAN_LONG.md`; a spec change → the spec (via the stop-and-amend flow).
+- **Reconcile a decision across *every* home in one pass — a fact lives in more places than you
+  changed.** When you record or resolve a decision (amend the spec, land an ADR, flip a doc
+  `proposed → accepted`, overturn a prior choice), the authoritative home is only the first edit.
+  Then sweep the **whole repo** (not just the files you touched) for every other home of that fact:
+  the spec's other sections, `README.md`, every `AGENTS.md`, both plan files, the `architecture/`
+  vault — *and* the notes that merely *track* it (ADR registries, priority queues, as-built/status
+  snapshots, doc pointers), which phrase it in different words a keyword grep won't catch. Bring any
+  accepted artifact's **whole body** to resolved (not just a top banner), give a resolved dated
+  report a banner + matching `status:`, and leave append-only history (superseded-ADR text,
+  `CHANGELOG`) intact. **Verify by exhaustive grep proactively** — doing this at authoring time is
+  what stops a reviewer (or six review passes — see PR #34) from finding the stale leftovers. The
+  review-side mirror of this rule lives in `/review-pr` §2.
 - Agent memory, if used at all, is a temporary scratchpad. **At `/wrap-session`, migrate
   anything durable out of memory into the proper project file, then clear it** — never let
   a decision live only in memory where a collaborator can't see it.
