@@ -40,6 +40,13 @@ so it would have produced the wrong files/tests.
   Cloud, `cost_estimate` nullable for paid (the old "tokens for paid only" reading contradicted INV-5).
   Stronger lesson: when a decompose proposal is *accepted*, resolve its whole body, don't patch
   cited spots — half-resolved reads as undecided.
+- **Codex third pass (3 P2 + 1 P3, the long tail — folded):** the handoff `Verify on disk` still
+  listed `{anthropic,openai,grok,router}.py` as what M2.S2 builds (→ `{openrouter,router}.py`); the §3
+  `config.py` list still named a paid-egress flag (gate dropped); the §4 Mermaid still routed quota
+  exhaustion to "pause / escalate / stop" (→ pause-and-ask, no escalate); the clock-skew edge case
+  still called the day-origin a "D1 open item" (D1 resolved = local-midnight). After folding, ran an
+  **exhaustive grep sweep** (open-framing / egress-flag / escalate / stale-adapter-list / provider-order)
+  to stop the patch-and-recheck cycle — this is the lesson the wrap/retro will encode into `/review-pr`.
 
 ## 2026-06-02 — Reconciliation: M2.S2 decisions settled (owner) + vault navigability
 

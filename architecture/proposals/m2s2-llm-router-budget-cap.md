@@ -165,8 +165,8 @@ invariant pressure:
 - `adapters/llm/router.py` — **new**; the decision order + failover + the budget guard call.
 - A **new repo + migration** for the usage table (`adapters/…_repo.py` + Alembic).
 - `api/` — **new status route** (declares its non-2xx outcomes per `backend/CLAUDE.md` "API routes").
-- `config.py` — new settings: `DAILY_BUDGET_USD`, the paid-egress enablement flag (D5), provider
-  priority. (Keys already present.)
+- `config.py` — new settings: `DAILY_BUDGET_USD`, provider priority. (No egress flag — D5 dropped the
+  gate; keys already present.)
 - **Invariants under pressure:** INV-5 (this feature *is* its guard), INV-2 (egress opens), INV-7
   (router must not let tier labels lie), INV-6 (first key-holding code).
 
@@ -190,7 +190,7 @@ flowchart TD
     G -->|yes| P1[provider.complete]
 
     T2 --> Q{Ollama Cloud<br/>GPU quota left?}
-    Q -->|no| OQ3[OQ-3 decision:<br/>pause / escalate / stop]
+    Q -->|no| OQ3[free quota gone:<br/>pause-and-ask · no auto-escalate]
     Q -->|yes| P1
 
     P1 -->|2xx + valid schema| OK[record usage row:<br/>model, tokens/GPU-s, cost, latency]
@@ -339,9 +339,8 @@ gate, not build it). Authoritative record: ADR 0003 + `docs/PLAN_SHORT.md` Decid
   trusted: the *provider* is across the trust boundary.
 - **…two adapters are accidentally wired to the same tier with one mislabelled?** INV-7 near-miss —
   the system-derived tier (D-strengthen) is the guard; without it the ledger lies.
-- **…clock skew / day boundary mid-call?** The "per-day" cap needs a defined day-origin (D1 open
-  item). A call straddling local-midnight bills to its *start* day, by convention — pick one and
-  write it down.
+- **…clock skew / day boundary mid-call?** The "per-day" cap's day-origin is **local-midnight** (D1,
+  resolved). A call straddling midnight bills to its *start* day, by convention.
 
 ---
 
