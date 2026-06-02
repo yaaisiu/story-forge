@@ -54,6 +54,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/llm/status": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Llm Status
+         * @description Today's spend, GPU-seconds, and per-task-type breakdown against the cap.
+         */
+        get: operations["llm_status_llm_status_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/health": {
         parameters: {
             query?: never;
@@ -99,6 +119,24 @@ export interface components {
         HTTPValidationError: {
             /** Detail */
             detail?: components["schemas"]["ValidationError"][];
+        };
+        /**
+         * LlmStatusResponse
+         * @description Budget + today's usage for the agent-activity panel.
+         */
+        LlmStatusResponse: {
+            /** Daily Budget Usd */
+            daily_budget_usd: number;
+            /** Spent Today Usd */
+            spent_today_usd: number;
+            /** Remaining Usd */
+            remaining_usd: number;
+            /** Gpu Seconds Today */
+            gpu_seconds_today: number;
+            /** Calls Today */
+            calls_today: number;
+            /** By Task Type */
+            by_task_type: components["schemas"]["TaskTypeUsage"][];
         };
         /**
          * StoryUploadResponse
@@ -165,6 +203,18 @@ export interface components {
             scene_count: number;
             /** Paragraph Count */
             paragraph_count: number;
+        };
+        /**
+         * TaskTypeUsage
+         * @description Today's call count and USD spend for one task type (status dashboard).
+         */
+        TaskTypeUsage: {
+            /** Task Type */
+            task_type: string;
+            /** Calls */
+            calls: number;
+            /** Cost Usd */
+            cost_usd: number;
         };
         /** ValidationError */
         ValidationError: {
@@ -308,6 +358,26 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    llm_status_llm_status_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LlmStatusResponse"];
                 };
             };
         };

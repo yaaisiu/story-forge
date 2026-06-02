@@ -79,6 +79,10 @@ class OpenRouterProvider:
 
         headers = {"Authorization": f"Bearer {self._api_key}"}
 
+        # PAID EGRESS POINT. The per-fragment consent gate ("sending this text to
+        # OpenRouter, OK?") is deferred to M2.S5 (ADR 0003 §6 / INV-2): the PoC
+        # handles no security-sensitive data, so egress is documented here, not
+        # gated. When the M2.S5 panel lands, the consent check goes right here.
         async with httpx.AsyncClient(timeout=self._timeout, transport=self._transport) as client:
             response = await client.post(
                 f"{self._host}/chat/completions", json=payload, headers=headers

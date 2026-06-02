@@ -39,6 +39,23 @@ class LlmCallRecord(BaseModel):
     cost_estimate: float | None = None
 
 
+class TaskTypeUsage(BaseModel):
+    """Today's call count and USD spend for one task type (status dashboard)."""
+
+    task_type: str
+    calls: int
+    cost_usd: float
+
+
+class DailyUsage(BaseModel):
+    """Today's aggregate ledger view surfaced by the status endpoint (§6.6)."""
+
+    spent_usd: float
+    gpu_seconds: float
+    calls: int
+    by_task_type: list[TaskTypeUsage]
+
+
 class CostStore(Protocol):
     """Persists usage rows and reports the day's paid spend for the budget gate."""
 
