@@ -35,7 +35,8 @@ cp backend/.env.example backend/.env
 
 # 2. Fill in the secrets in both .env files
 #    Generate random passwords with: openssl rand -hex 24
-#    Paste real API keys where applicable (Ollama Cloud, Anthropic, OpenAI, Grok, OpenRouter)
+#    Paste real API keys where applicable (Ollama Cloud + OpenRouter; plus Grok / Anthropic / OpenAI
+#    for the direct adapters built as needed — a Google/Gemini key joins when that adapter lands)
 
 # 3. Install pre-commit hooks
 pre-commit install
@@ -141,12 +142,12 @@ pre-commit run --all-files
 Story Forge is built in the open as a public PoC and doubles as a portfolio piece. Specifically, it demonstrates:
 
 - **Agent-based LLM pipeline.** Chunking, extraction, matching, and judgment live in `backend/src/story_forge/agents/` as modular agents — each owns one task, one prompt template (Jinja2), one Pydantic output schema, and a preferred model tier.
-- **Multi-model routing.** One `LLMProvider` Protocol; swappable adapters for local Ollama, Ollama Cloud free tier, Anthropic, OpenAI, Grok, and OpenRouter. A small router picks a tier per call and fails over within a tier (network error, rate limit, schema-parse failure → next configured provider, swap logged).
+- **Multi-model routing.** One `LLMProvider` Protocol; swappable adapters for local Ollama, Ollama Cloud free tier, and paid cloud via OpenRouter (the preferred paid route, reaching Grok/Anthropic/Google/OpenAI through one endpoint; direct vendor adapters added as needed). A small router picks a tier per call and fails over within a tier (network error, rate limit, schema-parse failure → next configured provider, swap logged).
 - **Clean three-layer backend.** `api/` → `agents/` → `domain/` → `adapters/`. The domain is pure (no I/O); adapters implement protocols; agents compose. Every layer has its own `CLAUDE.md` with conventions.
 - **Security-by-default infra.** Every container non-root, localhost-bound, on a private network. Every dependency pinned to an exact version ≥ 14 days old. Container images CVE-scanned in CI. No telemetry libraries. CORS strict. Secrets only in `.env`.
 - **Spec-and-test-driven workflow.** `story-forge-poc-spec.md` is the source of truth; `docs/PLAN_LONG.md` / `docs/PLAN_SHORT.md` are living plans (conventions in `docs/CLAUDE.md`); ADRs in `docs/decisions/`. The commit history records the discipline.
 
-For the full picture, read `story-forge-poc-spec.md` (the PoC spec), then `docs/decisions/0001-three-tier-llm-strategy.md` (the LLM ADR), then `CLAUDE.md` files at the root and inside each major directory.
+For the full picture, read `story-forge-poc-spec.md` (the PoC spec), then the LLM ADRs `docs/decisions/0001-three-tier-llm-strategy.md` (three-tier strategy, superseded-in-part) and `docs/decisions/0003-llm-router-provider-order-and-budget.md` (router, provider order, budget), then `CLAUDE.md` files at the root and inside each major directory.
 
 ---
 

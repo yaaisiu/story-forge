@@ -39,12 +39,13 @@ code.)
   spans per paragraph (`agents/prener_agent.py`).
 
 **Planned, not yet built (M2.S2 → M2.S6, then M3+):**
-- M2.S2 — paid LLM adapters (`anthropic/openai/grok`), the `LLMRouter`, cost tracking + budget
-  cap, status endpoint. *(The next product session; only `adapters/llm/{base,ollama}.py` exist.)*
+- M2.S2 — the extended Ollama seam + `OpenRouterProvider` (the only paid adapter built now), the
+  `LLMRouter`, cost tracking + budget cap, status endpoint. *(The next product session; only
+  `adapters/llm/{base,ollama}.py` exist. Provider order + OpenRouter-only scope: `docs/decisions/0003`.)*
 - M2.S3 — `ExtractionAgent` (entities + relations from a paragraph).
 - M2.S4 — Neo4j writes, **no dedupe** (every candidate = a new node — see [[invariants]] #8).
 - M2.S5 — frontend graph viewer + agent-activity panel.
-- M2.S6 — OpenRouter provider + integration polish (closes M2).
+- M2.S6 — optional direct vendor adapters (Grok/Anthropic/Google/OpenAI, as needed) + integration polish (closes M2). *(OpenRouter moved up to M2.S2 — `docs/decisions/0003`.)*
 - M3 — the **cascade matching** dedupe (Stages 1–4: fuzzy → embedding → LLM judge → human),
   the heart of the product (§3.3, [[cascade-matching]]).
 
@@ -122,8 +123,9 @@ architecture must answer (some still open):
   give up with a clear error (the `ChunkingAgent` pattern, to be mirrored — §6.5).
 - Provider rate-limits or errors → router fails over to the next provider *in the same tier*,
   swap logged (§6.5).
-- `cloud_free` GPU quota exhausted → degrade to `local_small` with warning, or pause for the
-  user (§6.5 step 5) — an open UX decision.
+- `cloud_free` GPU quota exhausted → **pause and ask the user** (resolved — OQ-3 / ADR 0003 / spec
+  §6.5 step 5; never silent paid escalation, and on a GPU-less host `local_small` isn't a degrade
+  target — the cheapest cloud_free model is).
 - Two-store write (Neo4j entity + Postgres mention) partially fails → **no shared transaction**;
   reconciliation strategy is an open question.
 
@@ -190,7 +192,7 @@ Empty/weak stations (**Monitoring not-yet-built**, **Expiry gap**) are logged in
 
 The relentless **"but what if"** at system altitude raised, among others: the two-store
 write consistency seam (§ Data/Errors), partial-failure recovery in the ingest job, the
-`cloud_free`-quota-exhausted UX, upload/log **retention** (Expiry gap), and the
-`ExtractionAgent` prompt-injection pass. These — plus the operator's *review-then-strategize*
-priority — are queued in [[open-questions]]. None are resolved here: this note frames; the
-human decides.
+`cloud_free`-quota-exhausted UX (since **resolved** → pause-and-ask, OQ-3 / ADR 0003), upload/log
+**retention** (Expiry gap, still open), and the `ExtractionAgent` prompt-injection pass. These were
+queued in [[open-questions]]; this seed note only *framed* them — the human decided (the M2.S2
+cluster is now settled in `docs/decisions/0003`).

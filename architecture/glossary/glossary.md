@@ -11,7 +11,7 @@ related: []
 The glossary is a **knowledge graph**, not a flat list: each term is its own note (a node) in
 `glossary/`, cross-linked via `related` so concepts form a web you can wander in Obsidian. This
 index is **regenerated** each run; the term notes are the source. Terms are added *organically* —
-only when real work first surfaces them — and deduped by slug. Count today: **14**.
+only when real work first surfaces them — and deduped by slug. Count today: **16**.
 
 | Term (EN / PL) | Answers | Note |
 |---|---|---|
@@ -29,3 +29,5 @@ only when real work first surfaces them — and deduped by slug. Count today: **
 | model-tier routing / routing po poziomach modeli | which model, and failover to what? | [[model-tier-routing]] |
 | compliance / audit layer / warstwa zgodności | what evidence remains afterward? | [[compliance-audit-layer]] |
 | deterministic-first / najpierw deterministycznie | do we actually need an LLM here? | [[prefer-deterministic]] |
+| failover / przełączanie awaryjne | what happens when the provider is unavailable? | [[failover]] |
+| TOCTOU / sprawdzenie-a-użycie | is this guard safe if two things run at once? | [[toctou]] |

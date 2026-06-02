@@ -81,7 +81,7 @@ exists to prevent (see [[source-of-truth]]).
 | Product requirements (what we build) | `story-forge-poc-spec.md` — **the** authority; the spec wins over reality unless explicitly amended |
 | Strategic roadmap (V1/V2/V3 milestones) | `docs/PLAN_LONG.md` |
 | Tactical plan (current milestone, session slices, handoff block) | `docs/PLAN_SHORT.md` |
-| Architecture decisions (host project) | `docs/decisions/` (ADRs 0001 three-tier LLM, 0002 incubate meta-architect) |
+| Architecture decisions (host project) | `docs/decisions/` (ADRs 0001 three-tier LLM [superseded-in-part], 0002 incubate meta-architect, 0003 LLM router / provider order / budget) |
 | Per-directory conventions (Python, FastAPI, domain/adapter split, React, API client) | the seven `AGENTS.md` files (each `CLAUDE.md` is a symlink to its `AGENTS.md`) |
 | Workflow rules (Karpathy rules, spec-then-test, merge flow, security baseline) | root `AGENTS.md` / `CLAUDE.md` |
 | Runtime behaviour (what the code actually does today) | the code itself, `backend/src/story_forge/` and `frontend/src/` |
@@ -97,7 +97,8 @@ exists to prevent (see [[source-of-truth]]).
   non-functional principles (§11), glossary (App. A), the "Wody Święte" test fixture (App. B),
   prompt skeletons (App. C).
 - `docs/PLAN_LONG.md`, `docs/PLAN_SHORT.md`, `docs/AGENTS.md` (plan conventions).
-- `docs/decisions/0001-three-tier-llm-strategy.md`, `0002-incubate-meta-architect-in-repo.md`.
+- `docs/decisions/0001-three-tier-llm-strategy.md`, `0002-incubate-meta-architect-in-repo.md`,
+  `0003-llm-router-provider-order-and-budget.md`.
 - `README.md`, `SECURITY.md`, and the seven `AGENTS.md` convention files.
 
 ## Calibration

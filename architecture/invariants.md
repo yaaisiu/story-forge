@@ -41,6 +41,9 @@ for that call, and the UI makes the crossing explicit ("sending fragment to Anth
   "sending fragment to Anthropic, OK?" (M2.S5) — is **not yet built**. Until it ships, this
   invariant's actual guard is "no-telemetry + one local adapter", strictly narrower than the
   rule it will become (same as-built honesty as INV-1).
+- **Decision (ADR 0003, 2026-06-02):** the consent gate is **deliberately deferred to M2.S5**, not
+  forgotten — the PoC handles no security-sensitive data, so M2.S2 opens paid egress with a documented
+  in-code marker rather than a gate. A reader should read the narrow guard as a *considered* deferral.
 - **Why it matters:** this is the *only* real trust boundary in a single-user local app;
   everything the Security layer protects funnels through it.
 
@@ -67,6 +70,11 @@ paid calls when exceeded.
 - **Enforced at:** the cost-tracking write on every router call + the cap check *before*
   dispatch (M2.S2). Guard: a call that would breach the cap is refused, not logged-after.
 - **Note:** the cap is **fail-closed** — exceed budget ⇒ deny, never "allow and warn".
+- **Shape decided (ADR 0003, 2026-06-02):** the usage record grows on `CompletionResult`/the Protocol
+  (`model`, `input_tokens`, `output_tokens`, nullable `gpu_seconds`, `cost_estimate`); `OllamaProvider`
+  stops discarding the eval counts; one `llm_calls` table, nullable per tier; tier/provider/model are
+  **system-derived, not caller-echoed** (closes the INV-7 near-miss). On cap reached → pause-and-ask,
+  not silent kill. Best-effort under concurrency, bounded one-call overshoot (TOCTOU, documented).
 
 ### INV-6 — Secrets only in `.env`; API keys never logged
 No secret is ever committed; only `.env.example` with **non-functional** placeholders. Logging

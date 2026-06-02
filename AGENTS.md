@@ -132,7 +132,7 @@ of *how* and *why* we build must be in the open, version-controlled, and reviewa
 - Frontend: React + Vite + TypeScript, TanStack Query + Zustand, Tiptap editor
 - Graph DB: Neo4j Community
 - Relational DB: PostgreSQL with pgvector
-- LLM tiers: local Ollama (Qwen3.5 9B Q4_K_M on 8GB VRAM), Ollama Cloud free tier (chunking: `gpt-oss:20b-cloud`; heavier passes: `gpt-oss:120b-cloud` or Qwen3.5 cloud variants), paid cloud (Anthropic / OpenAI / Grok), OpenRouter as meta-provider
+- LLM tiers: local Ollama (Qwen3.5 9B Q4_K_M on 8GB VRAM), Ollama Cloud free tier (chunking: `gpt-oss:20b-cloud`; heavier passes: `gpt-oss:120b-cloud` or Qwen3.5 cloud variants), paid cloud via **OpenRouter** (preferred — one endpoint to many models; the only paid adapter built in M2.S2), with direct Grok / Anthropic / Google / OpenAI adapters as needed. Order + rationale: spec §6.5 / `docs/decisions/0003`
 - Embeddings: sentence-transformers (local, multilingual PL/EN)
 - NER baseline: spaCy `pl_core_news_lg` + `en_core_web_lg`
 - Agents: chunking, extraction, matching, judging — modular modules in `backend/src/story_forge/agents/`, each with its own prompt template and Pydantic output schema
@@ -144,6 +144,7 @@ of *how* and *why* we build must be in the open, version-controlled, and reviewa
 - `docs/PLAN_SHORT.md` — tactical task list, current milestone
 - `docs/AGENTS.md` — plan conventions (handoff-block contract, Decided/Blocked/Done structure, cross-cutting curation rule)
 - `docs/decisions/` — Architecture Decision Records (ADRs)
+- `architecture/` — the **meta-architect vault**: the architectural *projection* layer (named invariants, state machines, decision register, per-feature decompositions, dated review sweeps, teaching glossary). **Orienting context, not a source of truth** — it references the spec/plans/code and never overrides them; on disagreement the source wins and the vault is what drifted. Navigate from `architecture/INDEX.md`; conventions + the source-of-truth boundary are in `architecture/AGENTS.md`. The `meta-architect:*` skills (deferred from the rituals per `docs/decisions/0002`) are its only writers; everyone else reads it for orientation. Consult it when planning a milestone, decomposing a branchy feature, or checking which invariant guards a change.
 
 ---
 

@@ -21,7 +21,7 @@ The PoC starts with phase 1 (graph + viewer). Phases 2 and 3 are subsequent iter
 - Web app: FastAPI (Python) + React, local backend — clean three-layer architecture (API / domain / adapters), each with its own CLAUDE.md and conventions
 - Bilingual (PL/EN) — multilingual NLP and embeddings as first-class concerns
 - **Agent-based ingest pipeline:** chunking, extraction, matching, and judgment are modular agents wired by an orchestrator, each with its own prompt template, output schema, preferred model tier, and tests
-- **Multi-model routing:** one `LLMProvider` Protocol, multiple swappable adapters — local Ollama, Ollama Cloud free tier, and paid cloud providers (Anthropic, OpenAI, Grok, OpenRouter) — chosen per task by a small router
+- **Multi-model routing:** one `LLMProvider` Protocol, multiple swappable adapters — local Ollama, Ollama Cloud free tier, and paid cloud providers (OpenRouter preferred, plus Grok, Anthropic, Google, OpenAI) — chosen per task by a small router
 - Neo4j as single source of truth for the world; per-story graph + optional merge into a "world graph"
 - Every edit recorded as a (before, after, intent, accepted) tuple — future training corpus
 - **Security-by-default infra:** every container non-root, localhost-bound, on a private network; every dependency pinned and aged; no telemetry; CORS strict; secrets only in `.env`
@@ -286,7 +286,7 @@ Critical constraint: the entity graph is the **factual anchor**. Rewriting MUST 
 | Vector store | pgvector (Postgres extension) | One less DB to maintain than a separate Chroma |
 | Local LLM (small) | Ollama, Qwen3.5 9B Q4_K_M | Fits 8GB VRAM (~6.96 GB at 32K ctx), strong multilingual including Polish, ~55 t/s on RTX 3070-class hardware |
 | LLM (medium, free) | Ollama Cloud (`gpt-oss:20b-cloud` for chunking, larger variants for heavier tasks) | Free tier with 5h session / 7-day weekly limits, identical API to local Ollama, no local GPU needed |
-| Cloud LLM (strong, paid) | Provider-agnostic (see §6.5) | Anthropic / OpenAI / Grok via individual adapters; OpenRouter as meta-provider for model variety and cost arbitrage |
+| Cloud LLM (strong, paid) | Provider-agnostic (see §6.5) | **OpenRouter preferred** (one endpoint → many models); direct Grok / Anthropic / Google / OpenAI adapters built only as needed. Order: Ollama → OpenRouter → Grok → Anthropic → Google → OpenAI (§6.5, `docs/decisions/0003`) |
 | Embeddings | sentence-transformers (local) | Multilingual PL/EN, no API costs |
 | NER baseline | spaCy `pl_core_news_lg` + `en_core_web_lg` | Pre-LLM filter, token savings |
 
@@ -417,7 +417,9 @@ On a **fully GPU-less host** the local_small tier is impractical (CPU-only 9B in
 |------|----------|-------------|
 | **Local small** | Chunking, summarization, pre-NER assist, simple JSON extraction | Ollama running Qwen3.5 9B Q4_K_M (or fallback Qwen3 8B, Phi-4 Mini) on dev machine |
 | **Cloud free / cheap** | Entity extraction batch passes, judge calls, draft suggestions | Ollama Cloud free tier (`gpt-oss:20b-cloud` for structural / JSON tasks like chunking, `gpt-oss:120b-cloud` or Qwen3.5 cloud variants for heavier passes) — identical Ollama API, no local GPU needed; bound by 5h session / 7-day weekly GPU-time quotas |
-| **Cloud strong (paid)** | Heavy editing, full rewrites, style transfer, long-context work | Anthropic and OpenAI as primary; Grok (xAI) as alternative; OpenRouter as meta-provider for model variety and cost arbitrage |
+| **Cloud strong (paid)** | Heavy editing, full rewrites, style transfer, long-context work | **OpenRouter preferred** (one OpenAI-compatible endpoint reaching many models — cost arbitrage, fewer adapters); then direct providers Grok (xAI), Anthropic, Google (Gemini), OpenAI as configured |
+
+**Provider preference order** (across tiers, used by the router): **Ollama** (local_small / cloud_free) → **OpenRouter** → **Grok** → **Anthropic** → **Google** → **OpenAI**. OpenRouter sits first among paid routes because a single OpenAI-compatible adapter reaches most vendor models, so the direct per-vendor adapters are built only as needed (amended 2026-06-02; supersedes the earlier "Anthropic/OpenAI primary" ordering — see `docs/decisions/0003`).
 
 The Local Small and Cloud Free tiers BOTH speak the Ollama API. That's a deliberate architecture choice: one adapter (`OllamaProvider`) handles both, the only difference is the host URL and an optional API key. This drastically reduces the number of code paths.
 
@@ -441,10 +443,13 @@ class LLMProvider(Protocol):
 Concrete adapters:
 - `OllamaProvider(host="http://localhost:11434")` — local small tier
 - `OllamaProvider(host="https://ollama.com", api_key=...)` — Ollama Cloud free tier
-- `AnthropicProvider` — Claude models, paid
-- `OpenAIProvider` — GPT models, paid
-- `GrokProvider` — xAI API, paid alternative
-- `OpenRouterProvider` — meta-provider, broad model selection at varied price points
+- `OpenRouterProvider` — **preferred paid/meta route**, broad model selection (Grok/Claude/Gemini/GPT) at varied price points via one OpenAI-compatible endpoint
+- `GrokProvider` — xAI API, paid (direct; built as needed)
+- `AnthropicProvider` — Claude models, paid (direct; built as needed)
+- `GoogleProvider` — Gemini models, paid (direct; built as needed)
+- `OpenAIProvider` — GPT models, paid (direct; built as needed)
+
+All adapters are hand-rolled over `httpx` (mirroring `OllamaProvider`) rather than per-vendor SDKs — one uniform adapter shape, no extra dependencies, an injectable transport for tests, and the multi-provider swappability stays visible in our own code (`docs/decisions/0003`).
 
 **Router (cascade):**
 
@@ -453,10 +458,16 @@ class LLMRouter:
     def route(self, task: Task) -> LLMProvider:
         # Decision order:
         # 1. If task is light (chunking, summary, simple structured extraction) → local_small
+        #    (on a GPU-less host local_small is unavailable → use the cheapest cloud_free model)
         # 2. If task is medium (entity extraction, judge calls) → cloud_free (Ollama Cloud)
-        # 3. If task is heavy (editing, rewrite, long context) → cloud_strong (preferred provider)
-        # 4. If preferred provider in tier errors/rate-limits → automatic failover to next configured
-        # 5. If cloud_free quota exhausted → degrade to local_small with warning OR pause for user
+        # 3. If task is heavy (editing, rewrite, long context) → cloud_strong, preferring OpenRouter,
+        #    then the direct providers in the configured order
+        # 4. Within-tier failover, error-discriminated: 429 rate-limit / 5xx → fail over to the next
+        #    configured provider; 401 bad-key → fail fast (skip, don't retry); malformed response
+        #    schema → retry the prompt N times then give up (the ChunkingAgent pattern)
+        # 5. If cloud_free quota is exhausted, OR the §6.6 daily budget cap is reached → PAUSE and ask
+        #    the user how to proceed. The router NEVER silently escalates to a paid tier (control-first).
+        #    (The old "degrade to local_small" applies only on a GPU-backed host where that tier exists.)
         ...
 ```
 
@@ -494,10 +505,10 @@ Editing and rewriting modes (V2/V3) become additional agents (`InlineEditAgent`,
 
 ### 6.6 Token budget & cost
 
-- Every LLM operation records: model, input_tokens, output_tokens, cost_estimate
+- Every LLM operation records: model, input_tokens / output_tokens **whenever the provider returns them** (including Ollama's `prompt_eval_count` / `eval_count` — kept, not discarded), cost_estimate (nullable; paid tiers), and GPU-seconds (nullable; Ollama Cloud's billing unit) — one usage row per call, including refusals and failures so the trail explains *why* a batch stopped. Tier/provider/model are system-derived from the adapter that served the call, never echoed from the caller (so the cost ledger can't be lied to).
 - Dashboard shows: daily/project/per-task-type usage
-- Emergency cap: "stop after exceeding X USD per day"
-- Ollama Cloud usage tracked as GPU-seconds, not tokens (per their billing model); router shows remaining session quota
+- Emergency cap: a per-day USD hard ceiling (`DAILY_BUDGET_USD`). The cap is **fail-closed**: checked *before* dispatch, and when reached the router **pauses and asks the user** how to proceed (raise the cap, switch tier, or stop) — it does not silently kill work, and it does not silently escalate to more spend. Best-effort under concurrency with a bounded one-call overshoot (single-user PoC; a true reserve-then-reconcile lands only if batched concurrent calls do).
+- Ollama Cloud usage tracked as GPU-seconds, not tokens (per their billing model); router shows remaining session quota. GPU-seconds are shown as quota, not converted to a fabricated USD figure.
 
 ### 6.7 Security baseline (day 1)
 
@@ -647,7 +658,7 @@ This is the most important flow in V1. I'm spelling it out in detail so the deve
 - FastAPI + React builds, ping-pong endpoint
 - Postgres migrations (Alembic harness, no migrations yet); Neo4j init script applied automatically by a one-shot `neo4j-init` compose service that runs `cypher-shell -f init.cypher` once `neo4j`'s healthcheck passes
 - CI: lint, format, basic tests, dependency age check (≥14 days), `npm audit`, secret scan, container-image CVE scan (Trivy) against the images in `docker-compose.yml`
-- `.env.example` with all required keys (Anthropic, OpenAI, Grok, Ollama Cloud, OpenRouter), pre-commit hooks installed
+- `.env.example` with all required keys (Ollama Cloud, OpenRouter, plus Grok / Anthropic / OpenAI for the direct adapters built as needed; a Google/Gemini key joins when that adapter lands), pre-commit hooks installed
 - Ollama Cloud connectivity test: hit `https://ollama.com/api/chat` with API key, verify free-tier quota status
 - Project plan files initialized: `PLAN_LONG.md` (V1/V2/V3 roadmap) and `PLAN_SHORT.md` (current milestone breakdown)
 
@@ -661,8 +672,8 @@ This is the most important flow in V1. I'm spelling it out in detail so the deve
 **Outcome:** ability to upload text and see its structure.
 
 ### Milestone 2 — Basic extraction (5-7 days)
-- LLM provider abstraction with three tiers (local_small via Ollama, cloud_free via Ollama Cloud, cloud_strong via Anthropic/OpenAI/Grok)
-- OpenRouter adapter scaffolded as a meta-provider for additional model variety
+- LLM provider abstraction with three tiers (local_small via Ollama, cloud_free via Ollama Cloud, cloud_strong via **OpenRouter** — the preferred paid route, reaching Grok/Anthropic/Google/OpenAI through one endpoint; direct vendor adapters built as needed, see §6.5 / `docs/decisions/0003`)
+- `OpenRouterProvider` is the paid adapter built in M2.S2 (not merely scaffolded); direct vendor adapters + integration polish are the optional M2.S6 work
 - ExtractionAgent: prompt engineering, JSON schema, Pydantic validation with retry
 - PreNERAgent: spaCy baseline
 - Save entities to Neo4j without cascade (everything = new entity for now)

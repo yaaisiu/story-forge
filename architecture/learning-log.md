@@ -25,3 +25,10 @@ term · appeared in [[note]] · why it matters for THIS project`. New lines go a
 - 2026-06-02 · cascade matching · [[overview]] · the core dedupe mechanism; cheap-deterministic-first, human-last; the project's loudest fail-closed surface.
 - 2026-06-02 · model-tier routing · [[overview]] · one provider interface, three tiers, within-tier failover; local+cloud-free share one Ollama adapter (config, not code fork).
 - 2026-06-02 · deterministic-first · [[overview]] · prefer deterministic/user-assisted methods before an LLM — visible in PreNER and in the cascade's free first stages.
+- 2026-06-02 · outbox / saga (dual-write) · [[2026-06-02-architecture-review]] · the canonical answers to OQ-1's no-shared-transaction problem; worth reading even to consciously reject for the PoC.
+- 2026-06-02 · fail-closed sequencing · [[2026-06-02-architecture-review]] · INV-5's "cap check before dispatch" — fail-closed is about ordering (check→act), not just the default value; a guard after the irreversible effect is decorative.
+- 2026-06-02 · caller-asserted vs system-derived provenance · [[2026-06-02-architecture-review]] · INV-7's `model_tier` is echoed from the caller, not proven; audit/cost labels are only trustworthy when derived from the actor.
+- 2026-06-02 · ADR lifecycle (amend/supersede/annotate) · [[2026-06-02-architecture-review]] · an accepted ADR is append-only — annotate or supersede, never edit Consequences; ADR 0001's stale quota line is the live example.
+- 2026-06-02 · failover (within-tier) · [[failover]] · route around a dead/rate-limited provider without failing the call or crossing a cost tier; which error triggers it (429/5xx yes, 401 no) is the real design.
+- 2026-06-02 · TOCTOU · [[toctou]] · the budget cap's guard is only best-effort under concurrency; naming the bounded overshoot is the honest move vs pretending the cap is exact.
+- 2026-06-02 · envelope-vs-schema error · [[m2s2-llm-router-budget-cap]] · a 200 with a malformed wrapper ≠ valid wrapper with bad JSON; they need opposite handling (failover provider vs retry prompt).
