@@ -28,3 +28,8 @@ First live use of the meta-architect plugin on Story Forge. Created the vault at
 No production code touched. No ADR written (none confirmed). Sources of truth referenced, not
 duplicated: `story-forge-poc-spec.md`, `docs/PLAN_*.md`, `docs/decisions/`, the seven
 `AGENTS.md` files, the code.
+
+**Review fold (same day, PR #30):** Codex flagged that `glossary/model-tier-routing.md` said
+the router was "Built in M2.S2" while `overview.md` correctly lists M2.S2 as planned and the
+repo has only `adapters/llm/{base,ollama}.py`. Reworded to "Planned for M2.S2 … not yet built".
+Swept the whole vault for the same tense-overclaim class — this was the only instance.
