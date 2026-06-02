@@ -146,7 +146,7 @@ Story Forge is built in the open as a public PoC and doubles as a portfolio piec
 - **Security-by-default infra.** Every container non-root, localhost-bound, on a private network. Every dependency pinned to an exact version ≥ 14 days old. Container images CVE-scanned in CI. No telemetry libraries. CORS strict. Secrets only in `.env`.
 - **Spec-and-test-driven workflow.** `story-forge-poc-spec.md` is the source of truth; `docs/PLAN_LONG.md` / `docs/PLAN_SHORT.md` are living plans (conventions in `docs/CLAUDE.md`); ADRs in `docs/decisions/`. The commit history records the discipline.
 
-For the full picture, read `story-forge-poc-spec.md` (the PoC spec), then `docs/decisions/0001-three-tier-llm-strategy.md` (the LLM ADR), then `CLAUDE.md` files at the root and inside each major directory.
+For the full picture, read `story-forge-poc-spec.md` (the PoC spec), then the LLM ADRs `docs/decisions/0001-three-tier-llm-strategy.md` (three-tier strategy, superseded-in-part) and `docs/decisions/0003-llm-router-provider-order-and-budget.md` (router, provider order, budget), then `CLAUDE.md` files at the root and inside each major directory.
 
 ---
 

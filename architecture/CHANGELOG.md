@@ -57,6 +57,17 @@ so it would have produced the wrong files/tests.
   original text untouched (append-only history). **Lesson:** a decision touches a fact that lives in
   many homes; reconciling one (even the authoritative §6.5) is not reconciling the decision —
   enumerate every home and grep the *whole repo*, not just the PR's already-touched files.
+- **Codex fifth pass (2 P2 + 1 P3 — folded) — the same class one layer deeper.** The remaining
+  stale spots were in **tracking / registry / navigation notes that describe a resolved fact in
+  *different words*** (so a keyword grep for the decision misses them): `overview.md` Layer 6 still
+  called the quota-exhaustion UX "an open UX decision" (→ pause-and-ask resolved); `PROJECT.md`'s
+  source-of-truth registry + existing-docs list omitted ADR 0003; `open-questions.md`'s priority
+  queue still listed OQ-A/OQ-B as "the next thing to do" though this run completed both;
+  `README.md` pointed only to ADR 0001 as "the LLM ADR". **Lesson (sharper):** resolving a decision
+  ripples into the notes that *track* it — registries, priority queues, as-built/error analyses,
+  doc-pointers — which don't contain the decision's keywords. The reconciliation checklist must
+  include "update every note that *tracks status* (ADR registry, OQ priority queue, error-handling
+  snapshot, doc indexes)", not just every note that *states the fact*.
 
 ## 2026-06-02 — Reconciliation: M2.S2 decisions settled (owner) + vault navigability
 

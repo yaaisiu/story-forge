@@ -22,21 +22,17 @@ Two homes, kept distinct:
 
 ## Priority queue (from the init interview — "check what's built, then strategize")
 
-The operator's stated order for the architect's *next* deep work, after this seed run:
+The operator's stated order for the architect's deep work. **OQ-A and OQ-B are done** (2026-06-02);
+OQ-C is the next architect deep-dive when one is wanted.
 
-1. **OQ-A · Validation/drift sweep over what's already built.** Run the meta-architect
-   `review-architecture` skill over M0→M2.S1 + the existing ADRs (`docs/decisions/0001–0002`):
-   does the code match the decisions on record? Are there choices visible in code with no ADR?
-   Any invariant near-misses already present? **Specifically, audit each invariant's "Enforced
-   at" guard against actual build state** — INV-2/3/4/5/7 currently describe guards that are
-   partly *planned* (router, paid providers, consent UI, candidate schemas, review queue land in
-   M2.S2+/M3); keep each invariant's as-built-vs-planned split honest as that code lands. —
-   *This is the literal first thing to do next; it is what the operator asked for.*
-2. **OQ-B · Forward strategy pass.** Once the present is validated, a strategy pass on the
-   upcoming work (M2.S2 router+budget, then M2.S3–S6) and its alignment with `docs/PLAN_LONG.md`
-   — likely via `decompose-requirement` on the next concrete feature (the `LLMRouter`).
-3. **OQ-C · Then, and only then,** decide where the first per-component note (`components/`)
-   should land — candidates: the cascade (§3.3), the router (§6.5), the ingest job (§7).
+1. **~~OQ-A · Validation/drift sweep over what's already built.~~** ✅ **Done 2026-06-02** — the
+   `review-architecture` sweep ran over M0→M2.S1 + ADRs 0001–0002, auditing each invariant's
+   "Enforced at" guard against build state (`reports/2026-06-02-architecture-review.md`).
+2. **~~OQ-B · Forward strategy pass.~~** ✅ **Done 2026-06-02** — `decompose-requirement` on the
+   M2.S2 `LLMRouter` + budget cap (`proposals/m2s2-llm-router-budget-cap.md`); the decisions are
+   settled in `docs/decisions/0003`.
+3. **OQ-C · Next (when wanted):** decide where the first per-component note (`components/`) should
+   land — candidates: the cascade (§3.3), the router (§6.5), the ingest job (§7).
 
 > Deferred by design (ADR 0002): wiring these skills into `/resume-session`, `/wrap-session`,
 > `/review-pr` happens *after* living with this vault once — not pre-emptively.
