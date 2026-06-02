@@ -11,6 +11,37 @@ related: []
 Append-only audit trail of writes into the vault. Newest entries at the top. History also lives
 in `updated` fields (freshness) and git (diffs); this is the human-readable "what changed when".
 
+## 2026-06-02 — `review-architecture` (post-M2.S2 as-built sweep, Session 11 wrap)
+
+Second `review-architecture` of the day, run at **session wrap** (after merging M2.S2 PR #36 + wrap
+PR #37) — distinct subject from the morning's pre-build OQ-A sweep. Wrote
+`reports/2026-06-02-architecture-review-post-m2s2.md` (separate filename so neither clobbers the
+other). Headline: **no blockers, no risks** — the as-built faithfully implements ADR 0003; the two
+pre-build risks are closed and the **INV-7 near-miss is closed** (ledger records system-derived
+tier/provider/model). All findings are `watch`.
+
+- **Drift (planned→as-built lag):** INV-2/5/7 still say "planned (M2.S2) … not yet built" — flip each
+  guard to as-built (recommendation; the sweep doesn't edit invariants without confirmation). Noted
+  `CompletionResult.model_tier` is still the caller-passed arg (cosmetic; ledger ignores it).
+- **Source-of-truth conflict → OQ-9 (latency):** INV-5 + the proposal + the M2.S5 panel task all
+  promise `latency`, but the as-built `llm_calls` records none and spec §6.6 doesn't list it. Decide
+  before M2.S5: add a `latency_ms` column (proposed) or trim the over-claim.
+- **Undrecorded decision:** the **independent-commit ledger** (own connection per write so failure
+  rows survive a request rollback) is in code + `PLAN_SHORT` Decided but not the vault — proposed a
+  one-line INV-5 enforcement clause (not a new ADR).
+- **Fresh near-misses:** INV-6 — M2.S2 is the first paid-key code; it logs nothing today (clean), but
+  the named redaction middleware still doesn't exist → build it before the first provider log
+  (error bodies echo prompts). D3 cap-overshoot bound weakens if M2.S3 batches concurrently.
+- **Forward lens (owner ask) — plan vs architecture:** **no contradiction** S3–S6 vs the
+  invariants/decisions. Surfaced **OQ-10** (malformed-`200`-envelope → typed `ProviderResponseError`,
+  M2.S3) and made **OQ-2 concrete** (the router now *raises* the pause but nothing *catches* it for a
+  resumable batch — M2.S3/S4). The built-but-undrawn LLM-call **state machine** is the strong
+  candidate for the next architect deep-dive (ties OQ-C).
+- **Process evidence:** recorded that running the sweep at **wrap (end)** is the owner's preference and
+  points ritual-integration at `/wrap-session` (ADR 0002 still deferred). open-questions priority-queue
+  note + learning-log +3 (out-of-band audit logging, poison-message/dead-letter, state-machine totality).
+  **No code or config touched.**
+
 ## 2026-06-02 — Review fold (PR #34): accepted-proposal honesty + stable refs
 
 Folded the own-`/review-pr` should-fix + a Codex first-pass review (two P2s, same class) into the
