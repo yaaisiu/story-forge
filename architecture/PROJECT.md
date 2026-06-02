@@ -13,10 +13,13 @@ related: ["[[overview]]", "[[invariants]]", "[[open-questions]]"]
 Story Forge is a **local, single-user web application** that helps a solo author analyze,
 annotate, and edit long-form narrative text while building an evolving **knowledge graph**
 (a database that stores things and the named relationships between them) of the story's
-entities and relations in Neo4j. The author uploads a raw draft; the system splits it into
-chapters → scenes → paragraphs, extracts entities (characters, places, objects, concepts)
-and their relations, and lets the author confirm every graph decision by hand. It runs
-entirely on the author's machine and is **public from day one** — it doubles as a portfolio
+entities and relations in Neo4j. **As specified for V1** (the target capability — for what is
+built today vs. planned, see [[overview]] "as-built"), the author uploads a raw draft; the
+system splits it into chapters → scenes → paragraphs, extracts entities (characters, places,
+objects, concepts) and their relations, and lets the author confirm every graph decision by
+hand. *Today the upload/split/structure step works; LLM extraction and the graph write are
+M2.S3–S4.* It runs entirely on the author's machine and is **public from day one** — it
+doubles as a portfolio
 piece demonstrating clean modular architecture, agent-based LLM orchestration, multi-model
 routing, and secure-by-default infrastructure.
 
@@ -82,7 +85,8 @@ exists to prevent (see [[source-of-truth]]).
 | Per-directory conventions (Python, FastAPI, domain/adapter split, React, API client) | the seven `AGENTS.md` files (each `CLAUDE.md` is a symlink to its `AGENTS.md`) |
 | Workflow rules (Karpathy rules, spec-then-test, merge flow, security baseline) | root `AGENTS.md` / `CLAUDE.md` |
 | Runtime behaviour (what the code actually does today) | the code itself, `backend/src/story_forge/` and `frontend/src/` |
-| Data model (tables, graph schema) | spec §6.4 + Alembic migrations (`backend/alembic/`) |
+| Data model — relational (Postgres tables) | spec §6.4 + Alembic migrations (`backend/alembic/`) |
+| Data model — graph (Neo4j constraints/indexes) | spec §6.4 + `infra/neo4j/init.cypher` (Alembic owns Postgres only) |
 | Security baseline (the non-negotiables) | spec §6.7 |
 | **Architectural projection layer** (invariants, state machines, consequence analysis, decision register) | **this vault** — the one thing the repo did not previously hold |
 

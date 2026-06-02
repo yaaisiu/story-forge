@@ -83,18 +83,19 @@ e.g. `order_index` (never `order`) is the same token in the DB column, the Pydan
 the JSON (§6.4), so there is no DB↔API mapping layer.
 
 ### 4. Data — entities, ownership, keys
-Two stores, split by shape (spec §6.4):
-- **Postgres** owns the *document structure + metadata*: `projects, stories, chapters, scenes,
-  paragraphs` (with a `vector(768)` embedding column), `entity_mentions`, `edit_history`,
-  `worlds`. Ordinals are plain integers renumbered on reorder (a fractional rank was
-  consciously rejected as speculative — §6.4).
-- **Neo4j** owns the *knowledge graph*: `(:Entity {...})-[:RELATION_TYPE {...}]->(:Entity)`,
-  with `project_id`/`world_id` *properties* providing multi-tenancy by filter (Neo4j
-  multi-database was rejected — needs Enterprise).
-- **Ownership rule worth stating:** an entity's *identity and relations* live in Neo4j; its
-  *textual occurrences* (`entity_mentions`) live in Postgres and reference the Neo4j entity id.
-  This split is a source-of-truth seam to watch — the back-reference must stay consistent
-  across two stores that cannot share a transaction (flagged in [[open-questions]]).
+Two stores, split by *shape*. The concrete schema is **not** restated here — it lives in spec
+§6.4, the Alembic migrations (Postgres), and `infra/neo4j/init.cypher` (Neo4j). What the vault
+adds is the *architectural reading* of that split:
+- **Postgres** owns the *document structure + metadata* (the chapter/scene/paragraph tree, the
+  entity↔paragraph occurrences, the edit history). Sibling ordering is a plain integer ordinal
+  renumbered on reorder — a fractional/lexical rank was consciously rejected as speculative (§6.4).
+- **Neo4j** owns the *knowledge graph* (entities + dynamically-typed relations). Multi-tenancy
+  is by `project_id`/`world_id` *property filter*, not a database-per-project (Neo4j
+  multi-database needs Enterprise — rejected at §6.4).
+- **The ownership seam worth naming** (the vault's value-add, absent from the spec): an entity's
+  *identity and relations* live in Neo4j; its *textual occurrences* live in Postgres and
+  reference the Neo4j entity id. The two stores **cannot share a transaction**, so that
+  back-reference is a consistency seam to watch — see [[open-questions]] OQ-1.
 
 ### 5. Behavior — state machines, not statuses
 The system's life is a **pipeline with a human gate**, best modelled as state machines

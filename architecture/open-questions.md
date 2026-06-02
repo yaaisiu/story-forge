@@ -27,8 +27,11 @@ The operator's stated order for the architect's *next* deep work, after this see
 1. **OQ-A · Validation/drift sweep over what's already built.** Run the meta-architect
    `review-architecture` skill over M0→M2.S1 + the existing ADRs (`docs/decisions/0001–0002`):
    does the code match the decisions on record? Are there choices visible in code with no ADR?
-   Any invariant near-misses already present? — *This is the literal first thing to do next;
-   it is what the operator asked for.*
+   Any invariant near-misses already present? **Specifically, audit each invariant's "Enforced
+   at" guard against actual build state** — INV-2/3/4/5/7 currently describe guards that are
+   partly *planned* (router, paid providers, consent UI, candidate schemas, review queue land in
+   M2.S2+/M3); keep each invariant's as-built-vs-planned split honest as that code lands. —
+   *This is the literal first thing to do next; it is what the operator asked for.*
 2. **OQ-B · Forward strategy pass.** Once the present is validated, a strategy pass on the
    upcoming work (M2.S2 router+budget, then M2.S3–S6) and its alignment with `docs/PLAN_LONG.md`
    — likely via `decompose-requirement` on the next concrete feature (the `LLMRouter`).

@@ -33,3 +33,20 @@ duplicated: `story-forge-poc-spec.md`, `docs/PLAN_*.md`, `docs/decisions/`, the 
 the router was "Built in M2.S2" while `overview.md` correctly lists M2.S2 as planned and the
 repo has only `adapters/llm/{base,ollama}.py`. Reworded to "Planned for M2.S2 … not yet built".
 Swept the whole vault for the same tense-overclaim class — this was the only instance.
+
+**Review fold 2 (same day, PR #30, Codex second pass):** folded 5 findings — all valid.
+- *No-duplication (2):* `overview.md` Layer 4 was restating the §6.4 schema (table names,
+  `vector(768)`, node/relationship shape) → trimmed to the architectural *reading* of the
+  two-store split, schema referenced to §6.4 + `infra/neo4j/init.cypher`. `cascade-matching.md`
+  was restating the §3.3 staged algorithm → trimmed to the cheapest-first / fail-closed
+  *force*, contract referenced to §3.3.
+- *Tense/enforcement honesty (2):* `PROJECT.md` Identity present-tense described unbuilt
+  extraction/graph features → reframed as target-V1 with an as-built note. INV-2 claimed
+  router/consent-UI enforcement that isn't built → split into today's guard (no-telemetry + one
+  Ollama adapter) vs planned (M2.S2/M2.S5), matching INV-1's honesty.
+- *Registry accuracy (1):* the data-model source-of-truth row implied Alembic owns the graph
+  schema; split into relational (Postgres → §6.4 + Alembic) and graph (Neo4j → §6.4 +
+  `infra/neo4j/init.cypher`).
+- *Class sweep:* the systematic per-invariant guard audit is routed to OQ-A (the queued
+  `review-architecture` drift sweep) rather than half-done here. Operating boundary set: Codex
+  is review-only (runs host-Windows over a UNC view; no edits, to avoid cross-env artifacts).

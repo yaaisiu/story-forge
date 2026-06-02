@@ -34,8 +34,13 @@ uncertainty, fall through to the human, never auto-merge.)
 Story text is never transmitted anywhere except the LLM provider the user explicitly selected
 for that call, and the UI makes the crossing explicit ("sending fragment to Anthropic, OK?").
 - **Source:** §11 privacy; the machine ↔ provider [[trust-boundary]].
-- **Enforced at:** the provider adapters + the router; no telemetry libraries exist anywhere
-  (§6.7), so there is no other egress path by construction.
+- **Enforced at:** *(today)* the only egress path that exists is the single Ollama adapter
+  (`adapters/llm/ollama.py`), and no telemetry libraries exist anywhere (§6.7) — so by
+  construction text cannot leave the machine any other way. *(Planned)* the full guard — router
+  provider-selection (M2.S2), the paid/cloud provider paths (M2.S2), and the explicit-consent UI
+  "sending fragment to Anthropic, OK?" (M2.S5) — is **not yet built**. Until it ships, this
+  invariant's actual guard is "no-telemetry + one local adapter", strictly narrower than the
+  rule it will become (same as-built honesty as INV-1).
 - **Why it matters:** this is the *only* real trust boundary in a single-user local app;
   everything the Security layer protects funnels through it.
 

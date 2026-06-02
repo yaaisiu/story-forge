@@ -16,8 +16,9 @@ needed, a human always last.
 
 **First encountered in:** [[overview]]
 
-Four stages (§3.3), escalating only on ambiguity: **Stage 1** fuzzy string match (RapidFuzz,
-free) → **Stage 2** embedding similarity (local model) → **Stage 3** LLM-as-judge (the *only*
-token spend, only on hard cases) → **Stage 4** human review (always, for anything uncertain).
-This is the product's core mechanism and its loudest [[fail-closed]] + [[human-in-the-loop]]
+The contract — the four stages, their methods, and the similarity thresholds — lives in spec
+§3.3; the vault does not restate it. The *architectural force* worth naming: the stages are
+ordered **cheapest-first** (free deterministic checks before any token spend) and **fail-closed**
+— anything the automated stages can't resolve with confidence falls through to the human,
+never auto-merges. That makes it the product's loudest [[fail-closed]] + [[human-in-the-loop]]
 surface. Lands in M3; until then [[invariants]] INV-8 holds (no dedupe at all).
