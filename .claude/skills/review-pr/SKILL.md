@@ -80,6 +80,41 @@ unsure it's real, say so and how to confirm — don't drop it, don't overstate i
 - Does it honor the session's **Decided** entries (e.g. a chosen library, threshold, tier
   default)? A contradiction of a recorded decision is blocking unless the PR re-decides it.
 
+### Decision reconciliation — the whole-repo, every-home sweep (the six-pass lesson)
+
+When a PR **records or resolves a decision** — flips a doc `proposed → accepted`, amends the
+spec, lands an ADR, overturns an earlier choice — the defect is almost never the new statement;
+it is the **stale old statement left somewhere else**. One decision changes a fact that lives in
+many homes, and reconciling the *authoritative* home (e.g. spec §6.5) is **not** reconciling the
+decision. This class bit a single PR **six consecutive Codex passes** (M2.S2 router decisions,
+PR #34) because each fix was scoped too narrowly. Verify by **exhaustive grep over the whole
+repo, not the diff's touched files**:
+
+- **Every home of the fact.** Enumerate and grep each: the spec (*all* sections, not just the
+  amended one — the §-summaries, hardware tables, roadmap, setup/key lists), `README.md`, *every*
+  `AGENTS.md`, both plan files, the `architecture/` vault. The keyword the new decision uses
+  (`OpenRouter`, `pause-and-ask`) finds the easy ones.
+- **Tracking / registry / navigation / status notes describe the fact in *different words*, so a
+  keyword grep misses them — check them by hand.** ADR registries and "existing docs" lists (do
+  they name the new ADR?); priority queues / "next steps" (is completed work still listed as
+  pending?); as-built or error-handling snapshots (is a resolved item still "an open decision"?);
+  doc pointers ("read ADR X" — is it the superseded one?).
+- **An accepted/resolved artifact must read resolved *throughout its body*, not just a top
+  banner.** Grep the file for residual `open` / `I propose` / `proposed` / "TBD" / imperative
+  "build X" / rejected-option language. For a design doc, check the *diagram, config lists, and
+  edge-case enumeration* too — they each restate the plan. Banner-plus-spot-fixes is a half-measure.
+- **Dated artifacts (reports, sweeps, snapshots) whose findings got resolved** must say so at the
+  top, and their `status:` / any "latest/current" framing must match — else a point-in-time record
+  masquerades as live state.
+- **Leave genuine history intact.** Append-only records — ADR original text under a superseded
+  annotation, `CHANGELOG`/`learning-log` entries, a struck plan item, a review's accurate scope
+  reference — are *correct as-is*; don't "fix" history into the present.
+
+This **subsumes the deferred vault/docs-PR lens** (no-duplication of sources of truth +
+tense-vs-as-built honesty): same discipline, same verify-by-grep. The reliable move is to run the
+sweep **proactively before claiming clean** — reacting spot-by-spot is what turned one PR into six
+rounds.
+
 ## 3. Karpathy discipline (root `CLAUDE.md` §1)
 
 - **Simplicity** — minimum code for the problem. Flag speculative features, abstractions for

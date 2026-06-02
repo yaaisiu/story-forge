@@ -56,6 +56,29 @@ One note, these sections:
   escalated form when 3+ live options or a security/data boundary is crossed). **Never write an
   ADR without explicit confirmation.**
 
+## 5b. Reconcile the proposal to *resolved* state — when the human decides
+
+The proposal is **update-in-place**: once the human resolves the register, the note must be brought
+**fully** to resolved state, not left in "I propose / open" framing with only a banner on top. A
+half-resolved accepted proposal reads as undecided and misleads the next implementer (it cost PR #34
+six review passes). Do **all** of this, then verify by grep:
+
+- Flip `status: proposed → accepted` and add a short resolution banner (outcome + pointer to the
+  authoritative ADR / plan).
+- Rewrite **every** register entry from *My proposal* → **Decision** — including any the human
+  **overrode** (say so explicitly: "owner chose X over my proposed Y"). Resolve every "Open:"
+  sub-question too.
+- **De-activate rejected options across the *whole body*, not just the register** — the affected
+  layer/station rows, the **Mermaid diagram** nodes, the `config.py`/component lists, the "but what
+  if" edge cases, the gaps-for-PO, and the hand-off all restate the plan; a rejected gate/option
+  lingering in any of them reads as a build instruction. Mark them history, don't leave them imperative.
+- Strike the mirrored items in `open-questions.md` with a dated pointer; flip the priority-queue
+  entries that this pass completed.
+- **Reconcile the host-repo homes too** (the vault only *references* them, but the decision changed
+  them): the spec, plans, every `AGENTS.md`, `README`. Then **grep the whole repo** for the old
+  framing — this is the same sweep `/review-pr` §2 and the host `AGENTS.md` "reconcile a decision
+  across every home" rule describe. Do it proactively, before review.
+
 ## 6. Pedagogy
 - Add `glossary/<slug>.md` notes for genuinely new terms (organic, deduped, cross-linked via
   `related`). Append one `learning-log.md` line per new concept.
