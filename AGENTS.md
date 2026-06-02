@@ -10,12 +10,21 @@ Story Forge is a local web application that helps a solo author analyze, annotat
 
 ## Workflow rules (non-negotiable)
 
-### 0. Runtime notes for Codex Desktop
+### 0. Concurrent agents share this working tree
 
-When operating from Codex Desktop on the Windows/UNC view of this WSL checkout, read
-`.codex/RUNTIME_NOTES.md` before using local shell results as evidence. These notes describe
-Codex's host boundary only; Claude Code sessions running directly inside WSL should keep using
-their normal Linux shell workflow.
+Two AI agents may work in this repository: **Claude Code** (running directly in WSL) and
+**Codex Desktop** (on the Windows/UNC view of the *same* WSL checkout). They share **one
+working tree**, so each must assume the other may have left uncommitted changes:
+
+- **Stage explicit paths for your commit — never `git add -A` / `git add .`.** Add only the
+  files your change owns, so you cannot sweep the other agent's in-flight work into your PR.
+- **If `git status` shows changes you did not make, surface them — do not absorb or delete
+  them.** Keep them out of your commit; land them on their own branch/PR or hand them back to
+  the user. (Session 9: Codex's `AGENTS.md` / `.codex/` edits appeared mid-session and were
+  landed separately as PR #32, keeping the architecture-vault PR surgical.)
+- **Codex runtime boundary:** when operating from Codex Desktop, read `.codex/RUNTIME_NOTES.md`
+  before using local shell results as evidence (PowerShell/UNC host, no WSL shell access, the
+  filemode/symlink-artifact caveat). Claude Code in WSL keeps its normal Linux shell workflow.
 
 ### 1. Karpathy rules — apply on every change
 
