@@ -36,6 +36,16 @@ class BudgetExceededError(RuntimeError):
     """
 
 
+class QuotaExhaustedError(RuntimeError):
+    """The free tier's quota is spent across every configured provider.
+
+    Control-first (spec §6.5, ADR 0003): when `cloud_free` exhausts its Ollama
+    Cloud GPU-time quota and no sibling free provider can serve the call, the
+    router raises this to pause and ask the user — it never silently escalates to
+    a paid tier. Distinct from `BudgetExceededError`, which is the USD cap.
+    """
+
+
 class Message(BaseModel):
     """One chat turn, matching the Ollama / OpenAI chat-message shape."""
 
