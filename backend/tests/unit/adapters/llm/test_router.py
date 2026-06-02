@@ -209,6 +209,56 @@ async def test_cloud_free_quota_exhaustion_pauses_and_asks() -> None:
     assert [r.outcome for r in store.records] == ["failure", "failure"]
 
 
+async def test_cloud_free_bad_key_raises_real_error_not_quota() -> None:
+    # All free providers fail with 401: a misconfiguration, NOT quota exhaustion.
+    # Surface the real error instead of crying "pause, quota spent".
+    a = FakeProvider(error=_http_error(401))
+    b = FakeProvider(error=_http_error(401))
+    store = FakeCostStore()
+    router = _router({"cloud_free": [a, b]}, store)
+
+    with pytest.raises(httpx.HTTPStatusError):
+        await router.complete(MESSAGES, weight="medium", task_type="extraction")
+
+
+async def test_cloud_free_outage_after_rate_limit_raises_error_not_quota() -> None:
+    # A 429 then a 5xx: the outage means this isn't pure quota exhaustion, so the
+    # real (last) error surfaces rather than QuotaExhaustedError.
+    a = FakeProvider(error=_http_error(429))
+    b = FakeProvider(error=_http_error(503))
+    store = FakeCostStore()
+    router = _router({"cloud_free": [a, b]}, store)
+
+    with pytest.raises(httpx.HTTPStatusError) as caught:
+        await router.complete(MESSAGES, weight="medium", task_type="extraction")
+    assert caught.value.response.status_code == 503
+
+
+async def test_transport_error_fails_over_to_next_provider() -> None:
+    # A connect/timeout error is a network failure: spec §6.5 fails over on it,
+    # and the failed attempt is still recorded.
+    failing = FakeProvider(error=httpx.ConnectError("connection refused"), paid=True)
+    healthy = FakeProvider(result=_ok("cloud_strong"), paid=True)
+    store = FakeCostStore()
+    router = _router({"cloud_strong": [failing, healthy]}, store)
+
+    result = await router.complete(MESSAGES, weight="heavy", task_type="rewrite")
+
+    assert result.content == "ok"
+    assert failing.calls == 1 and healthy.calls == 1
+    assert [r.outcome for r in store.records] == ["failure", "success"]
+
+
+async def test_transport_error_exhaustion_raises_the_transport_error() -> None:
+    only = FakeProvider(error=httpx.ConnectError("connection refused"), paid=True)
+    store = FakeCostStore()
+    router = _router({"cloud_strong": [only]}, store)
+
+    with pytest.raises(httpx.ConnectError):
+        await router.complete(MESSAGES, weight="heavy", task_type="rewrite")
+    assert [r.outcome for r in store.records] == ["failure"]
+
+
 async def test_budget_cap_blocks_paid_before_dispatch() -> None:
     provider = FakeProvider(result=_ok("cloud_strong"), paid=True)
     store = FakeCostStore(spend_today=10.0)
@@ -270,10 +320,11 @@ async def test_routes_a_real_openrouter_provider_and_records_the_row() -> None:
             },
         )
 
+    fake_key = "k"  # bound to a var per backend/AGENTS.md credential-literal rule
     provider = OpenRouterProvider(
         host="https://openrouter.ai/api/v1",
         model="anthropic/claude-3.5-sonnet",
-        api_key="k",
+        api_key=fake_key,
         cost_per_1k_tokens=(3.0, 15.0),
         transport=httpx.MockTransport(handler),
     )

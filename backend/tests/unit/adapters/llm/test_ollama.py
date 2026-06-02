@@ -131,8 +131,9 @@ async def test_usage_tokens_none_when_response_omits_them() -> None:
 
 
 def test_cost_and_rate_limit_reflect_tier() -> None:
+    fake_key = "k"  # bound to a var per backend/AGENTS.md credential-literal rule
     local = OllamaProvider(host="http://127.0.0.1:11434", model="qwen3.5")
-    cloud = OllamaProvider(host="https://ollama.com", model="gpt-oss:120b-cloud", api_key="k")
+    cloud = OllamaProvider(host="https://ollama.com", model="gpt-oss:120b-cloud", api_key=fake_key)
 
     assert local.cost_per_1k_tokens == (0.0, 0.0)
     assert cloud.cost_per_1k_tokens == (0.0, 0.0)

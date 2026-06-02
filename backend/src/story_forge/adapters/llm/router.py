@@ -9,13 +9,17 @@ validation and its retry stay in the agent (the ChunkingAgent pattern) — the
 router owns the transport-and-spend concerns no single agent should re-implement.
 
 Control-first posture (never silently escalate spend):
-- 429 / 5xx → fail over to the next provider in the tier.
-- 401 → fail fast on that provider (bad key), skip to the next.
+- 429 / 5xx / transport error (connect, timeout) → fail over to the next provider
+  in the tier (spec §6.5 fails over on network errors too, not just status codes).
+- 401 → fail over as well (bad key on this provider), but it does *not* count as
+  quota exhaustion.
 - other 4xx → a real bug; re-raise, no failover.
 - a paid adapter's `BudgetExceededError` (HTTP 402) → re-raise immediately; do not
   try the next provider.
-- a `cloud_free` tier that exhausts every provider → `QuotaExhaustedError`
-  (pause and ask), never an automatic jump to a paid tier.
+- a `cloud_free` tier exhausted *purely by rate-limit/quota (429)* →
+  `QuotaExhaustedError` (pause and ask), never an automatic jump to a paid tier.
+  If any provider in the tier failed for another reason (bad key, outage, network),
+  that real error is raised instead — we don't cry "quota" over a misconfiguration.
 
 The provider preference *within* a tier (OpenRouter first among paid routes) is
 expressed by the order of the list handed in at construction (wired in `main.py`
@@ -105,6 +109,7 @@ class LLMRouter:
                 )
 
         last_error: Exception | None = None
+        saw_non_quota_failure = False
         for provider in providers:
             try:
                 result = await provider.complete(messages, tier, json_schema)
@@ -116,16 +121,31 @@ class LLMRouter:
             except httpx.HTTPStatusError as exc:
                 await self._record(provider, tier, task_type, "failure", usage=None)
                 status = exc.response.status_code
-                if status == 401 or status == 429 or 500 <= status < 600:
-                    last_error = exc  # bad key / rate-limit / server error → try next
+                if status == 429:
+                    last_error = exc  # rate-limit / quota — fail over; may be exhaustion
+                    continue
+                if status == 401 or 500 <= status < 600:
+                    # Bad key or server outage: fail over, but this is NOT quota
+                    # exhaustion — surface the real error if the tier runs out.
+                    last_error = exc
+                    saw_non_quota_failure = True
                     continue
                 raise  # other 4xx (e.g. 400 bad request) — failover won't help
+            except httpx.RequestError as exc:
+                # Transport-level failure (connect refused, timeout, …). Spec §6.5
+                # fails over on network errors too; not quota exhaustion.
+                await self._record(provider, tier, task_type, "failure", usage=None)
+                last_error = exc
+                saw_non_quota_failure = True
+                continue
             else:
                 await self._record(provider, tier, task_type, "success", usage=result.usage)
                 return result
 
-        # Every provider in the tier was exhausted by a retryable error.
-        if tier == "cloud_free":
+        # Every provider in the tier was exhausted by a retryable error. Only pure
+        # rate-limit/quota exhaustion of the free tier is a pause-and-ask; a bad
+        # key, an outage, or a network failure is a real error we must surface.
+        if tier == "cloud_free" and not saw_non_quota_failure:
             raise QuotaExhaustedError(
                 "cloud_free quota exhausted across all providers; pausing for the user"
             )
