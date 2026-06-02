@@ -67,6 +67,18 @@ path the tests assert — find the cases nobody wrote a test for. Check, concret
   output actually *enforce its invariants*, or does a **parseable-but-malformed** response
   (negative/reversed range, out-of-domain enum, empty required list) validate as **success**
   and silently skip the retry path? Constrain what the type can express, don't just name it.
+- **Failover / retry / error-discrimination code** — enumerate *every* error class the call
+  can raise and check each reaches its intended branch. Two failure modes recur: (a) **caught
+  too narrowly** — a whole class slips through unhandled (un-recorded, un-retried). For HTTP
+  clients that means `httpx.RequestError`/`ConnectError`/`ReadTimeout` (transport/timeout), not
+  just `HTTPStatusError` (a returned status); a handler that only catches the latter drops every
+  network failure on the floor. (b) **Terminal/exhaustion branch classifies by the wrong thing**
+  — "all providers failed" must be reported by the *actual* cause, not a blanket label: don't
+  cry "quota exhausted / pause-and-ask" when the tier died on a bad key (401) or an outage (5xx).
+  Walk the loop's fall-through and ask "which causes land me here, and does each get the honest
+  outcome?" (M2.S2 router, PR #36: both bugs shipped — `RequestError` uncaught, *and* every
+  exhausted `cloud_free` tier mislabelled "quota" regardless of cause — Codex caught both, this
+  skill's first pass missed both.)
 
 For each suspected bug: state the input that triggers it and the wrong outcome. If you're
 unsure it's real, say so and how to confirm — don't drop it, don't overstate it.

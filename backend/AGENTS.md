@@ -37,7 +37,16 @@ password, API key, token — e.g. asserting on a parsed DB URL), bind it to a lo
 variable rather than writing the literal next to the keyword (`password="…"`,
 `api_key="…"`). `detect-secrets` flags the literal form and blocks the commit. Binding
 to a variable sidesteps it cleanly — prefer that over editing `.secrets.baseline` or
-adding an inline `# pragma: allowlist secret`.
+adding an inline `# pragma: allowlist secret`. **The variable name itself must not
+contain the secret keyword:** `fake_key = "k"` then `api_key=fake_key` passes;
+`api_key = "k"` still trips, because the literal sits next to the keyword. (The
+plugin matches `<keyword> = <literal>`, not just the kwarg call site.)
+
+**Alembic revision ids trip the hex-entropy plugin.** A generated `revision: str =
+"<hex>"` in a migration file is flagged as a high-entropy string. It is not a secret —
+add `# pragma: allowlist secret  (alembic revision id, not a secret)` on that line.
+(The `down_revision` hash usually has lower entropy and slips through; the head
+`revision` is the one that trips.)
 
 ## Running tests
 
