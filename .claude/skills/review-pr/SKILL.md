@@ -191,8 +191,9 @@ Mostly grep-able — verify, don't assume:
 
 ## 5. Security baseline §6.7 — the gaps CI can't catch
 
-CI already gates dep-age/exact-pins, Trivy image scans, detect-secrets, npm audit. **Don't
-re-litigate those** — spot the things those tools miss:
+CI already gates dep-age/exact-pins, Trivy image scans, detect-secrets, npm audit, **and the
+backend SCA gate** (`osv-scanner` vs `backend/uv.lock`, fail-on-any). **Don't re-litigate
+those** — spot the things those tools miss:
 
 - An API key / `Authorization` / `X-API-Key` value that reaches a log line.
 - A **functional** value in `.env.example` (must be a non-working placeholder).
@@ -281,7 +282,23 @@ The repo is public; every line is read by a stranger.
   security job covers up front" — that prerequisite doesn't disappear when the work is
   in a PR rather than a local scan. If you write the review while one scan is still
   red, *flag the unmask possibility explicitly* so the next reviewer expects it instead
-  of treating it as a fresh surprise.
+  of treating it as a fresh surprise. (This unmask treadmill is **Trivy-only** — the
+  `osv-scanner` lockfile scan reports every advisory in one pass, so it has no equivalent.)
+- **An SCA waiver (`infra/osv/osv-scanner.toml` + `infra/osv/WAIVERS.md`) added without a
+  fix-first justification, a mirror, or an expiry.** The backend SCA gate is fail-on-any, so
+  a waiver is the *only* way to go green without a bump — scrutinise each one the way the Trivy
+  waivers are scrutinised. Check: (1) **fix was genuinely unavailable** (no fixed version that
+  clears the 14-day soak, or a parent range forbids the bump) — a waiver where a soaked fix
+  exists is a `/add-dependency` bump in disguise; (2) the **enforced toml entry and the
+  `WAIVERS.md` row mirror each other** (a row in one and not the other is the drift this split
+  is designed to expose — same reconciliation lens as §2); (3) the advisory **ID is not typo'd**
+  (a wrong/typo'd id silently suppresses nothing — confirm it matches the one CI actually
+  reported); (4) the **reachability rationale is real** (not "low-risk on localhost" boilerplate)
+  and a condition-based **"drop when"** is recorded. Prefer pushing back toward a fix.
+- **The SCA scanner pin itself drifted.** The `osv-scanner` step pins the scanner by **immutable
+  image digest** (not a tag — a tag can move; the gate that catches supply-chain risk must not be
+  one). Flag a PR that swaps the digest for a tag, bumps the digest without a ≥7-day soak, or
+  switches to an unpinned action.
 - **Codex runs in a different environment — filter its artifacts before folding.** Codex may
   read this repo from a Windows/UNC host (`//?/UNC/wsl.localhost/...`) over a WSL checkout. That
   view fabricates findings absent from the canonical tree: spurious filemode flips

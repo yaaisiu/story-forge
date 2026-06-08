@@ -254,9 +254,11 @@ GHSA-86qp-5c8j-p5mr (`starlette` 1.0.0, MEDIUM, via `fastapi`): Dependabot flagg
   scoped waivers, §6.7 amendment to document the gate, reuse the Trivy waiver split (sibling
   `infra/osv/`), leave `npm audit` HIGH/CRITICAL, SHA-pin the scanner Action, §6.7 baseline control
   (no new INV), explicit `starlette==1.0.1` pin. See `[[backend-dependency-advisory-scan]]` §7 hand-off.
-- **Stays open until the code lands** (same posture OQ-10 held): the **build is next-session** (one
-  branch — CI step + waiver scaffold + starlette bump), and the **spec §6.7 amendment lands *with*
-  the build** (not before — would otherwise claim a gate CI doesn't yet run). Open.
+- **✅ Closed in code 2026-06-08 (PR #44)** (same posture OQ-10 held — closed when the code landed):
+  built one branch — `osv-scanner` step vs `backend/uv.lock` (fail-on-any, scanner **digest-pinned**;
+  the `google/osv-scanner-action` is a no-`runs:` stub, so the container is the fail-on-any path —
+  stronger than the planned SHA-pin), `infra/osv/` waiver scaffold (no active waivers), `starlette`
+  1.0.0→1.0.1 (self-test red→green), and the **spec §6.7 amendment landed *with* the build**.
 
 ## Referenced — owned by spec §10 (not duplicated)
 
