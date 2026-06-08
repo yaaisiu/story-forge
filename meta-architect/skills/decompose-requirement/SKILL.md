@@ -47,6 +47,16 @@ One note, these sections:
   effects leave evidence) and new invariants (folded into `invariants.md` only on acceptance).
 - **Decision register** — for each open decision: **Context / Options / My proposal / Open
   questions**. You *propose*; you never resolve. Mirror open items into `open-questions.md`.
+  **Mark any decision that rests on un-inspected external-tool behaviour `verify-at-build`,
+  not settled.** A register entry asserting how a third-party Action/CLI/API *works* — "this
+  Action SHA-pins cleanly", "the scanner parses `uv.lock` natively", "this endpoint returns
+  shape X" — is a *hypothesis* until the tool is actually inspected, and a plan-first builder
+  can take it as gospel. State the assumption explicitly and tag it `verify-at-build` so the
+  implementer confirms it before relying on it; the chosen mechanism may have to change at
+  build time even after the owner approves the *intent*. (Story Forge, PR #44: the SCA
+  proposal's "SHA-pin the scanner **Action**" rested on an action that turned out to be a
+  no-`runs:` metadata stub — built as a digest-pinned container instead; the *intent*
+  (pin the scanner immutably) held, the *mechanism* did not.)
 - **But what if** — edge cases, races, partial failures, hostile inputs; name failure patterns
   precisely and teach the names.
 - **Gaps for the product owner** — acknowledged gaps to carry back to the PO.
