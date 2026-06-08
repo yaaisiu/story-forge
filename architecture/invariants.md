@@ -1,7 +1,7 @@
 ---
 type: invariants
 slug: invariants
-updated: 2026-06-02
+updated: 2026-06-08
 status: living
 related: ["[[overview]]", "[[project]]", "[[open-questions]]"]
 ---
@@ -68,8 +68,16 @@ exceeded.
 - **Source:** §6.6, §11 observability.
 - **Enforced at:** *(as-built, M2.S2)* `LLMRouter.complete` (`adapters/llm/router.py`) checks
   `spend_today_usd() >= DAILY_BUDGET_USD` **before** dispatch (fail-closed), and `PostgresCostStore`
-  (`adapters/llm/postgres_cost_store.py`) writes one `llm_calls` row on **every** terminal edge —
-  success, refusal, *and* failure. Guard: a call that would breach the cap is refused, not logged-after.
+  (`adapters/llm/postgres_cost_store.py`) writes one `llm_calls` row on **every terminal edge the
+  router currently handles** — success, refusal, and failure (HTTP `HTTPStatusError`, transport
+  `RequestError`, `BudgetExceededError`). Guard: a call that would breach the cap is refused, not
+  logged-after.
+- **Known coverage gap (OQ-10, closes in M2.S3):** a provider returning `200` with a *malformed
+  envelope* raises a parse error *inside* `provider.complete()` that the router does **not** yet catch
+  — so that one edge writes **no** row, a real (if narrow) hole in "one row per call incl. failures"
+  (§6.6). Do not read INV-5 as already total until the typed `ProviderResponseError` path
+  (`[[m2s3-extraction-agent]]` D2) lands and the router records + fails over on it. Tracked as
+  `[[open-questions]]` OQ-10 + a `docs/PLAN_SHORT.md` M2.S3 cross-cutting item.
 - **Note:** the cap is **fail-closed** — exceed budget ⇒ deny, never "allow and warn".
 - **Record durability (as-built):** the ledger commits on its **own short-lived connection**, not the
   request transaction — so a *failure* row survives a request that rolls back on the very failure it

@@ -1,9 +1,9 @@
 ---
 type: open-questions
 slug: open-questions
-updated: 2026-06-02
+updated: 2026-06-08
 status: living
-related: ["[[overview]]", "[[project]]", "[[invariants]]", "[[2026-06-02-architecture-review]]"]
+related: ["[[overview]]", "[[project]]", "[[invariants]]", "[[2026-06-02-architecture-review]]", "[[m2s3-extraction-agent]]"]
 ---
 
 # Open questions — Story Forge
@@ -72,6 +72,11 @@ side effects?
   to make the batch resumable**. The proposal §7 "cap hit on call N of a 200-paragraph ingest → pause
   resumably" lands in **M2.S3/S4** when `ExtractionAgent` does batch dispatch — that is where the
   catcher + resume-from-last-done belongs. See `[[2026-06-02-architecture-review-post-m2s2]]`.
+- **Decided in part (M2.S3, owner 2026-06-08):** `[[m2s3-extraction-agent]]` D5 — the agent stays
+  **single-paragraph** and *propagates* the router's pause-and-ask (never swallows it). The resumable
+  **batch driver + catcher land in M2.S4**, where the graph write + `entity_mentions` give a durable
+  "last-done" checkpoint. The agent-level decision is made; OQ-2 stays open only for the M2.S4 batch
+  driver itself.
 
 ### ~~OQ-3 — `cloud_free` quota-exhausted behaviour~~ ✅ Resolved 2026-06-02
 **Resolution** (ADR 0003; spec §6.5 amended): on a GPU-less host the `local_small` degrade target
@@ -102,7 +107,10 @@ Before M2.S3 ships, confirm the extraction prompt renders structure **only** fro
 Jinja2 template and never reparses model output mixed with story text — the same class of
 hardening already applied to `ChunkingAgent` and encoded in `/review-pr` §4.
 - **Status:** not a decision so much as a **must-verify** gate for M2.S3. Tracked here so it is
-  not forgotten. See [[overview]] Layer 7 (Security).
+  not forgotten. See [[overview]] Layer 7 (Security) and `[[m2s3-extraction-agent]]` Layer 7, which
+  splits the gate into **structural** injection (closed by construction — `list[Message]` from the
+  trusted template) vs **semantic** injection (bounded by conservative prompt + schema + M3 human
+  review); the failing test must prove the structural guarantee. See [[prompt-injection]].
 
 ### ~~OQ-6 — INV-2 consent guard lags the paid-egress risk by ~3 sessions~~ ✅ Resolved 2026-06-02
 **Resolution** (ADR 0003 / D5): option (a) — the per-fragment consent UI stays at M2.S5; M2.S2 ships
@@ -195,6 +203,41 @@ but **not** this, so it neither records a row nor fails over.
 - **My proposal:** (a). Already tracked as a `docs/PLAN_SHORT.md` **M2.S3 cross-cutting** item; lands
   when the router first meets a real Pydantic schema. Distinguish **envelope-malformed → failover the
   provider** from **schema-invalid → retry the prompt** (the latter stays in the agent). Open.
+- **Designed (M2.S3 decompose, 2026-06-02):** `[[m2s3-extraction-agent]]` D2 specifies a typed
+  `ProviderResponseError(RuntimeError)` in `base.py`, raised by each adapter at the envelope-unwrap
+  point, with a router `except` arm treating it like a 5xx (record failure, mark non-quota, fail over).
+  Rejected (c) blanket `except Exception` (too broad — swallows programming errors, the PR-#36
+  wrong-terminal class). This is a [[poison-message]]: quarantine-and-move-on, never retry the same dead
+  provider. Open sub-q: whether the error carries a **redacted, truncated** body (must not log the key —
+  INV-6 — and may contain story text — OQ-4). It also exposes a **spec §6.5 imprecision** (the router
+  comment lumps "malformed response schema → retry the prompt"); see `[[m2s3-extraction-agent]]` G6.
+- **Accepted (owner, 2026-06-08):** build the `ProviderResponseError` path **in M2.S3** (the
+  "envelope-malformed vs schema-invalid" router test lands with it). The **spec §6.5 imprecision is
+  fixed** — §6.5's router block + §6.5/§11 "Failover" paragraphs now split envelope-malformed
+  (→ failover via `ProviderResponseError`) from schema-invalid (→ agent prompt-retry). OQ-10 stays open
+  only until the code lands; the redacted-body question is an implementation detail (D2).
+
+### ~~OQ-11 — `EntityCandidate` field: `candidate_name` (surface form) vs `canonical_name`~~ ✅ Resolved 2026-06-08
+**Resolution** (`[[m2s3-extraction-agent]]` D1, owner): option **(a)** — the field is
+`candidate_name: str` (surface form) with a non-empty validator; `canonical_name` (bilingual PL+EN) is
+reserved for the resolved entity at merge time (M3). The plan's "canonical_name" wording is reconciled
+to `candidate_name` when M2.S3 lands. Original framing kept below for history.
+
+Raised by the M2.S3 decompose (`[[m2s3-extraction-agent]]` D1). The plan task says "validators for …
+non-empty **canonical_name**", but spec Appendix C.2's output field is `candidate_name` ("as named in
+the text") and §3.2's `canonical_name` is the *resolved, bilingual PL+EN* name assigned at **merge**
+time (M3). At extraction time we have a surface mention, not a canonical name.
+- **Options:** (a) field is `candidate_name: str`, non-empty validator; canonical naming is downstream
+  (M3). (b) name it `canonical_name` per the plan wording.
+
+### ~~OQ-12 — `evidence_quote` verification, dangling relations, and PreNER-hint timing (M2.S3)~~ ✅ Resolved 2026-06-08
+**Resolution** (`[[m2s3-extraction-agent]]` G5 + D3, owner):
+- **`evidence_quote`:** **soft-flag** — substring check (whitespace-normalised); if absent, flag/drop
+  the quote but keep the candidate. *Rejected:* hard-reject (punishes legitimate paraphrase).
+- **Dangling relation:** **accept** (open-world; M3 + human review resolve), optional soft validator
+  flag — don't hard-reject.
+- **PreNER hints:** wire the parameter but **defer injecting hints into the prompt** until a real eval
+  exists (deterministic-first / no speculative features).
 
 ## Referenced — owned by spec §10 (not duplicated)
 

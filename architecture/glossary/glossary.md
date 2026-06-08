@@ -1,7 +1,7 @@
 ---
 type: glossary
 slug: glossary
-updated: 2026-06-02
+updated: 2026-06-08
 status: living
 related: []
 ---
@@ -11,7 +11,7 @@ related: []
 The glossary is a **knowledge graph**, not a flat list: each term is its own note (a node) in
 `glossary/`, cross-linked via `related` so concepts form a web you can wander in Obsidian. This
 index is **regenerated** each run; the term notes are the source. Terms are added *organically* —
-only when real work first surfaces them — and deduped by slug. Count today: **16**.
+only when real work first surfaces them — and deduped by slug. Count today: **18**.
 
 | Term (EN / PL) | Answers | Note |
 |---|---|---|
@@ -31,3 +31,5 @@ only when real work first surfaces them — and deduped by slug. Count today: **
 | deterministic-first / najpierw deterministycznie | do we actually need an LLM here? | [[prefer-deterministic]] |
 | failover / przełączanie awaryjne | what happens when the provider is unavailable? | [[failover]] |
 | TOCTOU / sprawdzenie-a-użycie | is this guard safe if two things run at once? | [[toctou]] |
+| prompt injection / wstrzyknięcie promptu | can untrusted text act as instructions? | [[prompt-injection]] |
+| poison message / zatruta wiadomość | what about input that fails every retry? | [[poison-message]] |
