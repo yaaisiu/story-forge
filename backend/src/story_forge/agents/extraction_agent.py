@@ -25,13 +25,19 @@ caller change, not an agent change. Batching + the pause-and-ask catcher are M2.
 from __future__ import annotations
 
 import json
-from typing import Protocol
+from typing import Literal, Protocol
 
 from pydantic import BaseModel, Field, ValidationError, field_validator
 
 from story_forge.adapters.llm.base import CompletionResult, Message
 from story_forge.agents.json_output import extract_json
 from story_forge.prompts import PromptNotFound, render_messages
+
+# Mirrors `router.TaskWeight` — kept as a local literal (not imported) so the agent
+# stays free of the concrete adapter module, while matching the router's type
+# exactly so `LLMRouter` structurally satisfies `_Router` when wired in M2.S4. (If a
+# third agent needs it too, promote this beside `ModelTier` in `base.py`.)
+_Weight = Literal["light", "medium", "heavy"]
 
 
 # A router-shaped collaborator. We type against the protocol the agent actually
@@ -42,7 +48,7 @@ class _Router(Protocol):
         self,
         messages: list[Message],
         *,
-        weight: str,
+        weight: _Weight,
         task_type: str,
         json_schema: dict[str, object] | None = None,
     ) -> CompletionResult: ...
@@ -105,6 +111,11 @@ class ExtractionError(RuntimeError):
     """Raised when no valid proposal could be produced (bad language or bad output)."""
 
 
+# The output schema is constant for the class — build it once, not per paragraph
+# (extraction runs per paragraph, so this would otherwise rebuild thousands of times).
+_SCHEMA = ExtractionProposal.model_json_schema()
+
+
 def _normalise_ws(text: str) -> str:
     """Collapse runs of whitespace to single spaces, for the substring soft-flag."""
     return " ".join(text.split())
@@ -118,15 +129,24 @@ def _ground_evidence_quotes(
     A quote that is not a whitespace-normalised substring of the source paragraph is
     provenance we cannot trust, so we drop *the quote* — but keep the candidate, as
     the model legitimately paraphrases or truncates elsewhere and we will not punish
-    that as fabrication. This needs `paragraph_text` (absent from the JSON), so it is
-    a post-validation pass rather than a field validator.
+    that as fabrication.
+
+    Grounding needs `paragraph_text`, which isn't in the JSON. A Pydantic
+    `model_validator(mode="after")` reading it from validation `context=` could attach
+    the rule to the model itself; we keep it an explicit post-validation pass instead
+    — the only producer is this agent, so a plain pass is simpler than threading
+    validation context through every construction site (revisit if a second producer
+    of `ExtractionProposal` appears).
     """
     haystack = _normalise_ws(paragraph_text)
 
     def grounded(quote: str | None) -> str | None:
-        if quote is None:
+        normalised = _normalise_ws(quote) if quote else ""
+        # An empty/blank quote carries no provenance, so treat it as "no quote"
+        # (None) rather than letting "" pass as a substring of everything.
+        if not normalised:
             return None
-        return quote if _normalise_ws(quote) in haystack else None
+        return quote if normalised in haystack else None
 
     for entity in proposal.entities:
         entity.evidence_quote = grounded(entity.evidence_quote)
@@ -150,14 +170,14 @@ class ExtractionAgent:
         known_entities: list[dict[str, object]] | None = None,
         custom_types: list[str] | None = None,
         neighbors: list[str] | None = None,
-        prener_hints: list[object] | None = None,
     ) -> ExtractionProposal:
         """Propose candidates for one paragraph, retrying on malformed/invalid output.
 
         `known_entities` + `custom_types` are de-duplication *hints* for the prompt
         (INV-8: a hint, never a merge); the real Neo4j read that populates them is
-        M2.S4 wiring, so the first end-to-end passes empty lists. `prener_hints` is
-        wired but unused (proposal D3 — injection deferred until a real eval exists).
+        M2.S4 wiring, so the first end-to-end passes empty lists. PreNER-hint
+        injection (proposal D3) is deferred until a real eval exists — the parameter
+        is added then, with a concrete type, rather than shipped dead now.
         """
         try:
             messages = render_messages(
@@ -171,8 +191,6 @@ class ExtractionAgent:
         except PromptNotFound as exc:
             raise ExtractionError(f"no extraction prompt for language {language!r}") from exc
 
-        schema = ExtractionProposal.model_json_schema()
-
         # Retry covers parse/schema failures only — a sampling model can return valid
         # JSON on a second pass. The router owns transport/envelope failover and the
         # budget cap, so its `BudgetExceededError` / `QuotaExhaustedError` (and any
@@ -180,7 +198,7 @@ class ExtractionAgent:
         last_error: ValidationError | None = None
         for _ in range(self._max_retries + 1):
             result = await self._router.complete(
-                messages, weight="medium", task_type="extraction", json_schema=schema
+                messages, weight="medium", task_type="extraction", json_schema=_SCHEMA
             )
             try:
                 proposal = ExtractionProposal.model_validate_json(extract_json(result.content))

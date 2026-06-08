@@ -40,9 +40,9 @@ class ProviderResponseError(RuntimeError):
     """A provider returned HTTP 200 but an unparseable / malformed envelope.
 
     The body isn't JSON, or it lacks the fields the adapter must read (e.g.
-    `choices[0].message.content`). This is a [[poison-message]]: retrying the same
-    request breaks the consumer identically every time, so the cure is
-    quarantine-and-move-on, not retry. The adapter raises it at the envelope-unwrap
+    `choices[0].message.content`), or `content` is null. This is a poison-message:
+    retrying the same request breaks the consumer identically every time, so the
+    cure is quarantine-and-move-on, not retry. The adapter raises it at the envelope-unwrap
     point; the router treats it like a 5xx — record a failure row, mark it non-quota,
     and fail over to the next provider (spec §6.5/§11 envelope-vs-schema split, OQ-10).
 

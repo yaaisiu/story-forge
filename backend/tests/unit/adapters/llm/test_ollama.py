@@ -170,3 +170,19 @@ async def test_malformed_200_envelope_raises_provider_response_error() -> None:
     )
     with pytest.raises(ProviderResponseError):
         await provider.complete([Message(role="user", content="hi")], "local_small")
+
+
+async def test_null_content_200_raises_provider_response_error() -> None:
+    # A 200 whose `message.content` is null is an unusable envelope: raise so the
+    # router records + fails over, not pass content=None through to a
+    # CompletionResult that raises an uncaught ValidationError.
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(200, json={"message": {"role": "assistant", "content": None}})
+
+    provider = OllamaProvider(
+        host="http://127.0.0.1:11434",
+        model="qwen3.5",
+        transport=httpx.MockTransport(handler),
+    )
+    with pytest.raises(ProviderResponseError):
+        await provider.complete([Message(role="user", content="hi")], "local_small")

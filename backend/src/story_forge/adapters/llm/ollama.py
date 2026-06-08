@@ -93,6 +93,12 @@ class OllamaProvider:
             raise ProviderResponseError(
                 f"Ollama HTTP 200 response missing expected fields: {exc!r}"
             ) from exc
+        if content is None:
+            # A null `content` is an unusable envelope, not text the agent can
+            # validate-and-retry — raise so the router records + fails over, rather
+            # than letting a CompletionResult(content=None) raise an uncaught
+            # ValidationError the router does not catch.
+            raise ProviderResponseError("Ollama HTTP 200 response had null message content")
 
         # Ollama reports token counts at the top level; absent on some responses,
         # so read defensively. GPU-seconds is Ollama Cloud's billing unit and is

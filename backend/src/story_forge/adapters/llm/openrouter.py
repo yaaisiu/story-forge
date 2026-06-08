@@ -110,6 +110,12 @@ class OpenRouterProvider:
             raise ProviderResponseError(
                 f"OpenRouter HTTP 200 response missing expected fields: {exc!r}"
             ) from exc
+        if content is None:
+            # A null `content` (a content-filter refusal or a tool-call-only reply)
+            # is an unusable envelope, not text the agent can validate-and-retry —
+            # raise so the router records + fails over, rather than letting a
+            # CompletionResult(content=None) raise an uncaught ValidationError.
+            raise ProviderResponseError("OpenRouter HTTP 200 response had null message content")
 
         usage_raw = data.get("usage") or {}
         input_tokens = usage_raw.get("prompt_tokens")
