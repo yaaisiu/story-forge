@@ -11,6 +11,26 @@ related: []
 Append-only audit trail of writes into the vault. Newest entries at the top. History also lives
 in `updated` fields (freshness) and git (diffs); this is the human-readable "what changed when".
 
+## 2026-06-08 — decompose: backend dependency-advisory scan (continuous SCA)
+
+`decompose-requirement` on adding a backend Python SCA gate to CI, triggered by GHSA-86qp-5c8j-p5mr
+(`starlette` 1.0.0, MEDIUM, via `fastapi`) — Dependabot caught it, CI did not (Trivy scans only
+Docker images; no scan of `backend/uv.lock`). New `proposals/backend-dependency-advisory-scan.md`
+(`status: proposed`, register D1–D7 open): owner leans **osv-scanner**, **selected fail-on-any +
+waiver file** (D2); open G1–G7 (tool confirm, **spec §6.7 amendment** to document the gate, waiver
+home/format/expiry reusing the Trivy `WAIVERS.md` split, `npm audit` symmetry, scanner-Action
+SHA-pin, baseline-vs-INV-9, bundled `starlette` 1.0.0→1.0.1 bump). Glossary +2
+(`software-composition-analysis`, `defense-in-depth` → 20). `open-questions` +OQ-13; learning-log +2.
+This is **strengthening** the §6.7 baseline (not the stop-and-amend-to-relax flow). No production code
+touched (architect is vault-only); the gate + bump are the implementer's build once the owner resolves.
+
+**Register resolved same day (owner approved G1–G7 cluster):** proposal flipped `proposed → accepted`,
+every register `My proposal` → `Decision`, §7 gaps marked resolved, §8 hand-off rewritten with the
+next-session build steps. OQ-13 advanced (stays open until code lands, OQ-10 posture). Decisions:
+osv-scanner, fail-on-any + scoped waivers (`infra/osv/`), SHA-pinned Action, `npm audit` left
+HIGH/CRITICAL, §6.7 baseline control (no new INV), explicit `starlette==1.0.1` pin. **Build deferred to
+next session; the spec §6.7 amendment lands *with* the build** (avoids claiming a gate CI doesn't run).
+
 ## 2026-06-08 — M2.S3 register resolved + spec §6.5 amended (owner walkthrough)
 
 The owner walked the `[[m2s3-extraction-agent]]` register; the proposal is now `status: accepted` and

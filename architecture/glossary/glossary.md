@@ -11,7 +11,7 @@ related: []
 The glossary is a **knowledge graph**, not a flat list: each term is its own note (a node) in
 `glossary/`, cross-linked via `related` so concepts form a web you can wander in Obsidian. This
 index is **regenerated** each run; the term notes are the source. Terms are added *organically* —
-only when real work first surfaces them — and deduped by slug. Count today: **18**.
+only when real work first surfaces them — and deduped by slug. Count today: **20**.
 
 | Term (EN / PL) | Answers | Note |
 |---|---|---|
@@ -33,3 +33,5 @@ only when real work first surfaces them — and deduped by slug. Count today: **
 | TOCTOU / sprawdzenie-a-użycie | is this guard safe if two things run at once? | [[toctou]] |
 | prompt injection / wstrzyknięcie promptu | can untrusted text act as instructions? | [[prompt-injection]] |
 | poison message / zatruta wiadomość | what about input that fails every retry? | [[poison-message]] |
+| software composition analysis / analiza składu oprogramowania | do any of our deps have a known vuln? | [[software-composition-analysis]] |
+| defense in depth / obrona w głąb | if one control misses, does another catch it? | [[defense-in-depth]] |
