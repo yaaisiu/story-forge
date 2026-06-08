@@ -35,6 +35,28 @@ Three modes (inline / dialog / diff), full edit_history pipeline. New agents: `I
 
 Style presets, transfer from example, per-project style anchor. New agent: `StyleTransferAgent`. Spec §5. Timeline after V2.
 
+## Security & DevSecOps hardening — later
+
+Directions surfaced from a practitioner's DevSecOps notes (2026-06-08), kept ready but
+not scheduled. The **governing principle** behind them: *security research takes
+precedence over feature work* — a security-relevant change is researched (and, when it
+touches the §6.7 baseline, decomposed + spec-amended) **before** other changes ship,
+not folded in afterwards. Story Forge already practises a partial form of this via the
+stop-and-amend-spec flow and the `meta-architect:decompose-requirement` pass that
+produced the M2 backend SCA gate (`osv-scanner` vs `uv.lock`); the items below extend it.
+
+- **Adopt Anthropic's `security-review` as a standing gate.** Wire the published
+  Anthropic security-review (the `/security-review` skill and/or its GitHub Action) into
+  the review flow as a routine pass on security-relevant diffs — fastest built by
+  starting from Anthropic's own repo rather than hand-rolling. Complements, does not
+  replace, `/review-pr` + `/code-review`.
+- **Automated architecture-conformance gate.** Turn the meta-architect vault's
+  invariants + the layering rules (`backend/src/story_forge/CLAUDE.md`) into an
+  *automated* check (does the code still obey domain-imports-nothing,
+  agents-use-the-`LLMProvider`-Protocol, prompts-in-`.j2`, LLM-output-Pydantic-validated?),
+  rather than relying only on the reviewer-invoked `/review-pr` §4 greps and the manual
+  `meta-architect:review-architecture` drift sweep.
+
 ---
 
 ## When this file changes
