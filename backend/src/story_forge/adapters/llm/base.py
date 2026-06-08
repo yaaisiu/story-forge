@@ -36,6 +36,23 @@ class BudgetExceededError(RuntimeError):
     """
 
 
+class ProviderResponseError(RuntimeError):
+    """A provider returned HTTP 200 but an unparseable / malformed envelope.
+
+    The body isn't JSON, or it lacks the fields the adapter must read (e.g.
+    `choices[0].message.content`). This is a [[poison-message]]: retrying the same
+    request breaks the consumer identically every time, so the cure is
+    quarantine-and-move-on, not retry. The adapter raises it at the envelope-unwrap
+    point; the router treats it like a 5xx — record a failure row, mark it non-quota,
+    and fail over to the next provider (spec §6.5/§11 envelope-vs-schema split, OQ-10).
+
+    Distinct from a *schema-invalid* body: a well-formed envelope whose `content` is
+    JSON that violates the agent's Pydantic schema is the agent's concern (prompt
+    retry), not the router's. Keep the offending body out of the message — it may
+    contain the API key (INV-6) or story text (OQ-4); carry only the structural cause.
+    """
+
+
 class QuotaExhaustedError(RuntimeError):
     """The free tier's quota is spent across every configured provider.
 

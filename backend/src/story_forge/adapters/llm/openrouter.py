@@ -23,6 +23,7 @@ from story_forge.adapters.llm.base import (
     CompletionResult,
     Message,
     ModelTier,
+    ProviderResponseError,
     RateLimitKind,
     Usage,
     estimate_cost,
@@ -93,7 +94,22 @@ class OpenRouterProvider:
                     "OpenRouter refused the call for insufficient credit (HTTP 402)"
                 )
             response.raise_for_status()
-            data = response.json()
+            try:
+                data = response.json()
+            except ValueError as exc:
+                raise ProviderResponseError(
+                    f"OpenRouter returned HTTP 200 with an unparseable body: {exc!r}"
+                ) from exc
+
+        # A 200 whose envelope lacks the fields we must read is a malformed response,
+        # not a schema-invalid one — raise so the router fails over (OQ-10), distinct
+        # from JSON that parses but violates the agent's Pydantic schema.
+        try:
+            content = data["choices"][0]["message"]["content"]
+        except (KeyError, IndexError, TypeError) as exc:
+            raise ProviderResponseError(
+                f"OpenRouter HTTP 200 response missing expected fields: {exc!r}"
+            ) from exc
 
         usage_raw = data.get("usage") or {}
         input_tokens = usage_raw.get("prompt_tokens")
@@ -108,8 +124,4 @@ class OpenRouterProvider:
             gpu_seconds=None,
             cost_estimate=estimate_cost(input_tokens, output_tokens, self._cost_per_1k_tokens),
         )
-        return CompletionResult(
-            content=data["choices"][0]["message"]["content"],
-            model_tier=model_tier,
-            usage=usage,
-        )
+        return CompletionResult(content=content, model_tier=model_tier, usage=usage)

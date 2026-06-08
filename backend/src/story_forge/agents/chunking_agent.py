@@ -17,6 +17,7 @@ from __future__ import annotations
 from pydantic import BaseModel, ValidationError, field_validator
 
 from story_forge.adapters.llm.base import LLMProvider, ModelTier
+from story_forge.agents.json_output import extract_json
 from story_forge.prompts import PromptNotFound, render_messages
 
 DEFAULT_LOCAL_MAX_WORDS = 4000
@@ -72,17 +73,6 @@ def select_chunking_tier(
     return "cloud_free"
 
 
-def _extract_json(text: str) -> str:
-    """Strip a surrounding markdown code fence if the model wrapped its JSON."""
-    stripped = text.strip()
-    if stripped.startswith("```"):
-        stripped = stripped.split("\n", 1)[1] if "\n" in stripped else stripped[3:]
-        fence = stripped.rfind("```")
-        if fence != -1:
-            stripped = stripped[:fence]
-    return stripped.strip()
-
-
 class ChunkingAgent:
     """Turns raw text into a proposed outline via an `LLMProvider`."""
 
@@ -125,7 +115,7 @@ class ChunkingAgent:
         for _ in range(self._max_retries + 1):
             result = await self._provider.complete(messages, tier, schema)
             try:
-                return ChunkingProposal.model_validate_json(_extract_json(result.content))
+                return ChunkingProposal.model_validate_json(extract_json(result.content))
             except ValidationError as exc:  # covers malformed JSON and schema violations
                 last_error = exc
         raise ChunkingError(

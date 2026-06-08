@@ -17,6 +17,7 @@ from story_forge.adapters.llm.base import (
     CompletionResult,
     Message,
     ModelTier,
+    ProviderResponseError,
     QuotaExhaustedError,
     Usage,
 )
@@ -257,6 +258,79 @@ async def test_transport_error_exhaustion_raises_the_transport_error() -> None:
     with pytest.raises(httpx.ConnectError):
         await router.complete(MESSAGES, weight="heavy", task_type="rewrite")
     assert [r.outcome for r in store.records] == ["failure"]
+
+
+async def test_malformed_envelope_records_failure_and_fails_over() -> None:
+    # OQ-10: a 200 with a malformed envelope (the real OpenRouterProvider raising
+    # ProviderResponseError) is treated like a 5xx — record a failure row and fail
+    # over to the next provider, rather than crashing with no row.
+    def malformed(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(200, json={"unexpected": "shape"})
+
+    fake_key = "k"  # bound to a var per backend/AGENTS.md credential-literal rule
+    bad = OpenRouterProvider(
+        host="https://openrouter.ai/api/v1",
+        model="m",
+        api_key=fake_key,
+        cost_per_1k_tokens=(3.0, 15.0),
+        transport=httpx.MockTransport(malformed),
+    )
+    healthy = FakeProvider(result=_ok("cloud_strong"), paid=True)
+    store = FakeCostStore()
+    router = _router({"cloud_strong": [bad, healthy]}, store)
+
+    result = await router.complete(MESSAGES, weight="heavy", task_type="extraction")
+
+    assert result.content == "ok"
+    assert [r.outcome for r in store.records] == ["failure", "success"]
+
+
+async def test_malformed_envelope_exhaustion_is_not_quota() -> None:
+    # Malformed envelopes across every cloud_free provider are NOT quota exhaustion
+    # (a defective response is a provider fault, like a 5xx): the router re-raises
+    # the real ProviderResponseError, never QuotaExhaustedError.
+    a = FakeProvider(error=ProviderResponseError("bad envelope"))
+    b = FakeProvider(error=ProviderResponseError("bad envelope"))
+    store = FakeCostStore()
+    router = _router({"cloud_free": [a, b]}, store)
+
+    with pytest.raises(ProviderResponseError):
+        await router.complete(MESSAGES, weight="medium", task_type="extraction")
+
+    assert a.calls == 1 and b.calls == 1
+    assert [r.outcome for r in store.records] == ["failure", "failure"]
+
+
+async def test_schema_invalid_body_is_a_success_for_the_router() -> None:
+    # The envelope-vs-schema split (OQ-10): a *well-formed* envelope whose `content`
+    # is JSON that would violate an agent's Pydantic schema is the agent's concern
+    # (prompt retry), not the router's. The router records a SUCCESS and returns the
+    # content unchanged — it never inspects the body's domain shape.
+    def well_formed_but_schema_invalid(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(
+            200,
+            json={
+                "model": "m",
+                "choices": [{"message": {"content": '{"entities": "not-a-list"}'}}],
+                "usage": {"prompt_tokens": 1, "completion_tokens": 1},
+            },
+        )
+
+    fake_key = "k"  # bound to a var per backend/AGENTS.md credential-literal rule
+    provider = OpenRouterProvider(
+        host="https://openrouter.ai/api/v1",
+        model="m",
+        api_key=fake_key,
+        cost_per_1k_tokens=(3.0, 15.0),
+        transport=httpx.MockTransport(well_formed_but_schema_invalid),
+    )
+    store = FakeCostStore()
+    router = _router({"cloud_strong": [provider]}, store)
+
+    result = await router.complete(MESSAGES, weight="heavy", task_type="extraction")
+
+    assert result.content == '{"entities": "not-a-list"}'
+    assert [r.outcome for r in store.records] == ["success"]
 
 
 async def test_budget_cap_blocks_paid_before_dispatch() -> None:

@@ -69,6 +69,13 @@ authoring (not just reviewing) needs to hold:
 
 To add a new agent: copy an existing one, change the prompt + schema, register its preferred tier. No god-class to edit.
 
+**Output-parsing helpers shared across agents live in `agents/json_output.py`, not
+duplicated per agent.** `extract_json` (strip a model's markdown code fence before
+Pydantic) is used by both `ChunkingAgent` and `ExtractionAgent`; the moment a second
+agent needed it, it moved out of the agent module into the shared helper rather than
+being copy-pasted. Parsing/validation and the retry loop still belong to each agent
+(it owns its schema) — only the schema-agnostic text cleanup is shared.
+
 **Deterministic local NLP is an exception to "no concrete deps in agents."** The
 layering rule above ("agents import the `LLMProvider` Protocol, never a concrete
 adapter") targets network/DB I/O and the multi-provider LLM tier. `PreNERAgent`

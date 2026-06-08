@@ -21,6 +21,7 @@ from story_forge.adapters.llm.base import (
     CompletionResult,
     Message,
     ModelTier,
+    ProviderResponseError,
     RateLimitKind,
     Usage,
     estimate_cost,
@@ -77,7 +78,21 @@ class OllamaProvider:
         async with httpx.AsyncClient(timeout=self._timeout, transport=self._transport) as client:
             response = await client.post(f"{self._host}/api/chat", json=payload, headers=headers)
             response.raise_for_status()
-            data = response.json()
+            try:
+                data = response.json()
+            except ValueError as exc:
+                raise ProviderResponseError(
+                    f"Ollama returned HTTP 200 with an unparseable body: {exc!r}"
+                ) from exc
+
+        # A 200 whose envelope lacks `message.content` is a malformed response, not a
+        # schema-invalid one — raise so the router fails over (OQ-10).
+        try:
+            content = data["message"]["content"]
+        except (KeyError, IndexError, TypeError) as exc:
+            raise ProviderResponseError(
+                f"Ollama HTTP 200 response missing expected fields: {exc!r}"
+            ) from exc
 
         # Ollama reports token counts at the top level; absent on some responses,
         # so read defensively. GPU-seconds is Ollama Cloud's billing unit and is
@@ -91,6 +106,4 @@ class OllamaProvider:
             gpu_seconds=None,
             cost_estimate=estimate_cost(input_tokens, output_tokens, self.cost_per_1k_tokens),
         )
-        return CompletionResult(
-            content=data["message"]["content"], model_tier=model_tier, usage=usage
-        )
+        return CompletionResult(content=content, model_tier=model_tier, usage=usage)
