@@ -12,10 +12,16 @@ license = { text = "MIT" }
 authors = [{ name = "Marcin" }]
 
 # Exact pins only — see spec §6.7. The dep-age script (scripts/check_dependency_age.py)
-# fails CI on any non-exact pin and on any pin <14 days old.
-# All versions below were released on or before 2026-05-05 (verified via PyPI).
+# fails CI on any non-exact pin and on any pin <14 days old; the backend SCA gate
+# (osv-scanner vs uv.lock, .github/workflows/ci.yml) fails CI on any known advisory.
+# Versions are verified ≥14 days old via PyPI at pin time.
 dependencies = [
   "fastapi==0.136.1",
+  # starlette is a fastapi transitive; pinned explicitly to force the security bump
+  # off 1.0.0 (GHSA-86qp-5c8j-p5mr / PYSEC-2026-161 — Host-header path poisoning,
+  # the advisory the SCA gate exists to catch). Drop this pin once fastapi requires
+  # starlette>=1.0.1 on its own.
+  "starlette==1.0.1",
   "uvicorn[standard]==0.46.0",
   "pydantic==2.13.3",
   "pydantic-settings==2.14.0",
