@@ -8,18 +8,27 @@ related: ["[[overview]]", "[[invariants]]", "[[open-questions]]", "[[project]]",
 
 # Proposal — Backend dependency-advisory scan in CI (continuous SCA)
 
+> **✅ Built 2026-06-08 (PR #44).** The gate is live: an `osv-scanner` step scans `backend/uv.lock`
+> fail-on-any in CI, `starlette` was bumped 1.0.0→1.0.1 (the self-test ran red→green), waivers live in
+> `infra/osv/`, and spec §6.7 documents the gate. The register below is fully resolved (owner cluster +
+> as-built implementer calls); `[[open-questions]]` OQ-13 is closed in code. The one build-time
+> deviation: the scanner runs as a **digest-pinned container**, not a GitHub Action (the action is a
+> no-`runs:` stub) — strictly stronger than D6's SHA-pin, intent preserved (see D6 As-built).
+>
 > **✅ Register resolved 2026-06-08.** The owner approved the **G1–G7 cluster** (recorded
 > "looks okay at a glance"): **osv-scanner** (D1/G1), **fail-on-any + scoped waiver file** (D2),
 > **§6.7 amendment to document the gate** (G2), **reuse the Trivy waiver split** — scoped ignore +
 > a `WAIVERS.md`-style register, condition-based expiry, in a sibling `infra/osv/` (D3/D4/G3),
-> **leave `npm audit` at HIGH/CRITICAL** for now (D5/G4), **SHA-pin the scanner Action** (D6/G5),
+> **leave `npm audit` at HIGH/CRITICAL** for now (D5/G4), **pin the scanner immutably** (D6/G5 —
+> approved as a SHA-pinned Action; **built as a stronger digest-pinned container** once the action
+> turned out to be a no-`runs:` stub, see D6 As-built),
 > **§6.7 baseline control, not a new invariant** (D-INV/G6), and the **explicit `starlette==1.0.1`
 > pin** as the bundled bump + the gate's first self-test (D7/G7). Each entry below is now the
 > **Decision**. The decisions are **reversible config** — any G-item is revisitable at build time.
-> **Build deferred to the next session** (CI step + waiver scaffold + starlette bump, one branch);
-> **the spec §6.7 amendment lands *with* the build**, not before — amending §6.7 to claim a gate
-> the CI doesn't yet run would create spec↔code drift. `[[open-questions]]` OQ-13 stays open until
-> the code lands (same posture OQ-10 held).
+> **Built the same session (PR #44)** — CI step + waiver scaffold + starlette bump, one branch; the
+> **spec §6.7 amendment landed *with* the build** (amending §6.7 to claim a gate the CI didn't yet
+> run would create spec↔code drift). `[[open-questions]]` OQ-13 is **closed in code** (it held open
+> until the code landed — same posture OQ-10 held).
 
 **Requirement (operator):** close the gap where a vulnerability **disclosed *after* a package is
 pinned** is invisible to CI. Story Forge gates dependency *freshness* (≥14-day soak,
@@ -133,11 +142,11 @@ Identity → Intent → Policy → Decision → Access → Monitoring → Eviden
 | **Access** | ✅ | the gate blocks merge (a required PR check), under the green-main bar. |
 | **Monitoring** | ✅ | CI log (pre-merge) **+** Dependabot (post-merge redundant net) — [[defense-in-depth]]. |
 | **Evidence** | ✅ | CI run log + waiver entry (rationale + reachability + drop-when). |
-| **Expiry** | ⚠ gap (D4) | do SCA waivers carry an expiry? Trivy uses condition-based ("drop when rebuilt"); the SCA analogue ("drop when a fixed version clears soak") needs stating. |
-| **Review** | ⚠ gap (D3/`/review-pr`) | who reviews waivers, when? Extend `/review-pr` §5's Trivy-waiver-attribution check to SCA waivers; periodic re-scan like `WAIVERS.md`'s "how to review". |
+| **Expiry** | ✅ (D4) | condition-based, stated in `infra/osv/WAIVERS.md` ("drop when a fixed version clears the 14-day soak") with a `Last reviewed` date; optional per-waiver `ignoreUntil` backstop. |
+| **Review** | ✅ (D3/`/review-pr`) | `/review-pr` §5 extended to scrutinise SCA waivers (attribution + register mirror); periodic re-scan command is in `infra/osv/WAIVERS.md` "how to review". |
 
-Two gaps (Expiry, Review) are **waiver-governance** questions, not blockers to standing the gate up —
-both have a directly-reusable precedent in the Trivy waiver model.
+The two former gaps (Expiry, Review) were **waiver-governance** questions, not blockers — both reused
+the Trivy waiver model and are **resolved as-built** in PR #44 (`infra/osv/WAIVERS.md` + `/review-pr` §5).
 
 ---
 
@@ -199,7 +208,12 @@ than named `invariants.md` entries. **State-machine effect to preserve:** every 
 log (evidence); every waiver leaves a register row (evidence). Both are the Compliance/Audit layer
 happening at build time.
 
-### Decision register (open — owner resolves; leanings recorded, not final)
+### Decision register (✅ resolved 2026-06-08 — owner approved the cluster; built next session)
+
+> Every D-entry below is **decided**. The owner-approved cluster settled the policy questions;
+> the few items left to the implementer ("Open:" → now **As-built:**) were resolved while building
+> the gate (PR #44) and are recorded here so this artifact matches reality. **Nothing here is still
+> open** — the leans/options are kept only as the history of how each call was made.
 
 **D1 — Scanner tool: `osv-scanner` vs `pip-audit`.**
 - *Context:* both query OSV-class data and exit non-zero on a finding. `osv-scanner` (Google) parses
@@ -214,9 +228,10 @@ happening at build time.
   cleanly. **Cost accepted:** another third-party Action to pin + soak (D6), and coarser native
   severity filtering than Trivy's `severity:` flag (a non-issue under fail-on-any).
 - *Owner lean (2026-06-08):* osv-scanner, with "get the architect to frame it" — hence this note.
-- *Open:* run it as a **step in the existing `backend` job** (shares the `uv sync`) vs a **dedicated
-  job** (isolation, parallel, clearer required-check name)? Lean: a step in `backend` first; promote
-  to its own job only if it slows the critical path.
+- *As-built (PR #44):* a **step in the `security` job** (it groups with the existing
+  detect-secrets / dep-age / Trivy supply-chain checks and reuses that runner), not a dedicated job;
+  promote to its own job only if it slows the critical path. The scanner runs as the **digest-pinned
+  `ghcr.io/google/osv-scanner` container** rather than the `google/osv-scanner-action` — see D6.
 
 **D2 — Gate strictness: fail-on-any-advisory + waivers, vs HIGH/CRITICAL-only parity.**
 - *Context:* the frontend gates `npm audit --audit-level=high`. The triggering starlette advisory is
@@ -229,7 +244,7 @@ happening at build time.
   muscle. **Cost accepted:** an un-fixable transitive LOW/MEDIUM will red CI until waived; the waiver
   file is the pressure valve, and the rationale discipline keeps "waive to go green" honest.
 - *Owner decision (2026-06-08):* **(a) fail-on-any + waiver file** — selected.
-- *Open:* none on the strictness itself; the *home/format* of waivers is D3.
+- *As-built (PR #44):* fail-on-any (osv-scanner's default exit-1-on-any-finding); waiver home is D3.
 
 **D3 — Waiver home + format (avoid a second source of truth).**
 - *Context:* Trivy already runs **two** homes without drift by making one *documentation-only*: the
@@ -243,9 +258,11 @@ happening at build time.
   condition; the `WAIVERS.md` register carries the full reachability justification and "drop when",
   exactly as Trivy does. One **enforced** home, one **documentation** home, the register mirrors the
   enforced file (the `/review-pr` §2 reconciliation lens covers the mirror).
-- *Open:* extend the existing `infra/trivy/WAIVERS.md` (rename to a general waiver register) or add a
-  sibling? Lean: a sibling `infra/osv/` keeps the scoping clean and the §6.7 "never repo-wide" rule
-  visible.
+- *As-built (PR #44):* a **sibling `infra/osv/`** — enforced `infra/osv/osv-scanner.toml`
+  (`[[IgnoredVulns]]`, wired via `--config`) + the documentation-only `infra/osv/WAIVERS.md` register.
+  Kept separate from `infra/trivy/` (not a renamed shared register) so each scope stays visibly
+  per-tool and the §6.7 "never repo-wide" rule is obvious. No active waivers yet (the gate is green by
+  fixing, not suppressing).
 
 **D4 — Waiver expiry (the Expiry-station gap).**
 - *Context:* Trivy waivers expire by **condition** ("drop when upstream rebuilds"), reviewed
@@ -255,7 +272,11 @@ happening at build time.
   a CI red on the date; (c) no expiry.
 - *Decision (owner-approved cluster, 2026-06-08):* **(a) condition-based + periodic review**, for consistency with the existing model —
   *optionally* layered with (b)'s hard `ignoreUntil` as a backstop so a forgotten waiver self-surfaces.
-- *Open:* adopt the hard-date backstop, or rely on review cadence + Dependabot? Owner's call.
+- *As-built (PR #44):* **condition-based + periodic review** — `infra/osv/WAIVERS.md` states the
+  SCA "drop when" ("when a fixed version clears the 14-day soak") and a `Last reviewed` date, exactly
+  as Trivy does. The hard-date backstop is *available* (osv-scanner's per-waiver `ignoreUntil`,
+  documented in the toml header) but not mandated; with zero active waivers there is nothing to
+  date-expire yet.
 
 **D5 — `npm audit` symmetry.**
 - *Context:* if the backend gates fail-on-any but the frontend stays HIGH/CRITICAL, the two halves
@@ -264,7 +285,8 @@ happening at build time.
   bit us); (b) tighten the frontend to fail-on-any too, for symmetry.
 - *Decision (owner-approved cluster, 2026-06-08):* **(a) leave it, note the asymmetry** — don't scope-creep this into a frontend change;
   revisit deliberately. The asymmetry is defensible (npm's advisory noise floor is higher).
-- *Open:* owner may prefer symmetry now; it's a one-flag change if so.
+- *As-built (PR #44):* **left `npm audit --audit-level=high` unchanged**; the asymmetry is noted and
+  deliberately out of this branch's scope. Revisit deliberately if desired (a one-flag change).
 
 **D6 — Scanner Action pinning & soak (§6.7 applies to Actions too).**
 - *Context:* the Trivy action is pinned `aquasecurity/trivy-action@v0.36.0`. A GitHub Action is itself
@@ -273,8 +295,17 @@ happening at build time.
   — a tag can be moved); (c) run the scanner via `uvx`/a pinned CLI version instead of an Action.
 - *Decision (owner-approved cluster, 2026-06-08):* **(a) or (b)** — prefer **(b) SHA-pin** for a security tool (a moved tag is a real
   supply-chain risk for the very gate meant to catch them); apply the 7-day Action soak as for images.
-- *Open:* SHA-pin vs tag-pin house style for Actions (today Trivy is tag-pinned — consider tightening
-  both, or matching Trivy's tag style for consistency).
+- *As-built (PR #44) — intent preserved, mechanism changed:* the scanner runs as the
+  **digest-pinned container** `ghcr.io/google/osv-scanner:v2.3.8@sha256:64e8…0676b`, **not** a
+  GitHub Action. Reason discovered at build time: `google/osv-scanner-action`'s root `action.yml` is a
+  metadata **stub with no `runs:` block** (not an invokable composite action), and its *reusable
+  workflows* do either a PR **diff**-scan (would miss an advisory already on `main` — defeats
+  fail-on-any) or a SARIF-upload **recursive** scan (heavier, needs `security-events: write`, not a
+  scoped lockfile step). A digest pin is **strictly stronger** than the SHA-pin (b) the cluster asked
+  for (a tag can move; a digest cannot), so D6's intent — *pin the scanner to an immutable ref + soak
+  it* — is fully met. v2.3.8 (2026-05-11) clears the 7-day scanner soak. This is the one place the
+  build deviated from the proposal's letter; flagged to the owner and recorded in the spec §6.7
+  amendment.
 
 **D-INV — Does this mint a new invariant?**
 - *Context:* `invariants.md` has no entry for the dep-age/pin baseline either — those live as §6.7
@@ -282,7 +313,8 @@ happening at build time.
 - *Decision (owner-approved cluster, 2026-06-08):* **no new invariant** — keep it a §6.7 baseline control, consistent with
   pinning/soak/Trivy. (If the owner wants it named, "no dependency ships with an unwaived known
   advisory" would be INV-9 — but I'd argue the baseline is the right home.)
-- *Open:* owner's call — baseline control (proposed) vs named invariant.
+- *As-built (PR #44):* **§6.7 baseline control, no new invariant** — consistent with how pinning, the
+  soak, and Trivy live. `invariants.md` is unchanged.
 
 **D7 — Bundled task (not architectural): bump `starlette` 1.0.0 → 1.0.1.**
 - *Context:* the advisory that motivated this; `fastapi==0.136.1` allows 1.0.1. starlette is currently
@@ -294,7 +326,10 @@ happening at build time.
   be visible in the manifest, not buried in the lock; drop the explicit pin once `fastapi` requires
   ≥1.0.1 on its own. Verify 1.0.1 ≥14-day soak via `/add-dependency`. **This bump is also the new
   gate's first live self-test** — the gate should go red on 1.0.0 and green on 1.0.1.
-- *Open:* (a) vs (b); confirm 1.0.1's release date clears the soak.
+- *As-built (PR #44):* **(a) explicit pin** `starlette==1.0.1` in `backend/pyproject.toml` with the
+  "drop when fastapi requires ≥1.0.1" comment; 1.0.1 confirmed **17 days old** (clears the soak) and
+  OSV-clean. The self-test ran exactly as predicted: the SCA step went **red on 1.0.0**
+  (PYSEC-2026-161, MEDIUM 6.5) and **green on 1.0.1**.
 
 Mirrored to `[[open-questions]]` as **OQ-13**.
 
@@ -329,40 +364,40 @@ Mirrored to `[[open-questions]]` as **OQ-13**.
 
 ## 7. Gaps for the product owner — ✅ all resolved 2026-06-08 (owner approved the cluster)
 
-- **G1 (D1/D2):** ✅ **osv-scanner + fail-on-any** confirmed. Buildable.
-- **G2 (§6.7):** this **amends the security baseline** (adds a gate) — owner amends spec §6.7
-  (lines 547/557/690) to document the backend SCA gate. Strengthening, so not the stop-and-amend-to-
-  relax flow, but the baseline must record it to stay the honest source of truth.
-- **G3 (D3/D4):** waiver **home, format, and expiry** — reuse the Trivy split (enforced ignore +
-  `WAIVERS.md` register, condition-based expiry)? Sibling `infra/osv/` vs extend `infra/trivy/`?
-- **G4 (D5):** tighten `npm audit` to fail-on-any for symmetry now, or leave HIGH/CRITICAL and note
-  the asymmetry?
-- **G5 (D6):** Action pinning house style — SHA-pin the security scanner, or match Trivy's tag-pin?
-- **G6 (D-INV):** baseline control (proposed) or a named INV-9?
-- **G7 (D7):** approve the starlette explicit-pin mechanism + confirm 1.0.1 clears the 14-day soak.
+- **G1 (D1/D2):** ✅ **osv-scanner + fail-on-any** — built.
+- **G2 (§6.7):** ✅ spec §6.7 **amended** (lines ~547/557/690) to document the backend SCA gate;
+  strengthening, so not the stop-and-amend-to-relax flow, and the baseline now records it.
+- **G3 (D3/D4):** ✅ Trivy split reused — enforced `infra/osv/osv-scanner.toml` + `infra/osv/WAIVERS.md`
+  register, **condition-based expiry**, in a **sibling `infra/osv/`** (not a merge into `infra/trivy/`).
+- **G4 (D5):** ✅ `npm audit` **left at HIGH/CRITICAL**; the asymmetry is noted and out of scope.
+- **G5 (D6):** ✅ scanner **pinned by image digest** (stronger than the SHA-pin asked for; the action
+  is a no-`runs:` stub — see D6 As-built).
+- **G6 (D-INV):** ✅ **§6.7 baseline control, no new invariant.**
+- **G7 (D7):** ✅ explicit `starlette==1.0.1` pin; 1.0.1 confirmed 17 days old (clears the soak).
 
 ---
 
 ## 8. Hand-off
 
-**Status: accepted — register resolved 2026-06-08 (owner approved G1–G7); build deferred to the next
-session.** The gate **strengthens** the §6.7 baseline, so the **spec §6.7 amendment lands *with* the
-build** (amending §6.7 to claim a gate CI doesn't yet run would create spec↔code drift — the one
-ordering subtlety vs M2.S3, whose §6.5 amendment described *existing* behavior and so came first).
+**Status: ✅ built 2026-06-08 (PR #44).** Register resolved (owner approved G1–G7) and built the same
+day. The gate **strengthens** the §6.7 baseline, so the **spec §6.7 amendment landed *with* the build**
+(amending §6.7 to claim a gate CI doesn't yet run would have created spec↔code drift — the one ordering
+subtlety vs M2.S3, whose §6.5 amendment described *existing* behavior and so came first).
 
-**Next-session build (one branch, "same branch" per the owner):**
-1. **SCA step in `.github/workflows/ci.yml`** — `osv-scanner` against `backend/uv.lock`, **fail on
-   any** advisory, the Action **SHA-pinned** (7-day soak as for images).
-2. **Waiver scaffold** — a scoped machine-read ignore (the enforced home) + an `infra/osv/WAIVERS.md`
-   register (rationale + reachability + condition-based "drop when a fixed version clears soak"),
-   mirroring the Trivy split; extend `/review-pr` §5 to scrutinise SCA waivers.
-3. **`starlette` 1.0.0 → 1.0.1** via `/add-dependency` — explicit pin in `pyproject.toml` with a
-   "security bump, drop when fastapi requires ≥1.0.1" comment; verify the 14-day soak. **Test-drive
-   it:** the new gate should go **red on 1.0.0, green on 1.0.1** (the gate's first live self-test).
-4. **Amend spec §6.7** (lines 547/557/690) to document the backend SCA gate; reconcile
-   `docs/PLAN_SHORT.md` (strike the "backend advisory scan in CI" cross-cutting item this completes),
-   `README`, and any `AGENTS.md` that enumerates CI gates.
+**Build as delivered (PR #44, one branch) — all four steps done:**
+1. ✅ **SCA step in `.github/workflows/ci.yml`** — `osv-scanner` against `backend/uv.lock`, **fail on
+   any** advisory, the scanner **pinned by immutable image digest** (`ghcr.io/google/osv-scanner@sha256:64e8…`,
+   v2.3.8, clears the 7-day soak) rather than a GitHub Action — see D6 As-built for why (digest >
+   SHA-pin; the action is a no-`runs:` stub).
+2. ✅ **Waiver scaffold** — the scoped machine-read `infra/osv/osv-scanner.toml` (enforced home,
+   `--config`) + the `infra/osv/WAIVERS.md` register (rationale + reachability + condition-based "drop
+   when a fixed version clears soak"), mirroring the Trivy split; `/review-pr` §5 extended to SCA waivers.
+3. ✅ **`starlette` 1.0.0 → 1.0.1** via `/add-dependency` — explicit pin in `pyproject.toml` with the
+   "security bump, drop when fastapi requires ≥1.0.1" comment; 1.0.1 confirmed 17 days old + OSV-clean.
+   The self-test ran as designed: the gate went **red on 1.0.0, green on 1.0.1**.
+4. ✅ **Spec §6.7 amended** to document the backend SCA gate; reconciled `docs/PLAN_SHORT.md` (struck
+   the "backend advisory scan in CI" cross-cutting item), `README`, and the relevant `AGENTS.md`/skill.
 
-Remaining register "Open:" sub-items (job-vs-step, sibling-vs-extend) are **build-time implementation
-choices for the implementer**, not blocking owner decisions. If an ADR is wanted for the gate
-decision (it crosses a security boundary → escalated MADR form), I draft it on confirmation.
+All register sub-items are resolved (owner cluster + as-built implementer calls). No ADR was raised for
+the gate; the §6.7 baseline amendment is its authoritative record (can be escalated to an MADR ADR later
+if the security-boundary crossing warrants a standalone one).

@@ -41,7 +41,7 @@ related: []
 ## Proposals & reports
 | Note | Type | What |
 |---|---|---|
-| [[backend-dependency-advisory-scan]] | proposal | **Continuous backend SCA gate in CI (✅ accepted 2026-06-08, register approved)** — close the gap where a vuln disclosed *after* pinning is caught only by Dependabot, not CI (the `starlette` 1.0.0 case). Decisions: osv-scanner, fail-on-any + scoped waivers, SHA-pinned Action, §6.7 baseline (no new INV). **Build next session** (CI step + waivers + `starlette` 1.0.0→1.0.1 + §6.7 amendment, one branch). |
+| [[backend-dependency-advisory-scan]] | proposal | **Continuous backend SCA gate in CI (✅ built 2026-06-08, PR #44)** — closes the gap where a vuln disclosed *after* pinning was caught only by Dependabot, not CI (the `starlette` 1.0.0 case). Built: osv-scanner step vs `uv.lock`, fail-on-any, **digest-pinned** scanner (the action is a no-`runs:` stub — stronger than the planned SHA-pin), `infra/osv/` waivers, `starlette` 1.0.0→1.0.1 (self-test red→green), §6.7 baseline (no new INV). |
 | [[m2s3-extraction-agent]] | proposal | **M2.S3 nine-layer pass (✅ accepted 2026-06-08, register resolved)** — `ExtractionAgent`, first `LLMRouter` consumer. Decisions: per-paragraph, single-paragraph agent (batch→M2.S4), `candidate_name`, typed `ProviderResponseError`, soft-flag `evidence_quote`. **Built + merged (PR #42).** |
 | [[m2s2-llm-router-budget-cap]] | proposal | M2.S2 nine-layer pass: paid adapters + router + budget cap + status endpoint |
 | [[2026-06-02-architecture-review-post-m2s2]] | review | **current health snapshot** — post-M2.S2 as-built drift sweep (no blockers/risks; watches: latency OQ-9, malformed-envelope OQ-10, redaction, state-machine undrawn) |
@@ -69,9 +69,12 @@ related: []
    **Done 2026-06-08 (PR #42 merged green)** — `ExtractionAgent` + prompts + candidate schemas + the
    typed `ProviderResponseError` path; `/review-pr` + `/code-review` folded (the latter caught a
    null-content envelope crash). OQ-10 now **closed in code**.
-7. **Next:** owner resolves the [[backend-dependency-advisory-scan]] register (G1–G7) → build the SCA
-   gate + starlette bump. Carry the post-M2.S2 watches: resolve **OQ-9** (latency) before M2.S5; keep
-   INV-6 redaction-before-logging in mind. Then **M2.S4** (Neo4j writes). Candidate architect
+7. ~~Owner resolves the [[backend-dependency-advisory-scan]] register (G1–G7) → build the SCA gate +
+   starlette bump.~~ ✅ **done 2026-06-08 (PR #44)** — register resolved + gate built the same day:
+   `osv-scanner` step (fail-on-any, digest-pinned), `infra/osv/` waivers, `starlette` 1.0.0→1.0.1
+   (self-test red→green), spec §6.7 amended. [[open-questions]] OQ-13 closed in code.
+8. **Next:** **M2.S4** (Neo4j writes, no dedupe). Carry the post-M2.S2 watches: resolve **OQ-9**
+   (latency) before M2.S5; keep INV-6 redaction-before-logging in mind. Candidate architect
    deep-dives: draw the **LLM-call state machine** (`state-machines/`, the first one) and/or the
    first `components/` note (OQ-C). (Ritual integration still deferred per ADR 0002 — evidence points
    at `/wrap-session`.)

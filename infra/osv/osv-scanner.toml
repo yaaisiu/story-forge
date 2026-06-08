@@ -1,0 +1,23 @@
+# OSV-Scanner waivers — backend Python lockfile (backend/uv.lock) ONLY.
+#
+# This is the ENFORCED waiver home: the SCA gate in .github/workflows/ci.yml
+# reads it via `--config=infra/osv/osv-scanner.toml`, scoped to the one
+# osv-scanner step (spec §6.7 keeps waivers scoped, never repo-wide — the same
+# discipline as the per-image infra/trivy/*.trivyignore files).
+#
+# The gate is FAIL-ON-ANY: any unwaived advisory in backend/uv.lock reds CI.
+# Prefer a FIX (bump to the fixed version via /add-dependency, soak-checked)
+# over a waiver. Waive only an assessed, unreachable, or unfixable advisory,
+# and record the full rationale in the human register infra/osv/WAIVERS.md
+# (this file carries the machine-read entry; that file carries the "why" +
+# the "drop when" condition). The two must mirror each other — /review-pr §5
+# checks the attribution.
+#
+# There are NO active waivers: the gate is green because dependencies are
+# fixed, not suppressed. To waive an assessed advisory, uncomment and adapt:
+#
+#   [[IgnoredVulns]]
+#   id = "GHSA-xxxx-xxxx-xxxx"   # the OSV/GHSA/PYSEC id (aliases are ignored too)
+#   # ignoreUntil = 2026-12-31   # optional hard-date backstop; we default to
+#                                # condition-based expiry (see WAIVERS.md)
+#   reason = "one line; full reachability + 'drop when' lives in WAIVERS.md"
