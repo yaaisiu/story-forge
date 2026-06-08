@@ -241,17 +241,17 @@ row (effect = evidence). OQ-10's new edge is the one place that rule is currentl
 ### Decision register (✅ resolved 2026-06-08 — entries below are Decisions, not proposals)
 
 **D1 — `candidate_name` vs `canonical_name`.**
-- *Context:* the plan task says "validators for required fields + **non-empty canonical_name**". But
-  spec Appendix C.2's output field is `candidate_name` ("as named in the text"), and §3.2's
-  `canonical_name` is the *resolved, bilingual PL+EN* name an entity gets at merge time. At
+- *Context:* the plan task originally said "validators for required fields + **non-empty
+  canonical_name**". But spec Appendix C.2's output field is `candidate_name` ("as named in the text"),
+  and §3.2's `canonical_name` is the *resolved, bilingual PL+EN* name an entity gets at merge time. At
   *extraction* time we have a surface form, not a canonical name.
 - *Options:* (a) field is `candidate_name: str` (surface form), validator enforces non-empty; canonical
   naming + PL/EN peering is a downstream (M3) concern. (b) call it `canonical_name` per the plan
   wording.
 - **Decision (owner, 2026-06-08): (a)** — field is `candidate_name: str` (surface form) with a
   non-empty validator; `canonical_name` is reserved for the resolved entity (M3). Keeps the M2→M3
-  boundary honest and matches C.2. The plan's "canonical_name" wording is reconciled to
-  `candidate_name` when M2.S3 lands.
+  boundary honest and matches C.2. The plan's "canonical_name" wording is **reconciled** to
+  `candidate_name` in the `docs/PLAN_SHORT.md` Session 3 task (PR #39).
 
 **D2 — OQ-10: typed `ProviderResponseError` placement & semantics.**
 - *Context:* `openrouter.py:112` does `data["choices"][0]["message"]["content"]` (and
@@ -368,8 +368,8 @@ OQ-12 (D3/G5) struck, OQ-2 (D5) and OQ-10 (D2) advanced, spec §10 Q1 left open 
 
 ## 7. Gaps for the product owner — ✅ all resolved 2026-06-08
 
-- **G1 (D1):** ✅ `candidate_name` (surface form) chosen over "canonical_name"; plan line to be
-  reconciled when M2.S3 lands.
+- **G1 (D1):** ✅ `candidate_name` (surface form) chosen over "canonical_name"; the `docs/PLAN_SHORT.md`
+  Session 3 task is reconciled to `candidate_name` (PR #39).
 - **G2 (D4):** ✅ **per-paragraph** is the M2.S3 default; spec **§10 Q1** (extraction granularity) stays
   the spec's open question.
 - **G3 (D3):** ✅ known-entities/custom-types are **parameters now, wired to a real Neo4j read in
@@ -388,11 +388,16 @@ OQ-12 (D3/G5) struck, OQ-2 (D5) and OQ-10 (D2) advanced, spec §10 Q1 left open 
 
 ## 8. Hand-off
 
-Once the register is resolved, the *first work step* is the **failing test**
-(`backend/tests/unit/agents/test_extraction_agent.py`, mirroring `test_chunking_agent.py`): paragraph
-→ validated `ExtractionProposal` against a **mocked router**, asserting (1) happy path PL + EN,
-(2) retry-on-malformed-JSON, (3) schema-violation → bounded give-up, (4) **structural injection
-safety** (fake `[ROLE]`/JSON markers don't forge structure), (5) **empty-but-valid** is not retried.
-The OQ-10 "envelope-malformed vs schema-invalid" router test lands alongside, at the router seam.
-Then minimal implementation until green (spec- and test-driven order). When accepted, bring this note
-to `accepted` per §5b and reconcile the plan wording (G1) + any spec §6.5 clarification (G6).
+**Status (2026-06-08): accepted — register resolved, ready to build.** This note is at `accepted`
+per §5b; the reconciliations it gated are **done**: G1 (`candidate_name`, not `canonical_name`) is
+fixed in the `docs/PLAN_SHORT.md` Session 3 task, and G6 (spec §6.5 `route()`→`complete()` +
+envelope-vs-schema split) is amended in the spec (PR #39). The implementer builds directly from here —
+no owner-resolution step remains.
+
+The *first work step* is the **failing test** (`backend/tests/unit/agents/test_extraction_agent.py`,
+mirroring `test_chunking_agent.py`): paragraph → validated `ExtractionProposal` against a **mocked
+router**, asserting (1) happy path PL + EN, (2) retry-on-malformed-JSON, (3) schema-violation →
+bounded give-up, (4) **structural injection safety** (fake `[ROLE]`/JSON markers don't forge
+structure), (5) **empty-but-valid** is not retried. The OQ-10 "envelope-malformed vs schema-invalid"
+router test lands alongside, at the router seam. Then minimal implementation until green (spec- and
+test-driven order).
