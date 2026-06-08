@@ -1,7 +1,7 @@
 ---
 type: learning-log
 slug: learning-log
-updated: 2026-06-02
+updated: 2026-06-08
 status: living
 related: []
 ---
@@ -35,3 +35,4 @@ term · appeared in [[note]] · why it matters for THIS project`. New lines go a
 - 2026-06-02 · out-of-band / write-ahead audit logging · [[2026-06-02-architecture-review-post-m2s2]] · a record that must survive the failure it describes can't share the transaction that rolls back on that failure — why `PostgresCostStore` commits on its own connection; the grown-up version is the outbox pattern.
 - 2026-06-02 · poison message / dead-letter · [[2026-06-02-architecture-review-post-m2s2]] · the malformed-200 envelope is input that breaks the consumer on every retry; the discipline is quarantine-and-move-on (record + failover), never retry-forever the same dead provider.
 - 2026-06-02 · totality over a state machine · [[2026-06-02-architecture-review-post-m2s2]] · a robust router maps every error class to exactly one of the four terminal states; both PR-#36 bugs were "a class mapped to the wrong terminal" — enumerating the state machine is the cure.
+- 2026-06-02 · prompt injection (structural vs semantic) · [[prompt-injection]] · structural injection is closed *by construction* (message list from a trusted template, text-as-data); semantic injection is only *bounded* (conservative prompt + schema + human review) — ExtractionAgent's OQ-5 gate hangs on stating which guarantee you actually have.

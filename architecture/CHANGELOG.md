@@ -1,7 +1,7 @@
 ---
 type: changelog
 slug: changelog
-updated: 2026-06-02
+updated: 2026-06-08
 status: living
 related: []
 ---
@@ -10,6 +10,46 @@ related: []
 
 Append-only audit trail of writes into the vault. Newest entries at the top. History also lives
 in `updated` fields (freshness) and git (diffs); this is the human-readable "what changed when".
+
+## 2026-06-08 — M2.S3 register resolved + spec §6.5 amended (owner walkthrough)
+
+The owner walked the `[[m2s3-extraction-agent]]` register; the proposal is now `status: accepted` and
+rewritten to resolved state (§5b): **D4** per-paragraph (agent fragment-agnostic), **D5**
+single-paragraph agent — resumable batch driver → M2.S4 (pause-and-ask propagates), **G5** soft-flag
+`evidence_quote`, **D1/D2/D3/D6** accepted as proposed. Rejected options (per-scene, hard-reject,
+agent-owns-batching, blanket `except`) marked history in the body, not build instructions.
+
+**Spec amended (host source of truth, stop-and-amend flow) — G6/Codex #2:** `story-forge-poc-spec.md`
+§6.5 router block `route(self, task) -> LLMProvider` → `complete(messages, *, weight, task_type,
+json_schema=None) -> CompletionResult` (orchestrating API, ADR 0003); §6.5 + §11 "Failover" paragraphs
+now split **envelope-malformed (→ failover via `ProviderResponseError`)** from **schema-invalid
+(→ agent prompt-retry)**. Reconciled host homes: `README.md` failover line, `docs/PLAN_SHORT.md`
+(cross-cutting item struck ✅, line-64 claim now true). Left intact as history: ADR 0001
+(superseded-in-part), the M2.S2 Done/Decided log lines. Vault: OQ-11/OQ-12 struck, OQ-2/OQ-10 advanced,
+this proposal's register + gaps brought to resolved. No code touched (ProviderResponseError is the
+M2.S3 build).
+
+## 2026-06-02 — `decompose-requirement` (M2.S3 ExtractionAgent — feature step 0)
+
+Forward design pass on **M2.S3 (`ExtractionAgent`)**, run by hand as the feature's step 0 (ritual
+integration still deferred, ADR 0002). Wrote `proposals/m2s3-extraction-agent.md` (`status: proposed`,
+register **OPEN** — D1–D6 / G1–G6 await the owner). Nine layers + nine stations + Mermaid data flow +
+"but what if" + gaps. Designs the three threads the post-M2.S2 sweep seeded: **OQ-10** (typed
+`ProviderResponseError` — envelope-malformed→failover vs schema-invalid→retry-prompt), **OQ-2** (agent
+stays single-paragraph; resumable batch driver → M2.S4), **OQ-5** (structural vs semantic injection).
+Surfaced two new open items and one host-doc flag:
+- **OQ-11** — `EntityCandidate.candidate_name` (surface form) vs the plan's "canonical_name" wording.
+- **OQ-12** — `evidence_quote` verification posture, dangling relations, PreNER-hint deferral.
+- **G6 / host flag** — spec §6.5's router comment lumps "malformed response schema → retry the prompt",
+  conflating the envelope-vs-schema split; flagged for a one-line spec clarification (owner's call).
+
+Also folded a **Codex review finding** (small-PR, no-PR-flow) into the vault directly: **INV-5's "writes
+one row on *every* terminal edge"** over-claimed coverage given OQ-10 — narrowed to "every terminal edge
+**the router currently handles**" + an explicit "known coverage gap (OQ-10)" clause, so a reader can't
+mistake INV-5 as already total before the `ProviderResponseError` work lands. Glossary +2
+(`prompt-injection`, `poison-message`; 16→18), learning-log +1, open-questions extended (OQ-2/5/10) +
+OQ-11/OQ-12 added, INDEX regenerated. No code/config/host-plan touched by the architect (the two
+host-side Codex findings are handed back to the main loop for `PLAN_SHORT.md`).
 
 ## 2026-06-02 — `review-architecture` (post-M2.S2 as-built sweep, Session 11 wrap)
 

@@ -453,27 +453,57 @@ All adapters are hand-rolled over `httpx` (mirroring `OllamaProvider`) rather th
 
 **Router (cascade):**
 
+# Amended 2026-06-08 (ADR 0003 as-built): the router ORCHESTRATES the call — it does
+# not hand back a provider. The earlier `route(task) -> LLMProvider` sketch is superseded:
+# failover, the budget gate, and ledger recording have no sensible home inside each agent.
+
 ```python
 class LLMRouter:
-    def route(self, task: Task) -> LLMProvider:
-        # Decision order:
-        # 1. If task is light (chunking, summary, simple structured extraction) → local_small
-        #    (on a GPU-less host local_small is unavailable → use the cheapest cloud_free model)
-        # 2. If task is medium (entity extraction, judge calls) → cloud_free (Ollama Cloud)
-        # 3. If task is heavy (editing, rewrite, long context) → cloud_strong, preferring OpenRouter,
-        #    then the direct providers in the configured order
-        # 4. Within-tier failover, error-discriminated: 429 rate-limit / 5xx → fail over to the next
-        #    configured provider; 401 bad-key → fail fast (skip, don't retry); malformed response
-        #    schema → retry the prompt N times then give up (the ChunkingAgent pattern)
-        # 5. If cloud_free quota is exhausted, OR the §6.6 daily budget cap is reached → PAUSE and ask
-        #    the user how to proceed. The router NEVER silently escalates to a paid tier (control-first).
-        #    (The old "degrade to local_small" applies only on a GPU-backed host where that tier exists.)
+    async def complete(
+        self,
+        messages: list[Message],
+        *,
+        weight: TaskWeight,        # "light" | "medium" | "heavy"
+        task_type: str,            # e.g. "chunking", "extraction" — labels the cost-ledger row
+        json_schema: dict | None = None,
+    ) -> CompletionResult:
+        # Tier by weight (system-derived, never caller-asserted — INV-7):
+        # 1. light  (chunking, summary, simple structured extraction) → local_small;
+        #    on a GPU-less host local_small is unavailable → cloud_free.
+        # 2. medium (entity extraction, judge calls)                  → cloud_free.
+        # 3. heavy  (editing, rewrite, long context)                  → cloud_strong,
+        #    preferring OpenRouter, then the direct providers in configured order.
+        #
+        # Budget gate (fail-closed, §6.6): before dispatching a PAID tier, if today's
+        # spend >= DAILY_BUDGET_USD → raise BudgetExceededError (pause-and-ask). Free
+        # tiers are never blocked. Bounded one-call overshoot accepted (single-user PoC).
+        #
+        # Within-tier failover, error-discriminated (one llm_calls row per attempt,
+        # including failures):
+        #   429 rate-limit                       → fail over (may be free-tier exhaustion)
+        #   401 bad-key / 5xx / transport error  → fail over, but NOT counted as quota
+        #   malformed-but-200 envelope           → fail over like a 5xx, via a typed
+        #     ProviderResponseError (record + move on — a dead provider is not a prompt
+        #     problem). DISTINCT from a schema-invalid body, which is the AGENT's job to
+        #     retry against the prompt (the ChunkingAgent pattern), never the router's.
+        #   other 4xx (e.g. 400)                 → re-raise (failover won't help)
+        #   provider 402 out-of-credit           → BudgetExceededError (never escalate)
+        #
+        # Exhaustion: only PURE 429 exhaustion of cloud_free across all providers →
+        # QuotaExhaustedError (pause-and-ask). A bad key / outage / network failure
+        # surfaces the real error, never a false "quota spent". A cap or quota pause
+        # NEVER silently escalates to a paid tier (control-first). (The old "degrade to
+        # local_small" applies only on a GPU-backed host where that tier exists.)
         ...
+
+# Schema validation + prompt-retry live in the AGENT (parse → validate → retry N then
+# give up), not the router; the router owns transport, tier, failover, the budget gate,
+# and the cost ledger. See §6.6 and docs/decisions/0003.
 ```
 
 The user must have UI control: a dropdown "which provider/model for this task" + global preferences per task type. The router shows the user which tier was selected and why; quota status (Ollama Cloud time remaining, paid spend so far) is visible at all times.
 
-**Failover (within a tier):** every call has a retry policy for network errors, schema-parse failures, and rate limits. If a provider rate-limits or errors, the router transparently retries against the next configured provider for the same tier, with the swap logged.
+**Failover (within a tier):** the router fails over on transport/network errors, rate limits (429), server errors (5xx), and a **malformed-but-`200` response envelope** (an unparseable wrapper — a dead provider, surfaced as a typed `ProviderResponseError`). If a provider rate-limits or errors, the router transparently retries against the next configured provider for the same tier, with the swap logged. A **schema-invalid body** (a parseable envelope whose JSON fails the Pydantic schema) is *not* a failover case — it is retried against the *prompt* by the **agent** (the ChunkingAgent pattern), since the provider is working and only the model's content didn't validate.
 
 **Agent orchestration:**
 
@@ -1105,5 +1135,5 @@ Return JSON:
   - Editing suggestions: `temperature=0.3`
   - Rewriting, style transfer: `temperature=0.7-0.9` (creative)
 - **Token budget:** every prompt must have estimated cost and be tested on a typical paragraph (300-600 words). Emergency cap per request.
-- **Failover:** every call has a retry policy for network errors, rate limits, and schema-parse failures. The router transparently swaps providers within a tier and logs the swap.
+- **Failover:** the router transparently swaps providers within a tier — and logs the swap — on network errors, rate limits, and a malformed-but-`200` response envelope (a dead provider). A *schema-invalid* body (parseable envelope, JSON fails Pydantic) is instead retried against the prompt by the agent (§6.5), not failed over.
 - **Prompts are code.** Keep in `backend/src/story_forge/prompts/` as `.j2` (Jinja2) files, version in git, test like any other code.
