@@ -114,6 +114,7 @@ parsing — all of these sit in unreachable code. Same class as the netty waiver
 | CVE-2026-39823 | HIGH | html/template (XSS via URLs in `<meta>` content attribute; ASCII-whitespace `=` bypass) | 1.25.10 / 1.26.3 — added 2026-05-27 (wave 3; class corrected from net/url after Codex P2) |
 | CVE-2026-39825 | HIGH | net/http/httputil (ReverseProxy forwards params past ParseQuery limit) | 1.25.10 / 1.26.3 — added 2026-05-27 (wave 3) |
 | CVE-2026-39826 | HIGH | html/template (XSS via `<script>` with empty/whitespace `type`) | 1.25.10 / 1.26.3 — added 2026-05-27 (wave 3) |
+| CVE-2026-42504 | HIGH | mime (quadratic `WordDecoder.DecodeHeader` on crafted encoded-words → CPU DoS; CWE-407, GO-2026-5038) | 1.25.11 / 1.26.4 — added 2026-06-08 (wave 4) |
 
 ## ollama — `ollama/ollama:0.24.0` (scanned upstream; consumed via `infra/ollama/` wrapper)
 
@@ -146,3 +147,4 @@ rebuilds ollama on patched Go.
 | CVE-2026-39823 | html/template | HIGH | XSS via URLs in `<meta>` content (added 2026-05-27 wave 3) | Go 1.25.10 / 1.26.3 | ollama returns JSON; renders no HTML templates |
 | CVE-2026-39825 | net/http/httputil | HIGH | ReverseProxy forwards params past ParseQuery limit (added 2026-05-27 wave 3) | Go 1.25.10 / 1.26.3 | ollama is an HTTP server, not a reverse proxy; ReverseProxy unused |
 | CVE-2026-39826 | html/template | HIGH | XSS via `<script>` with empty/whitespace `type` (added 2026-05-27 wave 3) | Go 1.25.10 / 1.26.3 | ollama returns JSON; renders no HTML templates |
+| CVE-2026-42504 | mime | HIGH | quadratic `WordDecoder.DecodeHeader` on crafted encoded-words → CPU DoS (CWE-407, GO-2026-5038; added 2026-06-08 wave 4) | Go 1.25.11 / 1.26.4 | DoS reachable only via crafted MIME headers; 127.0.0.1, backend is the only trusted client |

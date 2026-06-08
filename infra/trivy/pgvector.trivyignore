@@ -184,3 +184,8 @@ CVE-2026-39825
 # XSS. gosu renders no HTML templates, so the vulnerable code path is never
 # executed.
 CVE-2026-39826
+# CVE-2026-42504 — mime (HIGH): quadratic complexity in WordDecoder.DecodeHeader
+# (CWE-407) — a crafted MIME header with many invalid encoded-words consumes
+# excessive CPU (DoS). gosu decodes no MIME headers and takes no untrusted input,
+# so the vulnerable path is never executed. (GO-2026-5038.)
+CVE-2026-42504

@@ -94,3 +94,9 @@ CVE-2026-39825
 # returns JSON and renders no HTML templates, so the vulnerable code path is
 # unreachable.
 CVE-2026-39826
+# CVE-2026-42504 — mime (HIGH): quadratic complexity in WordDecoder.DecodeHeader
+# (CWE-407) — a crafted MIME header with many invalid encoded-words consumes
+# excessive CPU (DoS). Reachable only by feeding crafted MIME headers; ollama is
+# bound to 127.0.0.1 with the Story Forge backend as its only (trusted) client,
+# so there is no untrusted peer to inflict the DoS. (GO-2026-5038.)
+CVE-2026-42504
