@@ -65,8 +65,16 @@ path the tests assert — find the cases nobody wrote a test for. Check, concret
   psycopg, httpx); headers, timeouts, status handling; what happens on a 4xx/5xx/timeout.
 - **Output-schema strength** — does the Pydantic/validation schema for LLM (or any external)
   output actually *enforce its invariants*, or does a **parseable-but-malformed** response
-  (negative/reversed range, out-of-domain enum, empty required list) validate as **success**
-  and silently skip the retry path? Constrain what the type can express, don't just name it.
+  (negative/reversed range, out-of-domain enum, empty required list, **blank required string**)
+  validate as **success** and silently skip the retry path? Constrain what the type can express,
+  don't just name it. **Check validator symmetry:** when a schema validates *one* field for an
+  invariant (a non-empty `field_validator`, a `ge`/`le` range, a regex), audit **every sibling
+  field that shares the same semantic** for the same guard — an unvalidated sibling lets degenerate
+  output pass as success while its validated neighbour looks like the rule is covered. (PR #42: the
+  `ExtractionProposal` validated non-empty `candidate_name` but **not** the structurally-identical
+  relation `subject`/`predicate`/`object`, so `{"subject":"","predicate":"","object":""}` validated
+  as success — the gap slipped *both* the `/review-pr` and `/code-review` passes; external review
+  caught it.)
 - **Failover / retry / error-discrimination code** — enumerate *every* error class the call
   can raise and check each reaches its intended branch. Two failure modes recur: (a) **caught
   too narrowly** — a whole class slips through unhandled (un-recorded, un-retried). For HTTP

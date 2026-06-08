@@ -239,6 +239,25 @@ time (M3). At extraction time we have a surface mention, not a canonical name.
 - **PreNER hints:** wire the parameter but **defer injecting hints into the prompt** until a real eval
   exists (deterministic-first / no speculative features).
 
+### OQ-13 — Backend dependency-advisory scan (continuous SCA) in CI
+Raised by `decompose-requirement` 2026-06-08 (`[[backend-dependency-advisory-scan]]`). CI gates
+dependency *freshness* (14-day soak) + a *pin-time* OSV check (`/add-dependency`), but **nothing
+re-scans `backend/uv.lock`** against the advisory DB on later runs — so a vuln disclosed *after*
+pinning is caught only by **Dependabot** (post-merge on `main`), never pre-merge by CI. Proven by
+GHSA-86qp-5c8j-p5mr (`starlette` 1.0.0, MEDIUM, via `fastapi`): Dependabot flagged it, CI did not
+(Trivy scans only Docker images). Add a continuous backend [[software-composition-analysis]] gate —
+[[defense-in-depth]] *with* Dependabot, not a replacement.
+- **Options:** tool — `osv-scanner` (reads `uv.lock` natively, same OSV DB as `/add-dependency`) vs
+  `pip-audit` (PyPA, synced-env); gate — fail-on-**any** + scoped waivers vs HIGH/CRITICAL parity
+  with `npm audit`.
+- **✅ Register approved (owner, 2026-06-08):** the **G1–G7 cluster** — osv-scanner, fail-on-any +
+  scoped waivers, §6.7 amendment to document the gate, reuse the Trivy waiver split (sibling
+  `infra/osv/`), leave `npm audit` HIGH/CRITICAL, SHA-pin the scanner Action, §6.7 baseline control
+  (no new INV), explicit `starlette==1.0.1` pin. See `[[backend-dependency-advisory-scan]]` §7 hand-off.
+- **Stays open until the code lands** (same posture OQ-10 held): the **build is next-session** (one
+  branch — CI step + waiver scaffold + starlette bump), and the **spec §6.7 amendment lands *with*
+  the build** (not before — would otherwise claim a gate CI doesn't yet run). Open.
+
 ## Referenced — owned by spec §10 (not duplicated)
 
 The spec carries ten "decide as we go" questions; they remain the spec's to own. Listed here by
