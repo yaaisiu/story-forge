@@ -17,6 +17,7 @@ from __future__ import annotations
 from pydantic import BaseModel, ValidationError, field_validator
 
 from story_forge.adapters.llm.base import LLMProvider, ModelTier
+from story_forge.agents.json_output import extract_json
 from story_forge.prompts import PromptNotFound, render_messages
 
 DEFAULT_LOCAL_MAX_WORDS = 4000
@@ -59,6 +60,10 @@ class ChunkingError(RuntimeError):
     """Raised when no usable outline could be produced (bad language or bad output)."""
 
 
+# The output schema is constant for the class — build it once, not per call.
+_SCHEMA = ChunkingProposal.model_json_schema()
+
+
 def select_chunking_tier(
     word_count: int, *, local_available: bool, local_max_words: int
 ) -> ModelTier:
@@ -70,17 +75,6 @@ def select_chunking_tier(
     if local_available and word_count <= local_max_words:
         return "local_small"
     return "cloud_free"
-
-
-def _extract_json(text: str) -> str:
-    """Strip a surrounding markdown code fence if the model wrapped its JSON."""
-    stripped = text.strip()
-    if stripped.startswith("```"):
-        stripped = stripped.split("\n", 1)[1] if "\n" in stripped else stripped[3:]
-        fence = stripped.rfind("```")
-        if fence != -1:
-            stripped = stripped[:fence]
-    return stripped.strip()
 
 
 class ChunkingAgent:
@@ -115,7 +109,6 @@ class ChunkingAgent:
             local_available=self._local_available,
             local_max_words=self._local_max_words,
         )
-        schema = ChunkingProposal.model_json_schema()
 
         # Retry covers parse/schema failures only — a sampling model can return
         # valid JSON on a second pass. Network errors and rate limits are not
@@ -123,9 +116,9 @@ class ChunkingAgent:
         # later milestone), so a provider HTTP error propagates to the caller.
         last_error: ValidationError | None = None
         for _ in range(self._max_retries + 1):
-            result = await self._provider.complete(messages, tier, schema)
+            result = await self._provider.complete(messages, tier, _SCHEMA)
             try:
-                return ChunkingProposal.model_validate_json(_extract_json(result.content))
+                return ChunkingProposal.model_validate_json(extract_json(result.content))
             except ValidationError as exc:  # covers malformed JSON and schema violations
                 last_error = exc
         raise ChunkingError(

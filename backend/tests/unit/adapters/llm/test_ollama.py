@@ -12,7 +12,7 @@ import json
 import httpx
 import pytest
 
-from story_forge.adapters.llm.base import Message
+from story_forge.adapters.llm.base import Message, ProviderResponseError
 from story_forge.adapters.llm.ollama import OllamaProvider
 
 
@@ -153,4 +153,36 @@ async def test_raises_on_http_error_status() -> None:
         transport=httpx.MockTransport(handler),
     )
     with pytest.raises(httpx.HTTPStatusError):
+        await provider.complete([Message(role="user", content="hi")], "local_small")
+
+
+async def test_malformed_200_envelope_raises_provider_response_error() -> None:
+    # A 200 lacking `message.content` is a malformed envelope (OQ-10): raise the
+    # typed error so the router records + fails over, not a raw KeyError it can't
+    # catch.
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(200, json={"unexpected": "shape"})
+
+    provider = OllamaProvider(
+        host="http://127.0.0.1:11434",
+        model="qwen3.5",
+        transport=httpx.MockTransport(handler),
+    )
+    with pytest.raises(ProviderResponseError):
+        await provider.complete([Message(role="user", content="hi")], "local_small")
+
+
+async def test_null_content_200_raises_provider_response_error() -> None:
+    # A 200 whose `message.content` is null is an unusable envelope: raise so the
+    # router records + fails over, not pass content=None through to a
+    # CompletionResult that raises an uncaught ValidationError.
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(200, json={"message": {"role": "assistant", "content": None}})
+
+    provider = OllamaProvider(
+        host="http://127.0.0.1:11434",
+        model="qwen3.5",
+        transport=httpx.MockTransport(handler),
+    )
+    with pytest.raises(ProviderResponseError):
         await provider.complete([Message(role="user", content="hi")], "local_small")

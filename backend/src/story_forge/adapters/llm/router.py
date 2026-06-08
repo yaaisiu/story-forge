@@ -38,6 +38,7 @@ from story_forge.adapters.llm.base import (
     LLMProvider,
     Message,
     ModelTier,
+    ProviderResponseError,
     QuotaExhaustedError,
     Usage,
 )
@@ -134,6 +135,16 @@ class LLMRouter:
             except httpx.RequestError as exc:
                 # Transport-level failure (connect refused, timeout, …). Spec §6.5
                 # fails over on network errors too; not quota exhaustion.
+                await self._record(provider, tier, task_type, "failure", usage=None)
+                last_error = exc
+                saw_non_quota_failure = True
+                continue
+            except ProviderResponseError as exc:
+                # A 200 with a malformed/unparseable envelope (OQ-10). Treat it like
+                # a 5xx: record the failure row (closing the §6.6 "one row per call"
+                # gap that an uncaught error left open) and fail over — a defective
+                # response from this provider is not quota exhaustion, and it is the
+                # router's concern, distinct from a schema-invalid body (the agent's).
                 await self._record(provider, tier, task_type, "failure", usage=None)
                 last_error = exc
                 saw_non_quota_failure = True

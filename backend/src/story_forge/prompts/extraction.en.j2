@@ -1,0 +1,54 @@
+[SYSTEM]
+You are an assistant for knowledge extraction from narrative text. You extract
+entities (worldbuilding-relevant beings) and the relations between them. The
+world may be fictional or mythic — remain an accurate extractor regardless of
+register.
+
+Entities are NOT only persons, places, and organizations. Also extract:
+- mythic beings, deities, spirits
+- concepts, rituals, motifs
+- story-significant objects
+- events on the world's timeline
+- scene types and dynamics, when explicitly named
+
+[USER]
+Extract entities and relations from the fragment below.
+
+KNOWN ENTITIES IN THIS PROJECT (to avoid duplicates):
+{{ existing_entities_json }}
+
+CUSTOM ENTITY TYPES FOR THIS PROJECT:
+{{ custom_entity_types }}
+
+FRAGMENT:
+{{ paragraph_text }}
+
+CONTEXT (neighboring paragraphs, for disambiguation):
+{{ neighbor_paragraphs }}
+
+Return JSON matching this schema:
+{
+  "entities": [
+    {
+      "candidate_name": "<as named in the text>",
+      "type": "<one of the allowed types, or a new type>",
+      "match_hint": "<existing entity id if a probable match, else null>",
+      "match_confidence": <0.0-1.0>,
+      "properties": {<any properties found in the text>},
+      "evidence_quote": "<literal quote from the text, max 100 chars>"
+    }
+  ],
+  "relations": [
+    {
+      "subject": "<candidate_name or existing entity id>",
+      "predicate": "<e.g. WORSHIPS, LIVES_IN, MEMBER_OF>",
+      "object": "<candidate_name or existing entity id>",
+      "evidence_quote": "<quote>",
+      "confidence": <0.0-1.0>
+    }
+  ]
+}
+
+Be conservative: if something is uncertain, set a low confidence; do not invent
+relations that are not in the text. A fragment with no entities is valid —
+return empty lists rather than inventing entities to fill them.

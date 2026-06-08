@@ -14,7 +14,11 @@ import json
 import httpx
 import pytest
 
-from story_forge.adapters.llm.base import BudgetExceededError, Message
+from story_forge.adapters.llm.base import (
+    BudgetExceededError,
+    Message,
+    ProviderResponseError,
+)
 from story_forge.adapters.llm.openrouter import OpenRouterProvider
 
 FAKE_KEY = "k"  # non-keyword var name so detect-secrets ignores the literal
@@ -148,6 +152,68 @@ async def test_other_http_error_raises_status_error() -> None:
         transport=httpx.MockTransport(handler),
     )
     with pytest.raises(httpx.HTTPStatusError):
+        await provider.complete([Message(role="user", content="hi")], "cloud_strong")
+
+
+async def test_malformed_200_envelope_raises_provider_response_error() -> None:
+    # A 200 whose body lacks `choices[0].message.content` is a malformed envelope
+    # (OQ-10), distinct from a 5xx and from schema-invalid content. The adapter must
+    # raise ProviderResponseError so the router records + fails over, not crash with
+    # a raw KeyError the router doesn't catch.
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(200, json={"unexpected": "shape", "usage": {}})
+
+    provider = OpenRouterProvider(
+        host="https://openrouter.ai/api/v1",
+        model="x",
+        api_key=FAKE_KEY,
+        cost_per_1k_tokens=(1.0, 1.0),
+        transport=httpx.MockTransport(handler),
+    )
+    with pytest.raises(ProviderResponseError):
+        await provider.complete([Message(role="user", content="hi")], "cloud_strong")
+
+
+async def test_null_content_200_raises_provider_response_error() -> None:
+    # A 200 whose `message.content` is null (a content-filter refusal or a
+    # tool-call-only reply) is an unusable envelope: it must raise so the router
+    # records + fails over, NOT pass content=None through to CompletionResult where
+    # it would raise an uncaught ValidationError (no ledger row, no failover).
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(
+            200,
+            json={
+                "model": "m",
+                "choices": [{"message": {"role": "assistant", "content": None}}],
+                "usage": {"prompt_tokens": 1, "completion_tokens": 0},
+            },
+        )
+
+    provider = OpenRouterProvider(
+        host="https://openrouter.ai/api/v1",
+        model="x",
+        api_key=FAKE_KEY,
+        cost_per_1k_tokens=(1.0, 1.0),
+        transport=httpx.MockTransport(handler),
+    )
+    with pytest.raises(ProviderResponseError):
+        await provider.complete([Message(role="user", content="hi")], "cloud_strong")
+
+
+async def test_unparseable_200_body_raises_provider_response_error() -> None:
+    # A 200 with a non-JSON body (e.g. an HTML error page) is also a malformed
+    # envelope — same handling, raised at the parse step.
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(200, text="<html>not json</html>")
+
+    provider = OpenRouterProvider(
+        host="https://openrouter.ai/api/v1",
+        model="x",
+        api_key=FAKE_KEY,
+        cost_per_1k_tokens=(1.0, 1.0),
+        transport=httpx.MockTransport(handler),
+    )
+    with pytest.raises(ProviderResponseError):
         await provider.complete([Message(role="user", content="hi")], "cloud_strong")
 
 
