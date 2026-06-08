@@ -19,14 +19,16 @@ related: ["[[overview]]", "[[invariants]]", "[[open-questions]]", "[[project]]",
 > "looks okay at a glance"): **osv-scanner** (D1/G1), **fail-on-any + scoped waiver file** (D2),
 > **§6.7 amendment to document the gate** (G2), **reuse the Trivy waiver split** — scoped ignore +
 > a `WAIVERS.md`-style register, condition-based expiry, in a sibling `infra/osv/` (D3/D4/G3),
-> **leave `npm audit` at HIGH/CRITICAL** for now (D5/G4), **SHA-pin the scanner Action** (D6/G5),
+> **leave `npm audit` at HIGH/CRITICAL** for now (D5/G4), **pin the scanner immutably** (D6/G5 —
+> approved as a SHA-pinned Action; **built as a stronger digest-pinned container** once the action
+> turned out to be a no-`runs:` stub, see D6 As-built),
 > **§6.7 baseline control, not a new invariant** (D-INV/G6), and the **explicit `starlette==1.0.1`
 > pin** as the bundled bump + the gate's first self-test (D7/G7). Each entry below is now the
 > **Decision**. The decisions are **reversible config** — any G-item is revisitable at build time.
-> **Build deferred to the next session** (CI step + waiver scaffold + starlette bump, one branch);
-> **the spec §6.7 amendment lands *with* the build**, not before — amending §6.7 to claim a gate
-> the CI doesn't yet run would create spec↔code drift. `[[open-questions]]` OQ-13 stays open until
-> the code lands (same posture OQ-10 held).
+> **Built the same session (PR #44)** — CI step + waiver scaffold + starlette bump, one branch; the
+> **spec §6.7 amendment landed *with* the build** (amending §6.7 to claim a gate the CI didn't yet
+> run would create spec↔code drift). `[[open-questions]]` OQ-13 is **closed in code** (it held open
+> until the code landed — same posture OQ-10 held).
 
 **Requirement (operator):** close the gap where a vulnerability **disclosed *after* a package is
 pinned** is invisible to CI. Story Forge gates dependency *freshness* (≥14-day soak,
