@@ -121,6 +121,18 @@ repo, not the diff's touched files**:
 - **Leave genuine history intact.** Append-only records — ADR original text under a superseded
   annotation, `CHANGELOG`/`learning-log` entries, a struck plan item, a review's accurate scope
   reference — are *correct as-is*; don't "fix" history into the present.
+- **When THIS PR flips a proposal/ADR `proposed → accepted` (or resolves a register), its stalest
+  homes are the ones the *same author wrote earlier* describing it as open** — and a keyword grep for
+  the *decision* misses them because they describe the proposal's *status*, not its content. Two are
+  near-guaranteed: (a) the **navigation notes** — the vault `INDEX.md` proposal-table row *and* its
+  "Next steps" list still say "proposed / register OPEN / awaiting owner"; (b) the **plan task** the
+  decision changes — e.g. a field-name decision (`candidate_name` over `canonical_name`) leaves the
+  `docs/PLAN_SHORT.md` session task telling the implementer the *old* field, so a plan-first build
+  writes the wrong code. So: grep the **proposal's own slug + status words** (`proposed`, `OPEN`,
+  `register OPEN`, `awaiting owner`, "when accepted", "when M2.Sx lands") across `INDEX.md` + both
+  plan files, and **diff each new decision against the task that implements it**. (PR #39: the
+  self-review claimed §2 clean but missed exactly the INDEX row, the next-steps, and the Session-3
+  `canonical_name` task — external review caught all three.)
 
 This **subsumes the deferred vault/docs-PR lens** (no-duplication of sources of truth +
 tense-vs-as-built honesty): same discipline, same verify-by-grep. The reliable move is to run the
