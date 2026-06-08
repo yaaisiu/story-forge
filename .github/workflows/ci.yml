@@ -92,6 +92,31 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: python3 scripts/check_dependency_age.py
+      - name: OSV-Scanner — backend lockfile SCA (fail on any advisory)
+        # Continuous SCA: scans backend/uv.lock against the OSV advisory DB on
+        # every PR — the PyPI analogue of the frontend's `npm audit` step, and
+        # the continuous complement to /add-dependency's one-shot pin-time OSV
+        # check. It catches an advisory disclosed *after* a version was pinned
+        # (the gap that let the starlette 1.0.0 alert reach `main` unseen — the
+        # Trivy steps below scan only Docker images, nothing scanned uv.lock).
+        # FAIL-ON-ANY: osv-scanner exits 1 on any unwaived advisory (spec §6.7).
+        # Waivers are scoped to infra/osv/osv-scanner.toml (register: WAIVERS.md);
+        # prefer a fix (bump via /add-dependency) over a waiver.
+        #
+        # The scanner is pinned by IMMUTABLE IMAGE DIGEST, not a tag (§6.7
+        # supply-chain pinning applies to the scanner too — the gate meant to
+        # catch supply-chain risk must not be one). The functional path is the
+        # container, not google/osv-scanner-action: that repo's root action.yml
+        # is a metadata stub with no `runs:` block, and its reusable workflows
+        # do a PR *diff* scan (would miss an advisory already on `main`) or a
+        # SARIF-upload recursive scan — neither is a scoped fail-on-any lockfile
+        # step. v2.3.8 (released 2026-05-11) clears the 7-day scanner soak.
+        run: |
+          docker run --rm \
+            -v "${{ github.workspace }}/backend:/src:ro" \
+            -v "${{ github.workspace }}/infra/osv/osv-scanner.toml:/cfg/osv.toml:ro" \
+            ghcr.io/google/osv-scanner:v2.3.8@sha256:64e86bec6df2466feea5137fc7c78fb3b7c21ec077f014d7130f64810e50676b \
+            scan source -L /src/uv.lock --config=/cfg/osv.toml
       - name: docker compose config (syntax + env interpolation)
         env:
           POSTGRES_USER: cival
