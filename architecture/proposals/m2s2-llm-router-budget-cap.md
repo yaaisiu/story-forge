@@ -180,7 +180,7 @@ is the effect on **every** terminal edge (evidence, INV-5).
 
 ```mermaid
 flowchart TD
-    A[Agent: complete task] --> R[LLMRouter.route task]
+    A[Agent: complete task] --> R[LLMRouter.complete task]
     R -->|light| T1[local_small]
     R -->|medium| T2[cloud_free / Ollama Cloud]
     R -->|heavy| T3[cloud_strong: OpenRouter preferred; direct adapters deferred]

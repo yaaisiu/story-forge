@@ -37,6 +37,15 @@ git status --short && git log --oneline -10
 Then verify each "Verify on disk" anchor literally — that the files/dirs the handoff
 says should (or should not) exist actually do. Use `ls`/`Read`/`Glob`, don't assume.
 
+**When an anchor asserts *infrastructure* state — a service container runs, a CI job
+has a given service, a DB has a table — verify it *runs/exists*, not just that a config
+file mentions it.** A handoff that says "CI's neo4j service runs" gets a `grep` of
+`.github/workflows/*.yml` for that service; "table X is in the schema" gets checked
+against the migrations (or a live `\d` / `SHOW`); "the compose service works" gets a real
+`docker compose up` + healthcheck. *Scanned/config-valid ≠ runs* — Session 15 lost time to
+a handoff that twice asserted infra state (a table "already in the schema", "CI runs
+neo4j") that file-presence checks had passed but that was false.
+
 ## 4. Reconcile — surface drift, don't paper over it
 
 Compare what you found against the handoff. If anything disagrees — an anchor file is
