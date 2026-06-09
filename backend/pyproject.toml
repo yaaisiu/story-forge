@@ -34,6 +34,11 @@ dependencies = [
   "jinja2==3.1.6",
   "httpx==0.28.1",
   "spacy==3.8.14",
+  # Async Neo4j driver for the M2.S4 graph writes. Pinned to the 5.x LTS driver
+  # line to match the 5.26-community server (docker-compose.yml) — same-major is
+  # the lowest-risk compatibility choice; the 6.x line targets the newer 2025.x
+  # servers we don't run.
+  "neo4j==5.28.4",
 ]
 
 [dependency-groups]
