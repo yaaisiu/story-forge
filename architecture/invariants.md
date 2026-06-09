@@ -1,7 +1,7 @@
 ---
 type: invariants
 slug: invariants
-updated: 2026-06-08
+updated: 2026-06-09
 status: living
 related: ["[[overview]]", "[[project]]", "[[open-questions]]"]
 ---
@@ -58,8 +58,9 @@ Entity `type` and relation type are open-world (**ontologia otwarta** — the se
 fixed up front and grows as real text demands; see [[open-world-ontology]]). Code must treat
 `type` as a free string with examples that *constrain but do not restrict*, never a hard enum.
 - **Source:** §3.2 ("the entity schema is NOT defined upfront … extensible").
-- **Enforced at:** the `EntityCandidate`/`RelationCandidate` Pydantic schemas (M2.S3) — string
-  `type`, no `Enum`. Guard against a future contributor "tidying up" types into an enum.
+- **Enforced at:** *(as-built, M2.S3)* the `EntityCandidate.type` / `RelationCandidate.predicate`
+  fields (`agents/extraction_agent.py`) are free `str`, **no `Enum`** — a never-before-seen type
+  validates. Guard against a future contributor "tidying up" types into an enum.
 
 ### INV-5 — Every LLM call is recorded and budget-bounded
 Every LLM operation records `model, input_tokens, output_tokens, cost_estimate`; spend is
@@ -72,12 +73,12 @@ exceeded.
   router currently handles** — success, refusal, and failure (HTTP `HTTPStatusError`, transport
   `RequestError`, `BudgetExceededError`). Guard: a call that would breach the cap is refused, not
   logged-after.
-- **Known coverage gap (OQ-10, closes in M2.S3):** a provider returning `200` with a *malformed
-  envelope* raises a parse error *inside* `provider.complete()` that the router does **not** yet catch
-  — so that one edge writes **no** row, a real (if narrow) hole in "one row per call incl. failures"
-  (§6.6). Do not read INV-5 as already total until the typed `ProviderResponseError` path
-  (`[[m2s3-extraction-agent]]` D2) lands and the router records + fails over on it. Tracked as
-  `[[open-questions]]` OQ-10 + a `docs/PLAN_SHORT.md` M2.S3 cross-cutting item.
+- **OQ-10 closed (as-built, M2.S3 / PR #42):** the former coverage gap — a provider returning `200`
+  with a *malformed envelope* — is now recorded + failed-over, not crashed. `ProviderResponseError`
+  (`adapters/llm/base.py`) is raised by **both** adapters at the envelope-unwrap point (incl. the
+  null-`content` case) and caught by the router (`router.py`), which writes a failure row + fails over
+  like a 5xx. INV-5 is now **total** over the edges the router handles. (History: `[[open-questions]]`
+  OQ-10, `[[m2s3-extraction-agent]]` D2.)
 - **Note:** the cap is **fail-closed** — exceed budget ⇒ deny, never "allow and warn".
 - **Record durability (as-built):** the ledger commits on its **own short-lived connection**, not the
   request transaction — so a *failure* row survives a request that rolls back on the very failure it

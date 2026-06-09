@@ -44,7 +44,8 @@ related: []
 | [[backend-dependency-advisory-scan]] | proposal | **Continuous backend SCA gate in CI (✅ built 2026-06-08, PR #44)** — closes the gap where a vuln disclosed *after* pinning was caught only by Dependabot, not CI (the `starlette` 1.0.0 case). Built: osv-scanner step vs `uv.lock`, fail-on-any, **digest-pinned** scanner (the action is a no-`runs:` stub — stronger than the planned SHA-pin), `infra/osv/` waivers, `starlette` 1.0.0→1.0.1 (self-test red→green), §6.7 baseline (no new INV). |
 | [[m2s3-extraction-agent]] | proposal | **M2.S3 nine-layer pass (✅ accepted 2026-06-08, register resolved)** — `ExtractionAgent`, first `LLMRouter` consumer. Decisions: per-paragraph, single-paragraph agent (batch→M2.S4), `candidate_name`, typed `ProviderResponseError`, soft-flag `evidence_quote`. **Built + merged (PR #42).** |
 | [[m2s2-llm-router-budget-cap]] | proposal | M2.S2 nine-layer pass: paid adapters + router + budget cap + status endpoint |
-| [[2026-06-02-architecture-review-post-m2s2]] | review | **current health snapshot** — post-M2.S2 as-built drift sweep (no blockers/risks; watches: latency OQ-9, malformed-envelope OQ-10, redaction, state-machine undrawn) |
+| [[2026-06-09-architecture-review]] | review | **current health snapshot** — pre-M2.S4 drift + forward sweep (no blockers; `risk`: `overview.md` 3 sessions stale, `entity_mentions` table absent from migrations, INV-8 needs CREATE-not-MERGE, new write-path must map router errors→HTTP; M2.S4 plan aligned; OQ-1/OQ-2 are the owner's calls) |
+| [[2026-06-02-architecture-review-post-m2s2]] | review | post-M2.S2 as-built drift sweep (superseded as snapshot by 2026-06-09; no blockers/risks; watches: latency OQ-9, malformed-envelope OQ-10 — now closed, redaction, state-machine undrawn) |
 | [[2026-06-02-architecture-review]] | review | OQ-A drift sweep over M0→M2.S1 + ADRs 0001–0002 (point-in-time; findings resolved by ADR 0003) |
 
 ## Awaiting content (populated by later runs)
@@ -73,11 +74,16 @@ related: []
    starlette bump.~~ ✅ **done 2026-06-08 (PR #44)** — register resolved + gate built the same day:
    `osv-scanner` step (fail-on-any, digest-pinned), `infra/osv/` waivers, `starlette` 1.0.0→1.0.1
    (self-test red→green), spec §6.7 amended. [[open-questions]] OQ-13 closed in code.
-8. **Next:** **M2.S4** (Neo4j writes, no dedupe). Carry the post-M2.S2 watches: resolve **OQ-9**
-   (latency) before M2.S5; keep INV-6 redaction-before-logging in mind. Candidate architect
-   deep-dives: draw the **LLM-call state machine** (`state-machines/`, the first one) and/or the
-   first `components/` note (OQ-C). (Ritual integration still deferred per ADR 0002 — evidence points
-   at `/wrap-session`.)
+8. ~~Pre-M2.S4 drift + forward sweep (owner-requested).~~ ✅ **done 2026-06-09** —
+   [[2026-06-09-architecture-review]]. No blockers; M2.S4 plan aligned with the invariants.
+9. **Next:** **build M2.S4** (Neo4j writes, no dedupe). Honour the sweep's forward `risk`s: create the
+   `entity_mentions` table in a **new migration** (it's not in the schema — only spec §6.4); hold INV-8
+   with `CREATE`-not-`MERGE` + a failing no-dedupe test; map the router's exit exceptions to HTTP on the
+   new write path. Owner calls as the session opens: **OQ-1** (two-store write-order + consistency
+   posture) and **OQ-2** (batch-driver owns the pause-and-ask catcher). Recommended drift-fixes await
+   approval (refresh `overview.md`'s snapshot, flip INV-5's OQ-10 clause). Still-carried watches: **OQ-9**
+   (latency) before M2.S5; INV-6 redaction-before-logging. Architect deep-dives still on offer: the
+   **LLM-call state machine** (`state-machines/`, the first) and/or the first `components/` note (OQ-C).
 
 _Run log: see [[changelog]]. Seeded by `initialize-project-architecture`; extended by
 `review-architecture` + `decompose-requirement`, 2026-06-02._

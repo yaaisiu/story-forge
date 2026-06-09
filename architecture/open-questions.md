@@ -1,9 +1,9 @@
 ---
 type: open-questions
 slug: open-questions
-updated: 2026-06-08
+updated: 2026-06-09
 status: living
-related: ["[[overview]]", "[[project]]", "[[invariants]]", "[[2026-06-02-architecture-review]]", "[[m2s3-extraction-agent]]"]
+related: ["[[overview]]", "[[project]]", "[[invariants]]", "[[2026-06-02-architecture-review]]", "[[m2s3-extraction-agent]]", "[[2026-06-09-architecture-review]]"]
 ---
 
 # Open questions — Story Forge
@@ -58,6 +58,13 @@ mention write fails (or vice versa)?
 - **My proposal:** (c) for the PoC (single user, low volume, reversible), with a cheap
   consistency check surfaced in the UI — but flag it as a real seam to revisit if it bites.
 - **Lands in:** M2.S4 (first time both writes coexist). Open.
+- **Now live + a trap (pre-M2.S4 sweep, 2026-06-09 — `[[2026-06-09-architecture-review]]`):** this is
+  M2.S4's first owner call (confirm write-order Neo4j-then-Postgres + posture (c) before wiring).
+  **Trap:** the Postgres `entity_mentions` table this seam assumes **does not exist in the migrations**
+  — only spec §6.4 defines it (the M1 schema has projects/stories/chapters/scenes/paragraphs +
+  llm_calls). M2.S4 must **create it in a new Alembic migration** (+ extend `EXPECTED_TABLES`), not
+  inherit it. The `docs/PLAN_SHORT.md` handoff's "already in M1's schema, verify before re-migrating"
+  was wrong and is **fixed there** (2026-06-09). Spec §6.4 is the authority and is correct.
 
 ### OQ-2 — Ingest job partial-failure recovery
 *But what if* extraction dies halfway through a 50k-word story? Is the job resumable, or does
@@ -77,6 +84,12 @@ side effects?
   **batch driver + catcher land in M2.S4**, where the graph write + `entity_mentions` give a durable
   "last-done" checkpoint. The agent-level decision is made; OQ-2 stays open only for the M2.S4 batch
   driver itself.
+- **Now live (pre-M2.S4 sweep, 2026-06-09 — `[[2026-06-09-architecture-review]]`):** the catcher is
+  M2.S4's to build. Confirm the **batch driver** (not the agent) owns the `except
+  BudgetExceededError`/`QuotaExhaustedError` → pause-resumably, using the persisted graph write +
+  `entity_mentions` as the durable "last-done" anchor (see [[idempotency]]). Related: the new
+  graph-write **API path must map the router's exit exceptions to HTTP** (502/402-style) — today
+  `api/stories.py` catches only `ChunkingError`, so an exhausted router on the new path would 500.
 
 ### ~~OQ-3 — `cloud_free` quota-exhausted behaviour~~ ✅ Resolved 2026-06-02
 **Resolution** (ADR 0003; spec §6.5 amended): on a GPU-less host the `local_small` degrade target
@@ -193,7 +206,14 @@ it either.
 - **My proposal:** (a) — it's a one-column migration and the panel already promises it; capturing
   wall-clock around `provider.complete` is trivial and system-derived. Decide **before M2.S5**. Open.
 
-### OQ-10 — Malformed-`200`-envelope: record + fail over, don't crash
+### ~~OQ-10 — Malformed-`200`-envelope: record + fail over, don't crash~~ ✅ Closed in code 2026-06-08 (PR #42)
+**Closed in code 2026-06-08 (PR #42)** (confirmed by the 2026-06-09 sweep —
+`[[2026-06-09-architecture-review]]`): the typed `ProviderResponseError(RuntimeError)` is defined in
+`adapters/llm/base.py`, raised by **both** adapters at the envelope-unwrap point (incl. the
+null-`content` case the PR-#42 `/code-review` caught — `ollama.py`, `openrouter.py`), and caught by the
+router (`router.py`) which records a failure row + fails over, exactly like a 5xx. INV-5 is now total
+over the edges the router handles; INV-5's note still carries the stale "open gap" prose (a
+recommended drift-fix, see the sweep Hand-off). Original framing kept below for history.
 Raised by the post-M2.S2 sweep; predicted by the proposal §7. A provider returning `200` with a
 broken body (missing `choices`/`message`, an error shaped as success, a proxy injecting JSON) raises
 a parse error *inside* `provider.complete()`; the router catches `HTTPStatusError` + `RequestError`

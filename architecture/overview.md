@@ -1,7 +1,7 @@
 ---
 type: overview
 slug: overview
-updated: 2026-06-02
+updated: 2026-06-09
 status: living
 related: ["[[project]]", "[[invariants]]", "[[open-questions]]", "[[cascade-matching]]", "[[model-tier-routing]]"]
 ---
@@ -28,7 +28,7 @@ strategize forward*. So this overview is grounded in what the code actually does
 only what the spec plans. (Authoritative roadmap: `docs/PLAN_SHORT.md`; runtime truth: the
 code.)
 
-**Built and merged (M0 → M2.S1):**
+**Built and merged (M0 → M2.S3):**
 - **M0** — secure-by-default infra: docker-compose with Neo4j, Postgres+pgvector, Ollama,
   all localhost-bound and non-root; pinned/aged deps; CI (`ci.yml`).
 - **M1** — upload + structure: `.txt/.md/.docx` upload (sandboxed storage,
@@ -37,21 +37,28 @@ code.)
   frontend (upload screen + outline editor) wired through a typed API client.
 - **M2.S1** — `PreNERAgent`: a deterministic, **no-LLM** spaCy baseline that returns candidate
   spans per paragraph (`agents/prener_agent.py`).
+- **M2.S2** — the paid LLM tier + routing (PR #36): `OpenRouterProvider` (the only paid adapter
+  built), the `LLMRouter` (tier selection + error-discriminated within-tier failover + fail-closed
+  budget cap), the `llm_calls` cost ledger (`PostgresCostStore`, independent-commit), and the
+  `GET /llm/status` endpoint (`adapters/llm/{base,ollama,openrouter,router,cost,postgres_cost_store}.py`,
+  `api/llm.py`). Provider order + OpenRouter-only scope: `docs/decisions/0003`.
+- **M2.S3** — `ExtractionAgent` (PR #42): the first `LLMRouter` consumer — one paragraph → an
+  `ExtractionProposal` of entity/relation candidates, render→call→validate→retry, with the typed
+  `ProviderResponseError` envelope-failover path (OQ-10, closed) (`agents/extraction_agent.py`).
 
-**Planned, not yet built (M2.S2 → M2.S6, then M3+):**
-- M2.S2 — the extended Ollama seam + `OpenRouterProvider` (the only paid adapter built now), the
-  `LLMRouter`, cost tracking + budget cap, status endpoint. *(The next product session; only
-  `adapters/llm/{base,ollama}.py` exist. Provider order + OpenRouter-only scope: `docs/decisions/0003`.)*
-- M2.S3 — `ExtractionAgent` (entities + relations from a paragraph).
-- M2.S4 — Neo4j writes, **no dedupe** (every candidate = a new node — see [[invariants]] #8).
+**Planned, not yet built (M2.S4 → M2.S6, then M3+):**
+- M2.S4 — Neo4j writes, **no dedupe** (every candidate = a new node — see [[invariants]] #8);
+  `entity_mentions` Postgres back-reference (a **new** migration — the table is in spec §6.4 but
+  not yet in the schema); the resumable batch driver (OQ-2). *(The next product session.)*
 - M2.S5 — frontend graph viewer + agent-activity panel.
 - M2.S6 — optional direct vendor adapters (Grok/Anthropic/Google/OpenAI, as needed) + integration polish (closes M2). *(OpenRouter moved up to M2.S2 — `docs/decisions/0003`.)*
 - M3 — the **cascade matching** dedupe (Stages 1–4: fuzzy → embedding → LLM judge → human),
   the heart of the product (§3.3, [[cascade-matching]]).
 
-So today Story Forge ingests and structures text and produces deterministic candidate spans;
-it does **not** yet extract entities with an LLM, write the graph, or dedupe. That ordering is
-deliberate — deterministic-first, smallest blast radius (see [[prefer-deterministic]]).
+So today Story Forge ingests and structures text, produces deterministic candidate spans, and
+**extracts entity/relation candidates with an LLM** (routed, budgeted, recorded) — but it does
+**not** yet write the graph or dedupe. That ordering is deliberate — deterministic-first,
+smallest blast radius (see [[prefer-deterministic]]).
 
 ---
 
@@ -178,7 +185,7 @@ Applied to the system as a whole, with empty boxes named:
 | **Policy** | ✅ partial | spec §6.7 security baseline; the cascade thresholds (§3.3); budget cap (§6.6) |
 | **Decision** | ✅ | router tier choice (§6.5); cascade stage decisions; **human** at Stage 4 |
 | **Access** | n/a — no inter-user access control | localhost-only binding is the only "access" gate |
-| **Monitoring** | ◻ planned | agent-activity panel + status endpoint (M2.S2/S5) — not built yet |
+| **Monitoring** | ✅ partial | `GET /llm/status` + the `llm_calls` ledger built (M2.S2); the agent-activity panel that surfaces them is M2.S5 |
 | **Evidence** | ✅ designed | `edit_history`, per-call LLM logs, reversibility (§4.2, §11) |
 | **Expiry** | ◻ gap | no retention/cleanup policy for uploads, logs, or orphaned sandboxes — **open** |
 | **Review** | ✅ | Stage 4 human-in-the-loop *is* the review station, by design (§3.3) |
