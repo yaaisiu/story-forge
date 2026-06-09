@@ -59,8 +59,18 @@ services:
       NEO4J_AUTH: "${NEO4J_AUTH:?must be set in .env, format neo4j/PASSWORD}"
       # Accept the Neo4j EULA for the Community edition.
       NEO4J_ACCEPT_LICENSE_AGREEMENT: "yes"
-      # Keep telemetry off — see spec §6.7 "no telemetry".
-      NEO4J_server_metrics_enabled: "false"
+      # §6.7 "no telemetry". Three things to know:
+      #  - Metrics (`server.metrics.*`) are Enterprise-only — Community has no
+      #    metrics subsystem, so there is nothing to disable and the old
+      #    `NEO4J_server_metrics_enabled: "false"` was invalid; Community runs
+      #    strict config validation and refused to boot on the unknown setting.
+      #  - The two channels Community *does* ship, both default-on, are disabled
+      #    below (verified against `SHOW SETTINGS` on 5.26-community): Browser/Bloom
+      #    client telemetry and the usage/version "phone home" report.
+      #  - `server.bolt.telemetry.enabled` already defaults false; left as-is.
+      # Env mapping: a setting's "." becomes "_" and its "_" becomes "__".
+      NEO4J_client_allow__telemetry: "false"        # client.allow_telemetry
+      NEO4J_dbms_usage__report_enabled: "false"     # dbms.usage_report.enabled
     volumes:
       - neo4j_data:/data
       - neo4j_logs:/logs
