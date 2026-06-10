@@ -10,21 +10,18 @@ Story Forge is a local web application that helps a solo author analyze, annotat
 
 ## Workflow rules (non-negotiable)
 
-### 0. Concurrent agents share this working tree
+### 0. Commit hygiene on the working tree
 
-Two AI agents may work in this repository: **Claude Code** (running directly in WSL) and
-**Codex Desktop** (on the Windows/UNC view of the *same* WSL checkout). They share **one
-working tree**, so each must assume the other may have left uncommitted changes:
+Story Forge is developed by **Claude Code** in WSL. (Codex Desktop once shared this working
+tree as a second agent; it is **retired** — the only residual is the GitHub-wired Codex PR
+review, covered by the *Review model* note under Merge flow.) Two habits earned their place
+then and are worth keeping regardless of how many agents touch the tree:
 
 - **Stage explicit paths for your commit — never `git add -A` / `git add .`.** Add only the
-  files your change owns, so you cannot sweep the other agent's in-flight work into your PR.
+  files your change owns, so unrelated in-flight edits never get swept into your PR.
 - **If `git status` shows changes you did not make, surface them — do not absorb or delete
   them.** Keep them out of your commit; land them on their own branch/PR or hand them back to
-  the user. (Session 9: Codex's `AGENTS.md` / `.codex/` edits appeared mid-session and were
-  landed separately as PR #32, keeping the architecture-vault PR surgical.)
-- **Codex runtime boundary:** when operating from Codex Desktop, read `.codex/RUNTIME_NOTES.md`
-  before using local shell results as evidence (PowerShell/UNC host, no WSL shell access, the
-  filemode/symlink-artifact caveat). Claude Code in WSL keeps its normal Linux shell workflow.
+  the user.
 
 ### 1. Karpathy rules — apply on every change
 
@@ -66,7 +63,7 @@ Every major directory has its own `AGENTS.md` with conventions specific to that 
 
 If a directory's `AGENTS.md` contradicts this root file, the more specific (directory-level) file wins for that area — but flag the contradiction so we can fix it.
 
-Each `CLAUDE.md` is a **symlink to its sibling `AGENTS.md`** — one source of truth, read by both Claude Code (`CLAUDE.md`) and Codex/other agents (`AGENTS.md`). Develop on Linux, WSL, or macOS, which honour symlinks; a Windows-native checkout needs `git config core.symlinks true`. Reading the repo through Windows/UNC from WSL can report spurious symlink/filemode diffs — those are host artifacts, not repo changes.
+Each `CLAUDE.md` is a **symlink to its sibling `AGENTS.md`** — one source of truth, read by Claude Code (`CLAUDE.md`) and any other agent that looks for `AGENTS.md`. Develop on Linux, WSL, or macOS, which honour symlinks; a Windows-native checkout needs `git config core.symlinks true`.
 
 ## Security baseline (always)
 
@@ -98,7 +95,7 @@ This repo is public. Treat every commit as something a stranger might read:
 
 Per feature (and at session close): feature branch → **open a PR so CI actually runs** (the only place the service-container / image-scan jobs execute) → await checks **and** code review → **fold review notes into the branch before merging** (don't merge known-flagged code; document + track anything deliberately deferred) → **squash-merge** to `main` with a curated message. The session-close bookkeeping is its own `docs: close Session N` PR (see `/wrap-session`); the feature is merged before that wrap runs.
 
-- **Review model (changed 2026-06-08).** Your own **`/review-pr` is the primary review gate** — run it on your own work before every merge. The external Codex review is now **secondary / best-effort** (the ChatGPT subscription was cancelled; Codex may not run at all), so **don't block a merge waiting on it**; fold its notes only if it actually appears. Because there is no longer a guaranteed second reviewer, raise your own bar: for *substantive code* changes where a missed bug is costly, run the heavier multi-agent **`/code-review`** in addition to `/review-pr` — the PR-#36 lesson is that a second reviewer once caught two real bugs the single self-review pass missed, and that safety net is now thinner. (If Codex/automated PR review does keep working, treat it as a bonus, not a dependency.) **Solo-review blind spot:** self-review structurally can't catch what you didn't think to check, so for PRs that **flip decision-state across many homes** (a proposal→accepted, a spec amendment, an ADR), don't trust recall — run the `/review-pr` §2 reconciliation sweep as an *explicit pass* (grep the proposal slug + status words across `INDEX.md` + both plan files; diff each decision against the task that implements it) **before** claiming clean. PR #39 is the cautionary case: the self-review asserted §2 clean and still left three stale homes for external review to find.
+- **Review model (changed 2026-06-08; Codex Desktop retired 2026-06-10).** Your own **`/review-pr` is the primary review gate** — run it on your own work before every merge. Codex Desktop (the in-tree second agent) is **gone**; the only residual external reviewer is the **GitHub-wired Codex PR review**, which **may or may not post** on a given PR — treat it as **secondary / best-effort**: **don't block a merge waiting on it**, fold its notes only if they actually appear (it reviews the PR diff; it does not run any repo skill). Because a second reviewer is not guaranteed, raise your own bar: for *substantive code* changes where a missed bug is costly, run the heavier multi-agent **`/code-review`** in addition to `/review-pr` — the PR-#36 lesson is that a second reviewer once caught two real bugs the single self-review pass missed, and that safety net is now thinner. **Solo-review blind spot:** self-review structurally can't catch what you didn't think to check, so for PRs that **flip decision-state across many homes** (a proposal→accepted, a spec amendment, an ADR), don't trust recall — run the `/review-pr` §2 reconciliation sweep as an *explicit pass* (grep the proposal slug + status words across `INDEX.md` + both plan files; diff each decision against the task that implements it) **before** claiming clean. PR #39 is the cautionary case: the self-review asserted §2 clean and still left three stale homes for external review to find.
 
 - **Green-main bar.** Don't merge on red CI. The one exception: a failure that is *pre-existing, unrelated to the PR, and diagnosed* — merge is allowed if that's stated explicitly and tracked.
 - **Split unrelated bugs out.** A pre-existing infra/bug discovery that isn't this PR's concern gets its own GitHub issue, not scope-creep. Small *incidental* fixes the PR already touches can ride along, disclosed in the commit body.

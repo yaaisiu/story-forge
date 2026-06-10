@@ -17,8 +17,9 @@ Work through the steps in order.
 ## 0. Preflight — the feature should already be merged
 
 `/wrap-session` closes out the **plan**, not the feature work. The usual order is:
-commit the implementation on a feature branch → push → open a PR → await **CI + Codex
-review** → fold review fixes + your own review → **squash-merge to `main`** → *then* run
+commit the implementation on a feature branch → push → open a PR → await **CI** (and the
+best-effort GitHub Codex PR review, if it posts) → fold review fixes + your own `/review-pr`
+(+ `/code-review` for substantive code) → **squash-merge to `main`** → *then* run
 `/wrap-session`. This skill produces the separate **`docs: close Session N`** bookkeeping
 commit; it does **not** replace the feature PR.
 
