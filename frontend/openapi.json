@@ -182,6 +182,80 @@
         }
       }
     },
+    "/stories/{story_id}/extract": {
+      "post": {
+        "tags": [
+          "stories"
+        ],
+        "summary": "Extract Story",
+        "description": "Extract entities/relations from a story's paragraphs into the graph (spec \u00a79 M2).\n\nWalks every persisted paragraph, runs the ExtractionAgent, and writes fresh graph\nnodes/edges + `entity_mentions` with **no dedupe** (INV-8 \u2014 every candidate a new\nnode). The batch is resumable: if the router pauses on budget/quota, the run stops\nwith `paused=true` (HTTP 202) and a re-POST continues from the last-done paragraph\n(the committed mentions are the checkpoint). Budget/quota are therefore *not* HTTP\nerrors here by design (OQ-2); only a hard agent failure maps to 502.",
+        "operationId": "extract_story_stories__story_id__extract_post",
+        "parameters": [
+          {
+            "name": "story_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Story Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExtractResponse"
+                }
+              }
+            }
+          },
+          "202": {
+            "description": "Budget/quota pause hit mid-batch; partial progress, re-POST to resume.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExtractResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Story not found.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "502": {
+            "description": "Extraction failed \u2014 LLM unreachable or unusable output after retries.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/llm/status": {
       "get": {
         "tags": [
@@ -257,6 +331,58 @@
         ],
         "title": "ErrorResponse",
         "description": "Shape FastAPI's ``HTTPException`` produces \u2014 declared so the OpenAPI\nschema names every non-2xx response the routes can return, instead of just\nsuccess + the auto-added 422 validation error. Without this, the generated\nTypeScript client (`frontend/src/lib/api/schema.d.ts`) can't model expected\noutcomes like 404 / 409 / 502 \u2014 leaving frontend error handling untyped."
+      },
+      "ExtractResponse": {
+        "properties": {
+          "story_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Story Id"
+          },
+          "paragraphs_total": {
+            "type": "integer",
+            "title": "Paragraphs Total"
+          },
+          "paragraphs_done": {
+            "type": "integer",
+            "title": "Paragraphs Done"
+          },
+          "entities_written": {
+            "type": "integer",
+            "title": "Entities Written"
+          },
+          "relations_written": {
+            "type": "integer",
+            "title": "Relations Written"
+          },
+          "paused": {
+            "type": "boolean",
+            "title": "Paused"
+          },
+          "pause_reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pause Reason"
+          }
+        },
+        "type": "object",
+        "required": [
+          "story_id",
+          "paragraphs_total",
+          "paragraphs_done",
+          "entities_written",
+          "relations_written",
+          "paused",
+          "pause_reason"
+        ],
+        "title": "ExtractResponse",
+        "description": "Progress of an extraction run over a story's paragraphs (spec \u00a79 M2).\n\n`paused` is the completion signal \u2014 true when the run stopped at the budget/quota\npause-and-ask (HTTP 202, partial progress), false when it finished (HTTP 200).\n`paragraphs_done` counts paragraphs that carry a mention \u2014 the resumable\ncheckpoint \u2014 so a re-POST resumes from the first not-done paragraph."
       },
       "HTTPValidationError": {
         "properties": {

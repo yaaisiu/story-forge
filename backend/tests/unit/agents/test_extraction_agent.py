@@ -17,6 +17,7 @@ transport/envelope failover — two separate axes, so a `BudgetExceededError` /
 from __future__ import annotations
 
 import pytest
+from pydantic import ValidationError
 
 from story_forge.adapters.llm.base import (
     BudgetExceededError,
@@ -198,6 +199,37 @@ async def test_dangling_relation_is_accepted() -> None:
     proposal = await agent.propose_extraction(paragraph_text=PARAGRAPH_EN, language="en")
     assert proposal.relations[0].object == "Stary Bronek"
     assert proposal.entities == []
+
+
+async def test_blank_relation_endpoint_is_retried_not_accepted() -> None:
+    # PR-#42 gap: a relation with a blank subject/predicate/object used to validate
+    # as success (only candidate_name had a non-empty validator), so the agent's
+    # retry loop stopped and the graph writer got an endpoint-less relation. Distinct
+    # from a *dangling* relation (which has a real, just-unresolved surface form):
+    # blank is unusable and must be retried, not accepted.
+    blank = (
+        '{"entities":[],"relations":[{"subject":"","predicate":"WORSHIPS",'
+        '"object":"Mokosz","confidence":0.9}]}'
+    )
+    router = FakeRouter([blank, GOOD_JSON])
+    agent = ExtractionAgent(router)
+    proposal = await agent.propose_extraction(paragraph_text=PARAGRAPH_EN, language="en")
+    assert isinstance(proposal, ExtractionProposal)
+    assert len(router.calls) == 2  # blank rejected, retry succeeded
+
+
+async def test_relation_endpoint_fields_reject_blank() -> None:
+    # The non-empty validator covers all three relation fields, not just one.
+    for field in ("subject", "predicate", "object"):
+        kwargs = {
+            "subject": "Janek",
+            "predicate": "WORSHIPS",
+            "object": "Mokosz",
+            "confidence": 0.5,
+        }
+        kwargs[field] = "   "  # whitespace-only is still blank
+        with pytest.raises(ValidationError):
+            RelationCandidate(**kwargs)  # type: ignore[arg-type]
 
 
 async def test_ungrounded_evidence_quote_is_dropped_candidate_kept() -> None:

@@ -16,7 +16,7 @@ from __future__ import annotations
 
 from pydantic import BaseModel, ValidationError, field_validator
 
-from story_forge.adapters.llm.base import LLMProvider, ModelTier
+from story_forge.adapters.llm.base import LLMProvider, ModelTier, ProviderResponseError
 from story_forge.agents.json_output import extract_json
 from story_forge.prompts import PromptNotFound, render_messages
 
@@ -116,7 +116,16 @@ class ChunkingAgent:
         # later milestone), so a provider HTTP error propagates to the caller.
         last_error: ValidationError | None = None
         for _ in range(self._max_retries + 1):
-            result = await self._provider.complete(messages, tier, _SCHEMA)
+            try:
+                result = await self._provider.complete(messages, tier, _SCHEMA)
+            except ProviderResponseError as exc:
+                # A malformed-200 envelope (missing fields / null content). Unlike a
+                # schema violation, retrying the same raw provider won't help (no
+                # router failover here), so surface it as a ChunkingError → the route
+                # maps that to 502 rather than letting it escape as an unhandled 500.
+                raise ChunkingError(
+                    f"chunking provider returned an unusable response: {exc}"
+                ) from exc
             try:
                 return ChunkingProposal.model_validate_json(extract_json(result.content))
             except ValidationError as exc:  # covers malformed JSON and schema violations

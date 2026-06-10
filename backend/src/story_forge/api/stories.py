@@ -13,11 +13,12 @@ from pathlib import Path
 from typing import Annotated, Literal
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, Request, UploadFile
+from fastapi import APIRouter, Depends, HTTPException, Request, Response, UploadFile
 from psycopg import AsyncConnection
 from pydantic import BaseModel
 
 from story_forge.adapters.db import get_connection
+from story_forge.adapters.llm.base import ProviderResponseError
 from story_forge.adapters.postgres_repo import (
     get_project,
     get_story,
@@ -28,6 +29,7 @@ from story_forge.adapters.postgres_repo import (
     insert_scene,
     insert_story,
     list_chapters,
+    list_story_paragraphs,
     update_story_raw_text,
 )
 from story_forge.adapters.upload_storage import save_upload
@@ -36,6 +38,8 @@ from story_forge.agents.chunking_coordinator import (
     ChunkingCoordinator,
     ChunkingTooLongError,
 )
+from story_forge.agents.extraction_agent import ExtractionError
+from story_forge.agents.extraction_coordinator import ExtractionCoordinator
 from story_forge.config import settings
 from story_forge.domain.chunking import outline_to_tree
 from story_forge.domain.language import detect_language
@@ -262,4 +266,87 @@ async def structure_story(
         chapter_count=len(chapters),
         scene_count=len(scenes),
         paragraph_count=len(paragraphs),
+    )
+
+
+def get_extraction_coordinator(request: Request) -> ExtractionCoordinator:
+    """The app-lifetime coordinator wired in `main.py` (router-backed agent + stores)."""
+    coordinator: ExtractionCoordinator = request.app.state.extraction_coordinator
+    return coordinator
+
+
+class ExtractResponse(BaseModel):
+    """Progress of an extraction run over a story's paragraphs (spec §9 M2).
+
+    `paused` is the completion signal — true when the run stopped at the budget/quota
+    pause-and-ask (HTTP 202, partial progress), false when it finished (HTTP 200).
+    `paragraphs_done` counts paragraphs that carry a mention — the resumable
+    checkpoint — so a re-POST resumes from the first not-done paragraph.
+    """
+
+    story_id: UUID
+    paragraphs_total: int
+    paragraphs_done: int
+    entities_written: int
+    relations_written: int
+    paused: bool
+    pause_reason: str | None
+
+
+@router.post(
+    "/{story_id}/extract",
+    status_code=200,
+    responses={
+        202: {
+            "model": ExtractResponse,
+            "description": "Budget/quota pause hit mid-batch; partial progress, re-POST to resume.",
+        },
+        404: {"model": ErrorResponse, "description": "Story not found."},
+        502: {
+            "model": ErrorResponse,
+            "description": "Extraction failed — LLM unreachable or unusable output after retries.",
+        },
+    },
+)
+async def extract_story(
+    story_id: UUID,
+    conn: Annotated[AsyncConnection, Depends(get_connection)],
+    coordinator: Annotated[ExtractionCoordinator, Depends(get_extraction_coordinator)],
+    response: Response,
+) -> ExtractResponse:
+    """Extract entities/relations from a story's paragraphs into the graph (spec §9 M2).
+
+    Walks every persisted paragraph, runs the ExtractionAgent, and writes fresh graph
+    nodes/edges + `entity_mentions` with **no dedupe** (INV-8 — every candidate a new
+    node). The batch is resumable: if the router pauses on budget/quota, the run stops
+    with `paused=true` (HTTP 202) and a re-POST continues from the last-done paragraph
+    (the committed mentions are the checkpoint). Budget/quota are therefore *not* HTTP
+    errors here by design (OQ-2); only a hard agent failure maps to 502.
+    """
+    story = await get_story(conn, story_id)
+    if story is None:
+        raise HTTPException(status_code=404, detail="story not found")
+    project = await get_project(conn, story.project_id)
+    language = project.language if project is not None else "en"
+    paragraphs = await list_story_paragraphs(conn, story_id)
+
+    try:
+        result = await coordinator.ingest_story(
+            paragraphs=paragraphs, project_id=story.project_id, language=language
+        )
+    except (ExtractionError, ProviderResponseError) as exc:
+        # Give-up after retries, no prompt for the language, or a malformed-200
+        # envelope that exhausted the router's failover — the LLM path is unusable.
+        raise HTTPException(status_code=502, detail=str(exc)) from exc
+
+    if result.paused:
+        response.status_code = 202
+    return ExtractResponse(
+        story_id=story_id,
+        paragraphs_total=result.paragraphs_total,
+        paragraphs_done=result.paragraphs_done,
+        entities_written=result.entities_written,
+        relations_written=result.relations_written,
+        paused=result.paused,
+        pause_reason=result.pause_reason,
     )

@@ -71,6 +71,18 @@ class Settings(BaseSettings):
             "host the agent uses cloud_free regardless (spec §6.5)."
         ),
     )
+
+    # --- Extraction (ingest step 4, spec §6.5/§7/§9 M2) ---
+    extraction_model: str = Field(
+        default="gpt-oss:120b-cloud",
+        description=(
+            "Ollama model the ExtractionAgent calls (medium weight → cloud_free per "
+            "§6.5). The larger 120b variant over chunking's 20b: extraction is a "
+            "richer reasoning task (entities + typed relations from prose), not just "
+            "structural boundary-finding. Tunable; bump to a Qwen3.5 cloud variant if "
+            "PL recall is short on real long-form text."
+        ),
+    )
     anthropic_api_key: str = ""
     openai_api_key: str = ""
     xai_api_key: str = ""

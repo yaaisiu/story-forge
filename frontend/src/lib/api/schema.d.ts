@@ -54,6 +54,33 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/stories/{story_id}/extract": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Extract Story
+         * @description Extract entities/relations from a story's paragraphs into the graph (spec §9 M2).
+         *
+         *     Walks every persisted paragraph, runs the ExtractionAgent, and writes fresh graph
+         *     nodes/edges + `entity_mentions` with **no dedupe** (INV-8 — every candidate a new
+         *     node). The batch is resumable: if the router pauses on budget/quota, the run stops
+         *     with `paused=true` (HTTP 202) and a re-POST continues from the last-done paragraph
+         *     (the committed mentions are the checkpoint). Budget/quota are therefore *not* HTTP
+         *     errors here by design (OQ-2); only a hard agent failure maps to 502.
+         */
+        post: operations["extract_story_stories__story_id__extract_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/llm/status": {
         parameters: {
             query?: never;
@@ -114,6 +141,34 @@ export interface components {
         ErrorResponse: {
             /** Detail */
             detail: string;
+        };
+        /**
+         * ExtractResponse
+         * @description Progress of an extraction run over a story's paragraphs (spec §9 M2).
+         *
+         *     `paused` is the completion signal — true when the run stopped at the budget/quota
+         *     pause-and-ask (HTTP 202, partial progress), false when it finished (HTTP 200).
+         *     `paragraphs_done` counts paragraphs that carry a mention — the resumable
+         *     checkpoint — so a re-POST resumes from the first not-done paragraph.
+         */
+        ExtractResponse: {
+            /**
+             * Story Id
+             * Format: uuid
+             */
+            story_id: string;
+            /** Paragraphs Total */
+            paragraphs_total: number;
+            /** Paragraphs Done */
+            paragraphs_done: number;
+            /** Entities Written */
+            entities_written: number;
+            /** Relations Written */
+            relations_written: number;
+            /** Paused */
+            paused: boolean;
+            /** Pause Reason */
+            pause_reason: string | null;
         };
         /** HTTPValidationError */
         HTTPValidationError: {
@@ -352,6 +407,64 @@ export interface operations {
                 };
             };
             /** @description Chunking agent failed — LLM unreachable or unusable output after retries. */
+            502: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    extract_story_stories__story_id__extract_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                story_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ExtractResponse"];
+                };
+            };
+            /** @description Budget/quota pause hit mid-batch; partial progress, re-POST to resume. */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ExtractResponse"];
+                };
+            };
+            /** @description Story not found. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+            /** @description Extraction failed — LLM unreachable or unusable output after retries. */
             502: {
                 headers: {
                     [name: string]: unknown;

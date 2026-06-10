@@ -107,5 +107,5 @@ testpaths = ["tests"]
 asyncio_mode = "auto"
 addopts = "-ra --strict-markers --strict-config"
 markers = [
-  "integration: needs a real Postgres (uses the story_forge_test DB fixture). Skip with -m 'not integration'.",
+  "integration: needs a real Postgres (story_forge_test DB fixture) and, for the graph suite, a real Neo4j (scoped per project_id). Skip with -m 'not integration'.",
 ]

@@ -10,7 +10,13 @@ from __future__ import annotations
 
 import pytest
 
-from story_forge.adapters.llm.base import CompletionResult, Message, ModelTier, Usage
+from story_forge.adapters.llm.base import (
+    CompletionResult,
+    Message,
+    ModelTier,
+    ProviderResponseError,
+    Usage,
+)
 from story_forge.agents.chunking_agent import (
     ChunkingAgent,
     ChunkingError,
@@ -44,6 +50,31 @@ class FakeProvider:
             model_tier=model_tier,
             usage=Usage(model="fake"),
         )
+
+
+class RaisingProvider:
+    """A provider that raises a queued exception on `complete` (drives error paths)."""
+
+    def __init__(self, error: Exception) -> None:
+        self._error = error
+
+    async def complete(
+        self,
+        messages: list[Message],
+        model_tier: ModelTier,
+        json_schema: dict[str, object] | None = None,
+    ) -> CompletionResult:
+        raise self._error
+
+
+async def test_malformed_envelope_becomes_chunking_error() -> None:
+    # A malformed-200 envelope raises ProviderResponseError inside the provider.
+    # ChunkingAgent holds a raw provider (no router failover), so retrying the same
+    # dead provider is pointless — it maps the failure to ChunkingError, which the
+    # structure route already turns into a 502 (not an unhandled 500).
+    agent = ChunkingAgent(RaisingProvider(ProviderResponseError("null content")))
+    with pytest.raises(ChunkingError):
+        await agent.propose_outline(raw_text="## One\n\nText.", language="en")
 
 
 async def test_proposes_outline_from_valid_json() -> None:

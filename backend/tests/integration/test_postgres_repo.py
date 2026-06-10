@@ -6,11 +6,20 @@ teardown — so the assertions below never need to clean up after themselves.
 
 from __future__ import annotations
 
+from uuid import uuid4
+
 import psycopg
 import pytest
 
 from story_forge.adapters import postgres_repo as repo
-from story_forge.domain.models import Chapter, Paragraph, Project, Scene, Story
+from story_forge.domain.models import (
+    Chapter,
+    EntityMention,
+    Paragraph,
+    Project,
+    Scene,
+    Story,
+)
 
 pytestmark = pytest.mark.integration
 
@@ -47,8 +56,6 @@ async def test_paragraph_round_trip(db_conn: psycopg.AsyncConnection) -> None:
 
 
 async def test_get_missing_returns_none(db_conn: psycopg.AsyncConnection) -> None:
-    from uuid import uuid4
-
     assert await repo.get_project(db_conn, uuid4()) is None
 
 
@@ -75,3 +82,65 @@ async def test_delete_project_cascades(db_conn: psycopg.AsyncConnection) -> None
     assert await repo.get_chapter(db_conn, chapter.id) is None
     assert await repo.get_scene(db_conn, scene.id) is None
     assert await repo.get_paragraph(db_conn, para.id) is None
+
+
+# --- entity_mentions (the cross-store seam, §6.4 / OQ-1) -------------------
+
+
+async def _make_paragraph(conn: psycopg.AsyncConnection) -> Paragraph:
+    _, _, _, scene = await _make_tree(conn)
+    para = Paragraph(scene_id=scene.id, order_index=0, content="Bronek walked in.")
+    await repo.insert_paragraph(conn, para)
+    return para
+
+
+async def test_entity_mention_round_trip(db_conn: psycopg.AsyncConnection) -> None:
+    # `entity_id` is a free UUID pointing at a Neo4j node — there is deliberately
+    # NO Postgres FK on it (the two stores can't share a transaction, OQ-1), so a
+    # mention persists against an id Postgres has never seen. That this inserts at
+    # all is the cross-store seam working as designed.
+    para = await _make_paragraph(db_conn)
+    mention = EntityMention(
+        paragraph_id=para.id,
+        entity_id=uuid4(),
+        span_start=0,
+        span_end=6,
+        confidence=0.9,
+    )
+    await repo.insert_entity_mention(db_conn, mention)
+    assert await repo.list_entity_mentions_for_paragraph(db_conn, para.id) == [mention]
+
+
+async def test_entity_mention_nullable_spans_and_confidence(
+    db_conn: psycopg.AsyncConnection,
+) -> None:
+    # The LLM path yields an evidence quote, not reliable offsets, so a mention may
+    # carry no spans/confidence (the columns are nullable per the migration).
+    para = await _make_paragraph(db_conn)
+    mention = EntityMention(paragraph_id=para.id, entity_id=uuid4())
+    await repo.insert_entity_mention(db_conn, mention)
+    [back] = await repo.list_entity_mentions_for_paragraph(db_conn, para.id)
+    assert back == mention
+    assert back.span_start is None and back.span_end is None and back.confidence is None
+
+
+async def test_entity_mention_cascades_with_paragraph(db_conn: psycopg.AsyncConnection) -> None:
+    # paragraph_id IS a real FK (ON DELETE CASCADE), so deleting the project's tree
+    # takes the mention with it — unlike the FK-less entity_id.
+    project = Project(name="Cascade Saga", language="en")
+    await repo.insert_project(db_conn, project)
+    story = Story(project_id=project.id, title="Book", raw_text="x")
+    await repo.insert_story(db_conn, story)
+    chapter = Chapter(story_id=story.id, order_index=0)
+    await repo.insert_chapter(db_conn, chapter)
+    scene = Scene(chapter_id=chapter.id, order_index=0)
+    await repo.insert_scene(db_conn, scene)
+    para = Paragraph(scene_id=scene.id, order_index=0, content="leaf")
+    await repo.insert_paragraph(db_conn, para)
+    await repo.insert_entity_mention(
+        db_conn, EntityMention(paragraph_id=para.id, entity_id=uuid4())
+    )
+
+    await repo.delete_project(db_conn, project.id)
+
+    assert await repo.list_entity_mentions_for_paragraph(db_conn, para.id) == []

@@ -27,7 +27,14 @@ from uuid import UUID
 from psycopg import AsyncConnection
 from psycopg.rows import class_row
 
-from story_forge.domain.models import Chapter, Paragraph, Project, Scene, Story
+from story_forge.domain.models import (
+    Chapter,
+    EntityMention,
+    Paragraph,
+    Project,
+    Scene,
+    Story,
+)
 
 # --- Project ---------------------------------------------------------------
 
@@ -192,6 +199,27 @@ async def insert_paragraph(conn: AsyncConnection, paragraph: Paragraph) -> None:
     )
 
 
+async def list_story_paragraphs(conn: AsyncConnection, story_id: UUID) -> list[Paragraph]:
+    """Every paragraph in a story, in document order (chapter → scene → paragraph).
+
+    The batch extraction driver walks a whole story, so it needs the leaves across
+    the tree, not one scene's. Ordered by the three `order_index` levels so the
+    sequence matches reading order (and so resume processes paragraphs predictably).
+    """
+    async with conn.cursor(row_factory=class_row(Paragraph)) as cur:
+        await cur.execute(
+            "SELECT p.id, p.scene_id, p.order_index, p.content, p.content_normalized, "
+            "NULL AS embedding "
+            "FROM paragraphs p "
+            "JOIN scenes sc ON sc.id = p.scene_id "
+            "JOIN chapters ch ON ch.id = sc.chapter_id "
+            "WHERE ch.story_id = %s "
+            "ORDER BY ch.order_index, sc.order_index, p.order_index",
+            (story_id,),
+        )
+        return await cur.fetchall()
+
+
 async def get_paragraph(conn: AsyncConnection, paragraph_id: UUID) -> Paragraph | None:
     async with conn.cursor(row_factory=class_row(Paragraph)) as cur:
         await cur.execute(
@@ -208,5 +236,42 @@ async def list_paragraphs(conn: AsyncConnection, scene_id: UUID) -> list[Paragra
             "SELECT id, scene_id, order_index, content, content_normalized, NULL AS embedding "
             "FROM paragraphs WHERE scene_id = %s ORDER BY order_index",
             (scene_id,),
+        )
+        return await cur.fetchall()
+
+
+# --- Entity mention (cross-store back-reference, §6.4) ---------------------
+
+
+async def insert_entity_mention(conn: AsyncConnection, mention: EntityMention) -> None:
+    """Record that a Neo4j entity was mentioned in a paragraph.
+
+    Written *after* the Neo4j node (OQ-1: Neo4j owns identity, so an orphaned node
+    is more benign than a mention pointing at a node that was never created). There
+    is no FK on `entity_id` — the referenced entity lives in Neo4j, not Postgres.
+    """
+    await conn.execute(
+        "INSERT INTO entity_mentions "
+        "(id, paragraph_id, entity_id, span_start, span_end, confidence) "
+        "VALUES (%s, %s, %s, %s, %s, %s)",
+        (
+            mention.id,
+            mention.paragraph_id,
+            mention.entity_id,
+            mention.span_start,
+            mention.span_end,
+            mention.confidence,
+        ),
+    )
+
+
+async def list_entity_mentions_for_paragraph(
+    conn: AsyncConnection, paragraph_id: UUID
+) -> list[EntityMention]:
+    async with conn.cursor(row_factory=class_row(EntityMention)) as cur:
+        await cur.execute(
+            "SELECT id, paragraph_id, entity_id, span_start, span_end, confidence "
+            "FROM entity_mentions WHERE paragraph_id = %s",
+            (paragraph_id,),
         )
         return await cur.fetchall()

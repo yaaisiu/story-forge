@@ -95,6 +95,18 @@ class RelationCandidate(BaseModel):
     evidence_quote: str | None = None
     confidence: float = Field(ge=0.0, le=1.0)
 
+    @field_validator("subject", "predicate", "object")
+    @classmethod
+    def _endpoint_non_empty(cls, value: str) -> str:
+        # A blank endpoint or predicate is unusable downstream (the graph writer
+        # would get a relation with no resolvable endpoint or type), so reject it to
+        # trigger a prompt retry. Distinct from an intentionally *dangling* relation,
+        # whose endpoint is a real surface form that M3 resolves — that still needs a
+        # non-empty name; only its resolution is deferred.
+        if not value.strip():
+            raise ValueError("relation subject/predicate/object must be non-empty")
+        return value
+
 
 class ExtractionProposal(BaseModel):
     """The agent's output: candidates from one paragraph, reviewed downstream.
