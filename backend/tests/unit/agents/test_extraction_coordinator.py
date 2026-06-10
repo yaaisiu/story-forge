@@ -10,6 +10,8 @@ from __future__ import annotations
 
 from uuid import UUID, uuid4
 
+import pytest
+
 from story_forge.adapters.llm.base import BudgetExceededError, QuotaExhaustedError
 from story_forge.agents.extraction_agent import (
     EntityCandidate,
@@ -158,9 +160,10 @@ async def test_zero_entity_paragraph_is_not_marked_done() -> None:
     assert graph.entities == [] and mentions.mentions == []
 
 
-async def test_write_order_is_entities_then_mentions_then_relations() -> None:
-    # OQ-1: Neo4j entities first, then the Postgres mention, then the Neo4j relation
-    # (which references the entity ids).
+async def test_write_order_is_entities_then_relations_then_mentions() -> None:
+    # The mention is the resume checkpoint, so all Neo4j writes (entities, then
+    # relations — which MATCH on the entity ids) must land before it. A relation
+    # failure must not leave a checkpointed paragraph with missing edges.
     p1 = _para("Janek worships Mokosz")
     proposal = ExtractionProposal(
         entities=[_entity("Janek"), _entity("Mokosz")],
@@ -174,7 +177,37 @@ async def test_write_order_is_entities_then_mentions_then_relations() -> None:
     await coord.ingest_story(paragraphs=[p1], project_id=uuid4(), language=LANG)
 
     kinds = [kind for kind, _ in events]
-    assert kinds == ["entity", "entity", "mention", "mention", "relation"]
+    assert kinds == ["entity", "entity", "relation", "mention", "mention"]
+
+
+async def test_relation_write_failure_leaves_paragraph_uncheckpointed() -> None:
+    # If a relation write fails (transient Neo4j error), the mention (checkpoint)
+    # must NOT be written — otherwise a re-run would skip the paragraph and its
+    # relations would be lost forever. The failure propagates; no checkpoint lands.
+    p1 = _para("Janek worships Mokosz")
+    proposal = ExtractionProposal(
+        entities=[_entity("Janek"), _entity("Mokosz")],
+        relations=[
+            RelationCandidate(
+                subject="Janek", predicate="WORSHIPS", object="Mokosz", confidence=0.9
+            )
+        ],
+    )
+    events: list[tuple[str, object]] = []
+    mentions = FakeMentionStore(events)
+    graph = FakeGraphWriter(events)
+
+    async def _boom(_relation: GraphRelation) -> None:
+        raise RuntimeError("neo4j unavailable")
+
+    graph.create_relation = _boom  # type: ignore[method-assign]
+    coord = ExtractionCoordinator(FakeExtractor({p1.content: proposal}), graph, mentions)
+
+    with pytest.raises(RuntimeError):
+        await coord.ingest_story(paragraphs=[p1], project_id=uuid4(), language=LANG)
+
+    assert mentions.mentions == []  # not checkpointed → a re-run will retry it
+    assert p1.id not in mentions._done
 
 
 async def test_no_dedupe_two_identical_candidates_persist_two_nodes() -> None:

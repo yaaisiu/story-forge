@@ -11,6 +11,7 @@ from __future__ import annotations
 
 from collections.abc import AsyncIterator
 
+import httpx
 import psycopg
 import pytest
 import pytest_asyncio
@@ -166,3 +167,18 @@ async def test_extract_agent_failure_maps_to_502(
 
     assert resp.status_code == 502, resp.text
     assert "gave up" in resp.json()["detail"]
+
+
+async def test_extract_router_transport_failure_maps_to_502(
+    make_client: object, db_conn: psycopg.AsyncConnection
+) -> None:
+    # When the wired router exhausts failover, it re-raises its terminal httpx error
+    # (provider outage, 5xx, or a 401 from bad Ollama Cloud creds). That must surface
+    # as the documented 502, not FastAPI's default 500.
+    story = await _make_story_with_paragraphs(db_conn, 1)
+    coordinator = _StubCoordinator(httpx.ConnectError("connection refused"))
+    client: AsyncClient = make_client(coordinator)  # type: ignore[operator]
+
+    resp = await client.post(f"/stories/{story.id}/extract")
+
+    assert resp.status_code == 502, resp.text

@@ -13,6 +13,7 @@ from pathlib import Path
 from typing import Annotated, Literal
 from uuid import UUID
 
+import httpx
 from fastapi import APIRouter, Depends, HTTPException, Request, Response, UploadFile
 from psycopg import AsyncConnection
 from pydantic import BaseModel
@@ -334,9 +335,13 @@ async def extract_story(
         result = await coordinator.ingest_story(
             paragraphs=paragraphs, project_id=story.project_id, language=language
         )
-    except (ExtractionError, ProviderResponseError) as exc:
-        # Give-up after retries, no prompt for the language, or a malformed-200
-        # envelope that exhausted the router's failover — the LLM path is unusable.
+    except (ExtractionError, ProviderResponseError, httpx.HTTPError) as exc:
+        # The LLM path is unusable: agent give-up after retries / no prompt for the
+        # language (ExtractionError); a malformed-200 envelope that exhausted failover
+        # (ProviderResponseError); or the router re-raising its terminal transport
+        # error after failover (httpx.HTTPError — a provider outage, 5xx, or bad/missing
+        # Ollama Cloud credentials surfacing as 401). All map to the documented 502.
+        # (Budget/quota are caught by the coordinator → 202-paused, never reach here.)
         raise HTTPException(status_code=502, detail=str(exc)) from exc
 
     if result.paused:

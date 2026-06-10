@@ -12,18 +12,21 @@ cross-store mentions. Two design points the milestone forced:
   its own connection), a re-run resumes from the first paragraph without a mention —
   the durable "last-done" checkpoint (see OQ-1 / idempotency).
 
-- **OQ-1 — write order is Neo4j then Postgres.** Per paragraph: entities → Neo4j,
-  then their mentions → Postgres, then relations → Neo4j. Neo4j owns identity, so an
-  orphaned node (crash between the two stores) is more benign than a mention pointing
-  at a node that was never created. We accept that eventual inconsistency at PoC scale.
+- **OQ-1 — write order is Neo4j then Postgres.** Per paragraph: entities → relations
+  (both Neo4j), then the mention → Postgres *last*. The mention is the resume
+  checkpoint, so it lands only after every graph write for the paragraph succeeded
+  (a relation-write failure must not leave a "done" paragraph with missing edges).
+  Neo4j owns identity, so an orphaned node (crash before the mention) is more benign
+  than a mention pointing at a node that was never created. We accept that eventual
+  inconsistency at PoC scale.
 
 Resume granularity is the paragraph: "done" means the paragraph already has ≥1
 mention. A paragraph that legitimately extracted **zero** entities writes no mention,
 so a re-run will process it again — a wasted (cheap) LLM call, but never a duplicate
-node, which is what matters under the no-dedupe contract (INV-8). Likewise, if the
-Postgres mention write fails *after* the Neo4j entities are written (the OQ-1 seam),
-that paragraph has no checkpoint and a re-run re-extracts it, writing a second set of
-nodes — accepted under no-dedupe (duplicates are M3's to resolve). The coordinator
+node, which is what matters under the no-dedupe contract (INV-8). Likewise, if any
+write fails before the mention lands (the OQ-1 seam), that paragraph has no checkpoint
+and a re-run re-extracts it, writing a second set of nodes/edges — accepted under
+no-dedupe (duplicates are M3's to resolve). The coordinator
 depends on Protocols (not concrete adapters), matching the repo's `LLMProvider` /
 `CostStore` / `OutlineProposer` seams and keeping the resume logic unit-testable
 against fakes.
@@ -129,13 +132,22 @@ class ExtractionCoordinator:
                 paragraph_id=paragraph.id,
                 language=language,
             )
-            # OQ-1 order: entities (Neo4j) → mentions (Postgres) → relations (Neo4j).
+            # Write order: all Neo4j first (entities, then relations — which MATCH on
+            # the entity ids), THEN the Postgres mention. The mention is the resume
+            # checkpoint (`paragraphs_with_mentions`), so it must land *only after*
+            # every graph write for the paragraph has succeeded — otherwise a transient
+            # Neo4j failure on the relation write would leave a "done" paragraph with
+            # missing relations that a re-run skips and never retries. With this order a
+            # failure anywhere before the mention leaves the paragraph un-checkpointed,
+            # so a re-run re-processes it (re-writing its entities/relations — accepted
+            # under no-dedupe, INV-8; M3 resolves duplicates). This is also the OQ-1
+            # cross-store order: the whole Neo4j graph, then the Postgres back-reference.
             for entity in graph.entities:
                 await self._graph.create_entity(entity)
-            for mention in graph.mentions:
-                await self._mentions.add_mention(mention)
             for relation in graph.relations:
                 await self._graph.create_relation(relation)
+            for mention in graph.mentions:
+                await self._mentions.add_mention(mention)
 
             if graph.mentions:
                 done.add(paragraph.id)
