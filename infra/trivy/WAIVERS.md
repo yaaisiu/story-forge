@@ -128,7 +128,8 @@ extended 2026-05-27 (PR #23 wave-3 fold — sequential-Trivy unmask after the
 pgvector wave-3 waiver let Trivy reach this scan; same three Go-stdlib CVEs
 fixed in Go 1.25.10/1.26.3 hit ollama's binary, same precedent as PR #6).
 Class: **compiled-in** Go stdlib + `buger/jsonparser` in the ollama server binary
-— no ollama tag fixes them, only an upstream rebuild on a patched Go toolchain.
+— no ollama tag fixes them, only an upstream rebuild on a patched Go toolchain
+(plus one Ubuntu-base **OS** openssl CVE added 2026-06-10, fixed by a base rebuild).
 Bumped 0.22.1 → 0.24.0 to minimise residual (dropped the CRITICAL + 6 others).
 12 HIGH, 0 CRITICAL. Reachability: ollama is 127.0.0.1-bound, single trusted
 user, backend is the only client; CVEs are mostly DoS (self-inflicted only) plus
@@ -137,6 +138,7 @@ rebuilds ollama on patched Go.
 
 | CVE | Pkg | Sev | Class | Fixed in | Why not reachable here |
 |---|---|---|---|---|---|
+| CVE-2026-45447 | openssl (libssl3t64/openssl) | HIGH | heap UAF in PKCS7_verify() (potential RCE) | Ubuntu 3.0.13-0ubuntu3.11 | ollama serves a JSON inference API, no PKCS#7/S-MIME verify; loopback, trusted client — added 2026-06-10 |
 | CVE-2026-32285 | buger/jsonparser | HIGH | DoS (crafted JSON) | jsonparser 1.1.2 | JSON from trusted local backend only |
 | CVE-2026-25679 | net/url | HIGH | IPv6 host-literal parsing | Go 1.25.8 / 1.26.1 | parsing DoS; trusted caller |
 | CVE-2026-27137 | crypto/x509 | HIGH | email-constraint enforcement | Go 1.26.1 | cert-validation correctness, not RCE; outbound TLS only |
