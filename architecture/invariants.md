@@ -122,3 +122,7 @@ duplicate problem that M3's cascade then solves.
 - **Why list a temporary rule:** during M2 it *is* a contract the code must hold (two identical
   extractions must produce two nodes — there is even a test for it, §M2.S4); naming it prevents
   a well-meaning early dedupe from sneaking in before M3.
+- **Enforced at (as-built, M2.S4 / PR #48):** `Neo4jRepo.create_entity` uses `CREATE`, never
+  `MERGE` (the load-bearing keyword — a `MERGE`-on-name would silently violate this), and the
+  `ExtractionCoordinator` does no matching. The no-dedupe property is pinned by tests at four
+  levels (neo4j_repo, the pure `proposal_to_graph` mapping, the coordinator, and live persistence).

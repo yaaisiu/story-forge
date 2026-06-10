@@ -48,7 +48,17 @@ OQ-C is the next architect deep-dive when one is wanted.
 
 ## Raised by this vault (gaps the seed pass found)
 
-### OQ-1 — Two-store write consistency (Neo4j entity ↔ Postgres mention)
+### ~~OQ-1 — Two-store write consistency (Neo4j entity ↔ Postgres mention)~~ ✅ Resolved 2026-06-10
+**Resolution** (owner, M2.S4 / PR #48): option **(c)** — write **Neo4j-then-Postgres** and **accept
+eventual inconsistency** at PoC scale (single user, low volume, reversible); no reconciliation/outbox.
+Per paragraph the `ExtractionCoordinator` writes all Neo4j (entities → relations) *then* the Postgres
+`entity_mentions` row, so the mention (the resume checkpoint) lands only after every graph write
+succeeds — a crash before it leaves the paragraph un-checkpointed and a re-run re-extracts it
+(re-writing nodes, accepted under no-dedupe INV-8; M3 resolves duplicates). The remaining gap (a
+store-down surfacing as a 500 rather than a typed status; the Neo4j driver created at import without a
+lifespan close) is tracked as a `docs/PLAN_SHORT.md` cross-cutting follow-up. Original framing kept
+below for history.
+
 An entity's identity lives in Neo4j; its `entity_mentions` live in Postgres. The two stores
 **cannot share a transaction**. *But what if* the Neo4j write succeeds and the Postgres
 mention write fails (or vice versa)?
@@ -66,7 +76,16 @@ mention write fails (or vice versa)?
   inherit it. The `docs/PLAN_SHORT.md` handoff's "already in M1's schema, verify before re-migrating"
   was wrong and is **fixed there** (2026-06-09). Spec §6.4 is the authority and is correct.
 
-### OQ-2 — Ingest job partial-failure recovery
+### ~~OQ-2 — Ingest job partial-failure recovery~~ ✅ Resolved 2026-06-10
+**Resolution** (owner, M2.S4 / PR #48): option **(a)** — per-paragraph idempotent-ish writes +
+resume-from-last-done. The **batch driver** (`ExtractionCoordinator`), *not* the agent, owns the
+`except BudgetExceededError | QuotaExhaustedError` catcher; on a mid-batch pause it stops and the
+route returns **HTTP 202 + partial progress**, and a re-POST resumes from the first paragraph without
+a committed `entity_mentions` row (the durable checkpoint). The single-paragraph `ExtractionAgent`
+keeps *propagating* the pause-and-ask untouched (M2.S3 D5). Resume granularity is the paragraph;
+a zero-entity paragraph writes no mention and is cheaply re-run on resume (never a duplicate node).
+Original framing kept below for history.
+
 *But what if* extraction dies halfway through a 50k-word story? Is the job resumable, or does
 the user re-run from scratch? Is there an ingest-job state record at all, or only per-paragraph
 side effects?

@@ -45,20 +45,23 @@ code.)
 - **M2.S3** — `ExtractionAgent` (PR #42): the first `LLMRouter` consumer — one paragraph → an
   `ExtractionProposal` of entity/relation candidates, render→call→validate→retry, with the typed
   `ProviderResponseError` envelope-failover path (OQ-10, closed) (`agents/extraction_agent.py`).
+- **M2.S4** — Neo4j writes, **no dedupe** (PR #48): `proposal_to_graph` (pure candidate→graph
+  mapping), the `Neo4jRepo` `CREATE`-not-`MERGE` writes (INV-8), the `entity_mentions` migration +
+  `PostgresMentionStore` back-reference, the resumable `ExtractionCoordinator` batch driver
+  (OQ-1/OQ-2, resolved), and `POST /stories/{id}/extract` (200 / 202-paused / 502)
+  (`agents/{extraction_graph,extraction_coordinator}.py`, `adapters/{neo4j_repo,postgres_mention_store}.py`).
 
-**Planned, not yet built (M2.S4 → M2.S6, then M3+):**
-- M2.S4 — Neo4j writes, **no dedupe** (every candidate = a new node — see [[invariants]] #8);
-  `entity_mentions` Postgres back-reference (a **new** migration — the table is in spec §6.4 but
-  not yet in the schema); the resumable batch driver (OQ-2). *(The next product session.)*
+**Planned, not yet built (M2.S5 → M2.S6, then M3+):**
 - M2.S5 — frontend graph viewer + agent-activity panel.
 - M2.S6 — optional direct vendor adapters (Grok/Anthropic/Google/OpenAI, as needed) + integration polish (closes M2). *(OpenRouter moved up to M2.S2 — `docs/decisions/0003`.)*
 - M3 — the **cascade matching** dedupe (Stages 1–4: fuzzy → embedding → LLM judge → human),
   the heart of the product (§3.3, [[cascade-matching]]).
 
-So today Story Forge ingests and structures text, produces deterministic candidate spans, and
-**extracts entity/relation candidates with an LLM** (routed, budgeted, recorded) — but it does
-**not** yet write the graph or dedupe. That ordering is deliberate — deterministic-first,
-smallest blast radius (see [[prefer-deterministic]]).
+So today Story Forge ingests and structures text, produces deterministic candidate spans,
+**extracts entity/relation candidates with an LLM** (routed, budgeted, recorded), and **writes
+them into the Neo4j graph with no dedupe** (every candidate a fresh node, INV-8) plus the
+`entity_mentions` back-reference — but it does **not** yet dedupe (M3's cascade). That ordering is
+deliberate — deterministic-first, smallest blast radius (see [[prefer-deterministic]]).
 
 ---
 

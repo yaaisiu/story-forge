@@ -76,14 +76,18 @@ related: []
    (self-test red→green), spec §6.7 amended. [[open-questions]] OQ-13 closed in code.
 8. ~~Pre-M2.S4 drift + forward sweep (owner-requested).~~ ✅ **done 2026-06-09** —
    [[2026-06-09-architecture-review]]. No blockers; M2.S4 plan aligned with the invariants.
-9. **Next:** **build M2.S4** (Neo4j writes, no dedupe). Honour the sweep's forward `risk`s: create the
-   `entity_mentions` table in a **new migration** (it's not in the schema — only spec §6.4); hold INV-8
-   with `CREATE`-not-`MERGE` + a failing no-dedupe test; map the router's exit exceptions to HTTP on the
-   new write path. Owner calls as the session opens: **OQ-1** (two-store write-order + consistency
-   posture) and **OQ-2** (batch-driver owns the pause-and-ask catcher). Recommended drift-fixes await
-   approval (refresh `overview.md`'s snapshot, flip INV-5's OQ-10 clause). Still-carried watches: **OQ-9**
-   (latency) before M2.S5; INV-6 redaction-before-logging. Architect deep-dives still on offer: the
-   **LLM-call state machine** (`state-machines/`, the first) and/or the first `components/` note (OQ-C).
+9. ~~**build M2.S4** (Neo4j writes, no dedupe).~~ ✅ **done 2026-06-10 (PR #48).** `proposal_to_graph`
+   + `Neo4jRepo` `CREATE`-not-`MERGE` (INV-8) + `entity_mentions`/`PostgresMentionStore` + the resumable
+   `ExtractionCoordinator` + `POST /stories/{id}/extract`; CI gained a neo4j service so the graph
+   integration tests run at the gate. **OQ-1** resolved (Neo4j-then-Postgres, accept eventual
+   inconsistency; mention is the checkpoint, written last) and **OQ-2** resolved (the batch driver owns
+   the pause-and-ask → 202-paused, resume from the last committed mention). overview/invariants
+   refreshed in the same PR.
+10. **Next:** **M2.S5** — frontend graph viewer + agent-activity panel. Still-carried watches: **OQ-9**
+   (latency) before M2.S5; INV-6 redaction-before-logging. Tracked M2.S4 follow-up: a store-down on the
+   extract path surfaces as 500 (not a typed status) + the Neo4j driver has no lifespan-close — see
+   `docs/PLAN_SHORT.md` cross-cutting. Architect deep-dives still on offer: the **LLM-call state machine**
+   (`state-machines/`, the first) and/or the first `components/` note (OQ-C).
 
 _Run log: see [[changelog]]. Seeded by `initialize-project-architecture`; extended by
 `review-architecture` + `decompose-requirement`, 2026-06-02._
