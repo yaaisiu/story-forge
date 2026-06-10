@@ -1,16 +1,17 @@
 ---
 name: review-pr
-description: Story Forge PR review — a thorough correctness/bug-finding pass PLUS the project-specific lens (spec & plan fidelity, layering, §6.7 security gaps, test discipline, portfolio hygiene, merge-readiness). Loads the diff + the spec/plan/CLAUDE.md context a generic reviewer lacks, then reports findings grouped by severity. Report-only — it recommends, it never merges. Run on the current branch's PR (or local branch diff) as your own-review, complementing Codex.
+description: Story Forge PR review — a thorough correctness/bug-finding pass PLUS the project-specific lens (spec & plan fidelity, layering, §6.7 security gaps, test discipline, portfolio hygiene, merge-readiness). Loads the diff + the spec/plan/CLAUDE.md context a generic reviewer lacks, then reports findings grouped by severity. Report-only — it recommends, it never merges. Run on the current branch's PR (or local branch diff) as your own-review — the primary review gate.
 ---
 
 # Review a Story Forge PR
 
 This is the **"your own review"** step the merge flow requires (root `CLAUDE.md` →
-*Merge flow*): feature branch → PR → CI + Codex → **fold review notes** → squash-merge.
-Codex is complementary but partial — it spots *some* of what matters and misses much. This
-skill is the deeper pass, with two things a generic reviewer doesn't have: (1) a deliberate
-correctness/bug hunt, and (2) the Story Forge lens — our spec, our layering, our security
-baseline, our test and hygiene rules.
+*Merge flow*): feature branch → PR → CI (+ the best-effort GitHub Codex PR review, if it
+posts) → **fold review notes** → squash-merge. That automated reviewer is complementary but
+partial — it spots *some* of what matters, misses much, and may not run at all — so this
+skill is the **primary, deeper** pass, with two things a generic reviewer doesn't have:
+(1) a deliberate correctness/bug hunt, and (2) the Story Forge lens — our spec, our layering,
+our security baseline, our test and hygiene rules.
 
 **Two standing rules for this skill:**
 
@@ -323,14 +324,6 @@ The repo is public; every line is read by a stranger.
   image digest** (not a tag — a tag can move; the gate that catches supply-chain risk must not be
   one). Flag a PR that swaps the digest for a tag, bumps the digest without a ≥7-day soak, or
   switches to an unpinned action.
-- **Codex runs in a different environment — filter its artifacts before folding.** Codex may
-  read this repo from a Windows/UNC host (`//?/UNC/wsl.localhost/...`) over a WSL checkout. That
-  view fabricates findings absent from the canonical tree: spurious filemode flips
-  (`100755 => 100644`) and symlink `Function not implemented` diffs. Verify any filemode/symlink
-  finding against the canonical state (`git ls-files -s`, local `git status`) before folding — a
-  "change" not present in the Linux/WSL working tree is the reviewer's environment, not the PR.
-  (Caught 2026-06-02: Codex flagged exec-bit loss on `scripts/*.py` that `git ls-files -s`
-  showed intact as `100755`.)
 
 ## 9. Report
 
