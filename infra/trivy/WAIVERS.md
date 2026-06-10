@@ -83,6 +83,7 @@ the fixed packages** (re-scan should clear them without the waiver).
 | CVE-2026-29111 | systemd (libsystemd0/libudev1) | HIGH | DoS via spurious IPC (assert+freeze on v250+, stack corruption on v249-; not arbitrary code execution per NVD) | 257.13-1~deb13u1 | no systemd/D-Bus daemon in container; libs only — description tightened 2026-05-27 after waiver audit |
 | CVE-2026-4878 | libcap2 | HIGH | local privesc (TOCTOU race) | 1:2.75-10+deb13u1 | needs local attacker already inside container |
 | CVE-2026-40356 | krb5 (libgssapi-krb5-2/libk5crypto3/libkrb5-3/libkrb5support0) | HIGH | DoS via integer *underflow* in NegoEx → OOB read (corrected from "overflow" 2026-05-27) | 1.21.3-5+deb13u1 | no Kerberos service in container; linked libs only — added 2026-05-26 |
+| CVE-2026-45447 | openssl (libssl3t64/openssl/openssl-provider-legacy) | HIGH | heap UAF in PKCS7_verify() (potential RCE) | 3.5.6-1~deb13u2 | Postgres uses OpenSSL for TLS, never PKCS#7/S-MIME verify; loopback, trusted client — added 2026-06-10 |
 
 **Bundled — `gosu` Go stdlib (gobinary).** gosu is a setuid step-down wrapper
 that drops root and `exec`s Postgres: no sockets, no TLS, no URL/archive/mail
