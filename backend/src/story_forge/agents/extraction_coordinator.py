@@ -20,7 +20,10 @@ cross-store mentions. Two design points the milestone forced:
 Resume granularity is the paragraph: "done" means the paragraph already has ≥1
 mention. A paragraph that legitimately extracted **zero** entities writes no mention,
 so a re-run will process it again — a wasted (cheap) LLM call, but never a duplicate
-node, which is what matters under the no-dedupe contract (INV-8). The coordinator
+node, which is what matters under the no-dedupe contract (INV-8). Likewise, if the
+Postgres mention write fails *after* the Neo4j entities are written (the OQ-1 seam),
+that paragraph has no checkpoint and a re-run re-extracts it, writing a second set of
+nodes — accepted under no-dedupe (duplicates are M3's to resolve). The coordinator
 depends on Protocols (not concrete adapters), matching the repo's `LLMProvider` /
 `CostStore` / `OutlineProposer` seams and keeping the resume logic unit-testable
 against fakes.

@@ -15,6 +15,7 @@ from uuid import UUID
 
 import psycopg
 
+from story_forge.adapters import postgres_repo
 from story_forge.adapters.db import libpq_kwargs
 from story_forge.config import settings
 from story_forge.domain.models import EntityMention
@@ -30,20 +31,11 @@ class PostgresMentionStore:
         return await psycopg.AsyncConnection.connect(autocommit=True, **self._conninfo)  # type: ignore[arg-type]
 
     async def add_mention(self, mention: EntityMention) -> None:
+        # Reuse the single INSERT in `postgres_repo` so the table write lives in one
+        # place; only the *connection* differs — its own autocommit one (durable,
+        # resume checkpoint) rather than a caller's request transaction.
         async with await self._connect() as conn:
-            await conn.execute(
-                "INSERT INTO entity_mentions "
-                "(id, paragraph_id, entity_id, span_start, span_end, confidence) "
-                "VALUES (%s, %s, %s, %s, %s, %s)",
-                (
-                    mention.id,
-                    mention.paragraph_id,
-                    mention.entity_id,
-                    mention.span_start,
-                    mention.span_end,
-                    mention.confidence,
-                ),
-            )
+            await postgres_repo.insert_entity_mention(conn, mention)
 
     async def paragraphs_with_mentions(self, paragraph_ids: list[UUID]) -> set[UUID]:
         """Which of `paragraph_ids` already carry ≥1 mention — the resume checkpoint."""
