@@ -61,6 +61,19 @@ path the tests assert — find the cases nobody wrote a test for. Check, concret
   not closed, shared mutable state across requests, ordering assumptions between awaits.
 - **Data integrity** — IDs generated/used consistently across the Postgres/Neo4j split;
   `order_index` renumbering; transactions committed/rolled back on the right paths.
+- **Checkpoint / resume-marker ordering** — when a persisted write doubles as a *done /
+  resume marker* (a row whose presence makes a re-run *skip* that unit of work), verify it
+  lands **only after every operation whose completion it certifies** has succeeded. A marker
+  written mid-sequence lets a *later* step fail and leave a "done" record over incomplete
+  work that the resume path then skips forever — silent, permanent data loss. Enumerate
+  **each** inter-write failure window separately, not just the first: with writes A → B → C
+  where C is the checkpoint it's the A→B and B→C gaps that bite; analysing only A→B (and
+  judging it benign) misses a non-benign B→C. (M2.S4 PR #48: the `entity_mentions` row was
+  the resume checkpoint but was written *before* the Neo4j relation write, so a transient
+  relation-write failure left a checkpointed paragraph with its relations lost forever — a
+  real bug **both** this skill's pass and `/code-review` missed; external review caught it.
+  The fix: write the checkpoint last. Self-review had even noted the entity→mention window
+  but framed it benign and never examined the mention→relation window.)
 - **External I/O contracts** — request/response shape vs the real API (Ollama `/api/chat`,
   psycopg, httpx); headers, timeouts, status handling; what happens on a 4xx/5xx/timeout.
 - **Output-schema strength** — does the Pydantic/validation schema for LLM (or any external)
@@ -219,6 +232,17 @@ those** — spot the things those tools miss:
   assessing "is this still safe?" The 2026-05-27 audit of pre-PR-23 waivers found 39/39
   package attributions correct, so this isn't yet a repo-wide pattern — but Codex's
   catch shows the failure mode exists and the check is cheap.
+- **A CVE advisory can list *multiple* vulnerable ranges — confirm which one your installed
+  version falls in.** A single advisory often carries one range per maintained release branch
+  (e.g. a 4.2.x range *and* a 4.1.x range). Reading only the first range can wrongly conclude
+  "not affected" when a *later* range covers your version. When the authoritative source is the
+  GitHub Advisory DB, enumerate every range — `gh api /advisories -f cve_id=<CVE> --jq '.[] |
+  .vulnerabilities[] | {package, vulnerable: .vulnerable_version_range, patched:
+  .first_patched_version}'` lists them all (NVD may be RESERVED/empty and Aqua AVD may 404 for
+  very fresh CVEs, so the GH Advisory DB is the reliable lookup). (M2.S4 PR #48: the netty
+  CVE-2026-44249/45416 advisories' *first* range was `>= 4.2.0, <= 4.2.14`; Neo4j bundles
+  netty 4.1.132 — only the *second* range `<= 4.1.134` (fixed 4.1.135) showed we were affected.
+  Trusting the first range alone would have wrongly waved the image through as unaffected.)
 
 ## 6. Test discipline (root `CLAUDE.md` §2, `backend/CLAUDE.md`)
 
