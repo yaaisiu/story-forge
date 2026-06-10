@@ -44,9 +44,12 @@ plugin matches `<keyword> = <literal>`, not just the kwarg call site.)
 
 **Alembic revision ids trip the hex-entropy plugin.** A generated `revision: str =
 "<hex>"` in a migration file is flagged as a high-entropy string. It is not a secret —
-add `# pragma: allowlist secret  (alembic revision id, not a secret)` on that line.
-(The `down_revision` hash usually has lower entropy and slips through; the head
-`revision` is the one that trips.)
+add `# pragma: allowlist secret` on that line. **Add it to *both* the `revision` and the
+`down_revision` lines proactively:** whether a given hash trips depends on its entropy,
+not its role, so don't assume the `down_revision` "slips through" — in Session 15 the
+`down_revision` hash tripped while the `revision` (already pragma'd) did not. Pragma both
+and you never iterate against the hook. (This very note tripped the hook by quoting a real
+hash — so it doesn't anymore; that's the foot-gun in miniature.)
 
 ## Running tests
 
@@ -63,6 +66,16 @@ session fixture in `tests/conftest.py` `CREATE DATABASE story_forge_test`, runs
 `alembic upgrade head`, yields, then `DROP`s it. Each test gets a `db_conn`
 (async psycopg) wrapped in a transaction that is rolled back on teardown, so
 tests stay isolated without rebuilding the schema between them.
+
+**A test-first integration test for a new module must still *import* cleanly.**
+pytest collects (imports) every test file *before* it deselects by marker, so a
+new `tests/integration/test_*.py` whose top-level `import story_forge.adapters.X`
+points at a not-yet-created module raises a collection error that breaks even
+`pytest -m "not integration"` — the fast/commit tier, not just the integration run.
+So when you write the failing test first (TDD), create the module + its symbols
+(even as a stub) in the same step, so the red is an *assertion/connection* failure,
+not a collection crash that takes the unit tier down with it. (Session 15, the
+neo4j adapter.)
 
 Prerequisites for the integration tier:
 - Postgres up (`docker compose up -d` from the repo root).

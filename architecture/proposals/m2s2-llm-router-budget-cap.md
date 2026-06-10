@@ -1,7 +1,7 @@
 ---
 type: proposal
 slug: m2s2-llm-router-budget-cap
-updated: 2026-06-02
+updated: 2026-06-09
 status: accepted
 related: ["[[overview]]", "[[invariants]]", "[[open-questions]]", "[[model-tier-routing]]", "[[2026-06-02-architecture-review]]", "[[fail-closed]]", "[[idempotency]]"]
 ---
@@ -136,7 +136,7 @@ day to roll."
 | **Identity** | n/a — single local user | but *provider* identity (which model served) is recorded — that's Evidence, not Identity |
 | **Intent** | ✅ | the agent's task-type + the user's §6.5 provider-dropdown choice express intent per call |
 | **Policy** | ✅ | budget cap (§6.6), tier decision order (§6.5); paid-egress consent **deferred to M2.S5** (D5 — documented marker, no gate) |
-| **Decision** | ✅ | `router.route()` picks tier+provider; the budget guard allows/refuses |
+| **Decision** | ✅ | `router.complete()` selects tier+provider (+ within-tier failover); the budget guard allows/refuses. *(As-built / amended spec §6.5: the orchestrating `complete()`, not the originally-sketched `route()→provider`.)* |
 | **Access** | n/a inter-user | a provider's API-key *presence* is the only "access" gate; absent key ⇒ that provider is unconfigured, skipped in failover |
 | **Monitoring** | ◻ partial | status endpoint built **here**; the visible panel is M2.S5 |
 | **Evidence** | ✅ strong | the usage table — one row per call, the INV-5 trail |
@@ -180,7 +180,7 @@ is the effect on **every** terminal edge (evidence, INV-5).
 
 ```mermaid
 flowchart TD
-    A[Agent: complete task] --> R[LLMRouter.route task]
+    A[Agent: complete task] --> R[LLMRouter.complete task]
     R -->|light| T1[local_small]
     R -->|medium| T2[cloud_free / Ollama Cloud]
     R -->|heavy| T3[cloud_strong: OpenRouter preferred; direct adapters deferred]

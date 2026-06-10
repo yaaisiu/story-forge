@@ -77,3 +77,21 @@ class Paragraph(BaseModel):
     content: str
     content_normalized: str | None = None
     embedding: list[float] | None = None
+
+
+class EntityMention(BaseModel):
+    """A back-reference recording where a graph entity appears in the text (§6.4).
+
+    The cross-store seam (OQ-1): `paragraph_id` references a Postgres `paragraphs`
+    row (a real FK, cascades with the tree), but `entity_id` references a **Neo4j**
+    node and so carries *no* Postgres FK — the two stores cannot share a transaction.
+    `span_start` / `span_end` / `confidence` are nullable because the LLM extraction
+    path yields an evidence quote, not reliable character offsets.
+    """
+
+    id: UUID = Field(default_factory=uuid4)
+    paragraph_id: UUID
+    entity_id: UUID
+    span_start: int | None = None
+    span_end: int | None = None
+    confidence: float | None = None

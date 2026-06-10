@@ -79,6 +79,15 @@ CVE-2026-4878
 # description said "integer overflow" — actually underflow (corrected 2026-05-27
 # during the post-PR-23 audit).
 CVE-2026-40356
+# CVE-2026-45447 — openssl/libssl3t64 (HIGH): heap use-after-free in PKCS7_verify()
+# when a PKCS#7 SignedData carries an empty digestAlgorithms SET — OpenSSL frees a
+# caller-owned BIO, a later use crashes (potential RCE). Reachable ONLY by apps that
+# verify attacker-supplied PKCS#7 / S-MIME messages via OpenSSL's PKCS7 APIs;
+# Postgres uses OpenSSL for TLS, never PKCS#7 message verification, and is bound to
+# 127.0.0.1 with a trusted local client — the vulnerable path is never executed.
+# Fixed in Debian openssl 3.5.6-1~deb13u2 (upstream 3.5.7); not yet baked into a
+# pgvector rebuild. Disclosed 2026-06-10. (Verified vs the OpenSSL advisory.)
+CVE-2026-45447
 
 # ──────────────── Bundled dependency: gosu Go stdlib (gobinary) ───────────────
 # gosu is a setuid step-down wrapper: it drops root and exec()s Postgres. It

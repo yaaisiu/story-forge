@@ -384,7 +384,7 @@ worlds          (id, name, description)  -- optional shared graph parent
 
 ```cypher
 // Nodes
-(:Entity {id, type, canonical_name_pl, canonical_name_en, aliases, properties, embedding, project_id, world_id})
+(:Entity {id, type, canonical_name_pl, canonical_name_en, aliases, properties, first_seen_paragraph_id, embedding, project_id, world_id})
 
 // Relations (dynamically typed)
 (:Entity)-[:RELATION_TYPE {confidence, source_paragraph_id, attributes}]->(:Entity)

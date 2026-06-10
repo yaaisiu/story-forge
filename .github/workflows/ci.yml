@@ -29,6 +29,26 @@ jobs:
           --health-interval 10s
           --health-timeout 5s
           --health-retries 5
+      # Throwaway Neo4j for the graph integration suite (M2.S4). Same image the
+      # security job Trivy-scans and docker-compose runs. The password is CI-only.
+      # Telemetry is disabled to match the §6.7 compose config (and the metrics
+      # setting that crash-looped Community is deliberately absent — see compose).
+      neo4j:
+        image: neo4j:5.26.25-community-ubi10
+        env:
+          NEO4J_AUTH: neo4j/ci_only_throwaway_pw
+          NEO4J_ACCEPT_LICENSE_AGREEMENT: "yes"
+          NEO4J_client_allow__telemetry: "false"
+          NEO4J_dbms_usage__report_enabled: "false"
+        ports:
+          - 7687:7687
+          - 7474:7474
+        options: >-
+          --health-cmd "wget --quiet --tries=1 --spider http://localhost:7474/ || exit 1"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 12
+          --health-start-period 30s
     steps:
       - uses: actions/checkout@v5
       - name: Install uv
@@ -45,8 +65,13 @@ jobs:
         run: uv run mypy
       - name: Pytest
         # The session fixture CREATEs/DROPs story_forge_test inside this server.
+        # Neo4j integration tests scope writes to a fresh project_id per test and
+        # DETACH-DELETE them on teardown (Community has no throwaway-DB equivalent).
         env:
           TEST_DATABASE_URL: postgresql+psycopg://storyforge:ci_only_throwaway_pw@localhost:5432/story_forge_test
+          NEO4J_URI: bolt://localhost:7687
+          NEO4J_USER: neo4j
+          NEO4J_PASSWORD: ci_only_throwaway_pw
         run: uv run pytest -q
 
   frontend:

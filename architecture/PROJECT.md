@@ -1,7 +1,7 @@
 ---
 type: project
 slug: project
-updated: 2026-06-02
+updated: 2026-06-09
 status: living
 related: ["[[overview]]", "[[invariants]]", "[[open-questions]]"]
 ---
@@ -17,8 +17,8 @@ entities and relations in Neo4j. **As specified for V1** (the target capability 
 built today vs. planned, see [[overview]] "as-built"), the author uploads a raw draft; the
 system splits it into chapters → scenes → paragraphs, extracts entities (characters, places,
 objects, concepts) and their relations, and lets the author confirm every graph decision by
-hand. *Today the upload/split/structure step works; LLM extraction and the graph write are
-M2.S3–S4.* It runs entirely on the author's machine and is **public from day one** — it
+hand. *Today the upload/split/structure step works and LLM entity/relation extraction is built
+(M2.S3); the graph write is M2.S4.* It runs entirely on the author's machine and is **public from day one** — it
 doubles as a portfolio
 piece demonstrating clean modular architecture, agent-based LLM orchestration, multi-model
 routing, and secure-by-default infrastructure.

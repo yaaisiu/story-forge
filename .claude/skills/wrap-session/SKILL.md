@@ -113,7 +113,7 @@ Overwrite the `▶ Session handoff` block (between the markers) so it describes 
 session. Fill every field literally:
 - **Next session:** the next unchecked session number + title (or the next milestone if M1 is done).
 - **Read before starting:** this file + the exact spec sections and directory `CLAUDE.md` that session needs.
-- **Verify on disk:** the concrete anchors `/resume-session` should check (files/dirs that should or should not exist).
+- **Verify on disk:** the concrete anchors `/resume-session` should check (files/dirs that should or should not exist). **Do not write an anchor that asserts live *infra* state — "table X is already in the schema", "CI runs the neo4j service", "the compose service works" — without verifying it *as you write it* (grep the migration / `ci.yml`, or boot it). A false infra claim here is the bug `/resume-session` then has to catch; the cheaper fix is to never author it. Session 15 wrote two such false anchors that cost the next session real time.** Prefer "M2.S4 must *create* table X (not in the schema)" over an unverified "X already exists".
 - **Last session ended:** today's date + one line on where you stopped (note any red checks).
 - **Open blocks/questions:** point to the Blocked/questions section or restate the decision the next session must make first.
 

@@ -43,9 +43,11 @@ docker run --rm -v /var/run/docker.sock:/var/run/docker.sock \
 
 ## neo4j — `neo4j:5.26.25-community-ubi10`
 
-Scoped file: `infra/trivy/neo4j.trivyignore` · Issue #2 · added 2026-05-21.
+Scoped file: `infra/trivy/neo4j.trivyignore` · Issue #2 · added 2026-05-21
+(extended 2026-06-10: +CVE-2026-44249, +CVE-2026-45416).
 Class: **bundled** netty jars Neo4j ships itself (no base variant fixes them).
-**Drop when:** a Neo4j 5.26.x patch bundles netty ≥ 4.1.133.Final (released
+**Drop when:** a Neo4j 5.26.x patch bundles netty ≥ 4.1.135.Final (the 4.1.x fix
+for the two 2026-06-10 additions; the first three were fixed in 4.1.133.Final,
 2026-05-04). None is data-disclosure/RCE on a 127.0.0.1 single-user deployment.
 
 | CVE | Pkg | Sev | Class | Fixed in | Why acceptable here |
@@ -53,6 +55,8 @@ Class: **bundled** netty jars Neo4j ships itself (no base variant fixes them).
 | CVE-2026-42583 | netty-codec | HIGH | DoS (LZ4 mem exhaustion) | netty 4.1.133.Final | resource-exhaustion only |
 | CVE-2026-42584 | netty-codec-http | HIGH | HTTP client-codec desync | netty 4.1.133.Final | needs Neo4j as outbound HTTP client — never exercised |
 | CVE-2026-42587 | netty-codec-http | HIGH | DoS (decompression bomb) | netty 4.1.133.Final | resource-exhaustion only |
+| CVE-2026-44249 | netty-handler | HIGH | IPv6 subnet-filter bypass (access-control) | netty 4.1.135.Final | netty IP-filtering not used as a boundary; 127.0.0.1 bind is |
+| CVE-2026-45416 | netty-handler | HIGH | DoS (SNI 16 MiB pre-alloc) | netty 4.1.135.Final | no public TLS surface; loopback, trusted client only |
 
 ## pgvector — `pgvector/pgvector:0.8.2-pg17-trixie`
 
@@ -79,6 +83,7 @@ the fixed packages** (re-scan should clear them without the waiver).
 | CVE-2026-29111 | systemd (libsystemd0/libudev1) | HIGH | DoS via spurious IPC (assert+freeze on v250+, stack corruption on v249-; not arbitrary code execution per NVD) | 257.13-1~deb13u1 | no systemd/D-Bus daemon in container; libs only — description tightened 2026-05-27 after waiver audit |
 | CVE-2026-4878 | libcap2 | HIGH | local privesc (TOCTOU race) | 1:2.75-10+deb13u1 | needs local attacker already inside container |
 | CVE-2026-40356 | krb5 (libgssapi-krb5-2/libk5crypto3/libkrb5-3/libkrb5support0) | HIGH | DoS via integer *underflow* in NegoEx → OOB read (corrected from "overflow" 2026-05-27) | 1.21.3-5+deb13u1 | no Kerberos service in container; linked libs only — added 2026-05-26 |
+| CVE-2026-45447 | openssl (libssl3t64/openssl/openssl-provider-legacy) | HIGH | heap UAF in PKCS7_verify() (potential RCE) | 3.5.6-1~deb13u2 | Postgres uses OpenSSL for TLS, never PKCS#7/S-MIME verify; loopback, trusted client — added 2026-06-10 |
 
 **Bundled — `gosu` Go stdlib (gobinary).** gosu is a setuid step-down wrapper
 that drops root and `exec`s Postgres: no sockets, no TLS, no URL/archive/mail
@@ -123,7 +128,8 @@ extended 2026-05-27 (PR #23 wave-3 fold — sequential-Trivy unmask after the
 pgvector wave-3 waiver let Trivy reach this scan; same three Go-stdlib CVEs
 fixed in Go 1.25.10/1.26.3 hit ollama's binary, same precedent as PR #6).
 Class: **compiled-in** Go stdlib + `buger/jsonparser` in the ollama server binary
-— no ollama tag fixes them, only an upstream rebuild on a patched Go toolchain.
+— no ollama tag fixes them, only an upstream rebuild on a patched Go toolchain
+(plus one Ubuntu-base **OS** openssl CVE added 2026-06-10, fixed by a base rebuild).
 Bumped 0.22.1 → 0.24.0 to minimise residual (dropped the CRITICAL + 6 others).
 12 HIGH, 0 CRITICAL. Reachability: ollama is 127.0.0.1-bound, single trusted
 user, backend is the only client; CVEs are mostly DoS (self-inflicted only) plus
@@ -132,6 +138,7 @@ rebuilds ollama on patched Go.
 
 | CVE | Pkg | Sev | Class | Fixed in | Why not reachable here |
 |---|---|---|---|---|---|
+| CVE-2026-45447 | openssl (libssl3t64/openssl) | HIGH | heap UAF in PKCS7_verify() (potential RCE) | Ubuntu 3.0.13-0ubuntu3.11 | ollama serves a JSON inference API, no PKCS#7/S-MIME verify; loopback, trusted client — added 2026-06-10 |
 | CVE-2026-32285 | buger/jsonparser | HIGH | DoS (crafted JSON) | jsonparser 1.1.2 | JSON from trusted local backend only |
 | CVE-2026-25679 | net/url | HIGH | IPv6 host-literal parsing | Go 1.25.8 / 1.26.1 | parsing DoS; trusted caller |
 | CVE-2026-27137 | crypto/x509 | HIGH | email-constraint enforcement | Go 1.26.1 | cert-validation correctness, not RCE; outbound TLS only |

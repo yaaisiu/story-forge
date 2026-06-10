@@ -1,7 +1,7 @@
 ---
 type: changelog
 slug: changelog
-updated: 2026-06-08
+updated: 2026-06-09
 status: living
 related: []
 ---
@@ -10,6 +10,38 @@ related: []
 
 Append-only audit trail of writes into the vault. Newest entries at the top. History also lives
 in `updated` fields (freshness) and git (diffs); this is the human-readable "what changed when".
+
+## 2026-06-09 — fold: drift-fixes applied + full doc audit (owner-approved)
+
+The 2026-06-09 sweep's recommended drift-fixes were **approved by the owner and folded**, plus a
+full audit of the remaining vault notes for staleness. Edits (all vault-only, no code): **`overview.md`**
+— M2.S2 + M2.S3 moved to "built and merged" (was 3 sessions stale, still calling them "planned"), the
+"does not yet extract" summary corrected to "extracts but does not yet write the graph", the
+nine-station Monitoring row flipped `◻ planned → ✅ partial` (status endpoint + ledger built),
+`updated` 06-02→06-09. **`invariants.md`** — INV-5's OQ-10 "coverage gap" clause flipped to
+as-built-closed (PR #42), INV-4's "(M2.S3)" planned tense → as-built, `updated` 06-08→06-09.
+**`PROJECT.md`** — Identity line "extraction is M2.S3–S4" → "extraction built (M2.S3); graph write
+M2.S4", `updated` 06-02→06-09. **`m2s2-llm-router-budget-cap.md`** — the stale `router.route()`
+station-table depiction → `router.complete()` (as-built / amended spec §6.5; the cross-cutting
+doc-hygiene item), `updated` bumped. Audit confirmed clean: glossary index (20) matches INDEX; no
+orphans / ghost refs / stale ADRs. INDEX already current (regenerated).
+
+## 2026-06-09 — review: pre-M2.S4 drift + forward sweep
+
+`review-architecture` run at the owner's request before building M2.S4 (Neo4j writes), diffing the
+vault against the as-built after M2.S3 (PR #42) + the SCA gate (PR #44) merged. New
+`reports/2026-06-09-architecture-review.md`. **No blockers.** Findings: (1) `risk` — `overview.md` is
+three sessions stale, still listing M2.S2 *and* M2.S3 as "planned, not yet built"; (2) `watch` —
+INV-5 still calls OQ-10 an open gap though `ProviderResponseError` landed in PR #42, and
+`open-questions.md` OQ-10 isn't struck-closed though INDEX says it is; (3) `risk` (forward) — the data
+model assumes an `entity_mentions` table that **does not exist in the migrations** (only spec §6.4) —
+already fixed in `docs/PLAN_SHORT.md` this morning; (4) `risk` (forward) — INV-8's no-dedupe must be
+held by `CREATE`-not-`MERGE` + a failing test; (5) `risk` (forward) — the new graph-write API path
+must map router exceptions to HTTP or it 500s (chunking path catches only `ChunkingError`). Forward
+lens: M2.S4 plan **aligned** with the invariants; OQ-1 (two-store consistency) + OQ-2 (resumable batch)
+are the owner's calls as the session opens. Trail: `open-questions` +findings (deduped into OQ-1/OQ-2
+notes); learning-log +3. **Report-only:** the `overview.md`/`invariants.md`/OQ-10 drift fixes are
+*recommended* for owner approval, not folded unilaterally.
 
 ## 2026-06-08 — decompose: backend dependency-advisory scan (continuous SCA)
 

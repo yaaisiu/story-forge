@@ -13,7 +13,14 @@ import pytest
 from alembic import command
 from alembic.config import Config
 
-EXPECTED_TABLES = {"projects", "stories", "chapters", "scenes", "paragraphs"}
+EXPECTED_TABLES = {
+    "projects",
+    "stories",
+    "chapters",
+    "scenes",
+    "paragraphs",
+    "entity_mentions",
+}
 
 
 async def _public_tables(conn: psycopg.AsyncConnection) -> set[str]:

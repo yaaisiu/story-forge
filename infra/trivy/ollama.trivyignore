@@ -29,6 +29,17 @@
 # commit 282e3da (local Trivy was unavailable this session). The bump from
 # 0.22.1 already dropped the CRITICAL crypto/tls resumption CVE and 6 others.
 
+# ─────────────────────── OS package (Ubuntu base) ───────────────────────
+# CVE-2026-45447 — openssl/libssl3t64 (HIGH): heap use-after-free in PKCS7_verify()
+# when a PKCS#7 SignedData carries an empty digestAlgorithms SET (OpenSSL frees a
+# caller-owned BIO; a later use crashes — potential RCE). Reachable ONLY by code
+# that verifies attacker-supplied PKCS#7 / S-MIME messages via OpenSSL's PKCS7 API;
+# ollama serves a JSON inference API and does no PKCS#7/S-MIME verification, bound
+# to 127.0.0.1 with the trusted local backend as its only client. Fixed in Ubuntu
+# openssl 3.0.13-0ubuntu3.11 (upstream 3.5.7); not yet in an ollama rebuild.
+# Disclosed 2026-06-10; same CVE waived on neo4j/pgvector. (Verified vs OpenSSL advisory.)
+CVE-2026-45447
+
 # ─────────────── Bundled dependency: github.com/buger/jsonparser ───────────────
 # CVE-2026-32285 — DoS via crafted JSON triggering a panic / unbounded work in
 # the parser. Fixed in jsonparser 1.1.2. Reached only by JSON the trusted local

@@ -1,9 +1,9 @@
 ---
 type: open-questions
 slug: open-questions
-updated: 2026-06-08
+updated: 2026-06-09
 status: living
-related: ["[[overview]]", "[[project]]", "[[invariants]]", "[[2026-06-02-architecture-review]]", "[[m2s3-extraction-agent]]"]
+related: ["[[overview]]", "[[project]]", "[[invariants]]", "[[2026-06-02-architecture-review]]", "[[m2s3-extraction-agent]]", "[[2026-06-09-architecture-review]]"]
 ---
 
 # Open questions — Story Forge
@@ -48,7 +48,17 @@ OQ-C is the next architect deep-dive when one is wanted.
 
 ## Raised by this vault (gaps the seed pass found)
 
-### OQ-1 — Two-store write consistency (Neo4j entity ↔ Postgres mention)
+### ~~OQ-1 — Two-store write consistency (Neo4j entity ↔ Postgres mention)~~ ✅ Resolved 2026-06-10
+**Resolution** (owner, M2.S4 / PR #48): option **(c)** — write **Neo4j-then-Postgres** and **accept
+eventual inconsistency** at PoC scale (single user, low volume, reversible); no reconciliation/outbox.
+Per paragraph the `ExtractionCoordinator` writes all Neo4j (entities → relations) *then* the Postgres
+`entity_mentions` row, so the mention (the resume checkpoint) lands only after every graph write
+succeeds — a crash before it leaves the paragraph un-checkpointed and a re-run re-extracts it
+(re-writing nodes, accepted under no-dedupe INV-8; M3 resolves duplicates). The remaining gap (a
+store-down surfacing as a 500 rather than a typed status; the Neo4j driver created at import without a
+lifespan close) is tracked as a `docs/PLAN_SHORT.md` cross-cutting follow-up. Original framing kept
+below for history.
+
 An entity's identity lives in Neo4j; its `entity_mentions` live in Postgres. The two stores
 **cannot share a transaction**. *But what if* the Neo4j write succeeds and the Postgres
 mention write fails (or vice versa)?
@@ -58,8 +68,24 @@ mention write fails (or vice versa)?
 - **My proposal:** (c) for the PoC (single user, low volume, reversible), with a cheap
   consistency check surfaced in the UI — but flag it as a real seam to revisit if it bites.
 - **Lands in:** M2.S4 (first time both writes coexist). Open.
+- **Now live + a trap (pre-M2.S4 sweep, 2026-06-09 — `[[2026-06-09-architecture-review]]`):** this is
+  M2.S4's first owner call (confirm write-order Neo4j-then-Postgres + posture (c) before wiring).
+  **Trap:** the Postgres `entity_mentions` table this seam assumes **does not exist in the migrations**
+  — only spec §6.4 defines it (the M1 schema has projects/stories/chapters/scenes/paragraphs +
+  llm_calls). M2.S4 must **create it in a new Alembic migration** (+ extend `EXPECTED_TABLES`), not
+  inherit it. The `docs/PLAN_SHORT.md` handoff's "already in M1's schema, verify before re-migrating"
+  was wrong and is **fixed there** (2026-06-09). Spec §6.4 is the authority and is correct.
 
-### OQ-2 — Ingest job partial-failure recovery
+### ~~OQ-2 — Ingest job partial-failure recovery~~ ✅ Resolved 2026-06-10
+**Resolution** (owner, M2.S4 / PR #48): option **(a)** — per-paragraph idempotent-ish writes +
+resume-from-last-done. The **batch driver** (`ExtractionCoordinator`), *not* the agent, owns the
+`except BudgetExceededError | QuotaExhaustedError` catcher; on a mid-batch pause it stops and the
+route returns **HTTP 202 + partial progress**, and a re-POST resumes from the first paragraph without
+a committed `entity_mentions` row (the durable checkpoint). The single-paragraph `ExtractionAgent`
+keeps *propagating* the pause-and-ask untouched (M2.S3 D5). Resume granularity is the paragraph;
+a zero-entity paragraph writes no mention and is cheaply re-run on resume (never a duplicate node).
+Original framing kept below for history.
+
 *But what if* extraction dies halfway through a 50k-word story? Is the job resumable, or does
 the user re-run from scratch? Is there an ingest-job state record at all, or only per-paragraph
 side effects?
@@ -77,6 +103,12 @@ side effects?
   **batch driver + catcher land in M2.S4**, where the graph write + `entity_mentions` give a durable
   "last-done" checkpoint. The agent-level decision is made; OQ-2 stays open only for the M2.S4 batch
   driver itself.
+- **Now live (pre-M2.S4 sweep, 2026-06-09 — `[[2026-06-09-architecture-review]]`):** the catcher is
+  M2.S4's to build. Confirm the **batch driver** (not the agent) owns the `except
+  BudgetExceededError`/`QuotaExhaustedError` → pause-resumably, using the persisted graph write +
+  `entity_mentions` as the durable "last-done" anchor (see [[idempotency]]). Related: the new
+  graph-write **API path must map the router's exit exceptions to HTTP** (502/402-style) — today
+  `api/stories.py` catches only `ChunkingError`, so an exhausted router on the new path would 500.
 
 ### ~~OQ-3 — `cloud_free` quota-exhausted behaviour~~ ✅ Resolved 2026-06-02
 **Resolution** (ADR 0003; spec §6.5 amended): on a GPU-less host the `local_small` degrade target
@@ -193,7 +225,14 @@ it either.
 - **My proposal:** (a) — it's a one-column migration and the panel already promises it; capturing
   wall-clock around `provider.complete` is trivial and system-derived. Decide **before M2.S5**. Open.
 
-### OQ-10 — Malformed-`200`-envelope: record + fail over, don't crash
+### ~~OQ-10 — Malformed-`200`-envelope: record + fail over, don't crash~~ ✅ Closed in code 2026-06-08 (PR #42)
+**Closed in code 2026-06-08 (PR #42)** (confirmed by the 2026-06-09 sweep —
+`[[2026-06-09-architecture-review]]`): the typed `ProviderResponseError(RuntimeError)` is defined in
+`adapters/llm/base.py`, raised by **both** adapters at the envelope-unwrap point (incl. the
+null-`content` case the PR-#42 `/code-review` caught — `ollama.py`, `openrouter.py`), and caught by the
+router (`router.py`) which records a failure row + fails over, exactly like a 5xx. INV-5 is now total
+over the edges the router handles; INV-5's note still carries the stale "open gap" prose (a
+recommended drift-fix, see the sweep Hand-off). Original framing kept below for history.
 Raised by the post-M2.S2 sweep; predicted by the proposal §7. A provider returning `200` with a
 broken body (missing `choices`/`message`, an error shaped as success, a proxy injecting JSON) raises
 a parse error *inside* `provider.complete()`; the router catches `HTTPStatusError` + `RequestError`
