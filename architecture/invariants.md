@@ -127,8 +127,11 @@ Through Milestone 2, extraction writes **every** candidate as a fresh Neo4j node
 matching/merge. This is a *deliberately temporary* invariant whose purpose is to expose the
 duplicate problem that M3's cascade then solves.
 - **Source:** §9 Milestone 2 ("save entities to Neo4j without cascade").
-- **Lifespan:** holds until M3 begins; at that point it is **superseded by INV-1** (the human
-  gate). Flagged temporary so no one mistakes "no dedupe" for a permanent design stance.
+- **Lifespan:** holds until **M3's gating code lands (M3.S1)** — *not* merely until the M3 milestone
+  opens; M3 has begun on the plan, but INV-8 stays the live contract until the intercept-before-write
+  cascade replaces the unconditional `CREATE` (DM6, `[[m3-cascade-matching]]`). At that point it is
+  **superseded by INV-1** (the human gate), folded here test-first (the flip witnessed by the failing
+  test). Flagged temporary so no one mistakes "no dedupe" for a permanent design stance.
 - **Why list a temporary rule:** during M2 it *is* a contract the code must hold (two identical
   extractions must produce two nodes — there is even a test for it, §M2.S4); naming it prevents
   a well-meaning early dedupe from sneaking in before M3.
