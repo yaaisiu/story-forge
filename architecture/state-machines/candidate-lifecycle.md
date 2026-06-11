@@ -21,8 +21,8 @@ matching pipeline (`MatchingAgent` → `JudgeAgent` → review queue) — see [[
 > spec-given (§3.3). **DM6 is decided (owner, 2026-06-11): (A) intercept-before-write** — so the commit
 > edges below are the *only* graph writes and extraction merely *stages* candidates (no Neo4j write until
 > the human accepts). Finalise to `living` when the gating code lands (the invariant flip is witnessed by
-> the failing test, not before). Remaining open register items: `[[m3-cascade-matching]]` DM1–DM5, DM7,
-> DM-rej.
+> the failing test, not before). Remaining open register items: `[[m3-cascade-matching]]` DM5, DM7,
+> DM-rej (DM1–DM4 + DM6 resolved — `docs/PLAN_SHORT.md` Decided 2026-06-11 S20; Stage 1 shipped PR #56).
 
 ## States
 

@@ -338,10 +338,11 @@ data-layer record), **not** stdout logs — they are different concerns.
   scoped:* (a) structured logging with a redaction processor built **with** the first log line;
   (b) no operational logging at PoC, documented, ledger-only. Open.
 
-### OQ-16 — M3 cascade decision register (DM1–DM7, DM-rej) — OPEN
+### OQ-16 — M3 cascade decision register (DM1–DM7, DM-rej) — DM1–DM4 + DM6 RESOLVED; DM5/DM7/DM-rej OPEN
 Raised by the M3 `decompose-requirement` step-0 (2026-06-11, `[[m3-cascade-matching]]`). The full
 Context/Options/Proposal for each lives in that proposal's Decision register; listed here so the vault's
-reader knows they exist and that they gate M3 code:
+reader knows they exist and that they gate M3 code. **Resolved (authoritative in `docs/PLAN_SHORT.md`
+Decided): DM6 (S19) + DM1–DM4 (S20) — each took its proposal below.** Open: DM5/DM7/DM-rej.
 - **DM1 — threshold home** (the §3.3 Policy values: Stage 1 85/60, Stage 2 cosine 0.85, Stage 3 conf 0.8
   have no home today). *Proposal:* a named `matching` config module, spec defaults, not user-facing yet.
 - **DM2 — embedding model** (`paraphrase-multilingual-mpnet-base-v2`, 768-dim — matches the reserved
@@ -356,7 +357,9 @@ reader knows they exist and that they gate M3 code:
 - **DM7 — review-queue UX** (§3.3 Stage 4 elements + keyboard nav) + **landing INV-2's consent gate here**.
 - **DM-rej — rejected-candidate memory** (don't re-surface; ties OQ-4 Expiry).
 - **Also live:** spec §10 q8 (multilingual `canonical_name_pl/en`) becomes concrete at merge — stays the
-  **spec's** to resolve. **Lands in:** M3, opener `MatchingAgent` (Stage 1+2). Open.
+  **spec's** to resolve. **Lands in:** M3.S1 = Stage 1 RapidFuzz ✅ (PR #56); M3.S2 = Stage 2 embeddings
+  + the pgvector switch (DM2–DM4); M3.S3 = JudgeAgent (DM5); M3.S4 = review queue + the DM6 write-path
+  refactor / INV-8 retirement (DM7/DM-rej).
 
 ## Referenced — owned by spec §10 (not duplicated)
 
