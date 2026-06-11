@@ -93,11 +93,15 @@ def _ok(tier: ModelTier, *, cost: float | None = None) -> CompletionResult:
 def _router(
     providers: dict[ModelTier, list[object]], store: FakeCostStore, **kw: object
 ) -> LLMRouter:
+    extra: dict[str, object] = {}
+    if "clock" in kw:
+        extra["clock"] = kw["clock"]
     return LLMRouter(
         providers=providers,  # type: ignore[arg-type]  # FakeProvider is structurally an LLMProvider
         cost_store=store,
         daily_budget_usd=float(kw.get("daily_budget_usd", 10.0)),
         gpu_available=bool(kw.get("gpu_available", False)),
+        **extra,  # type: ignore[arg-type]
     )
 
 
@@ -369,6 +373,60 @@ async def test_records_system_derived_usage_on_success() -> None:
     assert row.task_type == "rewrite"
     assert row.input_tokens == 10 and row.output_tokens == 5
     assert row.cost_estimate == 1.05
+
+
+def _clock(*ticks: float) -> object:
+    """A fake monotonic clock yielding the given readings (seconds) in order."""
+    it = iter(ticks)
+    return lambda: next(it)
+
+
+async def test_records_latency_ms_around_the_provider_call() -> None:
+    # OQ-9: every dispatched call records wall-clock latency (ms) measured around
+    # provider.complete. A fake monotonic clock advances 0.25 s across the call.
+    provider = FakeProvider(result=_ok("cloud_strong", cost=1.05), paid=True)
+    store = FakeCostStore()
+    router = _router({"cloud_strong": [provider]}, store, clock=_clock(1.0, 1.25))
+
+    await router.complete(MESSAGES, weight="heavy", task_type="rewrite")
+
+    assert store.records[0].latency_ms == 250
+
+
+async def test_records_latency_for_each_attempt_including_the_failed_one() -> None:
+    # Each provider attempt is timed independently: the failed attempt's failure
+    # row carries the time it took to fail, the successful failover its own.
+    failing = FakeProvider(error=_http_error(503), paid=True)
+    healthy = FakeProvider(result=_ok("cloud_strong"), paid=True)
+    store = FakeCostStore()
+    router = _router(
+        {"cloud_strong": [failing, healthy]},
+        store,
+        clock=_clock(1.0, 1.1, 5.0, 5.2),  # fail in 100 ms, succeed in 200 ms
+    )
+
+    await router.complete(MESSAGES, weight="heavy", task_type="rewrite")
+
+    assert [r.latency_ms for r in store.records] == [100, 200]
+
+
+async def test_predispatch_budget_refusal_records_no_latency() -> None:
+    # The fail-closed cap refuses *before* any provider call, so there is no
+    # wall-clock to measure: latency_ms is None and the clock is never read.
+    provider = FakeProvider(result=_ok("cloud_strong"), paid=True)
+    store = FakeCostStore(spend_today=10.0)
+
+    def forbidden_clock() -> float:
+        raise AssertionError("clock must not be read when nothing was dispatched")
+
+    router = _router(
+        {"cloud_strong": [provider]}, store, daily_budget_usd=10.0, clock=forbidden_clock
+    )
+
+    with pytest.raises(BudgetExceededError):
+        await router.complete(MESSAGES, weight="heavy", task_type="rewrite")
+
+    assert store.records[0].latency_ms is None
 
 
 async def test_missing_provider_for_tier_is_a_config_error() -> None:

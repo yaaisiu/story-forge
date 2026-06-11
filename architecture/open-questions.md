@@ -214,7 +214,12 @@ full Context/Options/Proposal for each lives in the proposal's Decision register
   the step-5-vs-hardware contradiction), G2 egress-gate posture, G5 log retention (Expiry/OQ-4).
 - **Lands in:** M2.S2 (next product session). See [[m2s2-llm-router-budget-cap]].
 
-### OQ-9 — `latency` is promised in three homes but recorded in none
+### ~~OQ-9 — `latency` is promised in three homes but recorded in none~~ ✅ Resolved 2026-06-11 → option (a)
+**Resolved 2026-06-11 (option a):** spec §6.6's enumeration now lists `latency_ms` (elapsed time
+around the provider call; recorded for every dispatched call, null only for a pre-dispatch budget
+refusal that never reached a provider); the `llm_calls` column + the router capture land in **M2.S5**
+(the §8.5 panel shows it). `[[invariants]]` INV-5's latency caveat is updated to match. Original
+framing kept below for history.
 Raised by the post-M2.S2 sweep (`[[2026-06-02-architecture-review-post-m2s2]]`). INV-5 says a usage
 row records "… **(and latency)**"; the `[[m2s2-llm-router-budget-cap]]` proposal repeats it; the
 **M2.S5 panel task** (`docs/PLAN_SHORT.md`) lists **latency** as a shown column. But the as-built

@@ -83,8 +83,9 @@ related: []
    inconsistency; mention is the checkpoint, written last) and **OQ-2** resolved (the batch driver owns
    the pause-and-ask → 202-paused, resume from the last committed mention). overview/invariants
    refreshed in the same PR.
-10. **Next:** **M2.S5** — frontend graph viewer + agent-activity panel. Still-carried watches: **OQ-9**
-   (latency) before M2.S5; INV-6 redaction-before-logging. Tracked M2.S4 follow-up: a store-down on the
+10. **Next:** **M2.S5** — frontend graph viewer + agent-activity panel. **OQ-9 (latency) resolved
+   2026-06-11 → option (a)**: spec §6.6 now records `latency_ms`; the column + router capture land in
+   M2.S5. Still-carried watch: INV-6 redaction-before-logging. Tracked M2.S4 follow-up: a store-down on the
    extract path surfaces as 500 (not a typed status) + the Neo4j driver has no lifespan-close — see
    `docs/PLAN_SHORT.md` cross-cutting. Architect deep-dives still on offer: the **LLM-call state machine**
    (`state-machines/`, the first) and/or the first `components/` note (OQ-C).

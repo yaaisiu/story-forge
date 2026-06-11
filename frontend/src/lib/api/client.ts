@@ -52,6 +52,12 @@ export async function postFormJson<T>(path: string, body: FormData): Promise<T> 
   return readJson<T>(response);
 }
 
+/** GET `path` and parse the JSON response. */
+export async function getJson<T>(path: string): Promise<T> {
+  const response = await fetch(`${API_BASE_URL}${path}`, { method: "GET" });
+  return readJson<T>(response);
+}
+
 /** POST an `application/json` body to `path` and parse the JSON response. */
 export async function postJsonBody<T>(path: string, body: unknown): Promise<T> {
   const response = await fetch(`${API_BASE_URL}${path}`, {

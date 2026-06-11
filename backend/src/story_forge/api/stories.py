@@ -20,6 +20,7 @@ from pydantic import BaseModel
 
 from story_forge.adapters.db import get_connection
 from story_forge.adapters.llm.base import ProviderResponseError
+from story_forge.adapters.neo4j_repo import Neo4jRepo
 from story_forge.adapters.postgres_repo import (
     get_project,
     get_story,
@@ -354,4 +355,90 @@ async def extract_story(
         relations_written=result.relations_written,
         paused=result.paused,
         pause_reason=result.pause_reason,
+    )
+
+
+def get_neo4j_repo(request: Request) -> Neo4jRepo:
+    """The app-lifetime Neo4j repo wired in `main.py` (shared across requests)."""
+    repo: Neo4jRepo = request.app.state.neo4j_repo
+    return repo
+
+
+class GraphNode(BaseModel):
+    """One entity node for the §3.4 viewer — the display subset of `GraphEntity`.
+
+    Persistence-only fields (`properties`, `embedding`, `project_id`, `world_id`)
+    are omitted: the read-only M2 viewer colours by `type`, labels by canonical
+    name/aliases, and links each node to its first occurrence paragraph.
+    """
+
+    id: UUID
+    type: str
+    canonical_name_pl: str | None
+    canonical_name_en: str | None
+    aliases: list[str]
+    first_seen_paragraph_id: UUID | None
+
+
+class GraphEdge(BaseModel):
+    """One typed, directed relation for the viewer (edge label = `type`, §3.4)."""
+
+    id: UUID
+    type: str
+    subject_id: UUID
+    object_id: UUID
+    confidence: float
+
+
+class GraphResponse(BaseModel):
+    """The story's knowledge graph as nodes + edges for the viewer."""
+
+    nodes: list[GraphNode]
+    edges: list[GraphEdge]
+
+
+@router.get(
+    "/{story_id}/graph",
+    responses={404: {"model": ErrorResponse, "description": "Story not found."}},
+)
+async def get_story_graph(
+    story_id: UUID,
+    conn: Annotated[AsyncConnection, Depends(get_connection)],
+    repo: Annotated[Neo4jRepo, Depends(get_neo4j_repo)],
+) -> GraphResponse:
+    """The story's entity graph for the read-only viewer (spec §3.4).
+
+    The graph is keyed by *project* (entities carry `project_id`, the §6.4
+    multi-tenancy seam), so the route resolves the story to its project and returns
+    that project's nodes/edges. No dedupe through M2 (INV-8) — the viewer renders
+    whatever was written, duplicates and all, which is exactly the problem M3 solves.
+    """
+    story = await get_story(conn, story_id)
+    if story is None:
+        raise HTTPException(status_code=404, detail="story not found")
+
+    entities = await repo.list_entities(story.project_id)
+    relations = await repo.get_relations(story.project_id)
+    return GraphResponse(
+        nodes=[
+            GraphNode(
+                id=e.id,
+                type=e.type,
+                canonical_name_pl=e.canonical_name_pl,
+                canonical_name_en=e.canonical_name_en,
+                aliases=e.aliases,
+                first_seen_paragraph_id=e.first_seen_paragraph_id,
+            )
+            for e in entities
+        ],
+        edges=[
+            GraphEdge(
+                id=r.id,
+                type=r.type,
+                subject_id=r.subject_id,
+                object_id=r.object_id,
+                confidence=r.confidence,
+            )
+            for r in relations
+        ],
     )

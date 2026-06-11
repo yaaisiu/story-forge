@@ -9,6 +9,7 @@ the router stays unit-testable against an in-memory fake; the Postgres-backed
 
 from __future__ import annotations
 
+from datetime import datetime
 from typing import Literal, Protocol
 
 from pydantic import BaseModel
@@ -25,7 +26,9 @@ class LlmCallRecord(BaseModel):
 
     `model` and the usage counts are nullable because a refused or failed call may
     never reach the provider (so no served model) or return no usage. The store
-    assigns the timestamp, so the router holds no clock.
+    assigns the timestamp; `latency_ms` is the only clock the router holds — the
+    wall-clock duration it measured around the provider call (None when nothing was
+    dispatched, e.g. a pre-dispatch budget refusal).
     """
 
     tier: ModelTier
@@ -37,6 +40,7 @@ class LlmCallRecord(BaseModel):
     output_tokens: int | None = None
     gpu_seconds: float | None = None
     cost_estimate: float | None = None
+    latency_ms: int | None = None
 
 
 class TaskTypeUsage(BaseModel):
@@ -56,6 +60,23 @@ class DailyUsage(BaseModel):
     by_task_type: list[TaskTypeUsage]
 
 
+class LastCall(BaseModel):
+    """The most recently recorded call, for the §8.5 agent-activity panel ("which
+    agent ran most recently, which model/tier, latency, cost"). System-derived,
+    read straight from the latest ledger row; `created_at` is the store's clock.
+    """
+
+    task_type: str
+    tier: ModelTier
+    provider: str
+    model: str | None
+    outcome: CallOutcome
+    latency_ms: int | None
+    cost_estimate: float | None
+    gpu_seconds: float | None
+    created_at: datetime
+
+
 class CostStore(Protocol):
     """Persists usage rows and reports the day's paid spend for the budget gate."""
 
@@ -65,4 +86,8 @@ class CostStore(Protocol):
 
     async def record(self, record: LlmCallRecord) -> None:
         """Append one usage row (success, refusal, or failure)."""
+        ...
+
+    async def last_call(self) -> LastCall | None:
+        """The most recent call (any outcome), or None if the ledger is empty."""
         ...

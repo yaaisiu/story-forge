@@ -83,6 +83,34 @@ async def test_no_dedupe_two_identical_entities_make_two_nodes(
     assert await repo.count_entities(project_id) == 2
 
 
+async def test_list_entities_returns_all_of_a_projects_nodes(
+    graph: tuple[Neo4jRepo, UUID],
+) -> None:
+    """The graph viewer reads every node for a project (spec §3.4) — scoped to it."""
+    repo, project_id = graph
+    janek = GraphEntity(type="Character", canonical_name_pl="Janek", project_id=project_id)
+    mill = GraphEntity(type="Location", canonical_name_pl="Młyn", project_id=project_id)
+    # A node in a *different* project must not leak into this project's listing.
+    other_project = uuid4()
+    other = GraphEntity(type="Character", canonical_name_pl="Obcy", project_id=other_project)
+    for entity in (janek, mill, other):
+        await repo.create_entity(entity)
+    try:
+        listed = await repo.list_entities(project_id)
+
+        assert {e.id for e in listed} == {janek.id, mill.id}
+        assert all(e.project_id == project_id for e in listed)
+    finally:
+        await repo.delete_project_graph(other_project)  # the fixture only cleans `project_id`
+
+
+async def test_list_entities_empty_for_a_project_with_no_graph(
+    graph: tuple[Neo4jRepo, UUID],
+) -> None:
+    repo, project_id = graph
+    assert await repo.list_entities(project_id) == []
+
+
 async def test_relation_round_trip(graph: tuple[Neo4jRepo, UUID]) -> None:
     repo, project_id = graph
     janek = GraphEntity(type="Character", canonical_name_pl="Janek", project_id=project_id)

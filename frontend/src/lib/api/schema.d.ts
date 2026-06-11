@@ -81,6 +81,31 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/stories/{story_id}/graph": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Story Graph
+         * @description The story's entity graph for the read-only viewer (spec §3.4).
+         *
+         *     The graph is keyed by *project* (entities carry `project_id`, the §6.4
+         *     multi-tenancy seam), so the route resolves the story to its project and returns
+         *     that project's nodes/edges. No dedupe through M2 (INV-8) — the viewer renders
+         *     whatever was written, duplicates and all, which is exactly the problem M3 solves.
+         */
+        get: operations["get_story_graph_stories__story_id__graph_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/llm/status": {
         parameters: {
             query?: never;
@@ -90,7 +115,7 @@ export interface paths {
         };
         /**
          * Llm Status
-         * @description Today's spend, GPU-seconds, and per-task-type breakdown against the cap.
+         * @description Today's spend, GPU-seconds, per-task-type breakdown, and the most recent call.
          */
         get: operations["llm_status_llm_status_get"];
         put?: never;
@@ -170,14 +195,109 @@ export interface components {
             /** Pause Reason */
             pause_reason: string | null;
         };
+        /**
+         * GraphEdge
+         * @description One typed, directed relation for the viewer (edge label = `type`, §3.4).
+         */
+        GraphEdge: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Type */
+            type: string;
+            /**
+             * Subject Id
+             * Format: uuid
+             */
+            subject_id: string;
+            /**
+             * Object Id
+             * Format: uuid
+             */
+            object_id: string;
+            /** Confidence */
+            confidence: number;
+        };
+        /**
+         * GraphNode
+         * @description One entity node for the §3.4 viewer — the display subset of `GraphEntity`.
+         *
+         *     Persistence-only fields (`properties`, `embedding`, `project_id`, `world_id`)
+         *     are omitted: the read-only M2 viewer colours by `type`, labels by canonical
+         *     name/aliases, and links each node to its first occurrence paragraph.
+         */
+        GraphNode: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Type */
+            type: string;
+            /** Canonical Name Pl */
+            canonical_name_pl: string | null;
+            /** Canonical Name En */
+            canonical_name_en: string | null;
+            /** Aliases */
+            aliases: string[];
+            /** First Seen Paragraph Id */
+            first_seen_paragraph_id: string | null;
+        };
+        /**
+         * GraphResponse
+         * @description The story's knowledge graph as nodes + edges for the viewer.
+         */
+        GraphResponse: {
+            /** Nodes */
+            nodes: components["schemas"]["GraphNode"][];
+            /** Edges */
+            edges: components["schemas"]["GraphEdge"][];
+        };
         /** HTTPValidationError */
         HTTPValidationError: {
             /** Detail */
             detail?: components["schemas"]["ValidationError"][];
         };
         /**
+         * LastCall
+         * @description The most recently recorded call, for the §8.5 agent-activity panel ("which
+         *     agent ran most recently, which model/tier, latency, cost"). System-derived,
+         *     read straight from the latest ledger row; `created_at` is the store's clock.
+         */
+        LastCall: {
+            /** Task Type */
+            task_type: string;
+            /**
+             * Tier
+             * @enum {string}
+             */
+            tier: "local_small" | "cloud_free" | "cloud_strong";
+            /** Provider */
+            provider: string;
+            /** Model */
+            model: string | null;
+            /**
+             * Outcome
+             * @enum {string}
+             */
+            outcome: "success" | "refusal" | "failure";
+            /** Latency Ms */
+            latency_ms: number | null;
+            /** Cost Estimate */
+            cost_estimate: number | null;
+            /** Gpu Seconds */
+            gpu_seconds: number | null;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+        };
+        /**
          * LlmStatusResponse
-         * @description Budget + today's usage for the agent-activity panel.
+         * @description Budget + today's usage + the most recent call, for the agent-activity panel.
          */
         LlmStatusResponse: {
             /** Daily Budget Usd */
@@ -192,6 +312,7 @@ export interface components {
             calls_today: number;
             /** By Task Type */
             by_task_type: components["schemas"]["TaskTypeUsage"][];
+            last_call: components["schemas"]["LastCall"] | null;
         };
         /**
          * StoryUploadResponse
@@ -471,6 +592,46 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    get_story_graph_stories__story_id__graph_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                story_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GraphResponse"];
+                };
+            };
+            /** @description Story not found. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };
