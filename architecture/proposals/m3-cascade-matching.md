@@ -8,11 +8,15 @@ related: ["[[cascade-matching]]", "[[invariants]]", "[[overview]]", "[[open-ques
 
 # M3 — Cascade matching (dedupe) · forward design pass (step-0)
 
-> **Status: proposed — the register below is OPEN.** This is the milestone-boundary "step 0" the
-> M2→M3 roll queued: it frames the branchy M3 cascade so the owner can decide before any code, and
-> draws the **candidate lifecycle** as the vault's first `[[state-machine|state machine]]` note. It
-> **proposes**; it does not resolve. Authoritative contract: spec **§3.3** (the four stages +
-> thresholds) and **§9 Milestone 3**; the vault references, never restates them.
+> **Status: partially accepted — DM1–DM4 + DM6 RESOLVED, DM5/DM7/DM-rej still open.** This was the
+> milestone-boundary "step 0" the M2→M3 roll queued: it frames the branchy M3 cascade and draws the
+> **candidate lifecycle** as the vault's first `[[state-machine|state machine]]` note. **Resolutions
+> are authoritative in `docs/PLAN_SHORT.md` Decided (2026-06-11, S19 DM6 + S20 DM1–DM4)** — the per-DM
+> bodies below keep their "My proposal" framing for the record; treat the proposal each names as the
+> chosen option for DM1–DM4 + DM6 (a later `review-architecture` sweep will fold the ✅ markers
+> inline). M3.S1 shipped Stage 1 (PR #56); M3.S2 is Stage 2 + the pgvector switch. Authoritative
+> contract: spec **§3.3** (the four stages + thresholds) and **§9 Milestone 3**; the vault references,
+> never restates them.
 
 **The product's heart.** §3.3 is "the core mechanism": given an extracted candidate, decide *is this a
 new entity or one we already know?* — cheapest checks first, a human always last. M2 deliberately
@@ -306,8 +310,9 @@ States: `extracted → {auto-merge-proposed | ambiguous | new-proposed}` (set by
 3. **Keyboard scheme** (spec §10 q9) and whether **INV-2's consent gate** lands in the Stage-4 UI (DM7).
 4. **Multilingual `canonical_name`** (spec §10 q8) — surfaces at merge; stays the spec's to resolve.
 5. **Rejected-candidate memory** (DM-rej) + log/candidate **retention** (OQ-4 Expiry).
-6. **Sequencing**: confirm `MatchingAgent` (Stage 1+2, carrying the pgvector wiring) as the test-first
-   opener, then `JudgeAgent`, then the review-queue UI — each its own `/review-pr` → PR → squash-merge.
+6. **Sequencing** (settled S20): `MatchingAgent` Stage 1 (RapidFuzz) ✅ PR #56 → Stage 2 (embeddings +
+   the pgvector wiring, M3.S2) → `JudgeAgent` (M3.S3) → the review-queue UI + the DM6 write-path refactor
+   (M3.S4) — each its own `/review-pr` → PR → squash-merge.
 
 ---
 
