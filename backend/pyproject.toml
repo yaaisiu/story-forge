@@ -39,6 +39,10 @@ dependencies = [
   # the lowest-risk compatibility choice; the 6.x line targets the newer 2025.x
   # servers we don't run.
   "neo4j==5.28.4",
+  # RapidFuzz — Stage 1 of the §3.3 dedupe cascade (token-set ratio of a candidate
+  # surface form vs existing entities' canonical_name + aliases). Deterministic,
+  # local, C-backed; no LLM. M3.S1.
+  "rapidfuzz==3.14.5",
 ]
 
 [dependency-groups]
