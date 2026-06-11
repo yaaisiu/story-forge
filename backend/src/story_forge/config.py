@@ -99,6 +99,23 @@ class Settings(BaseSettings):
         ),
     )
 
+    # --- Matching cascade thresholds (spec §3.3, M3) ---
+    # The §3.3 cascade's Policy values get one documented home (DM1): spec values as
+    # defaults, env-overridable for tuning without a code change, but global (not
+    # per-project/user-tunable) — YAGNI for a single-user PoC. Only Stage 1's
+    # thresholds live here today; the Stage 2 cosine + Stage 3 confidence values join
+    # this section when their readers (the embedding + judge stages) land (M3.S2/S3).
+    match_stage1_merge: float = Field(
+        default=85.0,
+        description="Stage 1 RapidFuzz token-set ratio (0–100) strictly above which a "
+        "candidate is proposed for MERGE. Spec §3.3: >85%.",
+    )
+    match_stage1_ambiguous_floor: float = Field(
+        default=60.0,
+        description="Stage 1 ratio at/above which a candidate is ambiguous (handed "
+        "to Stage 2); below it is proposed NEW. Spec §3.3: 60–85% → Stage 2.",
+    )
+
     # --- Uploads ---
     upload_dir: Path = Field(
         default=Path("var/uploads"),
