@@ -4,10 +4,19 @@
 // (BrowserRouter in App.tsx) and the shell render test (MemoryRouter in
 // AppShell.test.tsx) mount AppShell, which mounts AppRoutes — so this module
 // is shared by both code paths.
+import { lazy, Suspense } from "react";
+
 import { Route, Routes } from "react-router-dom";
 
 import { OutlineEditor } from "../features/chunking/OutlineEditor";
 import { UploadScreen } from "../features/upload/UploadScreen";
+
+// Code-split the graph viewer: it pulls in cytoscape (~225 kB gzip), which only
+// the graph route needs — lazy-loading keeps it out of the initial bundle so the
+// upload/outline flow stays lean. The chunk loads on first navigation to /graph.
+const GraphViewer = lazy(() =>
+  import("../features/graph-viewer/GraphViewer").then((m) => ({ default: m.GraphViewer })),
+);
 
 export function AppRoutes() {
   return (
@@ -18,6 +27,15 @@ export function AppRoutes() {
           uploaded. */}
       <Route path="/" element={<UploadScreen />} />
       <Route path="/stories/:storyId/structure" element={<OutlineEditor />} />
+      {/* M2.S5: once structured, run extraction and view the entity graph. */}
+      <Route
+        path="/stories/:storyId/graph"
+        element={
+          <Suspense fallback={<p className="p-6 text-sm text-gray-500">Loading graph viewer…</p>}>
+            <GraphViewer />
+          </Suspense>
+        }
+      />
     </Routes>
   );
 }

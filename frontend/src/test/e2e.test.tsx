@@ -22,7 +22,15 @@ import { act, fireEvent, render, screen } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { AppShell } from "../app/AppShell";
+// The cytoscape mount can't run in jsdom; stub it so the E2E can walk into the
+// graph page and prove the data seam (the canvas itself is browser-smoke territory).
+vi.mock("../features/graph-viewer/GraphCanvas", () => ({
+  GraphCanvas: ({ graph }: { graph: { nodes: { id: string }[] } }) => (
+    <div data-testid="graph-canvas-mock">{graph.nodes.length} nodes</div>
+  ),
+}));
+
+const { AppShell } = await import("../app/AppShell");
 
 const STORY_ID = "00000000-0000-0000-0000-000000000002";
 const SAMPLE_RAW = "## Chapter One\n### Dawn\nLine one.\n\nLine two.\n";
@@ -44,6 +52,54 @@ const STRUCTURE_BODY = {
   paragraph_count: 2,
 };
 
+const EMPTY_GRAPH = { nodes: [], edges: [] };
+const POPULATED_GRAPH = {
+  nodes: [
+    {
+      id: "11111111-1111-1111-1111-111111111111",
+      type: "Character",
+      canonical_name_pl: "Janek",
+      canonical_name_en: null,
+      aliases: [],
+      first_seen_paragraph_id: null,
+    },
+  ],
+  edges: [],
+};
+const EXTRACT_BODY = {
+  story_id: STORY_ID,
+  paragraphs_total: 2,
+  paragraphs_done: 2,
+  entities_written: 1,
+  relations_written: 0,
+  paused: false,
+  pause_reason: null,
+};
+const STATUS_BEFORE = {
+  daily_budget_usd: 5,
+  spent_today_usd: 0,
+  remaining_usd: 5,
+  gpu_seconds_today: 0,
+  calls_today: 0,
+  by_task_type: [],
+  last_call: null,
+};
+const STATUS_AFTER = {
+  ...STATUS_BEFORE,
+  calls_today: 1,
+  last_call: {
+    task_type: "extraction",
+    tier: "cloud_free" as const,
+    provider: "OllamaProvider",
+    model: "gpt-oss:120b-cloud",
+    outcome: "success" as const,
+    latency_ms: 842,
+    cost_estimate: null,
+    gpu_seconds: 3.5,
+    created_at: "2026-06-11T09:30:00Z",
+  },
+};
+
 function jsonResponse(status: number, body: unknown): Response {
   return new Response(JSON.stringify(body), {
     status,
@@ -59,13 +115,24 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
-describe("M1 happy path: upload → outline persisted", () => {
-  it("walks from / to a persisted outline using the typed client end-to-end", async () => {
-    const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
+describe("M2 happy path: upload → outline → graph extraction", () => {
+  it("walks from / to a rendered entity graph using the typed client end-to-end", async () => {
+    let extracted = false;
+    const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
       const url = typeof input === "string" ? input : input.toString();
       if (url.endsWith("/stories/upload")) return jsonResponse(201, UPLOAD_BODY);
       if (url.includes(`/stories/${STORY_ID}/structure`)) {
         return jsonResponse(201, STRUCTURE_BODY);
+      }
+      if (url.includes(`/stories/${STORY_ID}/extract`) && init?.method === "POST") {
+        extracted = true;
+        return jsonResponse(200, EXTRACT_BODY);
+      }
+      if (url.includes(`/stories/${STORY_ID}/graph`)) {
+        return jsonResponse(200, extracted ? POPULATED_GRAPH : EMPTY_GRAPH);
+      }
+      if (url.includes("/llm/status")) {
+        return jsonResponse(200, extracted ? STATUS_AFTER : STATUS_BEFORE);
       }
       throw new Error(`unexpected fetch url: ${url}`);
     });
@@ -118,13 +185,30 @@ describe("M1 happy path: upload → outline persisted", () => {
     expect(success).toHaveTextContent(/1 chapter/i);
     expect(success).toHaveTextContent(/2 paragraph/i);
 
-    // Two round-trips: one upload, one structure, in that order.
-    expect(fetchMock).toHaveBeenCalledTimes(2);
-    const uploadCall = fetchMock.mock.calls[0]?.[0];
-    const structureCall = fetchMock.mock.calls[1]?.[0];
-    expect(String(uploadCall)).toMatch(/\/stories\/upload$/);
-    expect(String(structureCall)).toMatch(
-      new RegExp(`/stories/${STORY_ID}/structure\\?mode=manual$`),
-    );
+    // 6. Continue to the graph page → empty graph + the agent-activity panel.
+    await act(async () => {
+      fireEvent.click(screen.getByTestId("outline-continue-graph"));
+    });
+    expect(await screen.findByTestId("graph-empty")).toBeInTheDocument();
+    expect(screen.getByTestId("agent-activity-panel")).toBeInTheDocument();
+    // Before any call, the panel shows no recent activity.
+    expect(screen.getByTestId("activity-no-calls")).toBeInTheDocument();
+
+    // 7. Run extraction → backend returns 200, the graph refetches and renders the
+    //    node, and the panel reflects the call that just ran.
+    await act(async () => {
+      fireEvent.click(screen.getByTestId("run-extraction"));
+    });
+    expect(await screen.findByTestId("graph-canvas-mock")).toHaveTextContent("1 nodes");
+    expect(await screen.findByTestId("activity-task-type")).toHaveTextContent("extraction");
+
+    // The full seam is wired: upload, structure, extract, and two graph reads all fired.
+    const urls = fetchMock.mock.calls.map((c) => String(c[0]));
+    expect(urls.some((u) => u.endsWith("/stories/upload"))).toBe(true);
+    expect(urls.some((u) => u.includes(`/stories/${STORY_ID}/structure`))).toBe(true);
+    expect(urls.some((u) => u.includes(`/stories/${STORY_ID}/extract`))).toBe(true);
+    expect(
+      urls.filter((u) => u.includes(`/stories/${STORY_ID}/graph`)).length,
+    ).toBeGreaterThanOrEqual(2);
   });
 });

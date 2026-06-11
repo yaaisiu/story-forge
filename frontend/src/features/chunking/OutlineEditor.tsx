@@ -16,7 +16,7 @@
 
 import { useMemo, useState } from "react";
 
-import { useLocation, useParams } from "react-router-dom";
+import { Link, useLocation, useParams } from "react-router-dom";
 
 import { ApiError, useStructureStory, type ChunkingMode } from "../../lib/api/useStructureStory";
 import { cn } from "../../lib/utils";
@@ -180,6 +180,14 @@ export function OutlineEditor() {
             paragraph
             {structure.data.paragraph_count === 1 ? "" : "s"}.
           </p>
+          {/* M2.S5: next step is extraction → the entity graph, on the graph page. */}
+          <Link
+            data-testid="outline-continue-graph"
+            to={`/stories/${storyId}/graph`}
+            className="mt-3 inline-block self-start rounded bg-blue-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-blue-700"
+          >
+            Continue to graph →
+          </Link>
         </section>
       )}
 
