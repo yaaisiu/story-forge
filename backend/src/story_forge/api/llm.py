@@ -17,7 +17,7 @@ from typing import Annotated
 from fastapi import APIRouter, Depends, Request
 from pydantic import BaseModel
 
-from story_forge.adapters.llm.cost import TaskTypeUsage
+from story_forge.adapters.llm.cost import LastCall, TaskTypeUsage
 from story_forge.adapters.llm.postgres_cost_store import PostgresCostStore
 from story_forge.config import settings
 
@@ -25,7 +25,7 @@ router = APIRouter(prefix="/llm", tags=["llm"])
 
 
 class LlmStatusResponse(BaseModel):
-    """Budget + today's usage for the agent-activity panel."""
+    """Budget + today's usage + the most recent call, for the agent-activity panel."""
 
     daily_budget_usd: float
     spent_today_usd: float
@@ -33,6 +33,7 @@ class LlmStatusResponse(BaseModel):
     gpu_seconds_today: float
     calls_today: int
     by_task_type: list[TaskTypeUsage]
+    last_call: LastCall | None
 
 
 def get_cost_store(request: Request) -> PostgresCostStore:
@@ -45,7 +46,7 @@ def get_cost_store(request: Request) -> PostgresCostStore:
 async def llm_status(
     cost_store: Annotated[PostgresCostStore, Depends(get_cost_store)],
 ) -> LlmStatusResponse:
-    """Today's spend, GPU-seconds, and per-task-type breakdown against the cap."""
+    """Today's spend, GPU-seconds, per-task-type breakdown, and the most recent call."""
     summary = await cost_store.summary_today()
     budget = settings.daily_budget_usd
     return LlmStatusResponse(
@@ -55,4 +56,5 @@ async def llm_status(
         gpu_seconds_today=summary.gpu_seconds,
         calls_today=summary.calls,
         by_task_type=summary.by_task_type,
+        last_call=await cost_store.last_call(),
     )

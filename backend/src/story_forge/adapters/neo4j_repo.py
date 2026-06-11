@@ -95,6 +95,14 @@ class Neo4jRepo:
             return None
         return self._to_entity(dict(records[0]["props"]))
 
+    async def list_entities(self, project_id: UUID) -> list[GraphEntity]:
+        """Every entity node for a project (the graph viewer read path, §3.4)."""
+        records, _, _ = await self._driver.execute_query(
+            "MATCH (e:Entity {project_id: $pid}) RETURN properties(e) AS props",
+            pid=str(project_id),
+        )
+        return [self._to_entity(dict(record["props"])) for record in records]
+
     async def count_entities(self, project_id: UUID) -> int:
         records, _, _ = await self._driver.execute_query(
             "MATCH (e:Entity {project_id: $pid}) RETURN count(e) AS n",

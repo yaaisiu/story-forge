@@ -20,6 +20,7 @@ import psycopg
 from story_forge.adapters.db import libpq_kwargs
 from story_forge.adapters.llm.cost import (
     DailyUsage,
+    LastCall,
     LlmCallRecord,
     TaskTypeUsage,
 )
@@ -51,8 +52,8 @@ class PostgresCostStore:
             await conn.execute(
                 "INSERT INTO llm_calls "
                 "(tier, provider, model, task_type, outcome, "
-                " input_tokens, output_tokens, gpu_seconds, cost_estimate) "
-                "VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)",
+                " input_tokens, output_tokens, gpu_seconds, cost_estimate, latency_ms) "
+                "VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)",
                 (
                     record.tier,
                     record.provider,
@@ -63,8 +64,32 @@ class PostgresCostStore:
                     record.output_tokens,
                     record.gpu_seconds,
                     record.cost_estimate,
+                    record.latency_ms,
                 ),
             )
+
+    async def last_call(self) -> LastCall | None:
+        """The most recent call across all time (§8.5 panel) — newest row, any outcome."""
+        async with await self._connect() as conn:
+            cur = await conn.execute(
+                "SELECT task_type, tier, provider, model, outcome, "
+                " latency_ms, cost_estimate, gpu_seconds, created_at "
+                "FROM llm_calls ORDER BY created_at DESC LIMIT 1"
+            )
+            row = await cur.fetchone()
+        if row is None:
+            return None
+        return LastCall(
+            task_type=row[0],
+            tier=row[1],
+            provider=row[2],
+            model=row[3],
+            outcome=row[4],
+            latency_ms=row[5],
+            cost_estimate=row[6],
+            gpu_seconds=row[7],
+            created_at=row[8],
+        )
 
     async def summary_today(self) -> DailyUsage:
         """Aggregate today's ledger for the status dashboard (§6.6)."""

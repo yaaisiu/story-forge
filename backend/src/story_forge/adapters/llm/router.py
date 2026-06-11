@@ -28,6 +28,8 @@ per ADR 0003), so the router itself stays provider-agnostic.
 
 from __future__ import annotations
 
+import time
+from collections.abc import Callable
 from typing import Literal
 
 import httpx
@@ -76,11 +78,16 @@ class LLMRouter:
         cost_store: CostStore,
         daily_budget_usd: float,
         gpu_available: bool = False,
+        clock: Callable[[], float] = time.monotonic,
     ) -> None:
         self._providers = providers
         self._cost_store = cost_store
         self._daily_budget_usd = daily_budget_usd
         self._gpu_available = gpu_available
+        # A monotonic clock for measuring per-call latency (spec §6.6 / OQ-9).
+        # Injectable so tests can advance it deterministically; a duration, not a
+        # timestamp (the store still owns the wall-clock `created_at`).
+        self._clock = clock
 
     async def complete(
         self,
@@ -103,7 +110,10 @@ class LLMRouter:
         if _tier_is_paid(providers):
             spend = await self._cost_store.spend_today_usd()
             if spend >= self._daily_budget_usd:
-                await self._record(providers[0], tier, task_type, "refusal", usage=None)
+                # Refused before dispatch: no provider call, so no latency.
+                await self._record(
+                    providers[0], tier, task_type, "refusal", usage=None, latency_ms=None
+                )
                 raise BudgetExceededError(
                     f"daily budget ${self._daily_budget_usd:.2f} reached "
                     f"(spent ${spend:.2f}); pausing for the user"
@@ -112,15 +122,30 @@ class LLMRouter:
         last_error: Exception | None = None
         saw_non_quota_failure = False
         for provider in providers:
+            start = self._clock()
             try:
                 result = await provider.complete(messages, tier, json_schema)
             except BudgetExceededError:
                 # Provider refused for lack of credit — a spend ceiling, not a
                 # transient fault. Record and re-raise; never escalate to the next.
-                await self._record(provider, tier, task_type, "refusal", usage=None)
+                await self._record(
+                    provider,
+                    tier,
+                    task_type,
+                    "refusal",
+                    usage=None,
+                    latency_ms=self._elapsed_ms(start),
+                )
                 raise
             except httpx.HTTPStatusError as exc:
-                await self._record(provider, tier, task_type, "failure", usage=None)
+                await self._record(
+                    provider,
+                    tier,
+                    task_type,
+                    "failure",
+                    usage=None,
+                    latency_ms=self._elapsed_ms(start),
+                )
                 status = exc.response.status_code
                 if status == 429:
                     last_error = exc  # rate-limit / quota — fail over; may be exhaustion
@@ -135,7 +160,14 @@ class LLMRouter:
             except httpx.RequestError as exc:
                 # Transport-level failure (connect refused, timeout, …). Spec §6.5
                 # fails over on network errors too; not quota exhaustion.
-                await self._record(provider, tier, task_type, "failure", usage=None)
+                await self._record(
+                    provider,
+                    tier,
+                    task_type,
+                    "failure",
+                    usage=None,
+                    latency_ms=self._elapsed_ms(start),
+                )
                 last_error = exc
                 saw_non_quota_failure = True
                 continue
@@ -145,12 +177,26 @@ class LLMRouter:
                 # gap that an uncaught error left open) and fail over — a defective
                 # response from this provider is not quota exhaustion, and it is the
                 # router's concern, distinct from a schema-invalid body (the agent's).
-                await self._record(provider, tier, task_type, "failure", usage=None)
+                await self._record(
+                    provider,
+                    tier,
+                    task_type,
+                    "failure",
+                    usage=None,
+                    latency_ms=self._elapsed_ms(start),
+                )
                 last_error = exc
                 saw_non_quota_failure = True
                 continue
             else:
-                await self._record(provider, tier, task_type, "success", usage=result.usage)
+                await self._record(
+                    provider,
+                    tier,
+                    task_type,
+                    "success",
+                    usage=result.usage,
+                    latency_ms=self._elapsed_ms(start),
+                )
                 return result
 
         # Every provider in the tier was exhausted by a retryable error. Only pure
@@ -163,6 +209,10 @@ class LLMRouter:
         assert last_error is not None  # the loop only falls through after a failure
         raise last_error
 
+    def _elapsed_ms(self, start: float) -> int:
+        """Wall-clock milliseconds since `start`, measured on the injected clock."""
+        return round((self._clock() - start) * 1000)
+
     async def _record(
         self,
         provider: LLMProvider,
@@ -171,6 +221,7 @@ class LLMRouter:
         outcome: CallOutcome,
         *,
         usage: Usage | None,
+        latency_ms: int | None,
     ) -> None:
         await self._cost_store.record(
             LlmCallRecord(
@@ -183,6 +234,7 @@ class LLMRouter:
                 output_tokens=usage.output_tokens if usage else None,
                 gpu_seconds=usage.gpu_seconds if usage else None,
                 cost_estimate=usage.cost_estimate if usage else None,
+                latency_ms=latency_ms,
             )
         )
 

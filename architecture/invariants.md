@@ -84,9 +84,9 @@ exceeded.
   request transaction — so a *failure* row survives a request that rolls back on the very failure it
   records (the "explain why a batch stopped" trail must not vanish with the error). Recorded in
   `docs/PLAN_SHORT.md` Decided; see the out-of-band-audit-logging note in `learning-log`.
-- **`latency` caveat (OQ-9):** this note's earlier "(and latency)" is **not** in the as-built `llm_calls`
-  table, nor in spec §6.6's enumeration, though the M2.S5 panel task expects it — unresolved, tracked as
-  `[[open-questions]]` OQ-9 (add a column or trim the claim, decide before M2.S5).
+- **`latency` (OQ-9, resolved 2026-06-11 → option a):** a usage row now records `latency_ms`
+  (wall-clock around `provider.complete`, always recorded). Added to spec §6.6's enumeration; the
+  `llm_calls` column + router capture land in M2.S5 (the §8.5 panel shows it). History: `[[open-questions]]` OQ-9.
 - **Shape decided (ADR 0003, 2026-06-02):** the usage record grows on `CompletionResult`/the Protocol
   (`model`, `input_tokens`, `output_tokens`, nullable `gpu_seconds`, `cost_estimate`); `OllamaProvider`
   stops discarding the eval counts; one `llm_calls` table, nullable per tier; tier/provider/model are

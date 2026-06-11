@@ -66,6 +66,9 @@ _neo4j_repo = Neo4jRepo(
         settings.neo4j_uri, auth=(settings.neo4j_user, settings.neo4j_password)
     )
 )
+# Shared across the write path (the coordinator) and the read path (the §3.4 graph
+# viewer route reads nodes/edges back through the same repo).
+app.state.neo4j_repo = _neo4j_repo
 app.state.extraction_coordinator = ExtractionCoordinator(
     ExtractionAgent(_extraction_router),
     _neo4j_repo,

@@ -256,13 +256,67 @@
         }
       }
     },
+    "/stories/{story_id}/graph": {
+      "get": {
+        "tags": [
+          "stories"
+        ],
+        "summary": "Get Story Graph",
+        "description": "The story's entity graph for the read-only viewer (spec \u00a73.4).\n\nThe graph is keyed by *project* (entities carry `project_id`, the \u00a76.4\nmulti-tenancy seam), so the route resolves the story to its project and returns\nthat project's nodes/edges. No dedupe through M2 (INV-8) \u2014 the viewer renders\nwhatever was written, duplicates and all, which is exactly the problem M3 solves.",
+        "operationId": "get_story_graph_stories__story_id__graph_get",
+        "parameters": [
+          {
+            "name": "story_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Story Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GraphResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Story not found.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/llm/status": {
       "get": {
         "tags": [
           "llm"
         ],
         "summary": "Llm Status",
-        "description": "Today's spend, GPU-seconds, and per-task-type breakdown against the cap.",
+        "description": "Today's spend, GPU-seconds, per-task-type breakdown, and the most recent call.",
         "operationId": "llm_status_llm_status_get",
         "responses": {
           "200": {
@@ -384,6 +438,133 @@
         "title": "ExtractResponse",
         "description": "Progress of an extraction run over a story's paragraphs (spec \u00a79 M2).\n\n`paused` is the completion signal \u2014 true when the run stopped at the budget/quota\npause-and-ask (HTTP 202, partial progress), false when it finished (HTTP 200).\n`paragraphs_done` counts paragraphs that carry a mention \u2014 the resumable\ncheckpoint \u2014 so a re-POST resumes from the first not-done paragraph."
       },
+      "GraphEdge": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Id"
+          },
+          "type": {
+            "type": "string",
+            "title": "Type"
+          },
+          "subject_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Subject Id"
+          },
+          "object_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Object Id"
+          },
+          "confidence": {
+            "type": "number",
+            "title": "Confidence"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "type",
+          "subject_id",
+          "object_id",
+          "confidence"
+        ],
+        "title": "GraphEdge",
+        "description": "One typed, directed relation for the viewer (edge label = `type`, \u00a73.4)."
+      },
+      "GraphNode": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Id"
+          },
+          "type": {
+            "type": "string",
+            "title": "Type"
+          },
+          "canonical_name_pl": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Canonical Name Pl"
+          },
+          "canonical_name_en": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Canonical Name En"
+          },
+          "aliases": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Aliases"
+          },
+          "first_seen_paragraph_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "First Seen Paragraph Id"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "type",
+          "canonical_name_pl",
+          "canonical_name_en",
+          "aliases",
+          "first_seen_paragraph_id"
+        ],
+        "title": "GraphNode",
+        "description": "One entity node for the \u00a73.4 viewer \u2014 the display subset of `GraphEntity`.\n\nPersistence-only fields (`properties`, `embedding`, `project_id`, `world_id`)\nare omitted: the read-only M2 viewer colours by `type`, labels by canonical\nname/aliases, and links each node to its first occurrence paragraph."
+      },
+      "GraphResponse": {
+        "properties": {
+          "nodes": {
+            "items": {
+              "$ref": "#/components/schemas/GraphNode"
+            },
+            "type": "array",
+            "title": "Nodes"
+          },
+          "edges": {
+            "items": {
+              "$ref": "#/components/schemas/GraphEdge"
+            },
+            "type": "array",
+            "title": "Edges"
+          }
+        },
+        "type": "object",
+        "required": [
+          "nodes",
+          "edges"
+        ],
+        "title": "GraphResponse",
+        "description": "The story's knowledge graph as nodes + edges for the viewer."
+      },
       "HTTPValidationError": {
         "properties": {
           "detail": {
@@ -396,6 +577,99 @@
         },
         "type": "object",
         "title": "HTTPValidationError"
+      },
+      "LastCall": {
+        "properties": {
+          "task_type": {
+            "type": "string",
+            "title": "Task Type"
+          },
+          "tier": {
+            "type": "string",
+            "enum": [
+              "local_small",
+              "cloud_free",
+              "cloud_strong"
+            ],
+            "title": "Tier"
+          },
+          "provider": {
+            "type": "string",
+            "title": "Provider"
+          },
+          "model": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Model"
+          },
+          "outcome": {
+            "type": "string",
+            "enum": [
+              "success",
+              "refusal",
+              "failure"
+            ],
+            "title": "Outcome"
+          },
+          "latency_ms": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Latency Ms"
+          },
+          "cost_estimate": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cost Estimate"
+          },
+          "gpu_seconds": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Gpu Seconds"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "task_type",
+          "tier",
+          "provider",
+          "model",
+          "outcome",
+          "latency_ms",
+          "cost_estimate",
+          "gpu_seconds",
+          "created_at"
+        ],
+        "title": "LastCall",
+        "description": "The most recently recorded call, for the \u00a78.5 agent-activity panel (\"which\nagent ran most recently, which model/tier, latency, cost\"). System-derived,\nread straight from the latest ledger row; `created_at` is the store's clock."
       },
       "LlmStatusResponse": {
         "properties": {
@@ -425,6 +699,16 @@
             },
             "type": "array",
             "title": "By Task Type"
+          },
+          "last_call": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/LastCall"
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
         "type": "object",
@@ -434,10 +718,11 @@
           "remaining_usd",
           "gpu_seconds_today",
           "calls_today",
-          "by_task_type"
+          "by_task_type",
+          "last_call"
         ],
         "title": "LlmStatusResponse",
-        "description": "Budget + today's usage for the agent-activity panel."
+        "description": "Budget + today's usage + the most recent call, for the agent-activity panel."
       },
       "StoryUploadResponse": {
         "properties": {

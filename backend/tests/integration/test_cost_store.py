@@ -8,6 +8,8 @@ dropped at session end by the conftest fixture.
 
 from __future__ import annotations
 
+import asyncio
+
 import psycopg
 import pytest
 import pytest_asyncio
@@ -26,6 +28,7 @@ def _rec(
     outcome: str = "success",
     cost: float | None = None,
     gpu_seconds: float | None = None,
+    latency_ms: int | None = None,
 ) -> LlmCallRecord:
     return LlmCallRecord(
         tier="cloud_strong",
@@ -37,6 +40,7 @@ def _rec(
         output_tokens=50,
         gpu_seconds=gpu_seconds,
         cost_estimate=cost,
+        latency_ms=latency_ms,
     )
 
 
@@ -64,6 +68,41 @@ async def test_records_failures_and_refusals_for_the_trail(cost_store: PostgresC
     summary = await cost_store.summary_today()
     assert summary.calls == 2
     assert summary.spent_usd == pytest.approx(0.0)
+
+
+async def test_persists_latency_ms(cost_store: PostgresCostStore) -> None:
+    # OQ-9: the §6.6 ledger records wall-clock latency per call; it round-trips
+    # through the store, and stays NULL when the router didn't dispatch (refusal).
+    await cost_store.record(_rec(latency_ms=250))
+    await cost_store.record(_rec(outcome="refusal", latency_ms=None))
+
+    conninfo = libpq_kwargs(settings.test_database_url)
+    async with await psycopg.AsyncConnection.connect(autocommit=True, **conninfo) as conn:  # type: ignore[arg-type]
+        cur = await conn.execute("SELECT latency_ms FROM llm_calls ORDER BY latency_ms NULLS LAST")
+        rows = await cur.fetchall()
+    assert [r[0] for r in rows] == [250, None]
+
+
+async def test_last_call_returns_the_most_recent_row(cost_store: PostgresCostStore) -> None:
+    # §8.5 panel: the most recently recorded call. A small gap between inserts keeps
+    # the `created_at DESC` ordering unambiguous (each commit stamps its own now()).
+    await cost_store.record(_rec(task_type="chunking", cost=0.1, latency_ms=100))
+    await asyncio.sleep(0.01)
+    await cost_store.record(_rec(task_type="extraction", cost=None, latency_ms=842))
+
+    last = await cost_store.last_call()
+
+    assert last is not None
+    assert last.task_type == "extraction"
+    assert last.tier == "cloud_strong"
+    assert last.provider == "OpenRouterProvider"
+    assert last.latency_ms == 842
+    assert last.outcome == "success"
+    assert last.created_at is not None
+
+
+async def test_last_call_is_none_when_empty(cost_store: PostgresCostStore) -> None:
+    assert await cost_store.last_call() is None
 
 
 async def test_summary_groups_by_task_type(cost_store: PostgresCostStore) -> None:
