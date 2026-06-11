@@ -318,9 +318,10 @@ States: `extracted → {auto-merge-proposed | ambiguous | new-proposed}` (set by
 
 ## Hand-off
 
-- **This is step-0: the register is OPEN.** No invariant is folded, no ADR drafted, no `state-machines/`
-  note finalised until the owner decides — most of all **DM6**, which determines whether INV-8 is
-  *replaced* or *layered*.
+- **Register status (updated S20): DM1–D4 + DM6 resolved; DM5/D7/DM-rej open.** DM6 (intercept-before-
+  write) determined INV-8 is *replaced*, not layered. The INV-8→INV-1 fold, the ADR(s), and finalising
+  the `state-machines/` note still land **test-first with the M3.S4 write-path code** (not yet) — Stage 1
+  (PR #56) and Stage 2 (M3.S2) are proposal-only and leave INV-8 live.
 - **What this pass writes** (vault only): this proposal; the three **freshness fixes** the 06-11 review
   recommended (re-point INV-2 → the M3 review-queue UI; flip INV-5/OQ-9 latency → as-built M2.S5; refresh
   `overview.md` to M2.S6/M3) — applied because they are honest as-built corrections independent of the M3

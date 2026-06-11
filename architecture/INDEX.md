@@ -43,7 +43,7 @@ related: []
 |---|---|---|
 | [[backend-dependency-advisory-scan]] | proposal | **Continuous backend SCA gate in CI (✅ built 2026-06-08, PR #44)** — closes the gap where a vuln disclosed *after* pinning was caught only by Dependabot, not CI (the `starlette` 1.0.0 case). Built: osv-scanner step vs `uv.lock`, fail-on-any, **digest-pinned** scanner (the action is a no-`runs:` stub — stronger than the planned SHA-pin), `infra/osv/` waivers, `starlette` 1.0.0→1.0.1 (self-test red→green), §6.7 baseline (no new INV). |
 | [[m2s3-extraction-agent]] | proposal | **M2.S3 nine-layer pass (✅ accepted 2026-06-08, register resolved)** — `ExtractionAgent`, first `LLMRouter` consumer. Decisions: per-paragraph, single-paragraph agent (batch→M2.S4), `candidate_name`, typed `ProviderResponseError`, soft-flag `evidence_quote`. **Built + merged (PR #42).** |
-| [[m3-cascade-matching]] | proposal | **M3 cascade dedupe — step-0 forward pass (`proposed`, register OPEN)** — the §3.3 four-stage cascade (RapidFuzz → embedding → JudgeAgent → human queue). Draws the candidate lifecycle; 8-entry register (DM1–DM7 + DM-rej). Central fork **DM6** ✅ intercept-before-write. Retires INV-8 (at M3.S4, with the review queue), lands INV-1's enforcer. **Register DM1–DM4 + DM6 resolved** (PLAN_SHORT Decided S20); DM5/DM7/DM-rej open. Sliced: M3.S1 = Stage 1 RapidFuzz ✅ (PR #56); M3.S2 = Stage 2 embeddings + the `pgvector` read-path switch. |
+| [[m3-cascade-matching]] | proposal | **M3 cascade dedupe — step-0 forward pass (register: DM1–D4 + DM6 resolved; DM5/D7/DM-rej open)** — the §3.3 four-stage cascade (RapidFuzz → embedding → JudgeAgent → human queue). Draws the candidate lifecycle; 8-entry register (DM1–DM7 + DM-rej). Central fork **DM6** ✅ intercept-before-write. Retires INV-8 (at M3.S4, with the review queue), lands INV-1's enforcer. **Register DM1–DM4 + DM6 resolved** (PLAN_SHORT Decided S20); DM5/DM7/DM-rej open. Sliced: M3.S1 = Stage 1 RapidFuzz ✅ (PR #56); M3.S2 = Stage 2 embeddings + the `pgvector` read-path switch. |
 | [[m2s2-llm-router-budget-cap]] | proposal | M2.S2 nine-layer pass: paid adapters + router + budget cap + status endpoint |
 | [[2026-06-11-architecture-review]] | review | **current health snapshot** — M2→M3 roll catch-up + forward sweep (no blockers; `risk`: INV-2 consent gate lost its M2.S5 landing → unscheduled + a real paid call fired gate-less; `overview.md` 2 sessions stale; INV-5/OQ-9 latency built but future-tensed. Forward: M3 lands INV-1's enforcer, lifts INV-8, needs the candidate state machine drawn — the decompose step-0) |
 | [[2026-06-09-architecture-review]] | review | pre-M2.S4 drift + forward sweep (superseded as snapshot by 2026-06-11; no blockers; `risk`: `overview.md` 3 sessions stale, `entity_mentions` table absent from migrations, INV-8 needs CREATE-not-MERGE, new write-path must map router errors→HTTP; M2.S4 plan aligned; OQ-1/OQ-2 were the owner's calls — since resolved) |
@@ -96,15 +96,16 @@ related: []
    (→ OQ-15). No direct vendor adapters (OpenRouter is the only paid route — ADR 0003).
 12. **M2→M3 roll gates ✅ both done (2026-06-11):** cross-cutting curation (`docs/PLAN_SHORT.md`); the
    `review-architecture` catch-up (`[[2026-06-11-architecture-review]]`); the `decompose-requirement`
-   step-0 (`[[m3-cascade-matching]]` — `proposed`, register OPEN; `[[candidate-lifecycle]]` drawn).
-13. **Next: M3 code — but the owner decides the OPEN register first (OQ-16 / `[[m3-cascade-matching]]`),
-   above all DM6** (intercept-before-write vs dedupe-after — decides whether INV-8 is replaced or
-   layered). On resolution: fold INV-1's enforcer + retire INV-8 (+ possible INV-9) into
-   `[[invariants]]`, finalise `[[candidate-lifecycle]]`, draft the DM6/DM2 ADR(s). **First code:**
-   `MatchingAgent` Stage 1 (RapidFuzz, deterministic, failing test first with the App. B
-   Bronek/Bronisław fixture), then Stage 2 + the `pgvector` read-path switch (`NULL AS embedding` →
-   `vector(768)`). Still-carried watch: INV-6 redaction-before-logging (OQ-15); the store-down→503 +
-   Neo4j lifespan-close M2.S4 follow-up — see `docs/PLAN_SHORT.md` cross-cutting.
+   step-0 (`[[m3-cascade-matching]]`; `[[candidate-lifecycle]]` drawn). Register now resolved through
+   S20 — DM1–D4 + DM6; DM5/D7/DM-rej open.
+13. **M3.S1 shipped ✅ (PR #56, S20):** `MatchingAgent` Stage 1 (RapidFuzz, deterministic) — proposes
+   only, INV-8 untouched. Resolved DM1 (thresholds → `config.py`) + DM2/D3/D4 (embedding model/storage)
+   and added the §6.7 HF-model channel. **Next: M3.S2** — `MatchingAgent` Stage 2 (embedding cosine) +
+   the `pgvector` read-path switch (`NULL AS embedding` → `vector(768)`). Then M3.S3 JudgeAgent (DM5),
+   M3.S4 review queue + the DM6 write-path refactor — where INV-1's enforcer lands, INV-8 retires,
+   `[[candidate-lifecycle]]` is finalised, and the DM6/DM2 ADR(s) are drafted (test-first). Still-carried
+   watch: INV-6 redaction-before-logging (OQ-15); the store-down→503 + Neo4j lifespan-close M2.S4
+   follow-up — see `docs/PLAN_SHORT.md` cross-cutting.
 
 _Run log: see [[changelog]]. Seeded by `initialize-project-architecture`; extended by
 `review-architecture` + `decompose-requirement`, 2026-06-02._
