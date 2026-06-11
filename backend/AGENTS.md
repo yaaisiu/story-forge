@@ -9,7 +9,7 @@ This directory holds the Python FastAPI backend.
 - Dependency pins in `pyproject.toml` — exact versions, minimum 14 days old
 - Format: `ruff format`. Lint: `ruff check`. Type: `mypy --strict` on `src/`
 - Tests: `pytest`. Async tests with `pytest-asyncio`. Coverage tracked but not gated initially
-- Logging: structlog, JSON in production-mode, pretty in dev. Never log auth headers, API keys, or PII
+- Logging: **none implemented yet** — the backend emits no operational logs (`structlog` is not a dependency; nothing calls `logging`). Planned shape when it lands: structured logs (e.g. structlog), JSON in prod / pretty in dev, and — per §6.7 — **never** log auth headers, API keys, or PII. Until then §6.7 "keys never logged" holds *vacuously*; the manual key-leak smoke (see "Manual real-provider smoke" below) is the regression guard for when logging arrives. Tracked in `docs/PLAN_LONG.md` → "Operational logging & observability — later". (Don't conflate this with training-data capture, which is the `llm_calls` ledger + planned `edit_history`, not stdout logs.)
 
 ## Layering (strict — see `src/story_forge/AGENTS.md` for details)
 
@@ -134,3 +134,61 @@ uv run uvicorn story_forge.main:app --reload --port 8000
 ```
 
 Infra (Neo4j, Postgres, Ollama) comes from the root `docker compose up`.
+
+## Manual real-provider smoke (M2 close) + §6.7 key-leak check
+
+The unit tests mock every provider. This is the **manual** smoke that exercises *real*
+egress and confirms §6.7 ("API keys never logged; auth headers stripped from logs")
+under a real call — the part CI can't do (no keys in CI). Run it locally where keys are
+configured; it is deliberately not automated. `.env` is user-managed — the agent never
+reads it; the commands below read keys the same way the app does.
+
+**What actually runs — a doublet, not a "triplet".** With no direct vendor adapters
+shipped (OpenRouter is the only paid route — ADR 0003), and OpenRouter **not wired into
+the app** (`main.py` configures only the `cloud_free` tier; an unconfigured tier raises
+rather than misroutes — a YAGNI kept until a heavy task needs `cloud_strong`), the real
+surface is:
+
+- **Ollama Cloud (`cloud_free`)** — wired into the app; exercised by a real extract.
+- **OpenRouter free model (`cloud_strong`)** — exercised standalone via
+  `scripts/check_openrouter.py` (the app can't route to it yet).
+
+**1 — Connectivity (one real call each, cheap):**
+
+```bash
+python3 scripts/check_ollama_cloud.py                              # reads OLLAMA_CLOUD_API_KEY
+OPENROUTER_MODEL=<your-free-model-id> python3 scripts/check_openrouter.py   # reads OPENROUTER_API_KEY
+```
+
+Each prints `OK` on a 200 + parseable body, `FAIL: …` otherwise, and skips cleanly
+(exit 0) if its key is unset.
+
+**2 — Real end-to-end extract (Ollama Cloud), capturing all process output:**
+
+```bash
+docker compose up -d                                              # neo4j + postgres
+cd backend && uv sync --group models && uv run alembic upgrade head
+uv run uvicorn story_forge.main:app --port 8000 2>&1 | tee /tmp/sf-smoke.log
+# In another shell: upload a short text → POST /stories/{id}/structure →
+# POST /stories/{id}/extract → GET /stories/{id}/graph; confirm entities appear and
+# the §8.5 panel shows which tier/model ran.
+```
+
+Also force an **error path** — the real leak risk is an exception/traceback, not a log
+line: point `EXTRACTION_MODEL` at a bogus model so the provider 4xx/5xx's, and confirm
+the failure surfaces (502) without the key.
+
+**3 — The key-leak assertion (the actual §6.7 check) over the captured output:**
+
+```bash
+set -a; source backend/.env; set +a   # your action — load keys for the grep
+grep -F "$OPENROUTER_API_KEY"  /tmp/sf-smoke.log && echo "LEAK!" || echo "clean (no OpenRouter key)"
+grep -F "$OLLAMA_CLOUD_API_KEY" /tmp/sf-smoke.log && echo "LEAK!" || echo "clean (no Ollama key)"
+grep -nE "Bearer |Authorization:"   /tmp/sf-smoke.log || echo "clean (no auth-header strings)"
+```
+
+Expected: all "clean". **Today this passes vacuously** — the backend emits no operational
+logs (see the `## Conventions` logging note + `docs/PLAN_LONG.md` "Operational logging &
+observability"), so the only way a key could surface is an exception that formats the
+header, which the adapters don't do. When operational logging lands, re-run this as the
+redaction **regression guard**.
