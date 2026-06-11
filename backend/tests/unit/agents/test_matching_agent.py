@@ -40,16 +40,17 @@ KAZIMIERZ = ExistingEntity(
     ("score", "expected"),
     [
         (100.0, "auto-merge-proposed"),
-        (85.0, "auto-merge-proposed"),  # ≥85 is a merge proposal (boundary inclusive)
+        (85.1, "auto-merge-proposed"),  # strictly >85 → merge
+        (85.0, "ambiguous"),  # exactly 85 is the TOP of the 60–85 band → Stage 2
         (84.9, "ambiguous"),
         (72.5, "ambiguous"),
-        (60.0, "ambiguous"),  # ≥60 still ambiguous → Stage 2 (boundary inclusive)
+        (60.0, "ambiguous"),  # ≥60 is the bottom of 60–85 → Stage 2 (boundary inclusive)
         (59.9, "new-proposed"),
         (12.0, "new-proposed"),
     ],
 )
 def test_classify_bands(score: float, expected: str) -> None:
-    # Encodes §3.3 directly: >85 merge, 60–85 ambiguous, <60 new. Spec defaults.
+    # Encodes §3.3 literally: >85 merge, 60–85 ambiguous, <60 new. Spec defaults.
     assert classify(score, merge_threshold=85.0, ambiguous_floor=60.0) == expected
 
 

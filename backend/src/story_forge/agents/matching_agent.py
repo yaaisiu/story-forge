@@ -56,12 +56,14 @@ class Stage1Result(BaseModel):
 def classify(score: float, *, merge_threshold: float, ambiguous_floor: float) -> MatchOutcome:
     """Map a RapidFuzz score (0–100) to a §3.3 lifecycle state.
 
-    Spec §3.3 bands: ≥ merge → MERGE proposal; [ambiguous_floor, merge) → ambiguous
-    (Stage 2); < ambiguous_floor → NEW. Thresholds are inclusive at the lower edge so
-    a score sitting exactly on the spec boundary takes the *more cautious* branch
-    (85 → still a proposal not a silent skip; 60 → still escalated to Stage 2).
+    Spec §3.3 bands, literally: ``> merge`` → MERGE proposal; ``[ambiguous_floor,
+    merge]`` → ambiguous (Stage 2); ``< ambiguous_floor`` → NEW. The upper edge is
+    *strict* (`>`), so a score sitting exactly on the spec's 85 boundary is NOT
+    auto-merged — it escalates to Stage 2, the more fail-closed branch (the spec
+    writes merge as "> 85%" and the 85 itself as part of the "60–85%" Stage-2 band).
+    The lower edge is inclusive (`>=`): 60 is the bottom of "60–85%", still ambiguous.
     """
-    if score >= merge_threshold:
+    if score > merge_threshold:
         return "auto-merge-proposed"
     if score >= ambiguous_floor:
         return "ambiguous"
