@@ -24,6 +24,21 @@ Component and structure conventions for the React app.
 - Props typed explicitly; no `any`.
 - No business logic in components. Components render and dispatch. Logic lives in hooks or stores.
 
+## Test-first, applied to React (root `AGENTS.md` §2 nuance)
+
+The "write the failing test first" rule is strict for **logic** — hooks, pure functions
+(parsers, the `graphElements` mapper), API clients: write the test that encodes the
+behaviour, watch it fail, then implement. For **presentational components**, the honest
+practice is _shape the component and its test together_ — JSX is often easier to get right
+by writing the markup and the asserting test in one pass — but the bar at merge is the same:
+**every behaviour a component owns has a test that exercises it** (states, branches, the
+data-testid contract, user interactions), and an untestable surface is isolated and named
+(e.g. `GraphCanvas`'s cytoscape mount, covered by the browser smoke, not jsdom). If you
+wrote a component before its test, say so in the PR/`/review-pr` rather than implying strict
+TDD order. Factor the logic _out_ of the component (into a hook or a pure module) precisely
+so the hard-to-test part shrinks to render-and-dispatch. (Session 17: the M2.S5 viewer
+components were shaped-then-tested; coverage was complete, disclosed in `/review-pr`.)
+
 ## Styling
 
 - Tailwind utility classes; shadcn/ui components for primitives
