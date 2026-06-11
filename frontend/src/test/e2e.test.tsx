@@ -205,7 +205,9 @@ describe("M2 happy path: upload → outline → graph extraction", () => {
     // The full seam is wired: upload, structure, extract, and two graph reads all fired.
     const urls = fetchMock.mock.calls.map((c) => String(c[0]));
     expect(urls.some((u) => u.endsWith("/stories/upload"))).toBe(true);
-    expect(urls.some((u) => u.includes(`/stories/${STORY_ID}/structure`))).toBe(true);
+    // Pin the structure call's query contract (manual is the default mode), not just
+    // that *a* structure request fired — a dropped/wrong mode param must still fail here.
+    expect(urls.some((u) => u.includes(`/stories/${STORY_ID}/structure?mode=manual`))).toBe(true);
     expect(urls.some((u) => u.includes(`/stories/${STORY_ID}/extract`))).toBe(true);
     expect(
       urls.filter((u) => u.includes(`/stories/${STORY_ID}/graph`)).length,

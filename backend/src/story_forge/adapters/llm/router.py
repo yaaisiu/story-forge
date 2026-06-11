@@ -210,7 +210,8 @@ class LLMRouter:
         raise last_error
 
     def _elapsed_ms(self, start: float) -> int:
-        """Wall-clock milliseconds since `start`, measured on the injected clock."""
+        """Elapsed milliseconds since `start` on the injected (monotonic) clock —
+        a duration, not a timestamp; don't swap the clock for a wall-clock source."""
         return round((self._clock() - start) * 1000)
 
     async def _record(

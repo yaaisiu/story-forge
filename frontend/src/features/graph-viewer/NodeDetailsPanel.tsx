@@ -8,6 +8,7 @@
 // reader lands (spec §3.4 "drill-down to text").
 
 import type { GraphNode } from "../../lib/api/useStoryGraph";
+import { nodeLabel } from "./graphElements";
 
 interface NodeDetailsPanelProps {
   node: GraphNode | null;
@@ -26,7 +27,9 @@ export function NodeDetailsPanel({ node, onClose }: NodeDetailsPanelProps) {
     );
   }
 
-  const name = node.canonical_name_pl ?? node.canonical_name_en ?? node.aliases[0] ?? "(unnamed)";
+  // Same name precedence the graph node uses (canonical PL → EN → alias → type),
+  // so the heading and the canvas label always agree — see graphElements.nodeLabel.
+  const name = nodeLabel(node);
 
   return (
     <aside
