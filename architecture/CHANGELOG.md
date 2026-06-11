@@ -306,3 +306,52 @@ Swept the whole vault for the same tense-overclaim class — this was the only i
 - *Class sweep:* the systematic per-invariant guard audit is routed to OQ-A (the queued
   `review-architecture` drift sweep) rather than half-done here. Operating boundary set: Codex
   is review-only (runs host-Windows over a UNC view; no edits, to avoid cross-env artifacts).
+
+## 2026-06-11 — `review-architecture` (M2→M3 roll catch-up + forward sweep)
+
+Run at the M2→M3 milestone boundary (gate 2 of the roll). The last sweep
+(`2026-06-09-architecture-review`) predated **M2.S5** (PR #51) and **M2.S6** (PR #53), so the
+update-in-place notes lagged two merged sessions.
+
+- **New report:** `reports/2026-06-11-architecture-review.md`. No blockers. One `risk` on a security
+  invariant: **INV-2's consent gate was deferred (ADR 0003 D5) with M2.S5 as its landing spot, and
+  M2.S5 shipped without it** — the gate is now unscheduled and the M2.S6 smoke fired real paid egress
+  gate-less (the OQ-6 window, now realised; accepted at PoC scale but the schedule is stale). Other
+  drift is freshness: `overview.md` two sessions stale (header "M0 → M2.S3", M2.S5/S6 under "planned");
+  INV-5/OQ-9 latency still future-tensed though `latency_ms` is built (M2.S5, migration
+  `2026_06_11_0956…`); INDEX "Next: M2.S5".
+- **`open-questions.md`:** added **OQ-14** (§6.5 model-override dropdown vs INV-7 — framed, likely
+  future ADR) and **OQ-15** (operational logging absent ⇒ INV-6 vacuously true — framed). This
+  discharges the `docs/PLAN_SHORT.md` cross-cutting "reflect the M2→M3 roll decisions in the vault"
+  item. `updated` → 2026-06-11.
+- **`learning-log.md`:** +3 lines — vacuous truth; accepted deferral vs silent drift; temporary-
+  invariant hand-off (INV-8→INV-1).
+- **`INDEX.md`:** regenerated — M2.S5/S6 done, M3 next, this report + OQ-14/OQ-15 registered.
+- **Recommended (report-only, not applied this sweep) for the decompose step-0 to fold:** re-point
+  INV-2's consent gate; flip INV-5/OQ-9 latency to as-built; refresh `overview.md` to M2.S6/M3. Source
+  notes `overview.md` / `invariants.md` left unedited per report-only discipline.
+
+## 2026-06-11 — `decompose-requirement` (M3 cascade, step-0)
+
+M2→M3 roll gate 2, part 2: the forward-design pass on M3 — the §3.3 cascade dedupe — before any code.
+
+- **New proposal:** `proposals/m3-cascade-matching.md` (`status: proposed`, register OPEN). Nine-layer +
+  nine-station pass; Mermaid data-flow; the candidate-lifecycle state machine; an 8-entry decision
+  register (DM1–DM7 + DM-rej); a but-what-if pass (intra-batch dupes, review-gate TOCTOU, fail-closed
+  embedding/judge outages, relation re-pointing on merge, rejected-candidate re-surfacing); gaps for the
+  PO. Central fork flagged: **DM6** — matching *gates* the write (intercept-before-write, my strong
+  proposal) vs dedupe-after — which decides whether **INV-8 is replaced or layered**.
+- **New state machine (the vault's first):** `state-machines/candidate-lifecycle.md` (`status: draft`) —
+  `extracted → {auto-merge|ambiguous|new}-proposed → judged → review-queued → (human) →
+  {merged|created|rejected}`; the commit guard *is* INV-1; every terminal edge writes `edit_history`
+  (INV-3).
+- **Freshness fixes folded** (the 2026-06-11 review's recommendations, applied because they're honest
+  as-built corrections independent of the open M3 register): `invariants.md` INV-2 (consent gate
+  re-pointed from the lapsed M2.S5 → M3 review-queue UI + the "real paid call fired gate-less" as-built
+  note) and INV-5 (`latency_ms` → as-built M2.S5); `open-questions.md` OQ-9 → built; `overview.md`
+  header → M0→M2.S6, M2.S5/S6 into built, planned → M3, Monitoring station → ✅.
+- **`open-questions.md`:** added **OQ-16** (the M3 register pointer). **`learning-log.md`:** +2 lines
+  (cheapest-first cascade; gate-the-write vs dedupe-after). **`INDEX.md`:** regenerated.
+- **Nothing resolved.** Register stays OPEN; no invariant folded into `invariants.md` beyond the
+  freshness fixes; no ADR drafted (awaits the owner's DM6/DM2 calls). First code: `MatchingAgent` Stage 1
+  (RapidFuzz), failing test first with the App. B "Bronek/Bronisław" fixture.
