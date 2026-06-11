@@ -85,7 +85,8 @@ exceeded.
   records (the "explain why a batch stopped" trail must not vanish with the error). Recorded in
   `docs/PLAN_SHORT.md` Decided; see the out-of-band-audit-logging note in `learning-log`.
 - **`latency` (OQ-9, resolved 2026-06-11 → option a):** a usage row now records `latency_ms`
-  (wall-clock around `provider.complete`, always recorded). Added to spec §6.6's enumeration; the
+  (elapsed time around `provider.complete`; recorded for every *dispatched* call, null only for a
+  pre-dispatch budget refusal that never reached a provider). Added to spec §6.6's enumeration; the
   `llm_calls` column + router capture land in M2.S5 (the §8.5 panel shows it). History: `[[open-questions]]` OQ-9.
 - **Shape decided (ADR 0003, 2026-06-02):** the usage record grows on `CompletionResult`/the Protocol
   (`model`, `input_tokens`, `output_tokens`, nullable `gpu_seconds`, `cost_estimate`); `OllamaProvider`

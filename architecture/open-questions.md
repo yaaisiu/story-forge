@@ -215,8 +215,9 @@ full Context/Options/Proposal for each lives in the proposal's Decision register
 - **Lands in:** M2.S2 (next product session). See [[m2s2-llm-router-budget-cap]].
 
 ### ~~OQ-9 — `latency` is promised in three homes but recorded in none~~ ✅ Resolved 2026-06-11 → option (a)
-**Resolved 2026-06-11 (option a):** spec §6.6's enumeration now lists `latency_ms` (wall-clock around
-the provider call, always recorded); the `llm_calls` column + the router capture land in **M2.S5**
+**Resolved 2026-06-11 (option a):** spec §6.6's enumeration now lists `latency_ms` (elapsed time
+around the provider call; recorded for every dispatched call, null only for a pre-dispatch budget
+refusal that never reached a provider); the `llm_calls` column + the router capture land in **M2.S5**
 (the §8.5 panel shows it). `[[invariants]]` INV-5's latency caveat is updated to match. Original
 framing kept below for history.
 Raised by the post-M2.S2 sweep (`[[2026-06-02-architecture-review-post-m2s2]]`). INV-5 says a usage
