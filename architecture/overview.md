@@ -1,9 +1,9 @@
 ---
 type: overview
 slug: overview
-updated: 2026-06-09
+updated: 2026-06-11
 status: living
-related: ["[[project]]", "[[invariants]]", "[[open-questions]]", "[[cascade-matching]]", "[[model-tier-routing]]"]
+related: ["[[project]]", "[[invariants]]", "[[open-questions]]", "[[cascade-matching]]", "[[model-tier-routing]]", "[[m3-cascade-matching]]"]
 ---
 
 # System overview — Story Forge (nine-layer seed pass)
@@ -28,7 +28,7 @@ strategize forward*. So this overview is grounded in what the code actually does
 only what the spec plans. (Authoritative roadmap: `docs/PLAN_SHORT.md`; runtime truth: the
 code.)
 
-**Built and merged (M0 → M2.S3):**
+**Built and merged (M0 → M2.S6 — M2 complete):**
 - **M0** — secure-by-default infra: docker-compose with Neo4j, Postgres+pgvector, Ollama,
   all localhost-bound and non-root; pinned/aged deps; CI (`ci.yml`).
 - **M1** — upload + structure: `.txt/.md/.docx` upload (sandboxed storage,
@@ -51,11 +51,19 @@ code.)
   (OQ-1/OQ-2, resolved), and `POST /stories/{id}/extract` (200 / 202-paused / 502)
   (`agents/{extraction_graph,extraction_coordinator}.py`, `adapters/{neo4j_repo,postgres_mention_store}.py`).
 
-**Planned, not yet built (M2.S5 → M2.S6, then M3+):**
-- M2.S5 — frontend graph viewer + agent-activity panel.
-- M2.S6 — optional direct vendor adapters (Grok/Anthropic/Google/OpenAI, as needed) + integration polish (closes M2). *(OpenRouter moved up to M2.S2 — `docs/decisions/0003`.)*
+- **M2.S5** — frontend **graph viewer** + **agent-activity panel** (PR #51):
+  `features/{graph-viewer,agent-activity}/`, and the `latency_ms` column (migration
+  `2026_06_11_0956…`) + router capture shown in the §8.5 panel (OQ-9 → option a).
+- **M2.S6** — **thin close of M2** (PR #53): real-provider smoke (`scripts/check_openrouter.py`:
+  Ollama Cloud + an OpenRouter model, both 200; key-leak grep clean) + the §6.7 key-leak procedure in
+  `backend/AGENTS.md`. **Deferred** the §6.5 model-override dropdown (INV-7-touching feature → OQ-14);
+  **observability/operational logging** recorded as a later need (→ OQ-15). No direct vendor adapters
+  (OpenRouter is the only paid route — `docs/decisions/0003`).
+
+**Planned, not yet built (M3+):**
 - M3 — the **cascade matching** dedupe (Stages 1–4: fuzzy → embedding → LLM judge → human),
-  the heart of the product (§3.3, [[cascade-matching]]).
+  the heart of the product (§3.3, [[cascade-matching]], [[m3-cascade-matching]]). Retires the temporary
+  INV-8 (no dedupe) and lands **INV-1's** first enforcer (the human review gate).
 
 So today Story Forge ingests and structures text, produces deterministic candidate spans,
 **extracts entity/relation candidates with an LLM** (routed, budgeted, recorded), and **writes
@@ -188,13 +196,14 @@ Applied to the system as a whole, with empty boxes named:
 | **Policy** | ✅ partial | spec §6.7 security baseline; the cascade thresholds (§3.3); budget cap (§6.6) |
 | **Decision** | ✅ | router tier choice (§6.5); cascade stage decisions; **human** at Stage 4 |
 | **Access** | n/a — no inter-user access control | localhost-only binding is the only "access" gate |
-| **Monitoring** | ✅ partial | `GET /llm/status` + the `llm_calls` ledger built (M2.S2); the agent-activity panel that surfaces them is M2.S5 |
+| **Monitoring** | ✅ | `GET /llm/status` + the `llm_calls` ledger (M2.S2) + the **agent-activity panel** + the read-only **graph viewer** that surface them (M2.S5, PR #51) — incl. `latency_ms` |
 | **Evidence** | ✅ designed | `edit_history`, per-call LLM logs, reversibility (§4.2, §11) |
 | **Expiry** | ◻ gap | no retention/cleanup policy for uploads, logs, or orphaned sandboxes — **open** |
 | **Review** | ✅ | Stage 4 human-in-the-loop *is* the review station, by design (§3.3) |
 
-Empty/weak stations (**Monitoring not-yet-built**, **Expiry gap**) are logged in
-[[open-questions]] — an empty station is a design gap, not a non-event.
+The weak station that remains is **Expiry** (no retention/cleanup for uploads, logs, or orphaned
+sandboxes) — logged in [[open-questions]] (OQ-4, and OQ-15 for the absent operational logging). An empty
+station is a design gap, not a non-event. (Monitoring closed at M2.S5.)
 
 ---
 

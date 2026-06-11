@@ -1,9 +1,9 @@
 ---
 type: open-questions
 slug: open-questions
-updated: 2026-06-09
+updated: 2026-06-11
 status: living
-related: ["[[overview]]", "[[project]]", "[[invariants]]", "[[2026-06-02-architecture-review]]", "[[m2s3-extraction-agent]]", "[[2026-06-09-architecture-review]]"]
+related: ["[[overview]]", "[[project]]", "[[invariants]]", "[[2026-06-02-architecture-review]]", "[[m2s3-extraction-agent]]", "[[2026-06-09-architecture-review]]", "[[2026-06-11-architecture-review]]"]
 ---
 
 # Open questions — Story Forge
@@ -215,11 +215,12 @@ full Context/Options/Proposal for each lives in the proposal's Decision register
 - **Lands in:** M2.S2 (next product session). See [[m2s2-llm-router-budget-cap]].
 
 ### ~~OQ-9 — `latency` is promised in three homes but recorded in none~~ ✅ Resolved 2026-06-11 → option (a)
-**Resolved 2026-06-11 (option a):** spec §6.6's enumeration now lists `latency_ms` (elapsed time
-around the provider call; recorded for every dispatched call, null only for a pre-dispatch budget
-refusal that never reached a provider); the `llm_calls` column + the router capture land in **M2.S5**
-(the §8.5 panel shows it). `[[invariants]]` INV-5's latency caveat is updated to match. Original
-framing kept below for history.
+**Resolved 2026-06-11 (option a); built M2.S5 (PR #51):** spec §6.6's enumeration lists `latency_ms`
+(elapsed time around the provider call; recorded for every dispatched call, null only for a pre-dispatch
+budget refusal that never reached a provider); the `llm_calls` column (Alembic
+`2026_06_11_0956-…_add_latency_ms_to_llm_calls.py`) + the router capture **landed in M2.S5** and the
+§8.5 panel shows it. `[[invariants]]` INV-5's latency caveat matches. Original framing kept below for
+history.
 Raised by the post-M2.S2 sweep (`[[2026-06-02-architecture-review-post-m2s2]]`). INV-5 says a usage
 row records "… **(and latency)**"; the `[[m2s2-llm-router-budget-cap]]` proposal repeats it; the
 **M2.S5 panel task** (`docs/PLAN_SHORT.md`) lists **latency** as a shown column. But the as-built
@@ -303,6 +304,59 @@ GHSA-86qp-5c8j-p5mr (`starlette` 1.0.0, MEDIUM, via `fastapi`): Dependabot flagg
   the `google/osv-scanner-action` is a no-`runs:` stub, so the container is the fail-on-any path —
   stronger than the planned SHA-pin), `infra/osv/` waiver scaffold (no active waivers), `starlette`
   1.0.0→1.0.1 (self-test red→green), and the **spec §6.7 amendment landed *with* the build**.
+
+### OQ-14 — §6.5 model-override dropdown vs INV-7 (system-derived routing)
+Raised by the M2→M3 roll (2026-06-11, `[[2026-06-11-architecture-review]]`); deferred as a *feature*
+in `docs/PLAN_SHORT.md` Decided 2026-06-11. The §8.5 panel does the **surfacing** half ("which
+tier/model ran, and why"); the remaining half is a real **user model-override control + persisted
+per-task-type preferences**. That collides head-on with **INV-7** as currently stated — routing is
+**system-derived, never caller-asserted** (the near-miss deliberately closed in M2.S2: the ledger
+records the router's *own* chosen tier/provider/model, ignoring any caller echo). A dropdown makes the
+caller an authority on routing, which the invariant currently forbids.
+- **What it needs (not what to decide — that's the owner's):** an **INV-7 reconciliation** ("routing
+  is system-derived *unless* the user explicitly overrides for this task"), router plumbing for the
+  override + its interaction with weight-tiering and within-tier failover, and a preferences store.
+- **Likely a future ADR** — it amends an invariant + crosses the routing boundary. Frame it in the
+  `[[m2s3-extraction-agent]]`-style decompose register before building; the human owns the INV-7 call.
+- **Lands:** its own scoped piece, alongside or after M3 (carried in `docs/PLAN_SHORT.md`
+  cross-cutting). *Rejected:* surfacing-only (the panel already covers it — near-zero value);
+  cram-into-a-thin-session (rushes an invariant-touching feature). Open.
+
+### OQ-15 — Operational logging is absent, so INV-6 "keys never logged" is vacuously true
+Raised by the M2→M3 roll (2026-06-11, `[[2026-06-11-architecture-review]]`); recorded as a later need
+in `docs/PLAN_LONG.md` (M2.S6, PR #53). The backend emits **no** operational/stdout logs today — so
+INV-6's "API keys never logged" and "logging middleware strips `Authorization`/`X-API-Key`" describe a
+**redaction guard that does not exist yet**: the guarantee holds *vacuously* (nothing logs ⇒ nothing
+leaks), which proves nothing about whether it would hold once logging lands. A common conflation worth
+nailing down: the future-training-data trail is the **`llm_calls` ledger + planned `edit_history`** (a
+data-layer record), **not** stdout logs — they are different concerns.
+- **The seam:** the moment the first operational log line is added (M3's matching/judge agents are a
+  likely first place — a paused/failed cascade wants diagnostics), redaction must **precede** it, or
+  it's fail-open-by-sequencing. The M2.S6 key-leak grep (`scripts/check_openrouter.py` + the
+  `backend/AGENTS.md` procedure) becomes the **redaction regression guard** at that point.
+- **Ties:** OQ-4 (Expiry — log retention) and INV-6. *Options to frame when logging is actually
+  scoped:* (a) structured logging with a redaction processor built **with** the first log line;
+  (b) no operational logging at PoC, documented, ledger-only. Open.
+
+### OQ-16 — M3 cascade decision register (DM1–DM7, DM-rej) — OPEN
+Raised by the M3 `decompose-requirement` step-0 (2026-06-11, `[[m3-cascade-matching]]`). The full
+Context/Options/Proposal for each lives in that proposal's Decision register; listed here so the vault's
+reader knows they exist and that they gate M3 code:
+- **DM1 — threshold home** (the §3.3 Policy values: Stage 1 85/60, Stage 2 cosine 0.85, Stage 3 conf 0.8
+  have no home today). *Proposal:* a named `matching` config module, spec defaults, not user-facing yet.
+- **DM2 — embedding model** (`paraphrase-multilingual-mpnet-base-v2`, 768-dim — matches the reserved
+  `vector(768)`; `verify-at-build` the dim + host fit; pin via the §6.7 wheel/model channel).
+- **DM3 — what an entity's vector *is*** (per-mention vectors + max-cosine vs a per-entity representative).
+- **DM4 — embedding storage + the `NULL AS embedding` → `vector(768)` read-path switch** (`pgvector` +
+  `register_vector_async`; *proposal:* on `entity_mentions`).
+- **DM5 — JudgeAgent tier** (spec-settled: cloud_free via the router, `task_type="judging"`).
+- **DM6 — THE central fork: matching *gates* the graph write (intercept-before-write) vs *dedupes after*
+  it.** *Strong proposal:* (A) intercept-before-write — it's what INV-1 + §3.3 demand; cost = refactor
+  M2.S4's write path. Determines whether **INV-8 is replaced or layered**. The owner's biggest M3 call.
+- **DM7 — review-queue UX** (§3.3 Stage 4 elements + keyboard nav) + **landing INV-2's consent gate here**.
+- **DM-rej — rejected-candidate memory** (don't re-surface; ties OQ-4 Expiry).
+- **Also live:** spec §10 q8 (multilingual `canonical_name_pl/en`) becomes concrete at merge — stays the
+  **spec's** to resolve. **Lands in:** M3, opener `MatchingAgent` (Stage 1+2). Open.
 
 ## Referenced — owned by spec §10 (not duplicated)
 

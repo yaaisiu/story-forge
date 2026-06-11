@@ -1,9 +1,9 @@
 ---
 type: invariants
 slug: invariants
-updated: 2026-06-09
+updated: 2026-06-11
 status: living
-related: ["[[overview]]", "[[project]]", "[[open-questions]]"]
+related: ["[[overview]]", "[[project]]", "[[open-questions]]", "[[2026-06-11-architecture-review]]", "[[candidate-lifecycle]]"]
 ---
 
 # Invariants — Story Forge
@@ -36,13 +36,20 @@ for that call, and the UI makes the crossing explicit ("sending fragment to Anth
 - **Source:** §11 privacy; the machine ↔ provider [[trust-boundary]].
 - **Enforced at:** *(as-built, M2.S2)* paid egress now exists — `OpenRouterProvider`
   (`adapters/llm/openrouter.py`), selected by the router (`adapters/llm/router.py`). The **consent
-  UI** the invariant demands ("sending fragment to Anthropic, OK?") is **still M2.S5**; until then the
-  egress point carries a documented in-code marker (ADR 0003 D5), so the actual guard remains
-  "no-telemetry (§6.7) + egress only to the router-selected provider", honestly narrower than the rule
-  it will become (same as-built honesty as INV-1). No telemetry libraries exist anywhere.
-- **Decision (ADR 0003, 2026-06-02):** the consent gate is **deliberately deferred to M2.S5**, not
-  forgotten — the PoC handles no security-sensitive data, so M2.S2 opens paid egress with a documented
-  in-code marker rather than a gate. A reader should read the narrow guard as a *considered* deferral.
+  UI** the invariant demands ("sending fragment to Anthropic, OK?") is **deferred and now unscheduled**
+  — its ADR-0003-D5 landing target was M2.S5, but **M2.S5 shipped a *read-only* viewer + panel without
+  it** (PR #51), so the gate is re-pointed to the **M3 §3.3 review-queue UI** (the first rich human-gate
+  surface; see [[m3-cascade-matching]] DM7). Until then the egress point carries a documented in-code
+  marker (ADR 0003 D5), so the actual guard remains "no-telemetry (§6.7) + egress only to the
+  router-selected provider", honestly narrower than the rule it will become (same as-built honesty as
+  INV-1). No telemetry libraries exist anywhere.
+- **Decision (ADR 0003, 2026-06-02; re-dated 2026-06-11):** the consent gate is **deliberately
+  deferred**, not forgotten — the PoC handles no security-sensitive data. **As-built reality
+  (2026-06-11, `[[2026-06-11-architecture-review]]`):** the M2.S6 smoke **fired real paid egress
+  gate-less** (Ollama Cloud + an OpenRouter model) — the OQ-6 "fail-open by sequencing" window is no
+  longer hypothetical, it occurred. Accepted at PoC scale, but the deferral's *schedule* is now
+  re-pointed to M3 (above) rather than left pointing at a milestone that passed. Read the narrow guard
+  as a *considered, re-dated* deferral.
 - **Why it matters:** this is the *only* real trust boundary in a single-user local app;
   everything the Security layer protects funnels through it.
 
@@ -84,10 +91,12 @@ exceeded.
   request transaction — so a *failure* row survives a request that rolls back on the very failure it
   records (the "explain why a batch stopped" trail must not vanish with the error). Recorded in
   `docs/PLAN_SHORT.md` Decided; see the out-of-band-audit-logging note in `learning-log`.
-- **`latency` (OQ-9, resolved 2026-06-11 → option a):** a usage row now records `latency_ms`
+- **`latency` (OQ-9, resolved 2026-06-11 → option a; built):** a usage row records `latency_ms`
   (elapsed time around `provider.complete`; recorded for every *dispatched* call, null only for a
-  pre-dispatch budget refusal that never reached a provider). Added to spec §6.6's enumeration; the
-  `llm_calls` column + router capture land in M2.S5 (the §8.5 panel shows it). History: `[[open-questions]]` OQ-9.
+  pre-dispatch budget refusal that never reached a provider). *(as-built, M2.S5 / PR #51)* — Alembic
+  `2026_06_11_0956-…_add_latency_ms_to_llm_calls.py`, captured in `router.py`, recorded by
+  `postgres_cost_store.py`, shown in the §8.5 panel. Added to spec §6.6's enumeration. History:
+  `[[open-questions]]` OQ-9.
 - **Shape decided (ADR 0003, 2026-06-02):** the usage record grows on `CompletionResult`/the Protocol
   (`model`, `input_tokens`, `output_tokens`, nullable `gpu_seconds`, `cost_estimate`); `OllamaProvider`
   stops discarding the eval counts; one `llm_calls` table, nullable per tier; tier/provider/model are
