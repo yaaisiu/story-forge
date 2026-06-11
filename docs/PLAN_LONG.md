@@ -57,6 +57,25 @@ produced the M2 backend SCA gate (`osv-scanner` vs `uv.lock`); the items below e
   rather than relying only on the reviewer-invoked `/review-pr` §4 greps and the manual
   `meta-architect:review-architecture` drift sweep.
 
+## Operational logging & observability — later
+
+The backend currently emits **no operational logs** (no `logging` config, no request/
+error log lines) — surfaced 2026-06-11 while scoping the M2.S6 §6.7 key-redaction smoke.
+At PoC scale this is acceptable (single user, run-it-and-watch) and it makes the "API
+keys never logged" rule (§6.7) vacuously true. But structured operational logging
+(request/error traces, an audit trail) is a real later need for debugging a live run.
+
+**Distinct from training-data capture** (a common conflation): the data that feeds model
+training is *not* scraped from stdout logs — it is the structured records the data layer
+already persists. The **`llm_calls` ledger** holds per-call model/tier/tokens/cost/latency
+(§6.6); the planned **`edit_history`** pipeline turns the author's accept/edit/reject
+decisions into SFT/DPO pairs (spec §10 Q7 / the data-flywheel above). Operational logging
+serves *observability*; the ledger + `edit_history` serve the *flywheel*. Keep them separate.
+
+When operational logging *is* added, §6.7's key-redaction stops being vacuous: the M2.S6
+leak-check smoke (documented in `backend/CLAUDE.md`) becomes its regression guard — auth
+headers stripped, no `Bearer <token>` in any log line or traceback. Not scheduled.
+
 ---
 
 ## When this file changes
