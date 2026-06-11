@@ -113,6 +113,19 @@ unsure it's real, say so and how to confirm — don't drop it, don't overstate i
   `docs/PLAN_SHORT.md` / `docs/PLAN_LONG.md` reconciled with it? Plans, spec, code must not drift.
 - Does it honor the session's **Decided** entries (e.g. a chosen library, threshold, tier
   default)? A contradiction of a recorded decision is blocking unless the PR re-decides it.
+- **Absolute-quantifier check — a spec amendment's "always / every / never / all" must match
+  the code's exception path.** When the PR adds or edits a spec/invariant sentence containing an
+  absolute quantifier ("*always* recorded", "*every* call", "*never* null", "*all* rows carry X"),
+  grep the implementation for the exception that quantifier silently excludes: the **nullable
+  field** (`X | None`, a nullable column, a `?`-typed client field), the **early return / guard**
+  that skips the work, the **default that stays unset**. Confirm the quantifier actually holds on
+  *every* path — or weaken the wording to name the exception. The spec is the source of truth, so
+  an over-strong quantifier makes the honest implementation read as non-compliant and invites a
+  later "fix" that fabricates a value. (PR #51: spec §6.6 said `latency_ms` is "always recorded",
+  but the router records `None` for a pre-dispatch budget refusal — and the column / `int | None` /
+  the generated `number | null` were all nullable; `/review-pr` noted the None-on-refusal behaviour
+  and `/code-review` flagged the clock wording, but **neither connected the "always" claim to the
+  nullable exception** — external review caught it. The fix was the wording, not the code.)
 
 ### Decision reconciliation — the whole-repo, every-home sweep (the six-pass lesson)
 

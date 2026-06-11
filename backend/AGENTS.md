@@ -87,6 +87,22 @@ Alembic's `env.py` only injects `settings.database_url` when no URL was supplied
 so the fixture can point migrations at the test DB by setting `sqlalchemy.url` in
 a `Config` it builds itself.
 
+**Troubleshooting — `collation version mismatch` on the integration tier.** If the
+session fixture's `CREATE DATABASE story_forge_test` (or any query) fails with
+`template database "template1" has a collation version mismatch` (… created using
+collation version 2.36, but the operating system provides 2.41), the host's glibc
+was upgraded under the running Postgres data volume — common on a WSL/distro update.
+It is a local-environment papercut, **not** a repo bug. Refresh the dev container's
+collation once (idempotent), then re-run:
+```bash
+for db in template1 postgres storyforge; do
+  docker compose exec -T postgres psql -U storyforge -d "$db" \
+    -c "ALTER DATABASE $db REFRESH COLLATION VERSION;"
+done
+```
+(Session 17: this blocked the integration tier locally until refreshed; CI is
+unaffected — its Postgres service container is freshly built each run.)
+
 ## Adding a setting that tests or the app read from `.env`
 
 Recurring recipe (e.g. `TEST_DATABASE_URL` here; Neo4j creds and LLM API keys
