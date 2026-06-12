@@ -30,7 +30,6 @@ from __future__ import annotations
 
 import time
 from collections.abc import Callable
-from typing import Literal
 
 import httpx
 
@@ -42,11 +41,10 @@ from story_forge.adapters.llm.base import (
     ModelTier,
     ProviderResponseError,
     QuotaExhaustedError,
+    TaskWeight,
     Usage,
 )
 from story_forge.adapters.llm.cost import CallOutcome, CostStore, LlmCallRecord
-
-TaskWeight = Literal["light", "medium", "heavy"]
 
 _FREE_PRICE = (0.0, 0.0)
 

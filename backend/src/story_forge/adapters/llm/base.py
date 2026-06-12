@@ -23,6 +23,14 @@ from pydantic import BaseModel
 ModelTier = Literal["local_small", "cloud_free", "cloud_strong"]
 RateLimitKind = Literal["none", "session_gpu_time", "per_minute_tokens"]
 
+# A task's relative weight; the router maps it to a `ModelTier` (spec §6.5). It lives
+# here, beside `ModelTier`, rather than in the concrete `router` module so agents can
+# type against the orchestrating `Router` Protocol below without importing the adapter
+# (the layering rule keeps agents free of concrete adapters). Promoted here when the
+# third router-driven agent appeared (JudgeAgent) — the rule-of-three trigger noted in
+# the agents that previously kept a local mirror.
+TaskWeight = Literal["light", "medium", "heavy"]
+
 
 class BudgetExceededError(RuntimeError):
     """A spend ceiling was hit — the caller must pause and ask the user, not retry.
@@ -109,6 +117,29 @@ def estimate_cost(
     if price_in == 0 and price_out == 0:
         return None
     return (input_tokens / 1000) * price_in + (output_tokens / 1000) * price_out
+
+
+class Router(Protocol):
+    """The orchestrating completion contract an agent calls — the router's public face.
+
+    Agents type against this, never the concrete `LLMRouter`, so they stay unit-testable
+    against a mock and free of the adapter module; `LLMRouter` structurally satisfies it.
+    Distinct from `LLMProvider`: a provider runs one concrete model at a *given* tier,
+    while the router picks the tier from `weight`, fails over across providers within it,
+    enforces the budget cap, and writes the cost ledger (spec §6.5/§6.6). The schema-retry
+    on invalid output stays the *agent's* job, not the router's (the M2.S3 split).
+    """
+
+    async def complete(
+        self,
+        messages: list[Message],
+        *,
+        weight: TaskWeight,
+        task_type: str,
+        json_schema: dict[str, object] | None = None,
+    ) -> CompletionResult:
+        """Run a completion for `task_type` at the tier implied by `weight`."""
+        ...
 
 
 @runtime_checkable

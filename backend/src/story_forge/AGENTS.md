@@ -71,10 +71,22 @@ To add a new agent: copy an existing one, change the prompt + schema, register i
 
 **Output-parsing helpers shared across agents live in `agents/json_output.py`, not
 duplicated per agent.** `extract_json` (strip a model's markdown code fence before
-Pydantic) is used by both `ChunkingAgent` and `ExtractionAgent`; the moment a second
-agent needed it, it moved out of the agent module into the shared helper rather than
-being copy-pasted. Parsing/validation and the retry loop still belong to each agent
-(it owns its schema) — only the schema-agnostic text cleanup is shared.
+Pydantic) is used by `ChunkingAgent`, `ExtractionAgent`, and `JudgeAgent`; the moment a
+second agent needed it, it moved out of the agent module into the shared helper rather
+than being copy-pasted.
+
+**The validate-and-retry loop is shared via `agents/validation.py`
+(`validate_with_retry`), folded at the rule-of-three.** The `call → extract_json →
+validate-against-schema → retry-on-ValidationError → give-up` loop was copied per-agent
+through n=2 (Chunking + Extraction, deliberately left per-copy); `JudgeAgent` was the
+third, so the mechanical loop moved into one helper. Each agent still owns the parts that
+are genuinely its own — its **schema** (passed as `model`), its **call shape** (the
+`call` thunk: a raw provider vs the router, the weight/`task_type`), and its **give-up
+error** (`error` + `label`). Only the schema-agnostic loop mechanics are shared. The
+router-shaped collaborator each router-driven agent types against is the `Router` Protocol
+in `adapters/llm/base.py` (promoted there from a per-agent local mirror at the same n=3),
+alongside the `TaskWeight` literal — so an agent stays free of the concrete `router`
+module while `LLMRouter` structurally satisfies the Protocol.
 
 **Deterministic local NLP is an exception to "no concrete deps in agents."** The
 layering rule above ("agents import the `LLMProvider` Protocol, never a concrete

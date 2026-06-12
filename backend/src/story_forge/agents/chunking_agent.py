@@ -14,10 +14,15 @@ database identities (those are assigned when the outline is persisted).
 
 from __future__ import annotations
 
-from pydantic import BaseModel, ValidationError, field_validator
+from pydantic import BaseModel, field_validator
 
-from story_forge.adapters.llm.base import LLMProvider, ModelTier, ProviderResponseError
-from story_forge.agents.json_output import extract_json
+from story_forge.adapters.llm.base import (
+    CompletionResult,
+    LLMProvider,
+    ModelTier,
+    ProviderResponseError,
+)
+from story_forge.agents.validation import validate_with_retry
 from story_forge.prompts import PromptNotFound, render_messages
 
 DEFAULT_LOCAL_MAX_WORDS = 4000
@@ -110,26 +115,28 @@ class ChunkingAgent:
             local_max_words=self._local_max_words,
         )
 
-        # Retry covers parse/schema failures only — a sampling model can return
-        # valid JSON on a second pass. Network errors and rate limits are not
-        # retried here; cross-provider failover is the router's job (spec §6.5,
-        # later milestone), so a provider HTTP error propagates to the caller.
-        last_error: ValidationError | None = None
-        for _ in range(self._max_retries + 1):
+        async def call() -> CompletionResult:
             try:
-                result = await self._provider.complete(messages, tier, _SCHEMA)
+                return await self._provider.complete(messages, tier, _SCHEMA)
             except ProviderResponseError as exc:
                 # A malformed-200 envelope (missing fields / null content). Unlike a
-                # schema violation, retrying the same raw provider won't help (no
-                # router failover here), so surface it as a ChunkingError → the route
-                # maps that to 502 rather than letting it escape as an unhandled 500.
+                # schema violation, retrying the same raw provider won't help (no router
+                # failover here — chunking holds a raw provider), so surface it as a
+                # ChunkingError → the route maps that to 502, not an unhandled 500. Raised
+                # from inside the thunk, it propagates past the shared loop (which catches
+                # only ValidationError), so it is not retried.
                 raise ChunkingError(
                     f"chunking provider returned an unusable response: {exc}"
                 ) from exc
-            try:
-                return ChunkingProposal.model_validate_json(extract_json(result.content))
-            except ValidationError as exc:  # covers malformed JSON and schema violations
-                last_error = exc
-        raise ChunkingError(
-            f"chunking output failed validation after {self._max_retries + 1} attempts"
-        ) from last_error
+
+        # The shared loop retries parse/schema failures only — a sampling model can
+        # return valid JSON on a second pass. Network errors and rate limits are not
+        # retried here; cross-provider failover is the router's job (spec §6.5), so a
+        # provider HTTP error propagates to the caller.
+        return await validate_with_retry(
+            ChunkingProposal,
+            call,
+            max_retries=self._max_retries,
+            error=ChunkingError,
+            label="chunking",
+        )

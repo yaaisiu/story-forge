@@ -7,8 +7,9 @@ inner text to Pydantic. It lives here, shared by `ChunkingAgent` and
 `ExtractionAgent`, rather than duplicated per agent — the moment it earned a home
 was the second consumer.
 
-It does *not* parse or validate — that stays in each agent, which owns its schema
-and its retry loop. This is purely the text-cleanup step before validation.
+It does *not* parse or validate — each agent owns its schema. This is purely the
+text-cleanup step before validation; the shared validate-and-retry loop that *calls*
+`extract_json` lives in `agents/validation.py` (`validate_with_retry`).
 """
 
 from __future__ import annotations
