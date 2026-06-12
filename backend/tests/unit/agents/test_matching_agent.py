@@ -19,9 +19,11 @@ from __future__ import annotations
 import pytest
 
 from story_forge.agents.matching_agent import (
+    EntityVectors,
     ExistingEntity,
     MatchingAgent,
     classify,
+    cosine_similarity,
 )
 
 # Appendix B characters, in the post-merge shape Stage 1 matches against: an entity
@@ -102,3 +104,111 @@ def test_stage1_empty_graph_proposes_new(agent: MatchingAgent) -> None:
     assert result.outcome == "new-proposed"
     assert result.target_entity_id is None
     assert result.score == 0.0
+
+
+# ── Pure cosine similarity (spec §3.3 Stage-2 distance math, no model) ────────
+
+
+def test_cosine_identical_is_one() -> None:
+    assert cosine_similarity([1.0, 2.0, 3.0], [1.0, 2.0, 3.0]) == pytest.approx(1.0)
+
+
+def test_cosine_orthogonal_is_zero() -> None:
+    assert cosine_similarity([1.0, 0.0], [0.0, 1.0]) == pytest.approx(0.0)
+
+
+def test_cosine_opposite_is_minus_one() -> None:
+    assert cosine_similarity([1.0, 1.0], [-1.0, -1.0]) == pytest.approx(-1.0)
+
+
+def test_cosine_is_magnitude_invariant() -> None:
+    # Scaling a vector leaves its direction — and so the cosine — unchanged.
+    assert cosine_similarity([1.0, 2.0], [3.0, 6.0]) == pytest.approx(1.0)
+
+
+def test_cosine_length_mismatch_raises() -> None:
+    with pytest.raises(ValueError, match="length mismatch"):
+        cosine_similarity([1.0, 2.0], [1.0])
+
+
+def test_cosine_zero_vector_raises() -> None:
+    with pytest.raises(ValueError, match="zero-magnitude"):
+        cosine_similarity([0.0, 0.0], [1.0, 1.0])
+
+
+# ── Stage 2 routing: max cosine vs an entity's mention vectors ───────────────
+
+
+def test_stage2_close_context_proposes_merge(agent: MatchingAgent) -> None:
+    # A candidate context whose vector matches a stored mention vector (cosine > 0.85)
+    # is proposed for MERGE against that entity.
+    result = agent.stage2(
+        [1.0, 0.0, 0.0],
+        existing=[EntityVectors(id="e-1", mention_vectors=[[1.0, 0.0, 0.0]])],
+    )
+    assert result.outcome == "auto-merge-proposed"
+    assert result.target_entity_id == "e-1"
+    assert result.score == pytest.approx(1.0)
+
+
+def test_stage2_distant_context_escalates(agent: MatchingAgent) -> None:
+    # Orthogonal context (cosine 0.0, well under 0.85) does NOT auto-merge — it
+    # escalates to Stage 3, still carrying the best candidate entity for the judge.
+    result = agent.stage2(
+        [1.0, 0.0],
+        existing=[EntityVectors(id="e-1", mention_vectors=[[0.0, 1.0]])],
+    )
+    assert result.outcome == "ambiguous"
+    assert result.target_entity_id == "e-1"
+    assert result.score == pytest.approx(0.0)
+
+
+def test_stage2_picks_entity_with_highest_max_cosine(agent: MatchingAgent) -> None:
+    # Across entities, Stage 2 takes the single best-scoring one; within an entity it
+    # takes the max over its mention vectors (one good mention is enough to match).
+    result = agent.stage2(
+        [1.0, 0.0],
+        existing=[
+            EntityVectors(id="e-far", mention_vectors=[[0.0, 1.0], [-1.0, 0.0]]),
+            EntityVectors(id="e-near", mention_vectors=[[0.0, 1.0], [1.0, 0.0]]),
+        ],
+    )
+    assert result.target_entity_id == "e-near"
+    assert result.score == pytest.approx(1.0)
+
+
+def test_stage2_threshold_edge_is_strict(agent: MatchingAgent) -> None:
+    # Spec §3.3 writes Stage-2 merge as "cosine > 0.85" — strict. A cosine sitting
+    # exactly on the threshold escalates (the more fail-closed branch), mirroring
+    # Stage 1's strict upper edge. Override the threshold to 1.0 so an identical
+    # vector (cosine exactly 1.0) lands on the edge.
+    strict = MatchingAgent(cosine_merge_threshold=1.0)
+    result = strict.stage2(
+        [1.0, 0.0],
+        existing=[EntityVectors(id="e-1", mention_vectors=[[1.0, 0.0]])],
+    )
+    assert result.score == pytest.approx(1.0)
+    assert result.outcome == "ambiguous"
+
+
+def test_stage2_no_vectors_escalates(agent: MatchingAgent) -> None:
+    # Stage 2 is only reached on an ambiguous Stage-1 match, but defensively: with no
+    # entity vectors to compare against there is nothing to merge — escalate, no target.
+    result = agent.stage2([1.0, 0.0], existing=[])
+    assert result.outcome == "ambiguous"
+    assert result.target_entity_id is None
+    assert result.score == 0.0
+
+
+def test_stage2_opposite_vector_still_selects_the_entity(agent: MatchingAgent) -> None:
+    # An exactly-opposite mention (cosine -1.0) is a real comparison: the entity must
+    # still be carried forward as the target (escalated, not merged), distinct from the
+    # "no vectors to compare" case which carries none. Guards the sentinel: a -1.0
+    # initial best would wrongly drop this entity and report "no target".
+    result = agent.stage2(
+        [1.0, 0.0],
+        existing=[EntityVectors(id="e-1", mention_vectors=[[-1.0, 0.0]])],
+    )
+    assert result.outcome == "ambiguous"
+    assert result.target_entity_id == "e-1"
+    assert result.score == pytest.approx(-1.0)

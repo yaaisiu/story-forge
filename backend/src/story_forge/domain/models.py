@@ -87,6 +87,10 @@ class EntityMention(BaseModel):
     node and so carries *no* Postgres FK — the two stores cannot share a transaction.
     `span_start` / `span_end` / `confidence` are nullable because the LLM extraction
     path yields an evidence quote, not reliable character offsets.
+
+    `embedding` is the per-mention context vector (pgvector(768), §3.3 Stage 2). It
+    stays None under the foundation-only M3.S2 scope — EmbeddingAgent is built but not
+    wired into the live extraction path until the cascade lands (M3.S4).
     """
 
     id: UUID = Field(default_factory=uuid4)
@@ -95,3 +99,4 @@ class EntityMention(BaseModel):
     span_start: int | None = None
     span_end: int | None = None
     confidence: float | None = None
+    embedding: list[float] | None = None

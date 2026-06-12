@@ -16,7 +16,7 @@ from uuid import UUID
 import psycopg
 
 from story_forge.adapters import postgres_repo
-from story_forge.adapters.db import libpq_kwargs
+from story_forge.adapters.db import connect, libpq_kwargs
 from story_forge.config import settings
 from story_forge.domain.models import EntityMention
 
@@ -28,7 +28,10 @@ class PostgresMentionStore:
         self._conninfo = conninfo if conninfo is not None else libpq_kwargs(settings.database_url)
 
     async def _connect(self) -> psycopg.AsyncConnection:
-        return await psycopg.AsyncConnection.connect(autocommit=True, **self._conninfo)  # type: ignore[arg-type]
+        # Via db.connect so the pgvector type is registered — entity_mentions now has an
+        # `embedding vector(768)` column, so even the autocommit checkpoint connection
+        # needs the dumper/loader (a NULL write today, a real vector once M3.S4 wires it).
+        return await connect(self._conninfo, autocommit=True)
 
     async def add_mention(self, mention: EntityMention) -> None:
         # Reuse the single INSERT in `postgres_repo` so the table write lives in one
