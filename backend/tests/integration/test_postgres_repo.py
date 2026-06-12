@@ -10,6 +10,7 @@ from uuid import uuid4
 
 import psycopg
 import pytest
+from pgvector import Vector
 
 from story_forge.adapters import postgres_repo as repo
 from story_forge.domain.models import (
@@ -122,6 +123,43 @@ async def test_entity_mention_nullable_spans_and_confidence(
     [back] = await repo.list_entity_mentions_for_paragraph(db_conn, para.id)
     assert back == mention
     assert back.span_start is None and back.span_end is None and back.confidence is None
+
+
+# --- embedding columns (the §3.3 Stage-2 pgvector read/write path, M3.S2) ---
+
+# Values are multiples of 1/8 — exactly representable in pgvector's float32 storage —
+# so the round-trip is bit-exact and we can assert plain equality, not approx.
+_EXACT_VEC = [(i % 8) / 8.0 for i in range(768)]
+
+
+async def test_entity_mention_embedding_round_trips_as_vector(
+    db_conn: psycopg.AsyncConnection,
+) -> None:
+    # The per-mention context vector (DM3/DM4): proves the write (pgvector Vector
+    # dumper) and the read (vector → list[float]) work end-to-end, which only happens
+    # because db.connect registered the type on this connection.
+    para = await _make_paragraph(db_conn)
+    mention = EntityMention(paragraph_id=para.id, entity_id=uuid4(), embedding=_EXACT_VEC)
+    await repo.insert_entity_mention(db_conn, mention)
+    [back] = await repo.list_entity_mentions_for_paragraph(db_conn, para.id)
+    assert back.embedding == _EXACT_VEC
+    assert back == mention
+
+
+async def test_paragraph_embedding_reads_back_as_vector(
+    db_conn: psycopg.AsyncConnection,
+) -> None:
+    # paragraphs.embedding has no producer yet (foundation-only), so set it directly to
+    # prove the un-stubbed read path deserializes a real vector — not None, not a string.
+    _, _, _, scene = await _make_tree(db_conn)
+    para = Paragraph(scene_id=scene.id, order_index=0, content="x")
+    await repo.insert_paragraph(db_conn, para)
+    await db_conn.execute(
+        "UPDATE paragraphs SET embedding = %s WHERE id = %s", (Vector(_EXACT_VEC), para.id)
+    )
+    back = await repo.get_paragraph(db_conn, para.id)
+    assert back is not None
+    assert back.embedding == _EXACT_VEC
 
 
 async def test_entity_mention_cascades_with_paragraph(db_conn: psycopg.AsyncConnection) -> None:

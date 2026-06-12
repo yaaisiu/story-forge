@@ -13,11 +13,17 @@
 # the "drop when" condition). The two must mirror each other — /review-pr §5
 # checks the attribution.
 #
-# There are NO active waivers: the gate is green because dependencies are
-# fixed, not suppressed. To waive an assessed advisory, uncomment and adapt:
+# To waive an assessed advisory, add an [[IgnoredVulns]] block (template):
 #
 #   [[IgnoredVulns]]
 #   id = "GHSA-xxxx-xxxx-xxxx"   # the OSV/GHSA/PYSEC id (aliases are ignored too)
 #   # ignoreUntil = 2026-12-31   # optional hard-date backstop; we default to
 #                                # condition-based expiry (see WAIVERS.md)
 #   reason = "one line; full reachability + 'drop when' lives in WAIVERS.md"
+
+# torch.jit.script memory corruption (M3.S2). Affects all torch ≤2.12.0 with NO
+# fixed version; unreachable here — the embedding stack calls inference-only
+# `encode`, never `torch.jit.script`. Full reachability + drop-when in WAIVERS.md.
+[[IgnoredVulns]]
+id = "GHSA-rrmf-rvhw-rf47"   # CVE-2025-3000 / PYSEC-2025-194 / BIT-pytorch-2025-3000 (MEDIUM, CVSS 5.3)
+reason = "torch.jit.script memory corruption; unreachable (inference-only encode), no fix — see infra/osv/WAIVERS.md"

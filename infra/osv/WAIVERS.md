@@ -36,14 +36,26 @@ docker run --rm -v "$PWD/backend:/src:ro" \
   scan source -L /src/uv.lock --config=/cfg/osv.toml
 ```
 
-**Last reviewed:** 2026-06-08.
+**Last reviewed:** 2026-06-12.
 
 ---
 
 ## Active waivers
 
-**None.** The gate is green because backend dependencies are *fixed*, not
-suppressed. (The advisory that motivated this gate — `starlette` 1.0.0,
+### torch — `torch==2.12.0` (M3.S2, added 2026-06-12)
+
+Scoped file: `infra/osv/osv-scanner.toml` (`[[IgnoredVulns]]`).
+Class: **memory corruption via `torch.jit.script`** (local, attacker-controlled
+script input). **Drop when:** a fixed torch version is published and clears the
+14-day soak — bump via `/add-dependency`, then delete the toml block + this row.
+(`torch` lives in the optional `embeddings` dependency group, but `uv.lock` locks
+group deps too, so the SCA gate scans it regardless of the lean default install.)
+
+| CVE / advisory | Severity | Class | Why not reachable here |
+|---|---|---|---|
+| GHSA-rrmf-rvhw-rf47 (CVE-2025-3000, PYSEC-2025-194) | MEDIUM (CVSS 5.3) | `torch.jit.script` memory corruption | The embedding stack (sentence-transformers) only runs **inference** — `model.encode(...)`. We never call `torch.jit.script`, the sole affected API. The advisory affects **all** versions ≤2.12.0 with **no fixed version**, so a bump cannot resolve it; it is unfixable-by-pin and unreachable, the two conditions a waiver requires. |
+
+_Historical note: the advisory that motivated this gate — `starlette` 1.0.0,
 GHSA-86qp-5c8j-p5mr / PYSEC-2026-161, MEDIUM — was resolved by an explicit
 `starlette==1.0.1` pin in `backend/pyproject.toml`, not a waiver. That bump was
-this gate's first live self-test: red on 1.0.0, green on 1.0.1.)
+this gate's first live self-test: red on 1.0.0, green on 1.0.1._

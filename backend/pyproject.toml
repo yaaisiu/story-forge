@@ -43,6 +43,12 @@ dependencies = [
   # surface form vs existing entities' canonical_name + aliases). Deterministic,
   # local, C-backed; no LLM. M3.S1.
   "rapidfuzz==3.14.5",
+  # pgvector — the psycopg type bridge for the §6.4 `vector(768)` columns (M3.S2).
+  # Pure-Python, tiny; registers the vector<->list[float] adapter so reads/writes of
+  # the embedding columns deserialize instead of handing back a raw string. Core (not
+  # in the optional `embeddings` group) because the persistence layer registers the
+  # type on every connection regardless of whether the heavy model stack is installed.
+  "pgvector==0.4.2",
 ]
 
 [dependency-groups]
@@ -63,6 +69,25 @@ dev = [
 models = [
   "pl_core_news_lg @ https://github.com/explosion/spacy-models/releases/download/pl_core_news_lg-3.8.0/pl_core_news_lg-3.8.0-py3-none-any.whl",
   "en_core_web_lg @ https://github.com/explosion/spacy-models/releases/download/en_core_web_lg-3.8.0/en_core_web_lg-3.8.0-py3-none-any.whl",
+]
+# Embedding model stack — Stage 2 of the §3.3 cascade (EmbeddingAgent encodes a
+# candidate's context to a 768-dim vector; MatchingAgent.stage2 takes max cosine vs an
+# entity's stored mention vectors). Heavy (~2 GB, mostly torch) and, like `models`, NOT
+# installed by `uv sync` default: CI stays lean and the model-loading test auto-skips
+# (see tests/unit/agents/test_embedding_agent.py). Run `uv sync --group embeddings`
+# locally to exercise EmbeddingAgent. Ordinary exact PyPI pins under the 14-day soak +
+# OSV gate (check_dependency_age.py scans dependency-groups; osv-scanner scans uv.lock,
+# which DOES include group deps). NOTE: `torch` carries GHSA-rrmf-rvhw-rf47
+# (CVE-2025-3000, MEDIUM CVSS 5.3) — a `torch.jit.script` memory-corruption, no fix,
+# unreachable here (inference-only `encode`, never `jit.script`). It is waived in the
+# scoped infra/osv/osv-scanner.toml (register: infra/osv/WAIVERS.md), per spec §6.7.
+# The model *weights* are pinned separately by commit SHA via the §6.7 HuggingFace-model
+# channel (scripts/pin_hf_model.py), not here. spec §6.7.
+embeddings = [
+  "sentence-transformers==5.5.1",
+  "torch==2.12.0",
+  "transformers==5.9.0",
+  "huggingface-hub==1.17.0",
 ]
 
 # --- Hatchling (src layout) -------------------------------------------------
@@ -103,6 +128,19 @@ ignore_errors = true
 # langdetect ships no type stubs or py.typed marker.
 [[tool.mypy.overrides]]
 module = ["langdetect.*"]
+ignore_missing_imports = true
+
+# sentence-transformers is in the optional `embeddings` group — absent from the lean
+# default env CI type-checks against (and untyped upstream). EmbeddingAgent imports it
+# lazily; treat it as untyped here so mypy passes without the ~2 GB stack installed.
+[[tool.mypy.overrides]]
+module = ["sentence_transformers.*"]
+ignore_missing_imports = true
+
+# pgvector (core dep) ships no py.typed marker — the psycopg type registration and the
+# Vector wrapper are untyped upstream. Treat as untyped so strict mypy passes.
+[[tool.mypy.overrides]]
+module = ["pgvector.*"]
 ignore_missing_imports = true
 
 # --- Pytest -----------------------------------------------------------------

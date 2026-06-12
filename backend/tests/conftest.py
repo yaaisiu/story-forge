@@ -23,7 +23,7 @@ from alembic import command
 from alembic.config import Config
 from sqlalchemy.engine import make_url
 
-from story_forge.adapters.db import libpq_kwargs
+from story_forge.adapters.db import connect, libpq_kwargs
 from story_forge.config import settings
 
 _BACKEND_DIR = Path(__file__).resolve().parent.parent
@@ -99,8 +99,9 @@ async def db_conn(_migrated_test_db: None) -> AsyncIterator[psycopg.AsyncConnect
     Each test runs inside a transaction that is rolled back on teardown, so tests
     stay isolated without re-creating the schema between them.
     """
-    params = libpq_kwargs(settings.test_database_url)
-    conn = await psycopg.AsyncConnection.connect(autocommit=False, **params)  # type: ignore[arg-type]
+    # Via db.connect so the pgvector type is registered on the test connection too —
+    # the embedding-column reads/writes need the loader/dumper (same as the app).
+    conn = await connect(libpq_kwargs(settings.test_database_url), autocommit=False)
     try:
         yield conn
         await conn.rollback()

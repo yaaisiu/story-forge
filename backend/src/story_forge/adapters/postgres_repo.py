@@ -10,20 +10,20 @@ prove cascade deletes. The only realistic update is renumbering `order_index`
 on reorder, which arrives with the chunking-persistence work; it is not added
 speculatively here.
 
-`embedding` is intentionally not written, and the read paths deliberately return
-it as `NULL AS embedding` rather than selecting the real `vector(768)` column.
-Reason: nothing writes embeddings yet, and reading the real column needs the
-pgvector psycopg type registered (`register_vector_async`) or psycopg hands back
-a string that fails Pydantic's `list[float] | None`. When the embedding pipeline
-lands (it adds the `pgvector` dependency + type registration), switch these reads
-to `SELECT ... embedding` and start writing the column. Tracked in docs/PLAN_SHORT.md
-cross-cutting so the read path is not silently left returning None.
+Embedding columns are real `vector(768)` now (M3.S2): the reads select the actual
+`paragraphs.embedding` / `entity_mentions.embedding` column, which deserializes to
+`list[float]` because every connection is opened via `db.connect` (it calls
+`register_vector_async`). `paragraphs.embedding` has no producer yet, so it reads
+back None; `entity_mentions.embedding` is written by `insert_entity_mention` (as a
+pgvector `Vector`), currently always None under the foundation-only M3.S2 scope —
+EmbeddingAgent is wired into the live path with the cascade in M3.S4.
 """
 
 from __future__ import annotations
 
 from uuid import UUID
 
+from pgvector import Vector
 from psycopg import AsyncConnection
 from psycopg.rows import class_row
 
@@ -209,7 +209,7 @@ async def list_story_paragraphs(conn: AsyncConnection, story_id: UUID) -> list[P
     async with conn.cursor(row_factory=class_row(Paragraph)) as cur:
         await cur.execute(
             "SELECT p.id, p.scene_id, p.order_index, p.content, p.content_normalized, "
-            "NULL AS embedding "
+            "p.embedding "
             "FROM paragraphs p "
             "JOIN scenes sc ON sc.id = p.scene_id "
             "JOIN chapters ch ON ch.id = sc.chapter_id "
@@ -223,7 +223,7 @@ async def list_story_paragraphs(conn: AsyncConnection, story_id: UUID) -> list[P
 async def get_paragraph(conn: AsyncConnection, paragraph_id: UUID) -> Paragraph | None:
     async with conn.cursor(row_factory=class_row(Paragraph)) as cur:
         await cur.execute(
-            "SELECT id, scene_id, order_index, content, content_normalized, NULL AS embedding "
+            "SELECT id, scene_id, order_index, content, content_normalized, embedding "
             "FROM paragraphs WHERE id = %s",
             (paragraph_id,),
         )
@@ -233,7 +233,7 @@ async def get_paragraph(conn: AsyncConnection, paragraph_id: UUID) -> Paragraph 
 async def list_paragraphs(conn: AsyncConnection, scene_id: UUID) -> list[Paragraph]:
     async with conn.cursor(row_factory=class_row(Paragraph)) as cur:
         await cur.execute(
-            "SELECT id, scene_id, order_index, content, content_normalized, NULL AS embedding "
+            "SELECT id, scene_id, order_index, content, content_normalized, embedding "
             "FROM paragraphs WHERE scene_id = %s ORDER BY order_index",
             (scene_id,),
         )
@@ -250,10 +250,13 @@ async def insert_entity_mention(conn: AsyncConnection, mention: EntityMention) -
     is more benign than a mention pointing at a node that was never created). There
     is no FK on `entity_id` — the referenced entity lives in Neo4j, not Postgres.
     """
+    # pgvector's psycopg dumper is registered for Vector / numpy.ndarray, not a bare
+    # list — wrap the embedding so it adapts to the `vector` column (None → NULL stays
+    # NULL). Today it is always None (foundation-only; M3.S4 wires the real vector).
     await conn.execute(
         "INSERT INTO entity_mentions "
-        "(id, paragraph_id, entity_id, span_start, span_end, confidence) "
-        "VALUES (%s, %s, %s, %s, %s, %s)",
+        "(id, paragraph_id, entity_id, span_start, span_end, confidence, embedding) "
+        "VALUES (%s, %s, %s, %s, %s, %s, %s)",
         (
             mention.id,
             mention.paragraph_id,
@@ -261,6 +264,7 @@ async def insert_entity_mention(conn: AsyncConnection, mention: EntityMention) -
             mention.span_start,
             mention.span_end,
             mention.confidence,
+            None if mention.embedding is None else Vector(mention.embedding),
         ),
     )
 
@@ -270,7 +274,7 @@ async def list_entity_mentions_for_paragraph(
 ) -> list[EntityMention]:
     async with conn.cursor(row_factory=class_row(EntityMention)) as cur:
         await cur.execute(
-            "SELECT id, paragraph_id, entity_id, span_start, span_end, confidence "
+            "SELECT id, paragraph_id, entity_id, span_start, span_end, confidence, embedding "
             "FROM entity_mentions WHERE paragraph_id = %s",
             (paragraph_id,),
         )
