@@ -42,14 +42,21 @@ contain the secret keyword:** `fake_key = "k"` then `api_key=fake_key` passes;
 `api_key = "k"` still trips, because the literal sits next to the keyword. (The
 plugin matches `<keyword> = <literal>`, not just the kwarg call site.)
 
-**Alembic revision ids trip the hex-entropy plugin.** A generated `revision: str =
-"<hex>"` in a migration file is flagged as a high-entropy string. It is not a secret —
-add `# pragma: allowlist secret` on that line. **Add it to *both* the `revision` and the
-`down_revision` lines proactively:** whether a given hash trips depends on its entropy,
-not its role, so don't assume the `down_revision` "slips through" — in Session 15 the
-`down_revision` hash tripped while the `revision` (already pragma'd) did not. Pragma both
-and you never iterate against the hook. (This very note tripped the hook by quoting a real
-hash — so it doesn't anymore; that's the foot-gun in miniature.)
+**High-entropy hex literals trip the hex-entropy plugin.** Any long hex string in code —
+not just secrets — is flagged. It is not a secret; add `# pragma: allowlist secret` on
+that line. Two cases have bitten so far:
+- **Alembic revision ids.** A generated `revision: str = "<hex>"` in a migration file is
+  flagged. **Add the pragma to *both* the `revision` and the `down_revision` lines
+  proactively:** whether a given hash trips depends on its entropy, not its role, so don't
+  assume the `down_revision` "slips through" — in Session 15 the `down_revision` hash
+  tripped while the `revision` (already pragma'd) did not. Pragma both and you never
+  iterate against the hook.
+- **Pinned model / commit SHAs.** A pinned artifact revision — e.g. the §6.7 HuggingFace
+  model `MODEL_REVISION = "<40-char-sha>"` in `agents/embedding_agent.py` (Session 21) — is
+  a content address, not a credential, but trips the same plugin. Pragma the line.
+
+(This very note tripped the hook by quoting a real hash — so it doesn't anymore; that's
+the foot-gun in miniature.)
 
 ## Running tests
 
