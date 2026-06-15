@@ -103,6 +103,8 @@ stock pipelines) — at that point a `NerPipeline` Protocol earns its place.
 
 Prompts live in `prompts/` as Jinja2 templates (`.j2`). One file per logical prompt. Versioned in git. Loaded via a small helper, not f-strings scattered around the code. Both PL and EN variants per prompt.
 
+**Build a prompt from the spec's Appendix C template, not the §3 prose alone.** Each agent's prompt is described in *two* spec homes: the §3 functional prose (e.g. §3.3 "candidate in context vs existing entity + its properties + recent mentions") and the **Appendix C** concrete template (e.g. C.3 with its exact `[SYSTEM]`/`[USER]` blocks and full field list). Both are spec; **Appendix C is the authoritative, complete field set** — the prose summarises. When authoring or changing a prompt, render every field the Appendix C template lists and cross-check §3, then assert each field reaches the model in a test. (M3.S3 lesson: the judge prompt was built from §3.3's prose and silently dropped C.3's existing-entity `aliases` — the exact diminutive signal Stage 3 exists to use — plus the candidate `type`/`properties`; the single `/review-pr` missed it, the multi-agent `/code-review` caught it. The review-side mirror is in `/review-pr` §2.)
+
 ## Common pitfalls to avoid here
 
 - Don't fetch from Neo4j inside an API route handler. Go through the domain.

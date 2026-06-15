@@ -113,6 +113,15 @@ unsure it's real, say so and how to confirm — don't drop it, don't overstate i
   `docs/PLAN_SHORT.md` / `docs/PLAN_LONG.md` reconciled with it? Plans, spec, code must not drift.
 - Does it honor the session's **Decided** entries (e.g. a chosen library, threshold, tier
   default)? A contradiction of a recorded decision is blocking unless the PR re-decides it.
+- **LLM-agent prompt: diff the rendered fields against the spec's Appendix C template, not
+  just the §3 prose.** An agent's prompt is specified in two homes — the §3 functional prose
+  and the **Appendix C** concrete template — and Appendix C is the authoritative, complete
+  field set. For a PR that adds/changes a prompt, enumerate the fields the matching Appendix C
+  block lists and confirm each is rendered (and test-asserted to reach the model); a field the
+  prose summarises but C spells out is the silent omission. (M3.S3 PR #60: the judge prompt was
+  built from §3.3 prose and dropped C.3's existing-entity `aliases` + candidate `type`/`properties`;
+  the single `/review-pr` pass missed it, the multi-agent `/code-review` caught it. Authoring-side
+  mirror: `backend/src/story_forge/AGENTS.md` Prompts.)
 - **Absolute-quantifier check — a spec amendment's "always / every / never / all" must match
   the code's exception path.** When the PR adds or edits a spec/invariant sentence containing an
   absolute quantifier ("*always* recorded", "*every* call", "*never* null", "*all* rows carry X"),
