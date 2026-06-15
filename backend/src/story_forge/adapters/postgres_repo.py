@@ -252,11 +252,14 @@ async def insert_entity_mention(conn: AsyncConnection, mention: EntityMention) -
     """
     # pgvector's psycopg dumper is registered for Vector / numpy.ndarray, not a bare
     # list — wrap the embedding so it adapts to the `vector` column (None → NULL stays
-    # NULL). Today it is always None (foundation-only; M3.S4 wires the real vector).
+    # NULL). Under M3.S4a the accept path writes a real per-mention vector (copied from the
+    # candidate's context embedding). `ON CONFLICT (id) DO NOTHING` makes an accept-path retry
+    # (a crash before the candidate's status flip) idempotent when the mention id is derived
+    # deterministically from the candidate.
     await conn.execute(
         "INSERT INTO entity_mentions "
         "(id, paragraph_id, entity_id, span_start, span_end, confidence, embedding) "
-        "VALUES (%s, %s, %s, %s, %s, %s, %s)",
+        "VALUES (%s, %s, %s, %s, %s, %s, %s) ON CONFLICT (id) DO NOTHING",
         (
             mention.id,
             mention.paragraph_id,
@@ -279,3 +282,52 @@ async def list_entity_mentions_for_paragraph(
             (paragraph_id,),
         )
         return await cur.fetchall()
+
+
+async def list_mention_vectors_for_entities(
+    conn: AsyncConnection, entity_ids: list[UUID]
+) -> dict[UUID, list[list[float]]]:
+    """Stored mention vectors grouped by entity (the §3.3 Stage-2 read).
+
+    Stage 2 matches a candidate's context vector against an accepted entity's mention
+    vectors. Keyed by the (Neo4j) `entity_id`; mentions with a NULL embedding are skipped.
+    Read once per ingest run for a project's accepted entities (the C4 read-once pattern).
+    `embedding` deserialises to `list[float]` because the connection registers pgvector.
+    """
+    if not entity_ids:
+        return {}
+    cur = await conn.execute(
+        "SELECT entity_id, embedding FROM entity_mentions "
+        "WHERE entity_id = ANY(%s) AND embedding IS NOT NULL",
+        (entity_ids,),
+    )
+    grouped: dict[UUID, list[list[float]]] = {}
+    for entity_id, embedding in await cur.fetchall():
+        grouped.setdefault(entity_id, []).append([float(x) for x in embedding])
+    return grouped
+
+
+async def list_recent_mention_texts_for_entities(
+    conn: AsyncConnection, entity_ids: list[UUID], *, limit_per_entity: int = 3
+) -> dict[UUID, list[str]]:
+    """Up to `limit_per_entity` mention paragraph texts per entity (the Stage-3 judge context).
+
+    The judge reasons over an existing entity's recent mentions (spec Appendix C.3). Bounded
+    per entity so the prompt stays small; ordering is by mention id (entity_mentions carries
+    no timestamp at PoC — "recent" is approximated as a stable sample, documented as such).
+    """
+    if not entity_ids:
+        return {}
+    cur = await conn.execute(
+        "SELECT entity_id, content FROM ("
+        "  SELECT m.entity_id, p.content, "
+        "         row_number() OVER (PARTITION BY m.entity_id ORDER BY m.id) AS rn "
+        "  FROM entity_mentions m JOIN paragraphs p ON p.id = m.paragraph_id "
+        "  WHERE m.entity_id = ANY(%s)"
+        ") t WHERE rn <= %s",
+        (entity_ids, limit_per_entity),
+    )
+    grouped: dict[UUID, list[str]] = {}
+    for entity_id, content in await cur.fetchall():
+        grouped.setdefault(entity_id, []).append(content)
+    return grouped

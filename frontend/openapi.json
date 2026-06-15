@@ -188,7 +188,7 @@
           "stories"
         ],
         "summary": "Extract Story",
-        "description": "Extract entities/relations from a story's paragraphs into the graph (spec \u00a79 M2).\n\nWalks every persisted paragraph, runs the ExtractionAgent, and writes fresh graph\nnodes/edges + `entity_mentions` with **no dedupe** (INV-8 \u2014 every candidate a new\nnode). The batch is resumable: if the router pauses on budget/quota, the run stops\nwith `paused=true` (HTTP 202) and a re-POST continues from the last-done paragraph\n(the committed mentions are the checkpoint). Budget/quota are therefore *not* HTTP\nerrors here by design (OQ-2); only a hard agent failure maps to 502.",
+        "description": "Extract + stage a story's candidates through the \u00a73.3 cascade (spec \u00a79 M3).\n\nWalks every persisted paragraph, runs the ExtractionAgent, then the cascade, and *stages*\neach candidate with its proposal (NEW vs MERGE) \u2014 writing **nothing** to the graph\n(intercept-before-write, INV-9). The graph is written only when a human accepts at the\nreview queue (`POST \u2026/candidates/{id}/accept`, INV-1). The batch is resumable: if the\nrouter pauses on budget/quota, the run stops with `paused=true` (HTTP 202) and a re-POST\ncontinues from the first un-staged paragraph. Budget/quota are therefore *not* HTTP errors\nhere by design (OQ-2); a hard agent failure maps to 502, a store outage to 503.",
         "operationId": "extract_story_stories__story_id__extract_post",
         "parameters": [
           {
@@ -235,6 +235,16 @@
           },
           "502": {
             "description": "Extraction failed \u2014 LLM unreachable or unusable output after retries.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "A data store (Postgres/Neo4j) is unavailable.",
             "content": {
               "application/json": {
                 "schema": {
@@ -310,6 +320,245 @@
         }
       }
     },
+    "/stories/{story_id}/candidates": {
+      "get": {
+        "tags": [
+          "stories"
+        ],
+        "summary": "List Candidates",
+        "description": "The pending review queue for a story (spec \u00a73.3 Stage 4) \u2014 candidates awaiting a human.",
+        "operationId": "list_candidates_stories__story_id__candidates_get",
+        "parameters": [
+          {
+            "name": "story_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Story Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CandidatesResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Story not found.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "The staging store is unavailable.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/stories/{story_id}/candidates/{candidate_id}/accept": {
+      "post": {
+        "tags": [
+          "stories"
+        ],
+        "summary": "Accept Candidate",
+        "description": "Commit a staged candidate to the graph \u2014 create a new entity or merge (spec \u00a77 step 7).\n\nThis is the **only** graph-writing path (INV-1): the machine proposed, the human commits.",
+        "operationId": "accept_candidate_stories__story_id__candidates__candidate_id__accept_post",
+        "parameters": [
+          {
+            "name": "story_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Story Id"
+            }
+          },
+          {
+            "name": "candidate_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Candidate Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "anyOf": [
+                  {
+                    "$ref": "#/components/schemas/AcceptRequest"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Body"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReviewResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Story or candidate not found.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Merge target no longer exists (stale).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "A data store is unavailable.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/stories/{story_id}/candidates/{candidate_id}/reject": {
+      "post": {
+        "tags": [
+          "stories"
+        ],
+        "summary": "Reject Candidate",
+        "description": "Reject a staged candidate \u2014 nothing enters the graph; the rejection is remembered.\n\nThe matcher consults rejected candidates so it does not re-pester the author (DM-rej).",
+        "operationId": "reject_candidate_stories__story_id__candidates__candidate_id__reject_post",
+        "parameters": [
+          {
+            "name": "story_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Story Id"
+            }
+          },
+          {
+            "name": "candidate_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Candidate Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReviewResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Story or candidate not found.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "The staging store is unavailable.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/llm/status": {
       "get": {
         "tags": [
@@ -358,6 +607,51 @@
   },
   "components": {
     "schemas": {
+      "AcceptRequest": {
+        "properties": {
+          "action": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "create",
+                  "merge"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Action"
+          },
+          "target_entity_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Target Entity Id"
+          },
+          "custom_type": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Custom Type"
+          }
+        },
+        "type": "object",
+        "title": "AcceptRequest",
+        "description": "The reviewer's decision (spec \u00a73.3 Stage 4). All optional \u2014 defaults to the proposal.\n\n`action` overrides the cascade's proposal (accept-as-merge / accept-as-create);\n`target_entity_id` retargets a merge (change-target); `custom_type` sets a type on create."
+      },
       "Body_upload_story_stories_upload_post": {
         "properties": {
           "file": {
@@ -371,6 +665,119 @@
           "file"
         ],
         "title": "Body_upload_story_stories_upload_post"
+      },
+      "CandidateView": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Id"
+          },
+          "paragraph_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Paragraph Id"
+          },
+          "candidate_name": {
+            "type": "string",
+            "title": "Candidate Name"
+          },
+          "type": {
+            "type": "string",
+            "title": "Type"
+          },
+          "context": {
+            "type": "string",
+            "title": "Context"
+          },
+          "proposal": {
+            "type": "string",
+            "enum": [
+              "new",
+              "merge"
+            ],
+            "title": "Proposal"
+          },
+          "target_entity_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Target Entity Id"
+          },
+          "stage_reached": {
+            "type": "integer",
+            "title": "Stage Reached"
+          },
+          "confidence": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Confidence"
+          },
+          "reasoning": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reasoning"
+          },
+          "alternatives": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "type": "array",
+            "title": "Alternatives"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "paragraph_id",
+          "candidate_name",
+          "type",
+          "context",
+          "proposal",
+          "target_entity_id",
+          "stage_reached",
+          "confidence",
+          "reasoning",
+          "alternatives"
+        ],
+        "title": "CandidateView",
+        "description": "One staged candidate for the \u00a73.3 Stage-4 review queue (the render set S4b consumes).\n\nCarries the quote/context (\u00b1200 chars), the cascade's NEW-vs-MERGE proposal + the stage it\nreached, the judge's reasoning (if Stage 3 ran), and the top-3 alternative entities the\nreviewer can retarget to. Persistence-only fields (the vector, project/story ids) are omitted."
+      },
+      "CandidatesResponse": {
+        "properties": {
+          "candidates": {
+            "items": {
+              "$ref": "#/components/schemas/CandidateView"
+            },
+            "type": "array",
+            "title": "Candidates"
+          }
+        },
+        "type": "object",
+        "required": [
+          "candidates"
+        ],
+        "title": "CandidatesResponse",
+        "description": "A story's pending review queue."
       },
       "ErrorResponse": {
         "properties": {
@@ -401,13 +808,9 @@
             "type": "integer",
             "title": "Paragraphs Done"
           },
-          "entities_written": {
+          "candidates_staged": {
             "type": "integer",
-            "title": "Entities Written"
-          },
-          "relations_written": {
-            "type": "integer",
-            "title": "Relations Written"
+            "title": "Candidates Staged"
           },
           "paused": {
             "type": "boolean",
@@ -430,13 +833,12 @@
           "story_id",
           "paragraphs_total",
           "paragraphs_done",
-          "entities_written",
-          "relations_written",
+          "candidates_staged",
           "paused",
           "pause_reason"
         ],
         "title": "ExtractResponse",
-        "description": "Progress of an extraction run over a story's paragraphs (spec \u00a79 M2).\n\n`paused` is the completion signal \u2014 true when the run stopped at the budget/quota\npause-and-ask (HTTP 202, partial progress), false when it finished (HTTP 200).\n`paragraphs_done` counts paragraphs that carry a mention \u2014 the resumable\ncheckpoint \u2014 so a re-POST resumes from the first not-done paragraph."
+        "description": "Progress of an extraction run over a story's paragraphs (spec \u00a79 M3).\n\nUnder intercept-before-write extraction *stages* candidates (it does not write the graph),\nso the count is `candidates_staged`, not entities/relations written. `paused` is the\ncompletion signal \u2014 true when the run stopped at the budget/quota pause-and-ask (HTTP 202,\npartial progress), false when it finished (HTTP 200). `paragraphs_done` counts paragraphs\nalready staged (the resume checkpoint), so a re-POST resumes from the first not-done one."
       },
       "GraphEdge": {
         "properties": {
@@ -723,6 +1125,49 @@
         ],
         "title": "LlmStatusResponse",
         "description": "Budget + today's usage + the most recent call, for the agent-activity panel."
+      },
+      "ReviewResponse": {
+        "properties": {
+          "candidate_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Candidate Id"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "created",
+              "merged",
+              "rejected"
+            ],
+            "title": "Status"
+          },
+          "entity_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Entity Id"
+          },
+          "already_decided": {
+            "type": "boolean",
+            "title": "Already Decided"
+          }
+        },
+        "type": "object",
+        "required": [
+          "candidate_id",
+          "status",
+          "entity_id",
+          "already_decided"
+        ],
+        "title": "ReviewResponse",
+        "description": "Outcome of an accept/reject: the committed entity (if any) + the terminal status."
       },
       "StoryUploadResponse": {
         "properties": {

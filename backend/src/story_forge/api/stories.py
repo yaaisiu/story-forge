@@ -15,12 +15,14 @@ from uuid import UUID
 
 import httpx
 from fastapi import APIRouter, Depends, HTTPException, Request, Response, UploadFile
-from psycopg import AsyncConnection
+from neo4j.exceptions import ServiceUnavailable
+from psycopg import AsyncConnection, OperationalError
 from pydantic import BaseModel
 
 from story_forge.adapters.db import get_connection
 from story_forge.adapters.llm.base import ProviderResponseError
 from story_forge.adapters.neo4j_repo import Neo4jRepo
+from story_forge.adapters.postgres_candidate_store import PostgresCandidateStore
 from story_forge.adapters.postgres_repo import (
     get_project,
     get_story,
@@ -35,6 +37,11 @@ from story_forge.adapters.postgres_repo import (
     update_story_raw_text,
 )
 from story_forge.adapters.upload_storage import save_upload
+from story_forge.agents.candidate_review import (
+    CandidateNotFound,
+    CandidateReviewService,
+    StaleMergeTarget,
+)
 from story_forge.agents.chunking_agent import ChunkingError
 from story_forge.agents.chunking_coordinator import (
     ChunkingCoordinator,
@@ -43,6 +50,7 @@ from story_forge.agents.chunking_coordinator import (
 from story_forge.agents.extraction_agent import ExtractionError
 from story_forge.agents.extraction_coordinator import ExtractionCoordinator
 from story_forge.config import settings
+from story_forge.domain.candidates import CandidateProposal, StagedCandidate
 from story_forge.domain.chunking import outline_to_tree
 from story_forge.domain.language import detect_language
 from story_forge.domain.models import Project, Story
@@ -278,19 +286,19 @@ def get_extraction_coordinator(request: Request) -> ExtractionCoordinator:
 
 
 class ExtractResponse(BaseModel):
-    """Progress of an extraction run over a story's paragraphs (spec §9 M2).
+    """Progress of an extraction run over a story's paragraphs (spec §9 M3).
 
-    `paused` is the completion signal — true when the run stopped at the budget/quota
-    pause-and-ask (HTTP 202, partial progress), false when it finished (HTTP 200).
-    `paragraphs_done` counts paragraphs that carry a mention — the resumable
-    checkpoint — so a re-POST resumes from the first not-done paragraph.
+    Under intercept-before-write extraction *stages* candidates (it does not write the graph),
+    so the count is `candidates_staged`, not entities/relations written. `paused` is the
+    completion signal — true when the run stopped at the budget/quota pause-and-ask (HTTP 202,
+    partial progress), false when it finished (HTTP 200). `paragraphs_done` counts paragraphs
+    already staged (the resume checkpoint), so a re-POST resumes from the first not-done one.
     """
 
     story_id: UUID
     paragraphs_total: int
     paragraphs_done: int
-    entities_written: int
-    relations_written: int
+    candidates_staged: int
     paused: bool
     pause_reason: str | None
 
@@ -308,6 +316,10 @@ class ExtractResponse(BaseModel):
             "model": ErrorResponse,
             "description": "Extraction failed — LLM unreachable or unusable output after retries.",
         },
+        503: {
+            "model": ErrorResponse,
+            "description": "A data store (Postgres/Neo4j) is unavailable.",
+        },
     },
 )
 async def extract_story(
@@ -316,14 +328,15 @@ async def extract_story(
     coordinator: Annotated[ExtractionCoordinator, Depends(get_extraction_coordinator)],
     response: Response,
 ) -> ExtractResponse:
-    """Extract entities/relations from a story's paragraphs into the graph (spec §9 M2).
+    """Extract + stage a story's candidates through the §3.3 cascade (spec §9 M3).
 
-    Walks every persisted paragraph, runs the ExtractionAgent, and writes fresh graph
-    nodes/edges + `entity_mentions` with **no dedupe** (INV-8 — every candidate a new
-    node). The batch is resumable: if the router pauses on budget/quota, the run stops
-    with `paused=true` (HTTP 202) and a re-POST continues from the last-done paragraph
-    (the committed mentions are the checkpoint). Budget/quota are therefore *not* HTTP
-    errors here by design (OQ-2); only a hard agent failure maps to 502.
+    Walks every persisted paragraph, runs the ExtractionAgent, then the cascade, and *stages*
+    each candidate with its proposal (NEW vs MERGE) — writing **nothing** to the graph
+    (intercept-before-write, INV-9). The graph is written only when a human accepts at the
+    review queue (`POST …/candidates/{id}/accept`, INV-1). The batch is resumable: if the
+    router pauses on budget/quota, the run stops with `paused=true` (HTTP 202) and a re-POST
+    continues from the first un-staged paragraph. Budget/quota are therefore *not* HTTP errors
+    here by design (OQ-2); a hard agent failure maps to 502, a store outage to 503.
     """
     story = await get_story(conn, story_id)
     if story is None:
@@ -334,8 +347,15 @@ async def extract_story(
 
     try:
         result = await coordinator.ingest_story(
-            paragraphs=paragraphs, project_id=story.project_id, language=language
+            paragraphs=paragraphs,
+            project_id=story.project_id,
+            story_id=story_id,
+            language=language,
         )
+    except (OperationalError, ServiceUnavailable) as exc:
+        # A store-connectivity blip mid-cascade (Postgres staging read/write or the Neo4j
+        # accepted-graph read) must fail-closed as 503 — never degrade to a silent NEW.
+        raise HTTPException(status_code=503, detail="a data store is unavailable") from exc
     except (ExtractionError, ProviderResponseError, httpx.HTTPError) as exc:
         # The LLM path is unusable: agent give-up after retries / no prompt for the
         # language (ExtractionError); a malformed-200 envelope that exhausted failover
@@ -351,8 +371,7 @@ async def extract_story(
         story_id=story_id,
         paragraphs_total=result.paragraphs_total,
         paragraphs_done=result.paragraphs_done,
-        entities_written=result.entities_written,
-        relations_written=result.relations_written,
+        candidates_staged=result.candidates_staged,
         paused=result.paused,
         pause_reason=result.pause_reason,
     )
@@ -441,4 +460,185 @@ async def get_story_graph(
             )
             for r in relations
         ],
+    )
+
+
+# --- Review queue (Stage 4): list pending / accept / reject -----------------
+
+
+def get_candidate_store(request: Request) -> PostgresCandidateStore:
+    """The app-lifetime candidate staging store wired in `main.py`."""
+    store: PostgresCandidateStore = request.app.state.candidate_store
+    return store
+
+
+def get_candidate_review(request: Request) -> CandidateReviewService:
+    """The app-lifetime accept/reject service wired in `main.py` (the only graph writer)."""
+    service: CandidateReviewService = request.app.state.candidate_review
+    return service
+
+
+class CandidateView(BaseModel):
+    """One staged candidate for the §3.3 Stage-4 review queue (the render set S4b consumes).
+
+    Carries the quote/context (±200 chars), the cascade's NEW-vs-MERGE proposal + the stage it
+    reached, the judge's reasoning (if Stage 3 ran), and the top-3 alternative entities the
+    reviewer can retarget to. Persistence-only fields (the vector, project/story ids) are omitted.
+    """
+
+    id: UUID
+    paragraph_id: UUID
+    candidate_name: str
+    type: str
+    context: str
+    proposal: CandidateProposal
+    target_entity_id: UUID | None
+    stage_reached: int
+    confidence: float | None
+    reasoning: str | None
+    alternatives: list[dict[str, object]]
+
+
+class CandidatesResponse(BaseModel):
+    """A story's pending review queue."""
+
+    candidates: list[CandidateView]
+
+
+def _to_view(candidate: StagedCandidate) -> CandidateView:
+    return CandidateView(
+        id=candidate.id,
+        paragraph_id=candidate.paragraph_id,
+        candidate_name=candidate.candidate_name,
+        type=candidate.type,
+        context=candidate.context,
+        proposal=candidate.proposal,
+        target_entity_id=candidate.target_entity_id,
+        stage_reached=candidate.stage_reached,
+        confidence=candidate.confidence,
+        reasoning=candidate.reasoning,
+        alternatives=candidate.alternatives,
+    )
+
+
+@router.get(
+    "/{story_id}/candidates",
+    responses={
+        404: {"model": ErrorResponse, "description": "Story not found."},
+        503: {"model": ErrorResponse, "description": "The staging store is unavailable."},
+    },
+)
+async def list_candidates(
+    story_id: UUID,
+    conn: Annotated[AsyncConnection, Depends(get_connection)],
+    store: Annotated[PostgresCandidateStore, Depends(get_candidate_store)],
+) -> CandidatesResponse:
+    """The pending review queue for a story (spec §3.3 Stage 4) — candidates awaiting a human."""
+    if await get_story(conn, story_id) is None:
+        raise HTTPException(status_code=404, detail="story not found")
+    try:
+        pending = await store.list_pending(story_id)
+    except OperationalError as exc:
+        raise HTTPException(status_code=503, detail="the staging store is unavailable") from exc
+    return CandidatesResponse(candidates=[_to_view(c) for c in pending])
+
+
+class AcceptRequest(BaseModel):
+    """The reviewer's decision (spec §3.3 Stage 4). All optional — defaults to the proposal.
+
+    `action` overrides the cascade's proposal (accept-as-merge / accept-as-create);
+    `target_entity_id` retargets a merge (change-target); `custom_type` sets a type on create.
+    """
+
+    action: Literal["create", "merge"] | None = None
+    target_entity_id: UUID | None = None
+    custom_type: str | None = None
+
+
+class ReviewResponse(BaseModel):
+    """Outcome of an accept/reject: the committed entity (if any) + the terminal status."""
+
+    candidate_id: UUID
+    status: Literal["created", "merged", "rejected"]
+    entity_id: UUID | None
+    already_decided: bool
+
+
+@router.post(
+    "/{story_id}/candidates/{candidate_id}/accept",
+    responses={
+        404: {"model": ErrorResponse, "description": "Story or candidate not found."},
+        409: {"model": ErrorResponse, "description": "Merge target no longer exists (stale)."},
+        503: {"model": ErrorResponse, "description": "A data store is unavailable."},
+    },
+)
+async def accept_candidate(
+    story_id: UUID,
+    candidate_id: UUID,
+    conn: Annotated[AsyncConnection, Depends(get_connection)],
+    review: Annotated[CandidateReviewService, Depends(get_candidate_review)],
+    body: AcceptRequest | None = None,
+) -> ReviewResponse:
+    """Commit a staged candidate to the graph — create a new entity or merge (spec §7 step 7).
+
+    This is the **only** graph-writing path (INV-1): the machine proposed, the human commits.
+    """
+    story = await get_story(conn, story_id)
+    if story is None:
+        raise HTTPException(status_code=404, detail="story not found")
+    project = await get_project(conn, story.project_id)
+    language = project.language if project is not None else "en"
+    request = body or AcceptRequest()
+    try:
+        result = await review.accept(
+            candidate_id,
+            language=language,
+            action=request.action,
+            target_entity_id=request.target_entity_id,
+            custom_type=request.custom_type,
+        )
+    except CandidateNotFound as exc:
+        raise HTTPException(status_code=404, detail="candidate not found") from exc
+    except StaleMergeTarget as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+    except (OperationalError, ServiceUnavailable) as exc:
+        raise HTTPException(status_code=503, detail="a data store is unavailable") from exc
+    return ReviewResponse(
+        candidate_id=result.candidate_id,
+        status=result.status,  # terminal after accept
+        entity_id=result.entity_id,
+        already_decided=result.already_decided,
+    )
+
+
+@router.post(
+    "/{story_id}/candidates/{candidate_id}/reject",
+    responses={
+        404: {"model": ErrorResponse, "description": "Story or candidate not found."},
+        503: {"model": ErrorResponse, "description": "The staging store is unavailable."},
+    },
+)
+async def reject_candidate(
+    story_id: UUID,
+    candidate_id: UUID,
+    conn: Annotated[AsyncConnection, Depends(get_connection)],
+    review: Annotated[CandidateReviewService, Depends(get_candidate_review)],
+) -> ReviewResponse:
+    """Reject a staged candidate — nothing enters the graph; the rejection is remembered.
+
+    The matcher consults rejected candidates so it does not re-pester the author (DM-rej).
+    """
+    if await get_story(conn, story_id) is None:
+        raise HTTPException(status_code=404, detail="story not found")
+    try:
+        result = await review.reject(candidate_id)
+    except CandidateNotFound as exc:
+        raise HTTPException(status_code=404, detail="candidate not found") from exc
+    except OperationalError as exc:
+        raise HTTPException(status_code=503, detail="the staging store is unavailable") from exc
+    return ReviewResponse(
+        candidate_id=result.candidate_id,
+        status=result.status,  # terminal after reject
+        entity_id=result.entity_id,
+        already_decided=result.already_decided,
     )

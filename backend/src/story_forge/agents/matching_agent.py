@@ -105,6 +105,29 @@ def cosine_similarity(a: Sequence[float], b: Sequence[float]) -> float:
     return dot / (norm_a * norm_b)
 
 
+def top_alternatives(
+    candidate_name: str, existing: list[ExistingEntity], *, k: int = 3
+) -> list[dict[str, object]]:
+    """The k best-scoring existing entities for a candidate, for the Stage-4 reviewer.
+
+    Spec §3.3 Stage 4 shows the human "top-3 alternative existing entities to choose from"
+    alongside the cascade's own proposal. This is a pure RapidFuzz ranking over the same
+    canonical_name + aliases signal Stage 1 uses (a second cheap local pass — no I/O), so
+    the staged candidate carries the alternatives the review UI (S4b) renders without
+    re-querying the graph. Empty graph → empty list.
+    """
+    scored: list[tuple[float, str, str]] = []
+    for entity in existing:
+        names = [entity.canonical_name, *entity.aliases]
+        best = max((fuzz.token_set_ratio(candidate_name, name) for name in names), default=0.0)
+        scored.append((best, entity.id, entity.canonical_name))
+    scored.sort(key=lambda row: row[0], reverse=True)
+    return [
+        {"entity_id": entity_id, "canonical_name": name, "score": score}
+        for score, entity_id, name in scored[:k]
+    ]
+
+
 def classify(score: float, *, merge_threshold: float, ambiguous_floor: float) -> MatchOutcome:
     """Map a RapidFuzz score (0–100) to a §3.3 lifecycle state.
 

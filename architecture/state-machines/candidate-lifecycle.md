@@ -1,8 +1,8 @@
 ---
 type: state-machine
 slug: candidate-lifecycle
-updated: 2026-06-11
-status: draft
+updated: 2026-06-15
+status: living
 related:
   - "[[m3-cascade-matching]]"
   - "[[invariants]]"
@@ -17,12 +17,13 @@ A single instance is **one extracted candidate** working its way through the §3
 human decision: *is this a new entity, or one we already know?* Its lifecycle is owned by the M3
 matching pipeline (`MatchingAgent` → `JudgeAgent` → review queue) — see [[m3-cascade-matching]].
 
-> **Draft.** Drawn at the M3 step-0 decompose to give the cascade a precise shape; states/thresholds are
-> spec-given (§3.3). **DM6 is decided (owner, 2026-06-11): (A) intercept-before-write** — so the commit
-> edges below are the *only* graph writes and extraction merely *stages* candidates (no Neo4j write until
-> the human accepts). Finalise to `living` when the gating code lands (the invariant flip is witnessed by
-> the failing test, not before). Remaining open register items: `[[m3-cascade-matching]]` DM5, DM7,
-> DM-rej (DM1–DM4 + DM6 resolved — `docs/PLAN_SHORT.md` Decided 2026-06-11 S20; Stage 1 shipped PR #56).
+> **Living (as-built, M3.S4a / ADR 0004).** The machine is implemented: the persisted `status` enum on
+> the `candidates` table is the resting + terminal states (`review-queued`, `merged`, `created`,
+> `rejected`); the transient cascade states (`extracted`/`ambiguous`/`*-proposed`) live only in memory
+> while `CandidateStager` runs. The commit guard is `CandidateReviewService` (INV-1); the *only* graph
+> write is its accept handler (INV-9). The terminal-edge evidence effect is a row in `candidate_decisions`
+> (DM-S4a-4) — **not** §4.2 `edit_history` (text-edit-shaped, deferred). Whole register resolved
+> (`docs/PLAN_SHORT.md` Decided 2026-06-11 S20 + 2026-06-15 S23; Stages 1–3 PRs #56/#58/#60, S4a this PR).
 
 ## States
 
@@ -52,13 +53,17 @@ matching pipeline (`MatchingAgent` → `JudgeAgent` → review queue) — see [[
 | ambiguous | auto-merge-proposed | Stage 3 `conf >0.8` | JudgeAgent returns | `llm_calls` row (INV-5) + reasoning |
 | ambiguous | new-proposed | Stage 3 `else` / give-up | JudgeAgent returns or fails-closed | `llm_calls` row; reasoning = "uncertain" |
 | auto-merge-proposed / new-proposed | review-queued | enqueue | — | candidate visible in Stage-4 UI |
-| review-queued | **merged** | **human accept / change-target** | **a human action** (INV-1 guard) | MERGE → Neo4j **+ `edit_history` row (INV-3)** |
-| review-queued | **created** | **human create-new** | **a human action** (INV-1 guard) | CREATE → Neo4j **+ `edit_history` row** |
-| review-queued | **rejected** | **human reject** | **a human action** | `edit_history` row (so re-extraction can consult — DM-rej) |
+| review-queued | **merged** | **human accept / change-target** | **a human action** (INV-1 guard) | `add_alias` → Neo4j + `entity_mention`(+vector) **+ `candidate_decisions` row (INV-3)** |
+| review-queued | **created** | **human create-new** | **a human action** (INV-1 guard) | `create_entity` (MERGE-on-id) → Neo4j + `entity_mention`(+vector) **+ `candidate_decisions` row** |
+| review-queued | **rejected** | **human reject** | **a human action** | `candidate_decisions` row (so re-extraction can consult — DM-rej) |
 
-The **commit guard** (`review-queued → merged|created` requires *a human action*) **is INV-1**. The
-**effect is mandatory** on every terminal edge — an `edit_history` row — which makes the Compliance/Audit
-layer (INV-3 reversibility) happen at the moment of decision.
+The **commit guard** (`review-queued → merged|created` requires *a human action*) **is INV-1**, enforced
+by `CandidateReviewService` (`agents/candidate_review.py`); the accept handler is the only graph writer
+(INV-9). The **effect is mandatory** on every terminal edge — an append-only `candidate_decisions` row
+(DM-S4a-4; *not* the §4.2 `edit_history` text-edit dataset) — which makes the Compliance/Audit layer
+(INV-3 reversibility) happen at the moment of decision. The status flip is the **last** write, after the
+Neo4j + mention + evidence writes, so an un-flipped candidate is always safely retryable (idempotency,
+via deterministic accept-path ids).
 
 ## Diagram
 
