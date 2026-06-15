@@ -103,6 +103,7 @@ Per feature (and at session close): feature branch → **open a PR so CI actuall
 ## How to communicate with me
 
 - One clear question at a time, with the options you're weighing.
+- **Lead with plain language, especially when you need me to decide.** I'm not a beginner — but dense internal shorthand (ADR, `INV-N`, `DM-S4c-N`, proposal slugs, layer jargon) packed together trips me up. When you ask me to make a call, state the actual tradeoff in terms a non-specialist would follow, and unpack any shorthand you rely on rather than assuming it's shared vocabulary. Keep the precise terms for the durable written record (spec, plan, vault) where they earn their place; don't make me decode them in the moment.
 - After finishing a unit of work: short summary (what was done, what tests pass, what's next, what's blocked).
 - When the spec is wrong or contradictory: flag it before working around it.
 - Long stretches without check-in are a smell. If you've been working for 30+ minutes without confirming direction, stop and confirm.
