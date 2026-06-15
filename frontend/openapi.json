@@ -491,7 +491,7 @@
           "stories"
         ],
         "summary": "Reject Candidate",
-        "description": "Reject a staged candidate \u2014 nothing enters the graph; the rejection is remembered.\n\nThe matcher consults rejected candidates so it does not re-pester the author (DM-rej).",
+        "description": "Reject a staged candidate \u2014 nothing enters the graph; the rejection is recorded.\n\nThe rejection is stored as evidence so a future matcher can consult it and not re-pester\nthe author (DM-rej); that consult is not built in S4a.",
         "operationId": "reject_candidate_stories__story_id__candidates__candidate_id__reject_post",
         "parameters": [
           {

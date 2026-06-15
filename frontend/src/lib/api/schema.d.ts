@@ -160,9 +160,10 @@ export interface paths {
         put?: never;
         /**
          * Reject Candidate
-         * @description Reject a staged candidate — nothing enters the graph; the rejection is remembered.
+         * @description Reject a staged candidate — nothing enters the graph; the rejection is recorded.
          *
-         *     The matcher consults rejected candidates so it does not re-pester the author (DM-rej).
+         *     The rejection is stored as evidence so a future matcher can consult it and not re-pester
+         *     the author (DM-rej); that consult is not built in S4a.
          */
         post: operations["reject_candidate_stories__story_id__candidates__candidate_id__reject_post"];
         delete?: never;
