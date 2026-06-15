@@ -30,9 +30,9 @@ without the other means the snapshot drifted from the generated client — a
 review red flag.
 
 **Regenerating the client does NOT update its consumers — grep them.** When a
-backend route's request/response *shape* changes (a renamed/added/removed field,
+backend route's request/response _shape_ changes (a renamed/added/removed field,
 e.g. M3.S4a's `ExtractResponse.{entities_written,relations_written}` →
-`candidates_staged`), regenerating `schema.d.ts` updates the *types* but leaves
+`candidates_staged`), regenerating `schema.d.ts` updates the _types_ but leaves
 every hand-written usage — hooks, components, and especially **test fixtures**
 that build the old shape — referencing the gone field. Those fail `tsc` (the
 `build` step), not lint. So after a regen, `grep -rn "<old_field>\|<new_field>"
