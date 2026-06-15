@@ -1,7 +1,7 @@
 ---
 type: changelog
 slug: changelog
-updated: 2026-06-09
+updated: 2026-06-15
 status: living
 related: []
 ---
@@ -10,6 +10,50 @@ related: []
 
 Append-only audit trail of writes into the vault. Newest entries at the top. History also lives
 in `updated` fields (freshness) and git (diffs); this is the human-readable "what changed when".
+
+## 2026-06-15 — decompose-requirement: M3.S4c intra-batch dedup (live re-match + handpick, step-0)
+
+Forward-design pass triggered by the **M3.S4b browser walk**: a single first-pass extraction of the
+sample story staged `Janek` ×3 (and `Marta`/`Konrad`/`Order` ×2) as independent NEW proposals → after
+accept, **duplicate Neo4j nodes** the review queue could not merge, undercutting §9 M3's "the graph is
+clean". The cascade only dedupes *cross-pass* (against the accepted graph at stage time); this is the
+*intra-batch* gap M3.S4a's own "but what if" had named and deferred.
+
+- **New proposal:** `proposals/m3s4c-intra-batch-rematch.md` (`status: proposed`, register **OPEN**).
+  Designs two additive mechanisms on top of S4a/S4b: **(a) on-accept live re-match** — re-run the
+  *deterministic* matcher (Stage 1 RapidFuzz + Stage 2 cosine, reusing the stage-time `context_embedding`
+  + the accepted entity's mention vector; **no LLM**) over still-pending candidates each accept, flipping
+  duplicates `new → merge` (backend-only — the S4b card already renders merge proposals); **(b) manual
+  handpick** — a `GET …/entities?q=` search + picker so the human can target *any* existing entity, the
+  safety net for matcher false negatives. Both write **only the `candidates` staging table** — INV-1 +
+  INV-9 **hold, not change** (re-match is the first automated *staging-proposal* writer; INV-9's line is
+  graph-vs-staging). Nine-layer + nine-station pass; Mermaid data-flow; but-what-if (false-positive
+  re-match, mid-review proposal flips, idempotency/thrash, rejected-not-resurfaced, handpick stale-target
+  409, **handpick-merge inherits the deferred relation-write**, perf bound).
+- **State machine:** proposes a `review-queued → review-queued` **re-proposal** self-loop (monotone:
+  only `new → merge`; no graph write, no evidence row) — folded into `[[candidate-lifecycle]]` only on
+  acceptance.
+- **Open register OQ-18 / DM-S4c-1..6:** slice S4c (re-match) + S4d (handpick); trigger/scope
+  (synchronous-in-accept + incremental); auto-flip strength (Stage-1-only, **no live judge**); monotone
+  refinement (possible INV-10 — lean guard); handpick scope (project-scoped — **supersedes** the deferred
+  "arbitrary-entity search" cross-cutting); handpick endpoint/source. Mirrored to `open-questions.md`.
+- **Glossary +1** → 21: `[[intra-batch-dedup]]`. **learning-log +2** (intra-batch dedup; monotone
+  refinement / suggestion-only automated writer). **INDEX** regenerated.
+**Register resolved same session (owner, Session 25):** proposal flipped `proposed → accepted`,
+every DM-S4c register entry `My proposal` → `Decision` (**DM-S4c-3 overridden** — owner chose auto-flip
+on **Stage 1 `>85%` OR Stage 2 `cosine >0.85`** over my Stage-1-only; no live judge), the Stage-1-only
+framing de-activated across the body (Policy station, but-what-if, hand-off), Gaps-for-PO + the INV-10
+sub-question resolved (not minted — monotonicity stays the transition guard), OQ-18 struck. Decisions:
+slice **S4c (re-match) + S4d (handpick)**; synchronous-in-accept + incremental; project-scoped handpick
+(`GET /stories/{id}/entities?q=`); relation-write **kept deferred** but priority raised.
+
+**Spec + plan reconciled (host source of truth, stop-and-amend flow):** `story-forge-poc-spec.md` §3.3
+gained the **on-accept re-match** + **manual-handpick** clarifications + a deterministic-only cost-note
+line. `docs/PLAN_SHORT.md`: M3.S4c + S4d added to the feature order, a Session-25 Decided entry + the
+struck M3.S4c register (Blocked), the "arbitrary-entity search" cross-cutting **folded into S4d** (struck
+✅), the relation-write cross-cutting **priority-raised** note. No production code; ADR 0005 (if warranted)
+authors test-first with the S4c code. The `[[candidate-lifecycle]]` self-loop + INV-9 clarification fold
+on that build, witnessed by the failing re-match flip test.
 
 ## 2026-06-09 — fold: drift-fixes applied + full doc audit (owner-approved)
 

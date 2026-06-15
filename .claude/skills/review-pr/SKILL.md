@@ -195,7 +195,13 @@ repo, not the diff's touched files**:
   `register OPEN`, `awaiting owner`, "when accepted", "when M2.Sx lands") across `INDEX.md` + both
   plan files, and **diff each new decision against the task that implements it**. (PR #39: the
   self-review claimed §2 clean but missed exactly the INDEX row, the next-steps, and the Session-3
-  `canonical_name` task — external review caught all three.)
+  `canonical_name` task — external review caught all three.) **Grep the register/OQ *id* (e.g. `OQ-18`),
+  not just the slug — and use `grep -A2/-B2` context.** In a *wrapped multi-line* list entry the slug
+  and the `OPEN`/`proposed` word land on **different lines**, so a line-scoped grep keyed only on the
+  slug never sees the stale line; the **id tends to co-occur with the status word** on that line, so it
+  catches what the slug misses. (Session 25: a manual §2 sweep keyed on `m3s4c` passed a stale
+  `INDEX.md` "register OQ-18 **OPEN**" line as clean — the slug was on the line above; the `/review-pr`
+  re-run, which grepped `OQ-18`, caught it.)
 
 This **subsumes the deferred vault/docs-PR lens** (no-duplication of sources of truth +
 tense-vs-as-built honesty): same discipline, same verify-by-grep. The reliable move is to run the

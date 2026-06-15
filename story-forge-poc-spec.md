@@ -168,10 +168,31 @@ shorthand for the confident-yes case. Everything else (an uncertain yes at/below
 any no) is "new or uncertain" and falls through to the human — the cascade is fail-closed:
 no automated stage commits to the graph.
 
+**Intra-batch dedup via on-accept re-match (clarification, M3.S4c).** The cascade matches each
+candidate against the entities the author has already **accepted** into the graph, evaluated at
+extraction time. A first pass runs against an empty graph, so recurring entities within one batch
+(e.g. "Janek" appearing in three scenes) each stage as an independent NEW proposal — the review
+queue cannot merge them, and the author would accumulate duplicate nodes. To keep a single pass
+clean, **each human accept re-runs the deterministic matcher (Stage 1 RapidFuzz + Stage 2 embedding
+cosine — never the Stage-3 judge) over the still-pending candidates** against the just-accepted
+entity; a strong match (Stage 1 `>85%` **or** Stage 2 `cosine >0.85`) flips a pending candidate's
+proposal `new → merge` so the author confirms it in the queue. Re-match updates **only the staged
+proposal**, never the graph — the human still commits every merge (Stage 4 / the human-in-the-loop
+rule) — and is **monotone** (only `new → merge`, never the reverse), so re-running it is idempotent.
+
+**Manual handpick (clarification, M3.S4c).** The Stage-4 "change merge target" action additionally
+lets the author **search all existing entities in the project and select any one as the merge
+target**, beyond the cascade's top-3 alternatives — the safety net for a true duplicate the
+deterministic matcher misses (a nickname embeddings don't catch, a name scoring just under
+threshold). Scope is the current story's project (the graph's tenancy key); cross-project / world
+search is deferred with the §3.4 "whole world" graph.
+
 **Cost optimization:**
 - Stage 1 is free (RapidFuzz locally)
 - Stage 2 needs an embedding — local model, one-off compute cost
 - Stage 3 is the only place we burn LLM tokens, and only on ambiguous cases
+- On-accept re-match (M3.S4c) is **deterministic only** (Stage 1 + Stage 2) — it never re-runs the
+  judge, so it adds no token cost
 - Stage 4 is always human-side — no UI = no graph data
 
 ### 3.4 Graph visualization (Viewer)

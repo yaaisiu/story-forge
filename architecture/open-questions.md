@@ -405,6 +405,27 @@ gated the S4a build (the backend write-path refactor that retires INV-8 / lands 
 - **Plus:** **ADR 0004** (DM6 intercept-before-write, fuller MADR, test-first); the **§3.4 graph-endpoint
   scoping** (story-vs-project) the S4b viewer needs. **Lands in:** M3.S4a (backend), then M3.S4b (UI).
 
+### ~~OQ-18 — M3.S4c intra-batch-dedup decision register (DM-S4c-1..6)~~ ✅ RESOLVED 2026-06-15 (Session 25, owner)
+Raised by the M3.S4c `decompose-requirement` step-0 (2026-06-15, `[[m3s4c-intra-batch-rematch]]`),
+triggered by the browser walk: a single first-pass extraction stages duplicates (`Janek` ×3) the
+review queue can't merge → duplicate Neo4j nodes, undercutting §9 M3's "the graph is clean".
+**Resolved same session (authoritative in `docs/PLAN_SHORT.md` Decided/Blocked S25):**
+- ~~DM-S4c-1 — slice~~ ✅ **S4c** (on-accept live re-match, *backend-only*) + **S4d** (manual handpick).
+- ~~DM-S4c-2 — trigger & scope~~ ✅ synchronous-in-accept + incremental (`O(pending)`).
+- ~~DM-S4c-3 — auto-flip strength~~ ✅ **Stage 1 `>85%` OR Stage 2 `cosine >0.85`** (owner chose
+  +Stage-2 over the proposed Stage-1-only); **no live Stage-3 judge** ([[prefer-deterministic]]).
+- ~~DM-S4c-4 — monotone re-proposal~~ ✅ yes ([[idempotency|idempotent]]); kept as the transition
+  **guard**, **INV-10 not minted**.
+- ~~DM-S4c-5 — handpick scope~~ ✅ **project-scoped** (§6.4 key); **supersedes** the deferred
+  "arbitrary-entity search merge target" cross-cutting (now M3.S4d).
+- ~~DM-S4c-6 — handpick endpoint~~ ✅ `GET /stories/{id}/entities?q=` over Neo4j accepted entities via
+  `accepted_entity_reader`.
+- **Ripples:** `[[candidate-lifecycle]]` gains a `review-queued → review-queued` self-loop (monotone
+  guard) — folded **on the S4c code, test-first**; **INV-1/INV-9 hold** (re-match writes the staging
+  table, never the graph) + a one-line INV-9 graph-vs-staging clarification on build. **Spec §3.3
+  amended** (on-accept re-match + handpick). **Relation-write stays deferred** but its priority rose
+  (merges orphan relations). **ADR 0005** only if the owner deems it warranted at build.
+
 ## Referenced — owned by spec §10 (not duplicated)
 
 The spec carries ten "decide as we go" questions; they remain the spec's to own. Listed here by
