@@ -1,7 +1,7 @@
 ---
 type: invariants
 slug: invariants
-updated: 2026-06-11
+updated: 2026-06-15
 status: living
 related: ["[[overview]]", "[[project]]", "[[open-questions]]", "[[2026-06-11-architecture-review]]", "[[candidate-lifecycle]]"]
 ---
@@ -36,20 +36,22 @@ for that call, and the UI makes the crossing explicit ("sending fragment to Anth
 - **Source:** §11 privacy; the machine ↔ provider [[trust-boundary]].
 - **Enforced at:** *(as-built, M2.S2)* paid egress now exists — `OpenRouterProvider`
   (`adapters/llm/openrouter.py`), selected by the router (`adapters/llm/router.py`). The **consent
-  UI** the invariant demands ("sending fragment to Anthropic, OK?") is **deferred and now unscheduled**
-  — its ADR-0003-D5 landing target was M2.S5, but **M2.S5 shipped a *read-only* viewer + panel without
-  it** (PR #51), so the gate is re-pointed to the **M3 §3.3 review-queue UI** (the first rich human-gate
-  surface; see [[m3-cascade-matching]] DM7). Until then the egress point carries a documented in-code
-  marker (ADR 0003 D5), so the actual guard remains "no-telemetry (§6.7) + egress only to the
-  router-selected provider", honestly narrower than the rule it will become (same as-built honesty as
-  INV-1). No telemetry libraries exist anywhere.
+  UI** the invariant demands ("sending fragment to Anthropic, OK?") is **deferred past M3** (owner,
+  2026-06-15, DM7 — `[[m3-cascade-matching]]` / `docs/PLAN_SHORT.md` Decided S23): persona-justified
+  (single local user, full trust), and after the gate's landing target had slipped three times
+  (M2.S2→M2.S5→M3) the honest fix is an **explicit dated deferral**, not a fourth re-point to the M3
+  review-queue UI. (History: its ADR-0003-D5 target was M2.S5; M2.S5 shipped a *read-only* viewer + panel
+  without it, PR #51; the M3 review-queue UI was then floated as the home — DM7 — and the owner instead
+  deferred it past M3.) The egress point carries a documented in-code marker (ADR 0003 D5), so the actual
+  guard remains "no-telemetry (§6.7) + egress only to the router-selected provider", honestly narrower
+  than the rule it will become (same as-built honesty as INV-1). No telemetry libraries exist anywhere.
 - **Decision (ADR 0003, 2026-06-02; re-dated 2026-06-11):** the consent gate is **deliberately
   deferred**, not forgotten — the PoC handles no security-sensitive data. **As-built reality
   (2026-06-11, `[[2026-06-11-architecture-review]]`):** the M2.S6 smoke **fired real paid egress
   gate-less** (Ollama Cloud + an OpenRouter model) — the OQ-6 "fail-open by sequencing" window is no
-  longer hypothetical, it occurred. Accepted at PoC scale, but the deferral's *schedule* is now
-  re-pointed to M3 (above) rather than left pointing at a milestone that passed. Read the narrow guard
-  as a *considered, re-dated* deferral.
+  longer hypothetical, it occurred. Accepted at PoC scale; the deferral is now **explicit and open-ended
+  (past M3)** (owner, 2026-06-15) rather than chasing the next milestone. Read the narrow guard as a
+  *considered, persona-justified* deferral, to revisit when remote/multi-user actually matters.
 - **Why it matters:** this is the *only* real trust boundary in a single-user local app;
   everything the Security layer protects funnels through it.
 

@@ -1,7 +1,7 @@
 ---
 type: overview
 slug: overview
-updated: 2026-06-11
+updated: 2026-06-15
 status: living
 related: ["[[project]]", "[[invariants]]", "[[open-questions]]", "[[cascade-matching]]", "[[model-tier-routing]]", "[[m3-cascade-matching]]"]
 ---
@@ -60,10 +60,23 @@ code.)
   **observability/operational logging** recorded as a later need (→ OQ-15). No direct vendor adapters
   (OpenRouter is the only paid route — `docs/decisions/0003`).
 
-**Planned, not yet built (M3+):**
-- M3 — the **cascade matching** dedupe (Stages 1–4: fuzzy → embedding → LLM judge → human),
-  the heart of the product (§3.3, [[cascade-matching]], [[m3-cascade-matching]]). Retires the temporary
-  INV-8 (no dedupe) and lands **INV-1's** first enforcer (the human review gate).
+**M3 in progress — Stages 1–3 built, proposal-only / unwired (PRs #56/#58/#60):**
+- **M3.S1** — `MatchingAgent` **Stage 1** (RapidFuzz token-set vs `canonical_name`+aliases; PR #56).
+- **M3.S2** — **Stage 2** embedding cosine + the **pgvector foundation** (PR #58): real `vector(768)`
+  on `entity_mentions`, `register_vector_async`, the multilingual mpnet model pinned via the §6.7
+  HF-model channel. EmbeddingAgent built but **not** wired (mentions still written `embedding=None`).
+- **M3.S3** — `JudgeAgent` **Stage 3** (PR #60): LLM-as-judge, cloud_free via the router
+  (`task_type="judge"`), strict `{match,confidence,reasoning}`, merge iff `match AND conf>0.8`.
+- **Crucially these are all proposal-only:** nothing in the `ExtractionCoordinator` calls them, so the
+  live path is unchanged — **INV-8 is still the live contract** (`neo4j_repo.py` `CREATE`-on-extract).
+
+**Planned, not yet built (M3.S4 = the milestone close, re-sliced 2026-06-15):**
+- **M3.S4a** (backend) — the `candidates` staging table + **cascade wiring** + embed-on-extract + the
+  human-accept write-path; **retires INV-8 → lands INV-1's first enforcer** (+ possible INV-9) + **ADR
+  0004** (DM6 intercept-before-write); finalises `[[candidate-lifecycle]]` to `living`. Test-first — the
+  invariant flip is witnessed by the failing test ("no node without a human action").
+- **M3.S4b** (frontend) — the `features/extraction-review/` review-queue UI (§3.3 Stage-4 elements +
+  keyboard nav). INV-2 consent gate is **deferred past M3** (2026-06-15, persona-justified).
 
 So today Story Forge ingests and structures text, produces deterministic candidate spans,
 **extracts entity/relation candidates with an LLM** (routed, budgeted, recorded), and **writes
