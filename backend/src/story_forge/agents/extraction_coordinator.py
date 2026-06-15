@@ -4,8 +4,8 @@ Spec §7 steps 4–6 + §9 M3. Drives a whole story's paragraphs through the `Ex
 and then, under **intercept-before-write** (DM6, ADR 0004), *stages* each extracted candidate
 with the §3.3 cascade's proposal instead of writing the graph. Nothing here touches Neo4j —
 the graph is written only when a human accepts at the review queue (INV-1 / INV-9). This is the
-M2.S4 write-on-extract path refactored: the cascade + staging replace `proposal_to_graph` +
-the Neo4j/mention writes.
+M2.S4 write-on-extract path refactored: the cascade + staging replace the old
+candidate→graph mapping and its Neo4j/mention writes.
 
 Two design points carried from M2.S4, both still load-bearing:
 
