@@ -25,33 +25,12 @@ caller change, not an agent change. Batching + the pause-and-ask catcher are M2.
 from __future__ import annotations
 
 import json
-from typing import Literal, Protocol
 
-from pydantic import BaseModel, Field, ValidationError, field_validator
+from pydantic import BaseModel, Field, field_validator
 
-from story_forge.adapters.llm.base import CompletionResult, Message
-from story_forge.agents.json_output import extract_json
+from story_forge.adapters.llm.base import Router
+from story_forge.agents.validation import validate_with_retry
 from story_forge.prompts import PromptNotFound, render_messages
-
-# Mirrors `router.TaskWeight` — kept as a local literal (not imported) so the agent
-# stays free of the concrete adapter module, while matching the router's type
-# exactly so `LLMRouter` structurally satisfies `_Router` when wired in M2.S4. (If a
-# third agent needs it too, promote this beside `ModelTier` in `base.py`.)
-_Weight = Literal["light", "medium", "heavy"]
-
-
-# A router-shaped collaborator. We type against the protocol the agent actually
-# uses (`complete`) rather than importing the concrete `LLMRouter`, keeping the
-# agent unit-testable against a mock and free of the adapter layer.
-class _Router(Protocol):
-    async def complete(
-        self,
-        messages: list[Message],
-        *,
-        weight: _Weight,
-        task_type: str,
-        json_schema: dict[str, object] | None = None,
-    ) -> CompletionResult: ...
 
 
 class EntityCandidate(BaseModel):
@@ -170,7 +149,7 @@ def _ground_evidence_quotes(
 class ExtractionAgent:
     """Turns one paragraph into proposed entity/relation candidates via the router."""
 
-    def __init__(self, router: _Router, *, max_retries: int = 2) -> None:
+    def __init__(self, router: Router, *, max_retries: int = 2) -> None:
         self._router = router
         self._max_retries = max_retries
 
@@ -203,21 +182,17 @@ class ExtractionAgent:
         except PromptNotFound as exc:
             raise ExtractionError(f"no extraction prompt for language {language!r}") from exc
 
-        # Retry covers parse/schema failures only — a sampling model can return valid
-        # JSON on a second pass. The router owns transport/envelope failover and the
-        # budget cap, so its `BudgetExceededError` / `QuotaExhaustedError` (and any
-        # re-raised transport error) fall straight through this loop to the caller.
-        last_error: ValidationError | None = None
-        for _ in range(self._max_retries + 1):
-            result = await self._router.complete(
+        # The shared loop retries parse/schema failures only — a sampling model can
+        # return valid JSON on a second pass. The router owns transport/envelope failover
+        # and the budget cap, so its `BudgetExceededError` / `QuotaExhaustedError` (and any
+        # re-raised transport error) fall straight through to the caller, never retried.
+        proposal = await validate_with_retry(
+            ExtractionProposal,
+            lambda: self._router.complete(
                 messages, weight="medium", task_type="extraction", json_schema=_SCHEMA
-            )
-            try:
-                proposal = ExtractionProposal.model_validate_json(extract_json(result.content))
-            except ValidationError as exc:  # covers malformed JSON and schema violations
-                last_error = exc
-                continue
-            return _ground_evidence_quotes(proposal, paragraph_text)
-        raise ExtractionError(
-            f"extraction output failed validation after {self._max_retries + 1} attempts"
-        ) from last_error
+            ),
+            max_retries=self._max_retries,
+            error=ExtractionError,
+            label="extraction",
+        )
+        return _ground_evidence_quotes(proposal, paragraph_text)

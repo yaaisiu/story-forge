@@ -159,6 +159,15 @@ When the LLM extracts an entity candidate (e.g. "Janek from the mill"), the syst
 └────────────────────────────────────────────────────────────────┘
 ```
 
+**Stage 3 merge rule (clarification, M3.S3).** The judge's `confidence` is its certainty
+that the candidate and the existing entity are the *same*. A merge is therefore proposed
+only on a confident *yes* — `match = true` **and** `confidence > 0.8` (strict, mirroring
+Stage 1/2's upper edge). A confident *no* (`match = false`, high confidence) means
+"different entities" and is never a merge; the "Confidence > 0.8 → merge" line above is
+shorthand for the confident-yes case. Everything else (an uncertain yes at/below 0.8, or
+any no) is "new or uncertain" and falls through to the human — the cascade is fail-closed:
+no automated stage commits to the graph.
+
 **Cost optimization:**
 - Stage 1 is free (RapidFuzz locally)
 - Stage 2 needs an embedding — local model, one-off compute cost
