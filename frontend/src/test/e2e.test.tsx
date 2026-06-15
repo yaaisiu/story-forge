@@ -70,8 +70,7 @@ const EXTRACT_BODY = {
   story_id: STORY_ID,
   paragraphs_total: 2,
   paragraphs_done: 2,
-  entities_written: 1,
-  relations_written: 0,
+  candidates_staged: 1,
   paused: false,
   pause_reason: null,
 };
