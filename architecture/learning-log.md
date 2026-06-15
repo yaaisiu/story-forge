@@ -1,7 +1,7 @@
 ---
 type: learning-log
 slug: learning-log
-updated: 2026-06-08
+updated: 2026-06-15
 status: living
 related: []
 ---
@@ -47,3 +47,5 @@ term · appeared in [[note]] · why it matters for THIS project`. New lines go a
 - 2026-06-11 · cheapest-first cascade (deterministic→embedding→LLM→human) · [[m3-cascade-matching]] · the §3.3 cascade orders checks by cost so tokens are spent only on genuinely ambiguous cases (Stage 3) and a human commits last (Stage 4) — the design force is "how little can we spend to be sure?", and the only graph-writing edges leave the human box (that visual *is* INV-1).
 - 2026-06-11 · gate-the-write vs dedupe-after-write · [[m3-cascade-matching]] · the central M3 fork (DM6): intercept candidates before any graph write (only human-approved nodes ever exist) vs write-then-merge-duplicates (graph dirty until reviewed) — INV-1 ("only the author commits") pushes hard toward intercept-before-write, which retires INV-8 rather than layering on it.
 - 2026-06-15 · vault-follows-source ordering · [[2026-06-15-architecture-review]] · a review may fold only drift with an *already-authoritative* basis (merged code/spec/PR); a decision resolved this same session whose authoritative home (PLAN_SHORT Decided) is written later must be *reported*, not pre-written into the vault — else the vault asserts what its own source of truth doesn't yet record, which is drift in the opposite direction.
+- 2026-06-15 · intra-batch deduplication · [[intra-batch-dedup]] · the cascade only dedupes *cross-pass* (against the accepted graph at stage time), so a single first pass against an empty graph stages duplicates the queue can't merge — the gap a real browser walk surfaced; the cure (on-accept live re-match) is what makes §9 M3's "clean graph" true from the first run, not just eventually.
+- 2026-06-15 · monotone refinement (suggestion-only automated writer) · [[m3s4c-intra-batch-rematch]] · re-match is the first automated process to mutate a *staged proposal* after staging — keeping it monotone (only new→merge, never the reverse) makes it idempotent and non-surprising, and the reason it doesn't threaten INV-9 is that INV-9 draws its line at *graph vs staging*, not *human vs machine*: a machine may freely rewrite suggestions, never the graph.
