@@ -384,3 +384,14 @@ M2→M3 roll gate 2, part 2: the forward-design pass on M3 — the §3.3 cascade
   call, may escalate to an ADR), retention. Mirrored to `open-questions.md`. ADR 0004 to author test-first.
 - **Resolved inputs carried (not re-opened):** DM6 intercept-before-write, DM-rej remember rejections,
   INV-2 deferred past M3. `INDEX.md` regenerated. **Nothing resolved** — register stays open for the owner.
+
+## 2026-06-15 — /review-pr §2 reconciliation folds (PR #62)
+- The own-review §2 sweep found three decision-state homes lagging their now-recorded PLAN_SHORT
+  decision. Folded: **`open-questions.md`** OQ-17 header `OPEN` → ✅ resolved (DM-S4a-1..5 struck);
+  **`proposals/m3-cascade-matching.md`** → `status: accepted`, DM7/DM-rej register bodies + the Layer-1 /
+  Layer-7 / Gaps-for-PO INV-2 mentions struck to Decision, register header `OPEN` → resolved;
+  **`proposals/m3s4a-intercept-write-path.md`** → `status: accepted`, all five DM-S4a register entries +
+  the Gaps-for-PO list struck to Decision, hand-off de-staled; **`invariants.md`** INV-2 schedule
+  re-pointed from "M3 review-queue UI" to "deferred past M3" (the report B1 item, now due since PLAN_SHORT
+  records it). Authoritative homes (PLAN_SHORT Decided S23) were already correct; this brings the vault
+  framing-notes into agreement throughout their bodies, not just their banners.

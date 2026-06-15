@@ -2,18 +2,19 @@
 type: proposal
 slug: m3s4a-intercept-write-path
 updated: 2026-06-15
-status: proposed
+status: accepted
 related: ["[[m3-cascade-matching]]", "[[candidate-lifecycle]]", "[[invariants]]", "[[overview]]", "[[open-questions]]", "[[human-in-the-loop]]", "[[fail-closed]]", "[[idempotency]]", "[[toctou]]", "[[compliance-audit-layer]]", "[[2026-06-15-architecture-review]]"]
 ---
 
 # M3.S4a — Intercept-before-write: staging + cascade wiring + the human-accept path (step-0)
 
-> **Status: proposed (register owner-resolved 2026-06-15; build is test-first next session).** The
+> **Status: accepted — register resolved (owner, 2026-06-15; recorded in `docs/PLAN_SHORT.md` Decided
+> 2026-06-15 S23, the authoritative home). Build is test-first next session.** The
 > React review-queue UI is **S4b** (out of scope here). This pass designs the write-path refactor that
 > **retires INV-8 and lands INV-1's first enforcer**, test-first.
 >
-> **Register resolved (owner, 2026-06-15; authoritative record pending `docs/PLAN_SHORT.md` @ this
-> session's wrap — body below still reads "My proposal" until then, per the vault-follows-source rule):**
+> **Decisions (owner, 2026-06-15 — authoritative in `docs/PLAN_SHORT.md` Decided S23; each register
+> entry below now reads as the Decision):**
 > **DM-S4a-1** → new Postgres `candidates` table; **DM-S4a-2** → **add INV-9** ("no automated stage
 > writes the graph"); **DM-S4a-3** → resume checkpoint = "candidates staged" + a zero-candidate marker;
 > **DM-S4a-4** → a focused append-only **`candidate_decisions`** evidence table now, defer the full §4.2
@@ -183,7 +184,10 @@ that the queue reads (already in the note).
 
 ---
 
-## Decision register (OPEN — owner decides; mirrored to `open-questions.md`)
+## Decision register (✅ RESOLVED owner 2026-06-15 — authoritative in `docs/PLAN_SHORT.md` Decided S23; mirrored to `open-questions.md` OQ-17)
+
+> Each entry below was accepted **as proposed** — the "Decision" line states the outcome; the
+> Context/Options are kept for the record.
 
 ### DM-S4a-1 — Staging store shape: a new `candidates` table
 - **Context.** DM6 needs extracted candidates to persist *with* their cascade proposal, survive a crash,
@@ -191,7 +195,7 @@ that the queue reads (already in the note).
 - **Options.** (a) a new `candidates` table (Postgres) carrying name/type/properties/context/vector +
   proposal + alternatives + reasoning + status; (b) overload `entity_mentions` with a "pending" flag;
   (c) keep candidates in-memory per ingest and only persist on accept.
-- **My proposal.** **(a)** — a dedicated table. (b) conflates an *occurrence of an accepted entity* with a
+- **✅ Decision (owner, 2026-06-15) — (a), as proposed.** — a dedicated table. (b) conflates an *occurrence of an accepted entity* with a
   *proposed entity* (different lifecycles); (c) loses the queue + rejection memory across restarts and
   breaks resume. Cost accepted: a second cross-store soft-key (`target_entity_id` → a Neo4j id, no FK,
   same OQ-1 seam). **Open:** exact column set for `alternatives`/`reasoning` (JSONB blob vs typed
@@ -203,7 +207,7 @@ that the queue reads (already in the note).
   half; the *no-automated-write* half is currently implied, not named.
 - **Options.** (a) add INV-9 as the greppable structural rule (no graph write reachable from coordinator/
   agents); (b) treat it as already covered by INV-1 + the candidate-lifecycle guard (no new invariant).
-- **My proposal.** **(a)** — it is cheap, it is exactly what a future contributor would violate by
+- **✅ Decision (owner, 2026-06-15) — (a), as proposed.** — it is cheap, it is exactly what a future contributor would violate by
   "optimising" a confident auto-merge into a direct write, and it gives the test a name. *Rejected (b):*
   INV-1 is about *who commits*; INV-9 is about *what code paths may touch Neo4j* — a distinct, enforceable
   property. **Open:** owner's call on whether the extra invariant earns its place.
@@ -214,7 +218,7 @@ that the queue reads (already in the note).
 - **Options.** (a) a paragraph is "done" when ≥1 `candidates` row exists for it; a zero-candidate paragraph
   writes a tombstone/processed-marker row so it isn't reprocessed; (b) a separate `paragraph_processed`
   marker table; (c) accept reprocessing zero-candidate paragraphs (cheap LLM re-call, like M2.S4 did).
-- **My proposal.** **(a)** with an explicit zero-candidate marker — staged candidates *are* the durable
+- **✅ Decision (owner, 2026-06-15) — (a), as proposed.** with an explicit zero-candidate marker — staged candidates *are* the durable
   checkpoint, and intercept-before-write means a re-run that re-stages is **safe** (no duplicate graph
   nodes, because nothing is in the graph yet) but should still be **idempotent on `candidates`** (don't
   double-stage the same paragraph). *But what if* a re-run re-stages → need a per-paragraph idempotency
@@ -236,7 +240,7 @@ that the queue reads (already in the note).
   - **(c) Status-on-`candidates` only** — the terminal `status` + timestamp *is* the record; no separate
     table. Lightest; but a single mutable status row is weak evidence (no immutable audit trail, INV-3
     reversibility wants the before-state).
-- **My proposal.** **(b)** — a focused, append-only `candidate_decisions` table now. It satisfies INV-3 +
+- **✅ Decision (owner, 2026-06-15) — (b), as proposed.** A focused, append-only `candidate_decisions` table now. It satisfies INV-3 +
   DM-rej (the matcher reads rejected decisions) without prematurely committing to the §4.2 text-edit shape,
   which genuinely belongs to the editing feature (different columns, different export). Reconcile the
   *name* with §4.2 so the future `edit_history` doesn't collide. *Rejected (a):* premature + shape
@@ -252,7 +256,7 @@ that the queue reads (already in the note).
 - **Options.** (a) no retention policy at PoC, documented as accepted (single user, low volume); (b) an
   age-based cleanup for never-reviewed `review-queued` rows; (c) keep rejected forever, cap/expire only
   unreviewed.
-- **My proposal.** **(a)** documented for the PoC, noting (c) as the obvious V1 refinement — rejected
+- **✅ Decision (owner, 2026-06-15) — (a), as proposed.** documented for the PoC, noting (c) as the obvious V1 refinement — rejected
   memory is a *feature* (don't expire it), unreviewed backlog is the only growth risk and is bounded by how
   much the single author ingests. **Open:** ties OQ-4.
 
@@ -303,19 +307,18 @@ that the queue reads (already in the note).
 
 ---
 
-## Gaps for the product owner
+## Gaps for the product owner — ✅ all resolved (owner, 2026-06-15; `docs/PLAN_SHORT.md` Decided S23)
 
-1. **DM-S4a-4 — the evidence home** (full §4.2 `edit_history` now vs a focused `candidate_decisions`
-   table vs status-only). The session's main scoping call; touches the §4.2/§11 training-dataset asset →
-   may escalate to an ADR. *My proposal: a focused table now, defer §4.2's text-edit table to the editing
-   milestone.*
-2. **DM-S4a-1 — the `candidates` table column set** (typed vs JSONB for alternatives/reasoning) — settle
-   with S4b's render contract so the queue API isn't reshaped twice.
-3. **DM-S4a-2 — INV-9** yes/no.
-4. **DM-S4a-3 — resume marker** shape under staging.
-5. **DM-S4a-5 / OQ-4 — retention** of unreviewed + rejected candidates.
-6. **§3.4 graph-endpoint scoping** (story-vs-project) — the cross-cutting the S4b viewer needs; flag now,
-   it may want a thin backend slice in S4a or S4b.
+1. ~~**DM-S4a-4 — the evidence home**~~ ✅ a focused **`candidate_decisions`** table now; **defer** §4.2's
+   `edit_history` text-edit table to the editing milestone. (Touches the §4.2/§11 training-dataset asset →
+   ADR 0004 territory.)
+2. ~~**DM-S4a-1 — the `candidates` table column set**~~ ✅ a new table; typed-vs-JSONB for
+   alternatives/reasoning settled at build **with S4b's render contract** so the queue API isn't reshaped twice.
+3. ~~**DM-S4a-2 — INV-9**~~ ✅ yes — add it.
+4. ~~**DM-S4a-3 — resume marker**~~ ✅ "candidates staged" + a zero-candidate marker.
+5. ~~**DM-S4a-5 / OQ-4 — retention**~~ ✅ none at PoC (rejected-memory is a feature; unreviewed backlog the only growth risk).
+6. **§3.4 graph-endpoint scoping** (story-vs-project) — *still live* (a cross-cutting the S4b viewer needs);
+   flag now, it may want a thin backend slice in S4a or S4b.
 7. **ADR 0004** (DM6 intercept-before-write) — author **test-first with the code**, fuller MADR form
    (crosses a data-ownership boundary per the 2026-06-15 review C1), stating the accepted costs: graph
    empty until the author reviews, **and** the ungated Stage-3 egress (INV-2 deferred). Whether the
@@ -337,7 +340,8 @@ that the queue reads (already in the note).
   INV-1 guard; (iv) fold INV-8→INV-1 (+INV-9 if accepted), finalise the state machine, draft ADR 0004.
   Steps (i)–(iii) each end green. If split, the cut is **after (ii)** — but note the invariant flip cannot
   merge until (iii) exists (else the graph is write-less: an empty-graph window). Prefer keeping S4a whole.
-- **Decisions to resolve before/at build:** DM-S4a-1..5 (the register above). **Reconcile on acceptance:**
-  fold the invariants, strike the mirrored OQ items, write ADR 0004, and bring `[[candidate-lifecycle]]`
-  + `[[m3-cascade-matching]]` DM7/DM-rej bodies to resolved (the latter awaits the PLAN_SHORT record at
-  wrap — see `[[2026-06-15-architecture-review]]` §B).
+- **Decisions:** DM-S4a-1..5 are **resolved** (register above; `docs/PLAN_SHORT.md` Decided S23). The
+  vault homes are reconciled (DM7/DM-rej struck to Decision in `[[m3-cascade-matching]]`; OQ-16/OQ-17
+  struck; INV-2 schedule updated in `[[invariants]]`). **Still to do with the S4a *code* (test-first):**
+  fold INV-8→INV-1 + INV-9 into `[[invariants]]`, finalise `[[candidate-lifecycle]]` to `living`, and
+  write **ADR 0004** — the invariant flip is witnessed by the failing test, not asserted ahead of it.

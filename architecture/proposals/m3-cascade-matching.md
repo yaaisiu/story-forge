@@ -2,23 +2,22 @@
 type: proposal
 slug: m3-cascade-matching
 updated: 2026-06-15
-status: proposed
+status: accepted
 related: ["[[cascade-matching]]", "[[invariants]]", "[[overview]]", "[[open-questions]]", "[[human-in-the-loop]]", "[[fail-closed]]", "[[model-tier-routing]]", "[[state-machine]]", "[[idempotency]]", "[[m2s3-extraction-agent]]", "[[candidate-lifecycle]]"]
 ---
 
 # M3 — Cascade matching (dedupe) · forward design pass (step-0)
 
-> **Status: partially accepted — DM1–DM6 RESOLVED; DM7/DM-rej resolved by owner 2026-06-15 (recording
-> pending `docs/PLAN_SHORT.md` @ this session's wrap).** This was the
+> **Status: accepted — the whole register is resolved (DM1–DM6 + DM7 + DM-rej).** This was the
 > milestone-boundary "step 0" the M2→M3 roll queued: it frames the branchy M3 cascade and draws the
 > **candidate lifecycle** as the vault's first `[[state-machine|state machine]]` note. **Resolutions
 > are authoritative in `docs/PLAN_SHORT.md` Decided (2026-06-11, S19 DM6 + S20 DM1–DM4; S22 DM5 via
-> PR #60)** — the per-DM bodies below keep their "My proposal" framing for the record; treat the
-> proposal each names as the chosen option for DM1–DM6. **DM7's outcome (2026-06-15): INV-2 consent
-> gate DEFERRED past M3 — the queue is *not* its landing target; keyboard scheme is an S4b-time pick.
-> DM-rej (2026-06-15): remember rejections.** (These two await their PLAN_SHORT record before the
-> bodies below are struck — see `[[2026-06-15-architecture-review]]` §B.) M3.S1 shipped Stage 1
-> (PR #56); M3.S2 Stage 2 + pgvector (PR #58); M3.S3 the JudgeAgent (PR #60). Authoritative
+> PR #60; S23 DM7/DM-rej)** — the **DM1–DM6** bodies below keep their "My proposal" wording for the
+> record (treat the option each names as the chosen one); **DM7 + DM-rej are struck to Decision below.**
+> **DM7's outcome (2026-06-15): INV-2 consent gate DEFERRED past M3** — the queue is *not* its landing
+> target; keyboard scheme is an S4b-time pick. **DM-rej (2026-06-15): remember rejections.** M3.S1 shipped
+> Stage 1 (PR #56); M3.S2 Stage 2 + pgvector (PR #58); M3.S3 the JudgeAgent (PR #60); the **M3.S4a backend
+> build** is decomposed in `[[m3s4a-intercept-write-path]]` (register resolved). Authoritative
 > contract: spec **§3.3** (the four stages + thresholds) and **§9 Milestone 3**; the vault references,
 > never restates them.
 
@@ -39,8 +38,8 @@ carries the **embedding read-path wiring** (the `pgvector` switch). Then `JudgeA
 **1 · User / personas.** One persona, full trust (`[[project]]`). M3 adds the author's *highest-leverage
 control surface*: the Stage-4 review queue, where the author commits every graph decision. No new trust
 boundary — but the existing machine ↔ provider boundary ([[trust-boundary]]) is crossed again by the
-Stage-3 JudgeAgent, and the §3.4 review-queue UI is the natural home to finally land **INV-2's consent
-gate** (currently unscheduled — see [[2026-06-11-architecture-review]] §1).
+Stage-3 JudgeAgent. (The §3.4 review-queue UI was floated as the home for **INV-2's consent gate**, but
+the owner **deferred INV-2 past M3** — 2026-06-15, DM7 below; the cascade wires with no consent prompt.)
 
 **2 · Business.** Ladders to *both* drivers (`[[project]]`): the personal tool gets a clean,
 non-duplicated graph ("I control every decision, the graph is clean" — §9 M3 outcome); the portfolio
@@ -80,7 +79,7 @@ structure **only from the trusted Jinja2 template**, never reparse model output 
 the [[prompt-injection]] rule that hardened ChunkingAgent/ExtractionAgent (encoded in `/review-pr` §4).
 The judge prompt embeds *existing entity properties + candidate context* (both ultimately author-derived
 but one is now graph-stored) → confirm the structural guarantee with a failing test, as M2.S3 did. (b)
-Stage 3 crosses the provider trust boundary → INV-2 consent (DM7).
+Stage 3 crosses the provider trust boundary → INV-2 consent (DM7 — **deferred past M3**, owner 2026-06-15).
 
 **8 · Compliance / Audit.** Every Stage-4 human decision is an **effect** that must write an
 `edit_history` row (`(before, after, intent, source, model, prompt, accepted)` — §4.2/§11; the future
@@ -179,7 +178,10 @@ States: `extracted → {auto-merge-proposed | ambiguous | new-proposed}` (set by
 
 ---
 
-## Decision register (OPEN — owner decides; mirrored to `open-questions.md`)
+## Decision register (✅ ALL RESOLVED — DM1–DM6 + DM7 + DM-rej; authoritative in `docs/PLAN_SHORT.md` Decided; mirrored to `open-questions.md` OQ-16)
+
+> DM1–DM6 keep their original "My proposal" wording = the chosen option (resolved S19/S20/S22);
+> DM7 + DM-rej are struck to **Decision** (S23). Nothing here is open.
 
 ### DM1 — Where do the §3.3 thresholds live? (Policy home)
 - **Context.** Stage 1 (85% / 60%), Stage 2 (cosine 0.85), Stage 3 (conf 0.8) are spec-given Policy
@@ -257,23 +259,27 @@ States: `extracted → {auto-merge-proposed | ambiguous | new-proposed}` (set by
   M3 gating code**, test-first — the invariant flip is witnessed by the failing test, not asserted ahead
   of it (the vault's as-built-honesty discipline).
 
-### DM7 — Review-queue UX (Stage 4) + INV-2 consent gate
+### DM7 — Review-queue UX (Stage 4) + INV-2 consent gate — ✅ RESOLVED (owner, 2026-06-15)
 - **Context.** §3.3 Stage 4 elements (quote ±200 chars, NEW-vs-MERGE proposal, LLM reasoning, top-3
   alternatives, accept / change-target / create-custom-type / decide-relations / reject); §9 "keyboard
-  nav"; `features/extraction-review/` (spec §6.4 tree). Also the natural home for **INV-2's consent gate**
-  (now unscheduled).
+  nav"; `features/extraction-review/` (spec §6.4 tree). The queue had been floated as a home for **INV-2's
+  consent gate**.
 - **Options.** keyboard scheme — vim-style vs `J/K/A/N` (spec §10 q9, owner pref). Consent gate — land it
   here (per-fragment "send to provider?" before the Stage-3 call) vs keep deferred.
-- **My proposal.** Build the queue with the §3.3 elements + keyboard nav; **land INV-2's consent gate
-  here** (re-pointed from its lapsed M2.S5 target). Keyboard scheme is the owner's pick. Open.
+- **✅ Decision (owner, 2026-06-15; authoritative in `docs/PLAN_SHORT.md` Decided S23).** Build the queue
+  with the §3.3 elements + keyboard nav **in S4b**. **INV-2's consent gate is DEFERRED past M3** — *not*
+  landed in the queue: persona-justified (single local user, full trust), and re-pointing it a fourth time
+  (M2.S2→M2.S5→M3→…) is the fail-open-by-sequencing smell; an explicit dated deferral is the honest fix.
+  *Owner overrode my "land it here" proposal.* The keyboard scheme stays an **S4b-time pick** (not settled here).
 
-### DM-rej — Rejected-candidate memory (Expiry/Evidence)
+### DM-rej — Rejected-candidate memory (Expiry/Evidence) — ✅ RESOLVED (owner, 2026-06-15)
 - **Context.** A candidate the human rejected (or an entity they declined to merge) may re-appear in a
   later extraction with the same surface form → re-surfaced every run is annoying and pollutes the queue.
 - **Options.** (a) remember rejections (a `rejected` evidence row consulted before re-queueing); (b)
   re-surface every time (stateless); (c) remember per-(surface-form, paragraph).
-- **My proposal.** (a) — the `rejected` terminal edge writes evidence (INV-3) that the matcher consults.
-  Ties OQ-4 (retention). Open.
+- **✅ Decision (owner, 2026-06-15; authoritative in `docs/PLAN_SHORT.md` Decided S23) — (a), as proposed.**
+  The `rejected` terminal edge writes a `candidate_decisions` evidence row (INV-3) the matcher consults
+  before re-queueing (a default suppression, not a hard ban). Ties OQ-4 (retention).
 
 > **Also surfaced (spec §10, now live):** **q8 multilingual entity naming** — `canonical_name_pl`/`_en`
 > peers vs main — becomes concrete at M3 *because merge is where `canonical_name` is assigned*. Frame it
@@ -314,7 +320,9 @@ States: `extracted → {auto-merge-proposed | ambiguous | new-proposed}` (set by
    reshapes the §7 pipeline and M2.S4's write path. *My strong proposal: (A) intercept-before-write.*
 2. **DM2/DM3/DM4 — embeddings**: exact model (768-dim mpnet?), per-mention vs per-entity vector, storage
    table. Carries the `pgvector` dependency add + read-path switch.
-3. **Keyboard scheme** (spec §10 q9) and whether **INV-2's consent gate** lands in the Stage-4 UI (DM7).
+3. ~~**Keyboard scheme** (spec §10 q9) and whether **INV-2's consent gate** lands in the Stage-4 UI (DM7).~~
+   ✅ Resolved (owner, 2026-06-15): INV-2 **deferred past M3** (not in the queue); keyboard scheme is an
+   S4b-time pick.
 4. **Multilingual `canonical_name`** (spec §10 q8) — surfaces at merge; stays the spec's to resolve.
 5. **Rejected-candidate memory** (DM-rej) + log/candidate **retention** (OQ-4 Expiry).
 6. **Sequencing** (settled S20): `MatchingAgent` Stage 1 (RapidFuzz) ✅ PR #56 → Stage 2 (embeddings +
@@ -325,8 +333,8 @@ States: `extracted → {auto-merge-proposed | ambiguous | new-proposed}` (set by
 
 ## Hand-off
 
-- **Register status (updated 2026-06-15): DM1–DM6 resolved; DM7/DM-rej resolved by owner 2026-06-15
-  (recording pending PLAN_SHORT @ wrap).** DM6 (intercept-before-write) determined INV-8 is *replaced*,
+- **Register status (updated 2026-06-15): DM1–DM6 + DM7 + DM-rej all resolved (recorded in
+  `docs/PLAN_SHORT.md` Decided S23).** DM6 (intercept-before-write) determined INV-8 is *replaced*,
   not layered. **M3.S4 is re-sliced → S4a (backend) + S4b (frontend UI).** The INV-8→INV-1 fold, ADR
   0004, and finalising the `state-machines/` note land **test-first with the S4a write-path code** (not
   yet) — Stages 1–3 (PRs #56/#58/#60) are proposal-only and leave INV-8 live. DM7's outcome: **INV-2

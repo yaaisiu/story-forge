@@ -346,15 +346,14 @@ data-layer record), **not** stdout logs — they are different concerns.
   scoped:* (a) structured logging with a redaction processor built **with** the first log line;
   (b) no operational logging at PoC, documented, ledger-only. Open.
 
-### OQ-16 — M3 cascade decision register (DM1–DM7, DM-rej) — DM1–DM6 RESOLVED; DM7/DM-rej resolved 2026-06-15 (recording pending)
+### ~~OQ-16 — M3 cascade decision register (DM1–DM7, DM-rej)~~ ✅ FULLY RESOLVED — DM1–DM6 + DM7 + DM-rej (recorded in `docs/PLAN_SHORT.md` Decided S23)
 Raised by the M3 `decompose-requirement` step-0 (2026-06-11, `[[m3-cascade-matching]]`). The full
 Context/Options/Proposal for each lives in that proposal's Decision register; listed here so the vault's
-reader knows they exist and that they gate M3 code. **Resolved (authoritative in `docs/PLAN_SHORT.md`
-Decided): DM6 (S19) + DM1–DM4 (S20) + DM5 (S22, via PR #60) — each took its proposal below.**
-**DM7/DM-rej resolved by owner 2026-06-15** (see `[[2026-06-15-architecture-review]]` §B), recording
-pending PLAN_SHORT @ this session's wrap: **DM7 → INV-2 consent gate DEFERRED past M3** (the review
-queue is *not* its landing target; keyboard scheme is an S4b-time pick); **DM-rej → remember
-rejections**. **M3.S4 re-sliced → S4a (backend write-path/cascade/INV-flip/ADR 0004) + S4b (UI).**
+reader knows they exist and that they gated M3 code. **Resolved (authoritative in `docs/PLAN_SHORT.md`
+Decided): DM6 (S19) + DM1–DM4 (S20) + DM5 (S22, via PR #60) + DM7/DM-rej (S23) — each took its proposal
+below.** **DM7/DM-rej (owner 2026-06-15, recorded PLAN_SHORT Decided S23):** **DM7 → INV-2 consent gate
+DEFERRED past M3** (the review queue is *not* its landing target; keyboard scheme is an S4b-time pick);
+**DM-rej → remember rejections**. **M3.S4 re-sliced → S4a (backend write-path/cascade/INV-flip/ADR 0004) + S4b (UI).**
 - **DM1 — threshold home** (the §3.3 Policy values: Stage 1 85/60, Stage 2 cosine 0.85, Stage 3 conf 0.8
   have no home today). *Proposal:* a named `matching` config module, spec defaults, not user-facing yet.
 - **DM2 — embedding model** (`paraphrase-multilingual-mpnet-base-v2`, 768-dim — matches the reserved
@@ -369,34 +368,34 @@ rejections**. **M3.S4 re-sliced → S4a (backend write-path/cascade/INV-flip/ADR
   M2.S4's write path. Determines whether **INV-8 is replaced or layered**. The owner's biggest M3 call.
 - **~~DM7 — review-queue UX~~ ✅ Resolved (owner, 2026-06-15):** build the §3.3 Stage-4 elements +
   keyboard nav in S4b; **INV-2's consent gate is DEFERRED past M3** (not landed in the queue —
-  persona-justified, single local user/full trust); keyboard scheme is an S4b-time pick. *Recording
-  pending PLAN_SHORT @ wrap.*
+  persona-justified, single local user/full trust); keyboard scheme is an S4b-time pick. *(Recorded:
+  `docs/PLAN_SHORT.md` Decided S23.)*
 - **~~DM-rej — rejected-candidate memory~~ ✅ Resolved (owner, 2026-06-15):** **remember rejections** —
   the `rejected` terminal edge writes an evidence row the matcher consults before re-queueing (ties
-  OQ-4 Expiry; adds a per-candidate store read — see `[[2026-06-15-architecture-review]]` §C). *Recording
-  pending PLAN_SHORT @ wrap.*
+  OQ-4 Expiry; adds a per-candidate store read — see `[[2026-06-15-architecture-review]]` §C). *(Recorded:
+  `docs/PLAN_SHORT.md` Decided S23.)*
 - **Also live:** spec §10 q8 (multilingual `canonical_name_pl/en`) becomes concrete at merge — stays the
   **spec's** to resolve. **Lands in:** M3.S1 = Stage 1 RapidFuzz ✅ (PR #56); M3.S2 = Stage 2 embeddings
   + the pgvector switch (DM2–DM4); M3.S3 = JudgeAgent (DM5); M3.S4 = review queue + the DM6 write-path
   refactor / INV-8 retirement (DM7/DM-rej).
 
-### OQ-17 — M3.S4a write-path build-detail register (DM-S4a-1..5) — OPEN, owner decides before/at build
-Raised by the M3.S4a `decompose-requirement` step-0 (2026-06-15, `[[m3s4a-intercept-write-path]]`). The
-full Context/Options/Proposal for each lives in that proposal's register; listed here so the vault's reader
-knows they gate the S4a build (the backend write-path refactor that retires INV-8 / lands INV-1's enforcer).
-- **DM-S4a-1 — staging store shape.** *Proposal:* a new Postgres **`candidates`** table (name/type/props/
+### ~~OQ-17 — M3.S4a write-path build-detail register (DM-S4a-1..5)~~ ✅ RESOLVED 2026-06-15 (S23, owner — each as proposed)
+Raised by the M3.S4a `decompose-requirement` step-0 (2026-06-15, `[[m3s4a-intercept-write-path]]`) and
+**resolved the same session** (authoritative in `docs/PLAN_SHORT.md` Decided 2026-06-15 S23). The full
+Context/Options for each lives in that proposal's register; listed here so the vault's reader knows they
+gated the S4a build (the backend write-path refactor that retires INV-8 / lands INV-1's enforcer).
+- ~~**DM-S4a-1 — staging store shape.**~~ ✅ a new Postgres **`candidates`** table (name/type/props/
   context/`vector(768)` + proposal/target/reasoning/alternatives/status). `verify-at-build` the vector
   index choice (ivfflat vs hnsw).
-- **DM-S4a-2 — add INV-9** ("no automated stage writes the graph")? *Proposal:* yes — the greppable
+- ~~**DM-S4a-2 — add INV-9**~~ ✅ **yes** — add INV-9 ("no automated stage writes the graph"), the greppable
   structural rule the INV-1 human-commit guard doesn't itself state.
-- **DM-S4a-3 — resume checkpoint under staging** (mentions move to accept-time, so M2.S4's
-  `entity_mentions` checkpoint no longer holds). *Proposal:* "done = candidates staged" + a zero-candidate
-  marker; idempotent re-stage.
-- **DM-S4a-4 — evidence/audit home for accept/reject** (the main scoping call; touches the §4.2/§11
-  training-dataset asset → maybe an ADR). *Proposal:* a focused append-only **`candidate_decisions`** table
-  now; defer the full §4.2 `edit_history` (text-edit dataset) to the editing milestone. `verify-at-build`
-  §4.2's intended columns before naming, to avoid a future collision.
-- **DM-S4a-5 — staging/rejection retention** (Expiry; ties **OQ-4**). *Proposal:* (a) no retention at PoC,
+- ~~**DM-S4a-3 — resume checkpoint under staging**~~ ✅ "done = candidates staged" + a zero-candidate
+  marker (mentions move to accept-time, so M2.S4's `entity_mentions` checkpoint no longer holds); idempotent re-stage.
+- ~~**DM-S4a-4 — evidence/audit home for accept/reject**~~ ✅ a focused append-only **`candidate_decisions`**
+  table now; **defer** the full §4.2 `edit_history` (text-edit dataset) to the editing milestone.
+  `verify-at-build` §4.2's intended columns before naming, to avoid a future collision. (Touches the §4.2/§11
+  training-dataset asset → ADR 0004 territory.)
+- ~~**DM-S4a-5 — staging/rejection retention** (Expiry; ties **OQ-4**).~~ ✅ (a) no retention at PoC,
   documented — rejected memory is a feature (don't expire), unreviewed backlog is the only growth risk.
 - **Plus:** **ADR 0004** (DM6 intercept-before-write, fuller MADR, test-first); the **§3.4 graph-endpoint
   scoping** (story-vs-project) the S4b viewer needs. **Lands in:** M3.S4a (backend), then M3.S4b (UI).
