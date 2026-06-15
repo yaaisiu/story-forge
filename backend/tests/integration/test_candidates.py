@@ -27,6 +27,7 @@ from story_forge.adapters.db import libpq_kwargs
 from story_forge.adapters.neo4j_repo import Neo4jRepo
 from story_forge.adapters.postgres_candidate_store import PostgresCandidateStore
 from story_forge.adapters.postgres_mention_store import PostgresMentionStore
+from story_forge.agents.candidate_rematch import ReMatchService
 from story_forge.agents.candidate_review import CandidateReviewService
 from story_forge.agents.candidate_staging import CandidateStager
 from story_forge.agents.extraction_agent import EntityCandidate, ExtractionProposal
@@ -103,7 +104,9 @@ async def live(_migrated_test_db: None) -> AsyncIterator[_Live]:
     store = PostgresCandidateStore(conninfo)
     mentions = PostgresMentionStore(conninfo)
     reader = AcceptedEntityReader(graph, conninfo)
-    review = CandidateReviewService(graph, store, mentions)
+    review = CandidateReviewService(
+        graph, store, mentions, rematch=ReMatchService(MatchingAgent(), store)
+    )
     try:
         yield _Live(graph, project, story, paragraphs, store, reader, review, conninfo)
     finally:
@@ -169,6 +172,37 @@ async def test_accept_writes_entity_mention_evidence_and_flips_status(live: _Liv
     assert (await live.store.get(candidate.id)).status == "created"  # type: ignore[union-attr]
     # No longer in the pending queue.
     assert await live.store.list_pending(live.story.id) == []
+
+
+async def test_accept_rematches_pending_duplicates_without_writing_graph(live: _Live) -> None:
+    """M3.S4c flip test — the intra-batch dedup the browser walk surfaced.
+
+    A first pass stages 'Janek' ×3 against the empty graph as three independent NEW proposals
+    the queue cannot merge. Accepting the first re-runs the deterministic matcher over the two
+    still-pending Janeks: they fuzz-match the just-accepted entity (Stage 1 > 85%) and flip
+    `new → merge` targeting it — and re-match writes **zero** new Neo4j nodes (only the accept's
+    own create), so INV-9 holds (graph count stays 1).
+    """
+    p1 = live.paragraphs[0]
+    await _ingest(
+        live,
+        {p1.content: ExtractionProposal(entities=[_entity("Janek") for _ in range(3)])},
+    )
+    pending = await live.store.list_pending(live.story.id)
+    assert len(pending) == 3 and all(c.proposal == "new" for c in pending)
+
+    result = await live.review.accept(pending[0].id, language="pl")
+
+    # The flip: the accept created exactly one node; re-match added none (INV-9 holds).
+    assert result.status == "created"
+    assert await live.graph.count_entities(live.project.id) == 1
+
+    # The two still-pending Janeks now propose a merge into the accepted entity.
+    remaining = await live.store.list_pending(live.story.id)
+    assert len(remaining) == 2
+    assert all(c.proposal == "merge" for c in remaining)
+    assert all(c.target_entity_id == result.entity_id for c in remaining)
+    assert all(c.stage_reached == 1 for c in remaining)
 
 
 async def test_reject_remembers_and_writes_no_graph(live: _Live) -> None:

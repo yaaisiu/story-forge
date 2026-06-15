@@ -174,3 +174,12 @@ about *who commits* (a human), INV-9 is about *what code may touch Neo4j* (only 
   contributor "optimising" a confident auto-merge into a direct write would violate this, not improve it.
 - **Why it matters:** it is exactly the property a well-meaning optimisation would silently break, and
   it gives the flip test a name. See [[fail-closed]], [[candidate-lifecycle]].
+- **The line INV-9 draws is *graph vs staging*, not *human vs automated* (clarified M3.S4c).** On-accept
+  re-match (`agents/candidate_rematch.py`) is the first *automated* code that mutates a staged
+  *proposal* after staging — it flips a still-pending duplicate `new → merge` once a human accept
+  creates a target. That is **not** an INV-9 violation: re-match writes only the Postgres `candidates`
+  table, never Neo4j, so it stays on the staging side of the line INV-9 guards. (INV-1 still holds too —
+  re-match changes the *default suggestion*; the human still commits every merge.) A reviewer who reads
+  "automated writer" and reaches for INV-9 should check *what store* it writes: graph → violation,
+  staging → fine. Witnessed by the S4c flip test (`accept Janek → pending Janeks flip to merge, graph
+  count unchanged`). See [[candidate-lifecycle]] (the `review-queued → review-queued` self-loop).

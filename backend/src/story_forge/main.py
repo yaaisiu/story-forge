@@ -17,6 +17,7 @@ from story_forge.adapters.llm.router import LLMRouter
 from story_forge.adapters.neo4j_repo import Neo4jRepo
 from story_forge.adapters.postgres_candidate_store import PostgresCandidateStore
 from story_forge.adapters.postgres_mention_store import PostgresMentionStore
+from story_forge.agents.candidate_rematch import ReMatchService
 from story_forge.agents.candidate_review import CandidateReviewService
 from story_forge.agents.candidate_staging import CandidateStager
 from story_forge.agents.chunking_agent import ChunkingAgent
@@ -103,8 +104,11 @@ app.state.extraction_coordinator = ExtractionCoordinator(
     _candidate_store,
     AcceptedEntityReader(_neo4j_repo),
 )
+# On-accept intra-batch dedup (M3.S4c): re-match reuses the deterministic matcher over the
+# still-pending candidates after each accept. Stateless (thresholds from config), staging-only.
+_rematch = ReMatchService(MatchingAgent(), _candidate_store)
 app.state.candidate_review = CandidateReviewService(
-    _neo4j_repo, _candidate_store, PostgresMentionStore()
+    _neo4j_repo, _candidate_store, PostgresMentionStore(), rematch=_rematch
 )
 
 app.add_middleware(

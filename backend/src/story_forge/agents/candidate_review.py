@@ -22,6 +22,7 @@ It lives in `agents/` (orchestration composing domain + adapters via Protocols),
 
 from __future__ import annotations
 
+import contextlib
 from dataclasses import dataclass
 from typing import Literal, Protocol
 from uuid import UUID, uuid5
@@ -63,6 +64,24 @@ class CandidateRepo(Protocol):
     async def set_status(self, candidate_id: UUID, status: CandidateStatus) -> None: ...
 
 
+class ReMatcher(Protocol):
+    """On-accept intra-batch dedup (a `ReMatchService`, M3.S4c).
+
+    After a human accept commits an entity, re-runs the deterministic matcher over the
+    still-pending candidates against it and flips strong duplicates `new → merge` — writing
+    only the staging table, never the graph (INV-9 holds). Optional: when absent, accept
+    behaves exactly as in S4a."""
+
+    async def rematch(
+        self,
+        *,
+        story_id: UUID,
+        accepted_entity_id: UUID,
+        accepted_name: str,
+        accepted_vector: list[float] | None,
+    ) -> int: ...
+
+
 class CandidateNotFound(LookupError):
     """No candidate with that id (→404)."""
 
@@ -85,11 +104,16 @@ class CandidateReviewService:
     """Commits or rejects a staged candidate — the only graph-writing path (INV-1)."""
 
     def __init__(
-        self, graph: GraphWriter, candidates: CandidateRepo, mentions: MentionWriter
+        self,
+        graph: GraphWriter,
+        candidates: CandidateRepo,
+        mentions: MentionWriter,
+        rematch: ReMatcher | None = None,
     ) -> None:
         self._graph = graph
         self._candidates = candidates
         self._mentions = mentions
+        self._rematch = rematch
 
     async def accept(
         self,
@@ -127,7 +151,8 @@ class CandidateReviewService:
             )
         )
         await self._record(candidate, decision=status, target_entity_id=entity_id)
-        await self._candidates.set_status(candidate.id, status)  # LAST write
+        await self._candidates.set_status(candidate.id, status)  # LAST graph-affecting write
+        await self._maybe_rematch(candidate, entity_id)
         return ReviewResult(candidate.id, status, entity_id, already_decided=False)
 
     async def reject(self, candidate_id: UUID) -> ReviewResult:
@@ -143,6 +168,32 @@ class CandidateReviewService:
         return ReviewResult(candidate.id, "rejected", None, already_decided=False)
 
     # --- helpers -----------------------------------------------------------
+
+    async def _maybe_rematch(self, candidate: StagedCandidate, entity_id: UUID) -> None:
+        """On-accept intra-batch dedup (M3.S4c): flip still-pending duplicates of the
+        just-committed entity to a merge proposal.
+
+        Runs **after** the status flip, so the committed candidate is itself out of the
+        pending set, and is **fail-closed**: a re-match failure must never roll back the
+        human's accept (which has already fully succeeded). Any error is swallowed — the
+        proposals simply stay as they were (a safe NEW the author can still merge by hand);
+        re-match is a suggestion enhancement, never a gate on the commit. The match signal
+        is built from the accept's own data (the entity id, the candidate's surface name,
+        and the mention vector just written), so this adds no read beyond re-match's own.
+        """
+        if self._rematch is None:
+            return
+        # Fail-closed ([[fail-closed]]): the accept has fully succeeded; re-match is a best-effort
+        # suggestion enhancement, never a gate on the commit, so any failure is suppressed (the
+        # proposals simply stay as they were — a safe NEW the author can still merge by hand). When
+        # operational logging lands this becomes a logged warning (backend/AGENTS.md).
+        with contextlib.suppress(Exception):
+            await self._rematch.rematch(
+                story_id=candidate.story_id,
+                accepted_entity_id=entity_id,
+                accepted_name=candidate.candidate_name,
+                accepted_vector=candidate.context_embedding,
+            )
 
     async def _merge(
         self, candidate: StagedCandidate, override_target: UUID | None

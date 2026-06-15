@@ -24,6 +24,11 @@ matching pipeline (`MatchingAgent` → `JudgeAgent` → review queue) — see [[
 > write is its accept handler (INV-9). The terminal-edge evidence effect is a row in `candidate_decisions`
 > (DM-S4a-4) — **not** §4.2 `edit_history` (text-edit-shaped, deferred). Whole register resolved
 > (`docs/PLAN_SHORT.md` Decided 2026-06-11 S20 + 2026-06-15 S23; Stages 1–3 PRs #56/#58/#60, S4a this PR).
+>
+> **M3.S4c (on-accept re-match)** adds the one self-loop below — `review-queued → review-queued` —
+> the first *automated* writer of a staged proposal. It is deterministic (Stage 1/2, no judge),
+> **monotone** (only `new → merge`), and writes the `candidates` table only, so **INV-9 still holds**
+> (graph-vs-staging — see "Invariants over the lifecycle").
 
 ## States
 
@@ -56,6 +61,7 @@ matching pipeline (`MatchingAgent` → `JudgeAgent` → review queue) — see [[
 | review-queued | **merged** | **human accept / change-target** | **a human action** (INV-1 guard) | `add_alias` → Neo4j + `entity_mention`(+vector) **+ `candidate_decisions` row (INV-3)** |
 | review-queued | **created** | **human create-new** | **a human action** (INV-1 guard) | `create_entity` (MERGE-on-id) → Neo4j + `entity_mention`(+vector) **+ `candidate_decisions` row** |
 | review-queued | **rejected** | **human reject** | **a human action** | `candidate_decisions` row (so re-extraction can consult — DM-rej) |
+| review-queued | review-queued | **on-accept re-match** (another candidate's accept — M3.S4c) | a just-accepted entity strong-matches a still-`new` pending candidate (Stage 1 `>85%` **OR** Stage 2 `cosine >0.85`); **monotone** — only `new→merge`, never re-points an existing merge, never a terminal row | update `proposal`→merge + `target_entity_id` + provenance/alternatives in the **`candidates` table only** — **no graph write, no `candidate_decisions` row** (a machine suggestion refresh, not a human decision) |
 
 The **commit guard** (`review-queued → merged|created` requires *a human action*) **is INV-1**, enforced
 by `CandidateReviewService` (`agents/candidate_review.py`); the accept handler is the only graph writer
@@ -77,6 +83,7 @@ stateDiagram-v2
     ambiguous --> new_proposed: Stage3 else / fail-closed
     auto_merge_proposed --> review_queued
     new_proposed --> review_queued
+    review_queued --> review_queued: on-accept re-match (monotone, staging-only — M3.S4c)
     review_queued --> merged: human accept (INV-1)
     review_queued --> created: human create (INV-1)
     review_queued --> rejected: human reject
@@ -98,3 +105,12 @@ stateDiagram-v2
   never auto-transitions out of `merged`/`created`/`rejected`; an undo is a new human action with its
   own evidence row).
 - **`extracted` cannot skip to a terminal** — it must pass the cascade then the human.
+- **On-accept re-match is monotone and staging-only** (M3.S4c). The `review-queued → review-queued`
+  self-loop re-runs the *deterministic* matcher (Stage 1/2, never the judge) over still-pending
+  candidates after each human accept, flipping a strong duplicate `new → merge`. It only ever
+  *upgrades* (`new → merge`, never the reverse, never re-points an existing merge, never touches a
+  terminal row), so it is idempotent and never thrashes a proposal the author is mid-decision on. It
+  writes the **`candidates` staging table only** — never Neo4j — so although it is the first automated
+  writer of a staged proposal, **INV-9 still holds** (INV-9's line is graph-vs-staging; re-match stays
+  on the staging side). The monotone property lives here as this transition's guard, not as a new
+  system-wide invariant (DM-S4c-4).
