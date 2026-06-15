@@ -98,6 +98,36 @@ class FakeCandidateRepo:
         self._events.append(("status", status))
 
 
+class FakeReMatcher:
+    """Records on-accept re-match calls (M3.S4c); can blow up to exercise fail-closed."""
+
+    def __init__(self, events: list[tuple[str, object]], *, boom: bool = False) -> None:
+        self.calls: list[dict[str, object]] = []
+        self._events = events
+        self._boom = boom
+
+    async def rematch(
+        self,
+        *,
+        story_id: UUID,
+        accepted_entity_id: UUID,
+        accepted_name: str,
+        accepted_vector: list[float] | None,
+    ) -> int:
+        self.calls.append(
+            {
+                "story_id": story_id,
+                "accepted_entity_id": accepted_entity_id,
+                "accepted_name": accepted_name,
+                "accepted_vector": accepted_vector,
+            }
+        )
+        self._events.append(("rematch", accepted_entity_id))
+        if self._boom:
+            raise RuntimeError("re-match exploded")
+        return len(self.calls)
+
+
 def _service(
     candidate: StagedCandidate | None, *, existing: set[UUID] | None = None
 ) -> tuple[CandidateReviewService, FakeGraph, FakeMentions, FakeCandidateRepo, list]:
@@ -106,6 +136,18 @@ def _service(
     mentions = FakeMentions(events)
     repo = FakeCandidateRepo(events, candidate)
     return CandidateReviewService(graph, repo, mentions), graph, mentions, repo, events
+
+
+def _service_with_rematch(
+    candidate: StagedCandidate | None, *, existing: set[UUID] | None = None, boom: bool = False
+) -> tuple[CandidateReviewService, FakeGraph, FakeMentions, FakeCandidateRepo, list, FakeReMatcher]:
+    events: list[tuple[str, object]] = []
+    graph = FakeGraph(events, existing=existing)
+    mentions = FakeMentions(events)
+    repo = FakeCandidateRepo(events, candidate)
+    rematcher = FakeReMatcher(events, boom=boom)
+    service = CandidateReviewService(graph, repo, mentions, rematch=rematcher)
+    return service, graph, mentions, repo, events, rematcher
 
 
 # --- accept-create ---------------------------------------------------------
@@ -213,6 +255,67 @@ async def test_reject_records_evidence_and_writes_no_graph() -> None:
     assert graph.entities == {} and graph.aliases == [] and mentions.mentions == []
     assert repo.decisions[0].decision == "rejected"
     assert [kind for kind, _ in events] == ["decision", "status"]
+
+
+# --- on-accept re-match (M3.S4c) -------------------------------------------
+
+
+async def test_accept_triggers_rematch_after_the_status_flip() -> None:
+    candidate = _candidate(proposal="new")
+    service, _graph, _mentions, _repo, events, rematcher = _service_with_rematch(candidate)
+
+    result = await service.accept(candidate.id, language=LANG)
+
+    assert result.status == "created"
+    # Re-match fires LAST, after the status flip — so the just-committed candidate is itself
+    # out of the still-pending set it re-matches over.
+    assert [kind for kind, _ in events] == [
+        "entity",
+        "mention",
+        "decision",
+        "status",
+        "rematch",
+    ]
+    assert len(rematcher.calls) == 1
+    call = rematcher.calls[0]
+    assert call["story_id"] == candidate.story_id
+    assert call["accepted_entity_id"] == result.entity_id
+    assert call["accepted_name"] == candidate.candidate_name
+    assert call["accepted_vector"] == candidate.context_embedding
+
+
+async def test_rematch_failure_does_not_roll_back_the_accept() -> None:
+    # Fail-closed: a re-match blow-up must never fail the human's accept (already committed).
+    candidate = _candidate(proposal="new")
+    service, graph, _mentions, _repo, _events, _rematcher = _service_with_rematch(
+        candidate, boom=True
+    )
+
+    result = await service.accept(candidate.id, language=LANG)
+
+    assert result.status == "created"  # the accept stands
+    assert len(graph.entities) == 1
+    assert candidate.status == "created"  # the status flip survived the re-match failure
+
+
+async def test_reject_does_not_trigger_rematch() -> None:
+    candidate = _candidate(proposal="new")
+    service, _graph, _mentions, _repo, events, rematcher = _service_with_rematch(candidate)
+
+    await service.reject(candidate.id)
+
+    assert rematcher.calls == []  # nothing entered the graph, so nothing to re-match against
+    assert "rematch" not in [kind for kind, _ in events]
+
+
+async def test_terminal_noop_reaccept_does_not_retrigger_rematch() -> None:
+    candidate = _candidate(proposal="new")
+    service, _graph, _mentions, _repo, _events, rematcher = _service_with_rematch(candidate)
+
+    await service.accept(candidate.id, language=LANG)
+    await service.accept(candidate.id, language=LANG)  # double-submit → terminal no-op
+
+    assert len(rematcher.calls) == 1  # re-match fired only on the real accept, not the replay
 
 
 # --- not found -------------------------------------------------------------

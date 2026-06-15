@@ -24,7 +24,12 @@ from psycopg.types.json import Jsonb
 
 from story_forge.adapters.db import connect, libpq_kwargs
 from story_forge.config import settings
-from story_forge.domain.candidates import CandidateDecision, CandidateStatus, StagedCandidate
+from story_forge.domain.candidates import (
+    CandidateDecision,
+    CandidateProposal,
+    CandidateStatus,
+    StagedCandidate,
+)
 
 _CANDIDATE_COLUMNS = (
     "id, project_id, story_id, paragraph_id, candidate_name, type, properties, context, "
@@ -161,4 +166,38 @@ class PostgresCandidateStore:
             await conn.execute(
                 "UPDATE candidates SET status = %s, updated_at = now() WHERE id = %s",
                 (status, candidate_id),
+            )
+
+    async def update_proposal(
+        self,
+        candidate_id: UUID,
+        *,
+        proposal: CandidateProposal,
+        target_entity_id: UUID | None,
+        stage_reached: int,
+        confidence: float | None,
+        reasoning: str | None,
+        alternatives: list[dict[str, object]],
+    ) -> None:
+        """Re-stage a still-pending candidate's cascade proposal (M3.S4c on-accept re-match).
+
+        The only writer of a staged proposal *after* staging. The `status = 'review-queued'`
+        guard makes it a no-op on any terminal row — defence-in-depth for the monotone /
+        never-resurface-a-decision contract, on top of the service's own `proposal == 'new'`
+        guard. Writes only the `candidates` table (no graph, no evidence row): INV-9 holds.
+        """
+        async with await self._connect(autocommit=True) as conn:
+            await conn.execute(
+                "UPDATE candidates SET proposal = %s, target_entity_id = %s, "
+                "stage_reached = %s, confidence = %s, reasoning = %s, alternatives = %s, "
+                "updated_at = now() WHERE id = %s AND status = 'review-queued'",
+                (
+                    proposal,
+                    target_entity_id,
+                    stage_reached,
+                    confidence,
+                    reasoning,
+                    Jsonb(alternatives),
+                    candidate_id,
+                ),
             )

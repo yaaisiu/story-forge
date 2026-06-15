@@ -424,7 +424,10 @@ review queue can't merge → duplicate Neo4j nodes, undercutting §9 M3's "the g
   guard) — folded **on the S4c code, test-first**; **INV-1/INV-9 hold** (re-match writes the staging
   table, never the graph) + a one-line INV-9 graph-vs-staging clarification on build. **Spec §3.3
   amended** (on-accept re-match + handpick). **Relation-write stays deferred** but its priority rose
-  (merges orphan relations). **ADR 0005** only if the owner deems it warranted at build.
+  (merges orphan relations). **ADR 0005 — declined at build (owner, S4c, 2026-06-15):** re-match is a
+  contained change (staging-only, INV-9 holds) already fully recorded in the proposal + spec §3.3, so
+  the rationale lives in `docs/PLAN_SHORT.md` Decided + the INV-9 graph-vs-staging clarification rather
+  than a separate decision file.
 
 ## Referenced — owned by spec §10 (not duplicated)
 
