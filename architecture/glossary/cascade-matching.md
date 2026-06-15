@@ -21,4 +21,5 @@ The contract — the four stages, their methods, and the similarity thresholds �
 ordered **cheapest-first** (free deterministic checks before any token spend) and **fail-closed**
 — anything the automated stages can't resolve with confidence falls through to the human,
 never auto-merges. That makes it the product's loudest [[fail-closed]] + [[human-in-the-loop]]
-surface. Lands in M3; until then [[invariants]] INV-8 holds (no dedupe at all).
+surface. Landed in M3.S4a (intercept-before-write, ADR 0004): the temporary [[invariants]] INV-8
+(no dedupe) is retired — the cascade now *proposes* and the human commits (INV-1 / INV-9).
