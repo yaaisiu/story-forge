@@ -355,3 +355,32 @@ M2→M3 roll gate 2, part 2: the forward-design pass on M3 — the §3.3 cascade
 - **Nothing resolved.** Register stays OPEN; no invariant folded into `invariants.md` beyond the
   freshness fixes; no ADR drafted (awaits the owner's DM6/DM2 calls). First code: `MatchingAgent` Stage 1
   (RapidFuzz), failing test first with the App. B "Bronek/Bronisław" fixture.
+
+## 2026-06-15 — review-architecture sweep (M3.S3 merged → entering M3.S4)
+- **`reports/2026-06-15-architecture-review.md`:** new dated sweep. Findings: A1 DM5 resolved-but-framed-open
+  (risk), A2 `task_type` label drift `"judging"`→`"judge"` (watch), A3 `overview.md` snapshot predates
+  M3.S1–S3 (risk), A4 §3.3 confident-yes merge-rule shorthand (watch); B1–B3 the section-B owner
+  resolutions (INV-2 deferred past M3, DM-rej remember, M3.S4 re-slice) reported pending PLAN_SHORT;
+  C1–C4 S4a-bound (ADR 0004 fuller-MADR, gate-less Stage-3 egress, staging Expiry, store-chatty cascade).
+- **Folded (as-built/already-authoritative drift only):** `proposals/m3-cascade-matching.md` — DM5 → ✅
+  (PR #60), `"judging"`→`"judge"`, §3.3 confident-yes edge label; `open-questions.md` — OQ-16 DM5 struck,
+  label fixed, DM7/DM-rej noted resolved-2026-06-15-pending-record; `overview.md` — snapshot moved to
+  M3.S1–S3-built-proposal-only + S4a/S4b. `updated:` bumped on all three.
+- **Reported, NOT written (authority lands at this session's wrap):** INV-2 re-point in `invariants.md`,
+  DM7/DM-rej body strikes, the re-slice in PLAN_SHORT — the vault must not get ahead of its source of truth.
+- **Nothing resolved unilaterally.** INV-8 correctly still live `[TEMPORARY]` (the flip is S4a's, test-first).
+
+## 2026-06-15 — decompose-requirement: M3.S4a intercept-before-write (step-0)
+- **`proposals/m3s4a-intercept-write-path.md`:** new step-0 decompose of the **backend** half of the
+  milestone-closing session (UI is S4b). Designs the DM6 write-path refactor: a new Postgres `candidates`
+  staging table, the cascade wired synchronously into the coordinator (embed-on-extract → Matching →
+  Judge), Neo4j + `entity_mentions` writes moved to a human-accept endpoint; **INV-8 retired → INV-1
+  enforcer** (+ proposed **INV-9**), test-first (the failing test replaces M2.S4's "two extractions → two
+  nodes"). Nine-layer + nine-station pass; data-flow Mermaid; but-what-if (intra-batch dupes, review-gate
+  TOCTOU, accept-path OQ-1 crash seam + status-flip-last idempotency, relation re-point on merge,
+  rejected-as-default-suppression).
+- **Open register OQ-17 / DM-S4a-1..5:** staging-table shape, INV-9 yes/no, resume marker under staging,
+  **the evidence home** (focused `candidate_decisions` now vs full §4.2 `edit_history` — the main scoping
+  call, may escalate to an ADR), retention. Mirrored to `open-questions.md`. ADR 0004 to author test-first.
+- **Resolved inputs carried (not re-opened):** DM6 intercept-before-write, DM-rej remember rejections,
+  INV-2 deferred past M3. `INDEX.md` regenerated. **Nothing resolved** — register stays open for the owner.

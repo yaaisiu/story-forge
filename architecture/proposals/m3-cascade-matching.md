@@ -1,20 +1,24 @@
 ---
 type: proposal
 slug: m3-cascade-matching
-updated: 2026-06-11
+updated: 2026-06-15
 status: proposed
 related: ["[[cascade-matching]]", "[[invariants]]", "[[overview]]", "[[open-questions]]", "[[human-in-the-loop]]", "[[fail-closed]]", "[[model-tier-routing]]", "[[state-machine]]", "[[idempotency]]", "[[m2s3-extraction-agent]]", "[[candidate-lifecycle]]"]
 ---
 
 # M3 — Cascade matching (dedupe) · forward design pass (step-0)
 
-> **Status: partially accepted — DM1–DM4 + DM6 RESOLVED, DM5/DM7/DM-rej still open.** This was the
+> **Status: partially accepted — DM1–DM6 RESOLVED; DM7/DM-rej resolved by owner 2026-06-15 (recording
+> pending `docs/PLAN_SHORT.md` @ this session's wrap).** This was the
 > milestone-boundary "step 0" the M2→M3 roll queued: it frames the branchy M3 cascade and draws the
 > **candidate lifecycle** as the vault's first `[[state-machine|state machine]]` note. **Resolutions
-> are authoritative in `docs/PLAN_SHORT.md` Decided (2026-06-11, S19 DM6 + S20 DM1–DM4)** — the per-DM
-> bodies below keep their "My proposal" framing for the record; treat the proposal each names as the
-> chosen option for DM1–DM4 + DM6 (a later `review-architecture` sweep will fold the ✅ markers
-> inline). M3.S1 shipped Stage 1 (PR #56); M3.S2 is Stage 2 + the pgvector switch. Authoritative
+> are authoritative in `docs/PLAN_SHORT.md` Decided (2026-06-11, S19 DM6 + S20 DM1–DM4; S22 DM5 via
+> PR #60)** — the per-DM bodies below keep their "My proposal" framing for the record; treat the
+> proposal each names as the chosen option for DM1–DM6. **DM7's outcome (2026-06-15): INV-2 consent
+> gate DEFERRED past M3 — the queue is *not* its landing target; keyboard scheme is an S4b-time pick.
+> DM-rej (2026-06-15): remember rejections.** (These two await their PLAN_SHORT record before the
+> bodies below are struck — see `[[2026-06-15-architecture-review]]` §B.) M3.S1 shipped Stage 1
+> (PR #56); M3.S2 Stage 2 + pgvector (PR #58); M3.S3 the JudgeAgent (PR #60). Authoritative
 > contract: spec **§3.3** (the four stages + thresholds) and **§9 Milestone 3**; the vault references,
 > never restates them.
 
@@ -126,7 +130,7 @@ flowchart TD
       S2 -->|"ambiguous"| S3
     end
     S3{"Stage 3 · JudgeAgent · LLM<br/>cloud_free · strict JSON<br/>{match, confidence, reasoning}"}
-    S3 -->|"conf >0.8"| PM
+    S3 -->|"match AND conf >0.8"| PM
     S3 -->|"else"| PU["proposal = NEW / UNCERTAIN<br/>(+reasoning)"]
     PM --> Q[["Stage 4 · Review queue<br/>(human, CRITICAL)"]]
     PN --> Q
@@ -219,12 +223,15 @@ States: `extracted → {auto-merge-proposed | ambiguous | new-proposed}` (set by
   recorded. **`verify-at-build`:** `register_vector_async` API shape for the async driver in use; the
   `pgvector` image already in compose (Issue #22 CVE treadmill) covers the DB side.
 
-### DM5 — JudgeAgent model tier
+### DM5 — JudgeAgent model tier — ✅ RESOLVED (owner, M3.S3 / PR #60)
 - **Context.** Spec §6.5 agent table + §7 step 6 both say **cloud_free** for the JudgeAgent (Stage 3).
-- **Options.** (a) route via the M2.S2 `LLMRouter` with a new `task_type="judging"`, weight `medium` →
+- **Options.** (a) route via the M2.S2 `LLMRouter` with `task_type="judge"`, weight `medium` →
   cloud_free per spec, cloud_strong on failover only; (b) a heavier default for accuracy.
-- **My proposal.** (a) — spec settles the tier; reuse the router (INV-5/INV-7 for free; strict-JSON +
-  schema-retry mirroring ExtractionAgent). Low controversy — confirm the weight mapping.
+- **✅ Decision — (a), implemented PR #60.** `judge_agent.py` calls
+  `router.complete(..., weight="medium", task_type="judge")` (the label is `"judge"`, not `"judging"`);
+  spec §6.5 maps it to cloud_free, cloud_strong on failover only. Reuses the router (INV-5/INV-7 for
+  free) with strict-JSON + schema-retry via the shared `validate_with_retry`. Authoritative in
+  `docs/PLAN_SHORT.md` Decided (S22).
 
 ### DM6 — **The central fork: does matching gate the write, or dedupe after it?** (INV-8→INV-1 hand-off)
 - **Context.** M2.S4 writes every candidate to Neo4j on extract (`CREATE`, INV-8). M3 must honour INV-1
@@ -318,10 +325,12 @@ States: `extracted → {auto-merge-proposed | ambiguous | new-proposed}` (set by
 
 ## Hand-off
 
-- **Register status (updated S20): DM1–D4 + DM6 resolved; DM5/D7/DM-rej open.** DM6 (intercept-before-
-  write) determined INV-8 is *replaced*, not layered. The INV-8→INV-1 fold, the ADR(s), and finalising
-  the `state-machines/` note still land **test-first with the M3.S4 write-path code** (not yet) — Stage 1
-  (PR #56) and Stage 2 (M3.S2) are proposal-only and leave INV-8 live.
+- **Register status (updated 2026-06-15): DM1–DM6 resolved; DM7/DM-rej resolved by owner 2026-06-15
+  (recording pending PLAN_SHORT @ wrap).** DM6 (intercept-before-write) determined INV-8 is *replaced*,
+  not layered. **M3.S4 is re-sliced → S4a (backend) + S4b (frontend UI).** The INV-8→INV-1 fold, ADR
+  0004, and finalising the `state-machines/` note land **test-first with the S4a write-path code** (not
+  yet) — Stages 1–3 (PRs #56/#58/#60) are proposal-only and leave INV-8 live. DM7's outcome: **INV-2
+  consent deferred past M3** (the queue is not its landing target). DM-rej: **remember rejections**.
 - **What this pass writes** (vault only): this proposal; the three **freshness fixes** the 06-11 review
   recommended (re-point INV-2 → the M3 review-queue UI; flip INV-5/OQ-9 latency → as-built M2.S5; refresh
   `overview.md` to M2.S6/M3) — applied because they are honest as-built corrections independent of the M3
