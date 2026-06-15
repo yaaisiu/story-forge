@@ -142,6 +142,21 @@ describe("GraphViewer", () => {
     expect(screen.getByTestId(`cy-node-${NODE_ID}`)).toBeInTheDocument();
   });
 
+  it("links to the story's review queue (the Stage-4 human gate)", async () => {
+    const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
+      const url = String(input);
+      if (url.includes("/graph")) return jsonResponse(200, EMPTY_GRAPH);
+      if (url.includes("/llm/status")) return jsonResponse(200, STATUS_BODY);
+      throw new Error(`unexpected url ${url}`);
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    renderViewer();
+
+    const link = await screen.findByTestId("review-queue-link");
+    expect(link).toHaveAttribute("href", `/stories/${STORY_ID}/review`);
+  });
+
   it("opens the node-details panel when a node is tapped", async () => {
     const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
       const url = String(input);

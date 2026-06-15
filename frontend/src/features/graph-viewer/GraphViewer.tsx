@@ -13,11 +13,11 @@
 import { useCallback, useMemo, useState } from "react";
 
 import { useQueryClient } from "@tanstack/react-query";
-import { useParams } from "react-router-dom";
+import { Link, useParams } from "react-router-dom";
 
 import { AgentActivityPanel } from "../agent-activity/AgentActivityPanel";
 import { ApiError, useExtractStory } from "../../lib/api/useExtractStory";
-import { useStoryGraph, type GraphNode } from "../../lib/api/useStoryGraph";
+import { storyGraphQueryKey, useStoryGraph, type GraphNode } from "../../lib/api/useStoryGraph";
 import { GraphCanvas } from "./GraphCanvas";
 import { NodeDetailsPanel } from "./NodeDetailsPanel";
 
@@ -54,7 +54,7 @@ export function GraphViewer() {
           // A run writes new nodes/edges and a fresh ledger row: refetch both the
           // graph (so the viewer shows the new entities) and the status (so the
           // activity panel reflects the call that just ran, not on the next poll tick).
-          void queryClient.invalidateQueries({ queryKey: ["story-graph", storyId] });
+          void queryClient.invalidateQueries({ queryKey: storyGraphQueryKey(storyId) });
           void queryClient.invalidateQueries({ queryKey: ["llm-status"] });
         },
       },
@@ -74,15 +74,26 @@ export function GraphViewer() {
             expected and get resolved in a later milestone.
           </p>
         </div>
-        <button
-          type="button"
-          data-testid="run-extraction"
-          onClick={handleExtract}
-          disabled={extract.isPending}
-          className="shrink-0 rounded bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:bg-gray-300"
-        >
-          {extract.isPending ? "Extracting…" : "Run extraction"}
-        </button>
+        <div className="flex shrink-0 items-center gap-2">
+          {storyId && (
+            <Link
+              to={`/stories/${storyId}/review`}
+              data-testid="review-queue-link"
+              className="rounded border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
+            >
+              Review queue
+            </Link>
+          )}
+          <button
+            type="button"
+            data-testid="run-extraction"
+            onClick={handleExtract}
+            disabled={extract.isPending}
+            className="rounded bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:bg-gray-300"
+          >
+            {extract.isPending ? "Extracting…" : "Run extraction"}
+          </button>
+        </div>
       </header>
 
       {extract.isError && (
