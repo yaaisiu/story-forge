@@ -88,6 +88,21 @@ in `adapters/llm/base.py` (promoted there from a per-agent local mirror at the s
 alongside the `TaskWeight` literal — so an agent stays free of the concrete `router`
 module while `LLMRouter` structurally satisfies the Protocol.
 
+**Make an agent's give-up error *total* when a consumer fail-closes on it.** `validate_with_retry`
+raises the agent's give-up error only on *schema* give-up; the router's terminal **transport/
+envelope** failures (`httpx.HTTPError`, `ProviderResponseError`) and the pause-and-ask control
+signals (`BudgetExceededError`/`QuotaExhaustedError`) propagate *past* it, raw. That is correct at
+the API boundary (a route maps each to its own status). But when another component **fail-closes**
+on the agent — catching its give-up error to route a candidate to the human rather than crash — that
+`except` sees only the schema give-up, so a *provider-unreachable* failure escapes the fail-closed
+branch. Fix it at the agent: wrap the `validate_with_retry` call so a terminal
+`(ProviderResponseError, httpx.HTTPError)` is re-raised as the agent's give-up error (let Budget/
+Quota keep propagating — they are the pause signal, not an "I couldn't produce output" signal). Then
+the agent's give-up error means "could not produce output, for any reason except pause", and a
+consumer fail-closes on one exception type. (M3.S4a / PR #63: the cascade caught only `JudgeError`,
+so a judge-provider outage 502'd the whole batch instead of staging the candidate as uncertain;
+`JudgeAgent.judge` now converts transport→`JudgeError`. Review-side mirror: `/review-pr` §1.)
+
 **Deterministic local NLP is an exception to "no concrete deps in agents."** The
 layering rule above ("agents import the `LLMProvider` Protocol, never a concrete
 adapter") targets network/DB I/O and the multi-provider LLM tier. `PreNERAgent`
