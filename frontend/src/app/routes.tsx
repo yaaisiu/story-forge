@@ -9,6 +9,7 @@ import { lazy, Suspense } from "react";
 import { Route, Routes } from "react-router-dom";
 
 import { OutlineEditor } from "../features/chunking/OutlineEditor";
+import { ReviewQueue } from "../features/extraction-review/ReviewQueue";
 import { UploadScreen } from "../features/upload/UploadScreen";
 
 // Code-split the graph viewer: it pulls in cytoscape (~225 kB gzip), which only
@@ -36,6 +37,9 @@ export function AppRoutes() {
           </Suspense>
         }
       />
+      {/* M3.S4b: review the staged candidates an extraction produced (the human gate
+          that commits entities to the graph — spec §3.3 Stage 4 / §8.3). */}
+      <Route path="/stories/:storyId/review" element={<ReviewQueue />} />
     </Routes>
   );
 }

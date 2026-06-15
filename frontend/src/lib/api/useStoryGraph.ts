@@ -24,6 +24,12 @@ export type GraphResponse = components["schemas"]["GraphResponse"];
 export type GraphNode = components["schemas"]["GraphNode"];
 export type GraphEdge = components["schemas"]["GraphEdge"];
 
+/** TanStack Query key for a story's graph — shared so `useReviewCandidate` can
+ * invalidate the exact same key, making the graph refetch as the author commits. */
+export function storyGraphQueryKey(storyId: string | undefined): [string, string | undefined] {
+  return ["story-graph", storyId];
+}
+
 /**
  * Fetch a story's entity graph. Disabled until a `storyId` is known (so it never
  * fires with `undefined` in the path during an initial render or a deep-link race).
@@ -32,7 +38,7 @@ export function useStoryGraph(
   storyId: string | undefined,
 ): UseQueryResult<GraphResponse, ApiError> {
   return useQuery<GraphResponse, ApiError>({
-    queryKey: ["story-graph", storyId],
+    queryKey: storyGraphQueryKey(storyId),
     queryFn: () => getJson<GraphResponse>(`/stories/${storyId}/graph`),
     enabled: Boolean(storyId),
     staleTime: 30_000,
