@@ -65,14 +65,15 @@ export interface paths {
         put?: never;
         /**
          * Extract Story
-         * @description Extract entities/relations from a story's paragraphs into the graph (spec §9 M2).
+         * @description Extract + stage a story's candidates through the §3.3 cascade (spec §9 M3).
          *
-         *     Walks every persisted paragraph, runs the ExtractionAgent, and writes fresh graph
-         *     nodes/edges + `entity_mentions` with **no dedupe** (INV-8 — every candidate a new
-         *     node). The batch is resumable: if the router pauses on budget/quota, the run stops
-         *     with `paused=true` (HTTP 202) and a re-POST continues from the last-done paragraph
-         *     (the committed mentions are the checkpoint). Budget/quota are therefore *not* HTTP
-         *     errors here by design (OQ-2); only a hard agent failure maps to 502.
+         *     Walks every persisted paragraph, runs the ExtractionAgent, then the cascade, and *stages*
+         *     each candidate with its proposal (NEW vs MERGE) — writing **nothing** to the graph
+         *     (intercept-before-write, INV-9). The graph is written only when a human accepts at the
+         *     review queue (`POST …/candidates/{id}/accept`, INV-1). The batch is resumable: if the
+         *     router pauses on budget/quota, the run stops with `paused=true` (HTTP 202) and a re-POST
+         *     continues from the first un-staged paragraph. Budget/quota are therefore *not* HTTP errors
+         *     here by design (OQ-2); a hard agent failure maps to 502, a store outage to 503.
          */
         post: operations["extract_story_stories__story_id__extract_post"];
         delete?: never;
@@ -100,6 +101,71 @@ export interface paths {
         get: operations["get_story_graph_stories__story_id__graph_get"];
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/stories/{story_id}/candidates": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Candidates
+         * @description The pending review queue for a story (spec §3.3 Stage 4) — candidates awaiting a human.
+         */
+        get: operations["list_candidates_stories__story_id__candidates_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/stories/{story_id}/candidates/{candidate_id}/accept": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Accept Candidate
+         * @description Commit a staged candidate to the graph — create a new entity or merge (spec §7 step 7).
+         *
+         *     This is the **only** graph-writing path (INV-1): the machine proposed, the human commits.
+         */
+        post: operations["accept_candidate_stories__story_id__candidates__candidate_id__accept_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/stories/{story_id}/candidates/{candidate_id}/reject": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Reject Candidate
+         * @description Reject a staged candidate — nothing enters the graph; the rejection is recorded.
+         *
+         *     The rejection is stored as evidence so a future matcher can consult it and not re-pester
+         *     the author (DM-rej); that consult is not built in S4a.
+         */
+        post: operations["reject_candidate_stories__story_id__candidates__candidate_id__reject_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -150,10 +216,76 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        /**
+         * AcceptRequest
+         * @description The reviewer's decision (spec §3.3 Stage 4). All optional — defaults to the proposal.
+         *
+         *     `action` overrides the cascade's proposal (accept-as-merge / accept-as-create);
+         *     `target_entity_id` retargets a merge (change-target); `custom_type` sets a type on create.
+         */
+        AcceptRequest: {
+            /** Action */
+            action?: ("create" | "merge") | null;
+            /** Target Entity Id */
+            target_entity_id?: string | null;
+            /** Custom Type */
+            custom_type?: string | null;
+        };
         /** Body_upload_story_stories_upload_post */
         Body_upload_story_stories_upload_post: {
             /** File */
             file: string;
+        };
+        /**
+         * CandidateView
+         * @description One staged candidate for the §3.3 Stage-4 review queue (the render set S4b consumes).
+         *
+         *     Carries the quote/context (±200 chars), the cascade's NEW-vs-MERGE proposal + the stage it
+         *     reached, the judge's reasoning (if Stage 3 ran), and the top-3 alternative entities the
+         *     reviewer can retarget to. Persistence-only fields (the vector, project/story ids) are omitted.
+         */
+        CandidateView: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /**
+             * Paragraph Id
+             * Format: uuid
+             */
+            paragraph_id: string;
+            /** Candidate Name */
+            candidate_name: string;
+            /** Type */
+            type: string;
+            /** Context */
+            context: string;
+            /**
+             * Proposal
+             * @enum {string}
+             */
+            proposal: "new" | "merge";
+            /** Target Entity Id */
+            target_entity_id: string | null;
+            /** Stage Reached */
+            stage_reached: number;
+            /** Confidence */
+            confidence: number | null;
+            /** Reasoning */
+            reasoning: string | null;
+            /** Alternatives */
+            alternatives: {
+                [key: string]: unknown;
+            }[];
+        };
+        /**
+         * CandidatesResponse
+         * @description A story's pending review queue.
+         */
+        CandidatesResponse: {
+            /** Candidates */
+            candidates: components["schemas"]["CandidateView"][];
         };
         /**
          * ErrorResponse
@@ -169,12 +301,13 @@ export interface components {
         };
         /**
          * ExtractResponse
-         * @description Progress of an extraction run over a story's paragraphs (spec §9 M2).
+         * @description Progress of an extraction run over a story's paragraphs (spec §9 M3).
          *
-         *     `paused` is the completion signal — true when the run stopped at the budget/quota
-         *     pause-and-ask (HTTP 202, partial progress), false when it finished (HTTP 200).
-         *     `paragraphs_done` counts paragraphs that carry a mention — the resumable
-         *     checkpoint — so a re-POST resumes from the first not-done paragraph.
+         *     Under intercept-before-write extraction *stages* candidates (it does not write the graph),
+         *     so the count is `candidates_staged`, not entities/relations written. `paused` is the
+         *     completion signal — true when the run stopped at the budget/quota pause-and-ask (HTTP 202,
+         *     partial progress), false when it finished (HTTP 200). `paragraphs_done` counts paragraphs
+         *     already staged (the resume checkpoint), so a re-POST resumes from the first not-done one.
          */
         ExtractResponse: {
             /**
@@ -186,10 +319,8 @@ export interface components {
             paragraphs_total: number;
             /** Paragraphs Done */
             paragraphs_done: number;
-            /** Entities Written */
-            entities_written: number;
-            /** Relations Written */
-            relations_written: number;
+            /** Candidates Staged */
+            candidates_staged: number;
             /** Paused */
             paused: boolean;
             /** Pause Reason */
@@ -313,6 +444,26 @@ export interface components {
             /** By Task Type */
             by_task_type: components["schemas"]["TaskTypeUsage"][];
             last_call: components["schemas"]["LastCall"] | null;
+        };
+        /**
+         * ReviewResponse
+         * @description Outcome of an accept/reject: the committed entity (if any) + the terminal status.
+         */
+        ReviewResponse: {
+            /**
+             * Candidate Id
+             * Format: uuid
+             */
+            candidate_id: string;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "created" | "merged" | "rejected";
+            /** Entity Id */
+            entity_id: string | null;
+            /** Already Decided */
+            already_decided: boolean;
         };
         /**
          * StoryUploadResponse
@@ -594,6 +745,15 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
+            /** @description A data store (Postgres/Neo4j) is unavailable. */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
         };
     };
     get_story_graph_stories__story_id__graph_get: {
@@ -632,6 +792,168 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_candidates_stories__story_id__candidates_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                story_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CandidatesResponse"];
+                };
+            };
+            /** @description Story not found. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+            /** @description The staging store is unavailable. */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    accept_candidate_stories__story_id__candidates__candidate_id__accept_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                story_id: string;
+                candidate_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["AcceptRequest"] | null;
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReviewResponse"];
+                };
+            };
+            /** @description Story or candidate not found. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Merge target no longer exists (stale). */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+            /** @description A data store is unavailable. */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    reject_candidate_stories__story_id__candidates__candidate_id__reject_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                story_id: string;
+                candidate_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReviewResponse"];
+                };
+            };
+            /** @description Story or candidate not found. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+            /** @description The staging store is unavailable. */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
         };

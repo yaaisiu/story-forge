@@ -1,9 +1,10 @@
-"""Neo4j graph-write repository against the real compose neo4j service (spec §6.4, §9 M2).
+"""Neo4j graph-write repository against the real compose neo4j service (spec §6.4, §9 M3).
 
-M2.S4 writes every extracted candidate as a *fresh* node — no dedupe, no merge
-(INV-8): two identical entities must produce two distinct nodes, exposing the
-duplicate problem M3's cascade then solves. These tests pin that contract plus a
-plain round-trip of entities and relations.
+Under M3 intercept-before-write the graph is written only by the human-accept path, and
+`create_entity` is an idempotent **upsert by id** (MERGE on the unique id) — a retried accept
+never doubles a node. It is *not* a name-merge: two entities with distinct ids stay distinct
+(folding two candidates into one is the human's review act, via `add_alias`). These tests pin
+that contract plus a plain round-trip of entities and relations.
 
 Isolation: Neo4j Community has no throwaway-database equivalent of the Postgres
 fixture, so each test scopes its writes to a unique `project_id` (uuid4) and the
@@ -59,10 +60,11 @@ async def test_entity_round_trip(graph: tuple[Neo4jRepo, UUID]) -> None:
     assert await repo.get_entity(entity.id) == entity
 
 
-async def test_no_dedupe_two_identical_entities_make_two_nodes(
+async def test_same_name_distinct_ids_make_two_nodes(
     graph: tuple[Neo4jRepo, UUID],
 ) -> None:
-    """INV-8 (temporary, M2): no merge — identical candidates become distinct nodes."""
+    """The graph never merges on *name*: two same-named entities with distinct ids stay two
+    nodes. Deduping them is the human's review act (INV-9), not an automatic graph write."""
     repo, project_id = graph
     para_id = uuid4()
 
@@ -81,6 +83,42 @@ async def test_no_dedupe_two_identical_entities_make_two_nodes(
     # Distinct app-side ids, and two physical nodes — not one merged-on-name node.
     assert first.id != second.id
     assert await repo.count_entities(project_id) == 2
+
+
+async def test_create_entity_is_idempotent_by_id(
+    graph: tuple[Neo4jRepo, UUID],
+) -> None:
+    """The accept-path retry contract: re-creating the *same* id writes no second node.
+
+    `create_entity` MERGEs on the unique id, so a retried human-accept (a crash before the
+    candidate's status flip, replayed with the same deterministic id) is a no-op, not a dup.
+    """
+    repo, project_id = graph
+    entity = GraphEntity(type="Character", canonical_name_pl="Mokosz", project_id=project_id)
+    await repo.create_entity(entity)
+    await repo.create_entity(entity)  # retry — same id
+
+    assert await repo.count_entities(project_id) == 1
+
+
+async def test_add_alias_folds_a_surface_form_idempotently(
+    graph: tuple[Neo4jRepo, UUID],
+) -> None:
+    """Accept-merge records the candidate's surface form as an alias of the chosen target.
+
+    Idempotent — a retried accept does not duplicate the alias.
+    """
+    repo, project_id = graph
+    entity = GraphEntity(
+        type="Character", canonical_name_pl="Bronisław", aliases=["Bronek"], project_id=project_id
+    )
+    await repo.create_entity(entity)
+    await repo.add_alias(entity.id, "Stary Bronek")
+    await repo.add_alias(entity.id, "Stary Bronek")  # retry — no duplicate
+
+    stored = await repo.get_entity(entity.id)
+    assert stored is not None
+    assert sorted(stored.aliases) == ["Bronek", "Stary Bronek"]
 
 
 async def test_list_entities_returns_all_of_a_projects_nodes(

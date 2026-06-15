@@ -141,6 +141,11 @@ author's text) accumulate indefinitely?
 - **Options:** (a) no retention policy at PoC, documented as accepted; (b) a simple
   age-based cleanup for sandboxes + a cap on log volume.
 - **My proposal:** (b) for sandboxes (already tracked), (a) documented for logs at PoC. Open.
+- **Partly resolved (2026-06-15, M3.S4a / DM-S4a-5):** the *staging/rejection* Expiry instance is
+  decided — **(a) no retention at PoC** for the `candidates` / `candidate_decisions` tables (rejected
+  memory is a feature, not expired — DM-rej; unreviewed backlog is the only growth risk, bounded by the
+  single author's ingest; age-based cleanup is the obvious V1 refinement). The broader station (uploaded
+  files, LLM-prompt-log retention) stays open.
 
 ### OQ-5 — `ExtractionAgent` prompt-injection-by-structure pass
 Before M2.S3 ships, confirm the extraction prompt renders structure **only** from the trusted

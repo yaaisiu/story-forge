@@ -2,27 +2,52 @@
 
 from __future__ import annotations
 
+from collections.abc import AsyncIterator
+from contextlib import asynccontextmanager
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from neo4j import AsyncGraphDatabase
 
+from story_forge.adapters.accepted_entity_reader import AcceptedEntityReader
 from story_forge.adapters.llm.base import LLMProvider, ModelTier
 from story_forge.adapters.llm.ollama import OllamaProvider
 from story_forge.adapters.llm.postgres_cost_store import PostgresCostStore
 from story_forge.adapters.llm.router import LLMRouter
 from story_forge.adapters.neo4j_repo import Neo4jRepo
+from story_forge.adapters.postgres_candidate_store import PostgresCandidateStore
 from story_forge.adapters.postgres_mention_store import PostgresMentionStore
+from story_forge.agents.candidate_review import CandidateReviewService
+from story_forge.agents.candidate_staging import CandidateStager
 from story_forge.agents.chunking_agent import ChunkingAgent
 from story_forge.agents.chunking_coordinator import ChunkingCoordinator
+from story_forge.agents.embedding_agent import EmbeddingAgent
 from story_forge.agents.extraction_agent import ExtractionAgent
 from story_forge.agents.extraction_coordinator import ExtractionCoordinator
+from story_forge.agents.judge_agent import JudgeAgent
+from story_forge.agents.matching_agent import MatchingAgent
 from story_forge.api import llm, stories
 from story_forge.config import settings
+
+
+@asynccontextmanager
+async def _lifespan(_app: FastAPI) -> AsyncIterator[None]:
+    """Close the Neo4j driver on shutdown.
+
+    The driver is created eagerly at import (it connects lazily on first query) and lived for
+    the whole process with no close, leaking its connection pool on reload/shutdown. The cascade
+    now reads Neo4j per ingest run, so a clean close matters; Postgres stores open their own
+    short-lived connections per call and need no teardown here.
+    """
+    yield
+    await _neo4j_repo.close()
+
 
 app = FastAPI(
     title="Story Forge",
     version="0.0.0",
     description="Agent-orchestrated narrative analysis with a Neo4j knowledge graph.",
+    lifespan=_lifespan,
 )
 
 # Chunking dependency wiring (spec §6.5). One provider instance for the app: on a
@@ -43,13 +68,15 @@ app.state.chunking_coordinator = ChunkingCoordinator(
 # the call rolls back. The status endpoint reads this store; the router records into it.
 app.state.cost_store = PostgresCostStore()
 
-# Extraction + graph-write wiring (M2.S4, spec §7 step 4 / §9 M2). The router is
-# wired with its first real consumer here: extraction is "medium" weight → cloud_free
-# (§6.5), so only that tier is populated (Ollama Cloud, like chunking). cloud_strong
-# is added when a heavy task first needs it — an unconfigured tier raises rather than
-# silently misrouting. The Neo4j driver is created synchronously (it connects lazily
-# on first query); the mention store opens its own connection per write so committed
-# checkpoints make the batch resumable (OQ-2).
+# Extraction + cascade wiring (M3.S4a, spec §7 steps 4–7 / §9 M3). The router is shared by
+# extraction *and* the Stage-3 judge — both "medium" weight → cloud_free (§6.5), the only
+# populated tier (Ollama Cloud, like chunking); cloud_strong is added when a heavy task first
+# needs it (an unconfigured tier raises rather than misrouting). Under intercept-before-write
+# the coordinator no longer writes the graph: it stages candidates with the cascade's proposal
+# (Embedding → Matching → Judge) into Postgres; Neo4j is written only by the human-accept path
+# (the `CandidateReviewService`), which is INV-1's enforcer. The Neo4j driver connects lazily
+# and is closed on the FastAPI lifespan; the candidate store opens its own connection per
+# paragraph so committed staging makes the batch resumable (OQ-2).
 _extraction_provider = OllamaProvider(
     host=settings.ollama_cloud_host,
     model=settings.extraction_model,
@@ -66,13 +93,18 @@ _neo4j_repo = Neo4jRepo(
         settings.neo4j_uri, auth=(settings.neo4j_user, settings.neo4j_password)
     )
 )
-# Shared across the write path (the coordinator) and the read path (the §3.4 graph
-# viewer route reads nodes/edges back through the same repo).
+_candidate_store = PostgresCandidateStore()
+# Shared across the read path (the §3.4 graph viewer) and the accept path (the review service).
 app.state.neo4j_repo = _neo4j_repo
+app.state.candidate_store = _candidate_store
 app.state.extraction_coordinator = ExtractionCoordinator(
     ExtractionAgent(_extraction_router),
-    _neo4j_repo,
-    PostgresMentionStore(),
+    CandidateStager(EmbeddingAgent(), MatchingAgent(), JudgeAgent(_extraction_router)),
+    _candidate_store,
+    AcceptedEntityReader(_neo4j_repo),
+)
+app.state.candidate_review = CandidateReviewService(
+    _neo4j_repo, _candidate_store, PostgresMentionStore()
 )
 
 app.add_middleware(

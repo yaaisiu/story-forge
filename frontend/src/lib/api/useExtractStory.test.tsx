@@ -28,8 +28,7 @@ function result(over: Record<string, unknown> = {}) {
     story_id: STORY_ID,
     paragraphs_total: 3,
     paragraphs_done: 3,
-    entities_written: 5,
-    relations_written: 2,
+    candidates_staged: 5,
     paused: false,
     pause_reason: null,
     ...over,
@@ -61,7 +60,7 @@ describe("useExtractStory", () => {
 
     await waitFor(() => expect(hook.current.isSuccess).toBe(true));
     expect(hook.current.data?.paused).toBe(false);
-    expect(hook.current.data?.entities_written).toBe(5);
+    expect(hook.current.data?.candidates_staged).toBe(5);
 
     const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
     expect(url).toMatch(new RegExp(`/stories/${STORY_ID}/extract$`));

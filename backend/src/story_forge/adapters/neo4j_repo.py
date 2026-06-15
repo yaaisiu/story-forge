@@ -1,10 +1,12 @@
-"""Neo4j repository for the knowledge graph (spec §3.2 / §6.4 / §9 Milestone 2).
+"""Neo4j repository for the knowledge graph (spec §3.2 / §6.4 / §9 Milestone 3).
 
-Writes extracted entities and relations as graph nodes/edges. Through Milestone 2
-this is **no-dedupe**: every entity is written with `CREATE` (never `MERGE`), so two
-identical candidates become two distinct nodes — the deliberately temporary INV-8
-contract that exposes the duplicate problem M3's cascade then solves. A `MERGE`-on-name
-here would silently violate that invariant, so the keyword choice is load-bearing.
+Writes entities and relations as graph nodes/edges. Under M3 intercept-before-write (DM6,
+ADR 0004) the graph is written **only by the human-accept path** (`CandidateReviewService`),
+never by extraction (INV-9). `create_entity` is therefore an idempotent **upsert by id**
+(`MERGE` on the unique `id`, a primary-key write) so a retried accept never doubles a node —
+this is *not* a name-merge: folding two candidates into one entity is the human's review act,
+done with `add_alias`. (This retires M2's temporary INV-8 "CREATE never MERGE" no-dedupe
+contract — the graph no longer accumulates duplicates because nothing auto-writes it.)
 
 Mapping notes (domain `GraphEntity`/`GraphRelation` ↔ Neo4j):
 - **UUIDs** have no native Neo4j type — stored as strings, parsed back on read.
@@ -70,9 +72,15 @@ class Neo4jRepo:
     # --- Entities ----------------------------------------------------------
 
     async def create_entity(self, entity: GraphEntity) -> None:
-        """Write a fresh entity node. `CREATE`, never `MERGE` — no dedupe (INV-8)."""
+        """Write an entity node, idempotent by id (the human-accept create path, M3).
+
+        `MERGE` on the unique `id` (a primary-key upsert) + `ON CREATE SET`, so a retried
+        accept with the same (deterministic) id is a no-op rather than a second node. This is
+        the idempotency half of the accept-path contract; the alias fold (`add_alias`) is the
+        merge half. It is *not* a name-merge — INV-9 keeps all dedup decisions human.
+        """
         await self._driver.execute_query(
-            "CREATE (e:Entity $props)",
+            "MERGE (e:Entity {id: $props.id}) ON CREATE SET e = $props",
             props={
                 "id": str(entity.id),
                 "type": entity.type,
@@ -84,6 +92,22 @@ class Neo4jRepo:
                 "project_id": str(entity.project_id),
                 "world_id": _opt_str(entity.world_id),
             },
+        )
+
+    async def add_alias(self, entity_id: UUID, alias: str) -> None:
+        """Fold a candidate surface form into an existing entity as an alias (accept-merge).
+
+        The merge half of the human-accept path: when the reviewer accepts a MERGE, the
+        candidate's surface form is recorded as an alias of the chosen target. Idempotent —
+        the list is de-duplicated, so a retried accept adds nothing twice. No-op if the target
+        no longer exists (the review service re-validates the target first — the TOCTOU guard).
+        """
+        await self._driver.execute_query(
+            "MATCH (e:Entity {id: $id}) "
+            "SET e.aliases = CASE WHEN $alias IN coalesce(e.aliases, []) "
+            "THEN coalesce(e.aliases, []) ELSE coalesce(e.aliases, []) + [$alias] END",
+            id=str(entity_id),
+            alias=alias,
         )
 
     async def get_entity(self, entity_id: UUID) -> GraphEntity | None:

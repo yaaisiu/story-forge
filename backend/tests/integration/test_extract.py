@@ -42,7 +42,7 @@ class _StubCoordinator:
         self.seen_paragraphs: int | None = None
 
     async def ingest_story(
-        self, *, paragraphs: list[Paragraph], project_id: object, language: str
+        self, *, paragraphs: list[Paragraph], project_id: object, story_id: object, language: str
     ) -> IngestResult:
         self.seen_paragraphs = len(paragraphs)
         if isinstance(self._result, Exception):
@@ -94,8 +94,7 @@ async def test_extract_completes_returns_200_with_counts(
         IngestResult(
             paragraphs_total=3,
             paragraphs_done=3,
-            entities_written=5,
-            relations_written=2,
+            candidates_staged=5,
             paused=False,
             pause_reason=None,
         )
@@ -108,7 +107,7 @@ async def test_extract_completes_returns_200_with_counts(
     body = resp.json()
     assert body["paused"] is False
     assert body["paragraphs_done"] == 3
-    assert body["entities_written"] == 5
+    assert body["candidates_staged"] == 5
     # The route handed the story's three persisted paragraphs to the coordinator.
     assert coordinator.seen_paragraphs == 3
 
@@ -121,8 +120,7 @@ async def test_extract_pause_returns_202_with_partial_progress(
         IngestResult(
             paragraphs_total=4,
             paragraphs_done=2,
-            entities_written=3,
-            relations_written=0,
+            candidates_staged=3,
             paused=True,
             pause_reason="daily budget reached",
         )
@@ -145,8 +143,7 @@ async def test_extract_unknown_story_404(make_client: object) -> None:
         IngestResult(
             paragraphs_total=0,
             paragraphs_done=0,
-            entities_written=0,
-            relations_written=0,
+            candidates_staged=0,
             paused=False,
             pause_reason=None,
         )

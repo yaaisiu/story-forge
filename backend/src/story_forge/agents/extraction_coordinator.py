@@ -1,35 +1,27 @@
-"""ExtractionCoordinator — the resumable batch driver for graph ingest (M2.S4).
+"""ExtractionCoordinator — the resumable batch driver for graph ingest (M2.S4 → M3.S4a).
 
-Spec §7 step 4 + §9 M2. Drives a whole story's paragraphs through the
-`ExtractionAgent` and persists each paragraph's proposal as graph nodes/edges +
-cross-store mentions. Two design points the milestone forced:
+Spec §7 steps 4–6 + §9 M3. Drives a whole story's paragraphs through the `ExtractionAgent`
+and then, under **intercept-before-write** (DM6, ADR 0004), *stages* each extracted candidate
+with the §3.3 cascade's proposal instead of writing the graph. Nothing here touches Neo4j —
+the graph is written only when a human accepts at the review queue (INV-1 / INV-9). This is the
+M2.S4 write-on-extract path refactored: the cascade + staging replace the old
+candidate→graph mapping and its Neo4j/mention writes.
 
-- **OQ-2 — the *driver* owns the pause-and-ask, not the agent.** The single-paragraph
-  agent propagates the router's `BudgetExceededError` / `QuotaExhaustedError`
-  untouched (spending more is the user's call). This driver *catches* them and returns
-  a `paused` result instead of failing, so the caller can top up and re-run. Because
-  each paragraph's mentions are committed as they are written (the mention store uses
-  its own connection), a re-run resumes from the first paragraph without a mention —
-  the durable "last-done" checkpoint (see OQ-1 / idempotency).
+Two design points carried from M2.S4, both still load-bearing:
 
-- **OQ-1 — write order is Neo4j then Postgres.** Per paragraph: entities → relations
-  (both Neo4j), then the mention → Postgres *last*. The mention is the resume
-  checkpoint, so it lands only after every graph write for the paragraph succeeded
-  (a relation-write failure must not leave a "done" paragraph with missing edges).
-  Neo4j owns identity, so an orphaned node (crash before the mention) is more benign
-  than a mention pointing at a node that was never created. We accept that eventual
-  inconsistency at PoC scale.
+- **The *driver* owns pause-and-ask (OQ-2), not the agent.** The router's `BudgetExceededError`
+  / `QuotaExhaustedError` propagate untouched through the extraction agent *and* the cascade's
+  Stage-3 judge (spending more is the user's call). This driver catches them and returns a
+  `paused` result *before persisting the in-flight paragraph*, so a re-run resumes cleanly.
 
-Resume granularity is the paragraph: "done" means the paragraph already has ≥1
-mention. A paragraph that legitimately extracted **zero** entities writes no mention,
-so a re-run will process it again — a wasted (cheap) LLM call, but never a duplicate
-node, which is what matters under the no-dedupe contract (INV-8). Likewise, if any
-write fails before the mention lands (the OQ-1 seam), that paragraph has no checkpoint
-and a re-run re-extracts it, writing a second set of nodes/edges — accepted under
-no-dedupe (duplicates are M3's to resolve). The coordinator
-depends on Protocols (not concrete adapters), matching the repo's `LLMProvider` /
-`CostStore` / `OutlineProposer` seams and keeping the resume logic unit-testable
-against fakes.
+- **Resume granularity is the paragraph, checkpointed by `paragraph_processed` (OQ-1).** A
+  paragraph is "done" once its candidates (and a marker row, even for zero-candidate paragraphs)
+  are committed — staged atomically by the store. Under intercept-before-write a re-run that
+  re-stages is *safe* (nothing is in the graph yet), but the marker still makes it idempotent and
+  stops a zero-candidate paragraph being reprocessed forever (the M2 wart this fixes).
+
+The coordinator depends on Protocols (not concrete adapters), matching the repo's seams and
+keeping the resume/pause logic unit-testable against fakes.
 """
 
 from __future__ import annotations
@@ -39,10 +31,10 @@ from typing import Protocol
 from uuid import UUID
 
 from story_forge.adapters.llm.base import BudgetExceededError, QuotaExhaustedError
+from story_forge.agents.candidate_staging import StagedParagraph
 from story_forge.agents.extraction_agent import ExtractionProposal
-from story_forge.agents.extraction_graph import proposal_to_graph
-from story_forge.domain.graph import GraphEntity, GraphRelation
-from story_forge.domain.models import EntityMention, Paragraph
+from story_forge.domain.candidates import AcceptedSnapshot, StagedCandidate
+from story_forge.domain.models import Paragraph
 
 
 class Extractor(Protocol):
@@ -53,112 +45,129 @@ class Extractor(Protocol):
     ) -> ExtractionProposal: ...
 
 
-class GraphWriter(Protocol):
-    """The graph writes the driver needs (a `Neo4jRepo`)."""
+class Stager(Protocol):
+    """The per-paragraph §3.3 cascade the driver needs (a `CandidateStager`)."""
 
-    async def create_entity(self, entity: GraphEntity) -> None: ...
-    async def create_relation(self, relation: GraphRelation) -> None: ...
+    async def stage(
+        self,
+        *,
+        proposal: ExtractionProposal,
+        paragraph: Paragraph,
+        project_id: UUID,
+        story_id: UUID,
+        language: str,
+        snapshot: AcceptedSnapshot,
+    ) -> StagedParagraph: ...
 
 
-class MentionStore(Protocol):
-    """The mention persistence + resume checkpoint the driver needs (Postgres-backed)."""
+class AcceptedReader(Protocol):
+    """Reads the already-accepted graph the cascade matches against (read once per run)."""
 
-    async def add_mention(self, mention: EntityMention) -> None: ...
-    async def paragraphs_with_mentions(self, paragraph_ids: list[UUID]) -> set[UUID]: ...
+    async def load_accepted(self, project_id: UUID) -> AcceptedSnapshot: ...
+
+
+class CandidateStore(Protocol):
+    """Staging persistence + the resume checkpoint the driver needs (Postgres-backed)."""
+
+    async def persist(
+        self,
+        *,
+        paragraph_id: UUID,
+        story_id: UUID,
+        candidates: list[StagedCandidate],
+        relations: list[dict[str, object]],
+    ) -> None: ...
+    async def paragraphs_processed(self, paragraph_ids: list[UUID]) -> set[UUID]: ...
 
 
 @dataclass(frozen=True)
 class IngestResult:
     """Outcome of an `ingest_story` run.
 
-    `paused` is the authoritative completion signal — NOT `paragraphs_done ==
-    paragraphs_total`, because a zero-entity paragraph never becomes "done" (it has
-    no mention). The caller returns a partial-progress 202 when `paused` is true and a
-    200 otherwise.
+    `paused` is the authoritative completion signal. `paragraphs_done` counts processed
+    (staged-and-checkpointed) paragraphs — including zero-candidate ones, which now carry a
+    marker — so a re-POST resumes from the first not-yet-processed paragraph.
     """
 
     paragraphs_total: int
-    paragraphs_done: int  # paragraphs carrying ≥1 mention (the resumable checkpoint)
-    entities_written: int  # this run only
-    relations_written: int  # this run only
+    paragraphs_done: int  # processed (checkpointed) paragraphs — the resume marker
+    candidates_staged: int  # this run only
     paused: bool
     pause_reason: str | None
 
 
 class ExtractionCoordinator:
-    """Runs extraction over a story's paragraphs and persists the graph, resumably."""
+    """Runs extraction + the §3.3 cascade over a story's paragraphs and stages them, resumably."""
 
-    def __init__(self, extractor: Extractor, graph: GraphWriter, mentions: MentionStore) -> None:
+    def __init__(
+        self,
+        extractor: Extractor,
+        stager: Stager,
+        store: CandidateStore,
+        reader: AcceptedReader,
+    ) -> None:
         self._extractor = extractor
-        self._graph = graph
-        self._mentions = mentions
+        self._stager = stager
+        self._store = store
+        self._reader = reader
 
     async def ingest_story(
         self,
         *,
         paragraphs: list[Paragraph],
         project_id: UUID,
+        story_id: UUID,
         language: str,
     ) -> IngestResult:
-        """Extract + persist every not-yet-done paragraph; pause on budget/quota."""
-        done = await self._mentions.paragraphs_with_mentions([p.id for p in paragraphs])
-        entities_written = 0
-        relations_written = 0
+        """Extract + cascade + stage every not-yet-processed paragraph; pause on budget/quota."""
+        processed = await self._store.paragraphs_processed([p.id for p in paragraphs])
+        todo = [p for p in paragraphs if p.id not in processed]
+        candidates_staged = 0
 
-        for paragraph in paragraphs:
-            if paragraph.id in done:
-                continue  # already has a mention — skip to avoid duplicate nodes
+        # Read the accepted graph once per run (C4 store-chatty mitigation): within a run
+        # nothing is accepted, so the snapshot does not drift. Skip the read when idle.
+        snapshot = await self._reader.load_accepted(project_id) if todo else AcceptedSnapshot()
+
+        for paragraph in todo:
             try:
                 proposal = await self._extractor.propose_extraction(
                     paragraph_text=paragraph.content, language=language
                 )
+                staged = await self._stager.stage(
+                    proposal=proposal,
+                    paragraph=paragraph,
+                    project_id=project_id,
+                    story_id=story_id,
+                    language=language,
+                    snapshot=snapshot,
+                )
             except (BudgetExceededError, QuotaExhaustedError) as exc:
-                # The router paused-and-asked mid-batch. Stop cleanly *before* writing
-                # this paragraph (the exception fires during the LLM call, before any
-                # write), so there is no partial paragraph. Everything up to here is
-                # committed; a re-run resumes from this paragraph.
+                # The router paused-and-asked mid-batch (extraction *or* the Stage-3 judge).
+                # Stop cleanly *before persisting this paragraph*, so there is no half-staged
+                # paragraph: everything already committed stays, this one re-stages on re-run.
                 return IngestResult(
                     paragraphs_total=len(paragraphs),
-                    paragraphs_done=len(done),
-                    entities_written=entities_written,
-                    relations_written=relations_written,
+                    paragraphs_done=len(processed),
+                    candidates_staged=candidates_staged,
                     paused=True,
                     pause_reason=str(exc),
                 )
 
-            graph = proposal_to_graph(
-                proposal,
-                project_id=project_id,
+            # Stage the paragraph's candidates + its resume marker atomically. The marker is
+            # written even for a zero-candidate paragraph, so resume skips it next time.
+            await self._store.persist(
                 paragraph_id=paragraph.id,
-                language=language,
+                story_id=story_id,
+                candidates=staged.candidates,
+                relations=staged.relations,
             )
-            # Write order: all Neo4j first (entities, then relations — which MATCH on
-            # the entity ids), THEN the Postgres mention. The mention is the resume
-            # checkpoint (`paragraphs_with_mentions`), so it must land *only after*
-            # every graph write for the paragraph has succeeded — otherwise a transient
-            # Neo4j failure on the relation write would leave a "done" paragraph with
-            # missing relations that a re-run skips and never retries. With this order a
-            # failure anywhere before the mention leaves the paragraph un-checkpointed,
-            # so a re-run re-processes it (re-writing its entities/relations — accepted
-            # under no-dedupe, INV-8; M3 resolves duplicates). This is also the OQ-1
-            # cross-store order: the whole Neo4j graph, then the Postgres back-reference.
-            for entity in graph.entities:
-                await self._graph.create_entity(entity)
-            for relation in graph.relations:
-                await self._graph.create_relation(relation)
-            for mention in graph.mentions:
-                await self._mentions.add_mention(mention)
-
-            if graph.mentions:
-                done.add(paragraph.id)
-            entities_written += len(graph.entities)
-            relations_written += len(graph.relations)
+            processed.add(paragraph.id)
+            candidates_staged += len(staged.candidates)
 
         return IngestResult(
             paragraphs_total=len(paragraphs),
-            paragraphs_done=len(done),
-            entities_written=entities_written,
-            relations_written=relations_written,
+            paragraphs_done=len(processed),
+            candidates_staged=candidates_staged,
             paused=False,
             pause_reason=None,
         )

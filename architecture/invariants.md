@@ -24,9 +24,13 @@ No entity is ever created or merged into the graph without an explicit human dec
 automated cascade may *propose*; only the author *commits*. (**fail-closed** — on any
 uncertainty, fall through to the human, never auto-merge.)
 - **Source:** §3.3 Stage 4 ("CRITICAL"), §11 reversibility.
-- **Enforced at:** the Stage-4 review gate (M3). Guard: a candidate cannot transition to
-  `merged`/`created` except via a human action. *Not yet built — this is the contract M3 must
-  honour.*
+- **Enforced at:** *(as-built, M3.S4a / ADR 0004)* the human-accept path —
+  `CandidateReviewService.accept` / `.reject` (`agents/candidate_review.py`), reached only via
+  `POST /stories/{id}/candidates/{cid}/accept|reject`. The cascade stages a *proposal*
+  (`status='review-queued'`); the **only** code that writes Neo4j is the accept handler, on an
+  explicit human action. Guard: a candidate transitions to `merged`/`created` only through that
+  service; the extraction coordinator holds no graph writer at all (see INV-9). Test-witnessed by
+  the coordinator flip test + the integration "extract → zero nodes, accept → one node".
 - **Why it matters here:** the graph is the world's source of truth; ceding entity identity to
   a model would make the whole graph untrustworthy. See [[human-in-the-loop]].
 
@@ -59,8 +63,12 @@ for that call, and the UI makes the crossing explicit ("sending fragment to Anth
 No automatic action is final. The human can always undo a merge, a split, an extraction, an
 edit. "Never trust the LLM and forget."
 - **Source:** §11 reversibility.
-- **Enforced at:** `edit_history` (append-only change log) + graph operations designed as
-  undoable; the review queue. See [[compliance-audit-layer]].
+- **Enforced at:** *(as-built, M3.S4a)* every accept/reject writes an append-only
+  `candidate_decisions` evidence row (`agents/candidate_review.py` → `candidates` store), capturing
+  the decision, the target, and the proposal that was shown — the reversibility trail for *entity*
+  decisions (DM-S4a-4). The §4.2 `edit_history` (the *text-edit* dataset) is a different shape and
+  is deferred to the editing milestone; graph operations are designed undoable; the review queue is
+  the human surface. See [[compliance-audit-layer]].
 
 ### INV-4 — Open-world ontology: types are never a closed enum
 Entity `type` and relation type are open-world (**ontologia otwarta** — the set of kinds is not
@@ -124,7 +132,15 @@ host URL + optional key, a config flip, not a second code path.
   providers are added by implementing the Protocol, never by branching call sites. See
   [[model-tier-routing]].
 
-### INV-8 — [TEMPORARY · M2-scoped] No dedupe yet — every candidate is a new entity
+### INV-8 — [RETIRED · 2026-06-15, M3.S4a — superseded by INV-1 + INV-9]
+> **Retired.** The temporary "no dedupe — every candidate is a fresh `CREATE`" contract held
+> through M2 and was retired when intercept-before-write landed (M3.S4a, ADR 0004): extraction no
+> longer writes the graph at all, so there is no unconditional `CREATE` to constrain. Its purpose —
+> expose the duplicate problem — is served; the duplicate problem is now solved by the §3.3 cascade
+> proposing and the human committing (**INV-1**), and the "no automated graph write" half is named
+> **INV-9**. `Neo4jRepo.create_entity` is now an idempotent MERGE-on-id called only by the accept
+> handler. The original body is kept below for history.
+
 Through Milestone 2, extraction writes **every** candidate as a fresh Neo4j node with **no**
 matching/merge. This is a *deliberately temporary* invariant whose purpose is to expose the
 duplicate problem that M3's cascade then solves.
@@ -139,7 +155,22 @@ duplicate problem that M3's cascade then solves.
 - **Why list a temporary rule:** during M2 it *is* a contract the code must hold (two identical
   extractions must produce two nodes — there is even a test for it, §M2.S4); naming it prevents
   a well-meaning early dedupe from sneaking in before M3.
-- **Enforced at (as-built, M2.S4 / PR #48):** `Neo4jRepo.create_entity` uses `CREATE`, never
-  `MERGE` (the load-bearing keyword — a `MERGE`-on-name would silently violate this), and the
-  `ExtractionCoordinator` does no matching. The no-dedupe property is pinned by tests at four
-  levels (neo4j_repo, the pure `proposal_to_graph` mapping, the coordinator, and live persistence).
+- **Enforced at (M2.S4 / PR #48, until retired M3.S4a):** `Neo4jRepo.create_entity` used `CREATE`,
+  never `MERGE`, and the `ExtractionCoordinator` did no matching. The no-dedupe property was pinned
+  by tests at four levels (neo4j_repo, the pure `proposal_to_graph` mapping, the coordinator, and
+  live persistence) — those tests were rewritten/retired as INV-1/INV-9 landed.
+
+### INV-9 — No automated stage writes the graph
+The graph is written by **exactly one** code path: the human-accept handler. No extraction agent,
+matching/embedding/judge stage, or coordinator may write a Neo4j node or edge — they may only
+*stage* a proposal into Postgres. The general, greppable form of INV-1's guarantee: where INV-1 is
+about *who commits* (a human), INV-9 is about *what code may touch Neo4j* (only the accept path).
+- **Source:** §3.3 (the cascade *proposes*; Stage 4 commits), §7 steps 6–7; DM6 / ADR 0004.
+- **Enforced at:** *(as-built, M3.S4a)* the `ExtractionCoordinator` is constructed with **no**
+  graph writer (its collaborators are the extractor, the cascade stager, the candidate store, and a
+  read-only accepted-graph reader); the cascade agents are pure proposal logic. The single writer is
+  `CandidateReviewService` (`agents/candidate_review.py`). Guard: a reviewer can grep for
+  `create_entity` / `add_alias` and find them reachable only from the accept handler — a future
+  contributor "optimising" a confident auto-merge into a direct write would violate this, not improve it.
+- **Why it matters:** it is exactly the property a well-meaning optimisation would silently break, and
+  it gives the flip test a name. See [[fail-closed]], [[candidate-lifecycle]].

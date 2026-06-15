@@ -67,22 +67,31 @@ code.)
   HF-model channel. EmbeddingAgent built but **not** wired (mentions still written `embedding=None`).
 - **M3.S3** — `JudgeAgent` **Stage 3** (PR #60): LLM-as-judge, cloud_free via the router
   (`task_type="judge"`), strict `{match,confidence,reasoning}`, merge iff `match AND conf>0.8`.
-- **Crucially these are all proposal-only:** nothing in the `ExtractionCoordinator` calls them, so the
-  live path is unchanged — **INV-8 is still the live contract** (`neo4j_repo.py` `CREATE`-on-extract).
+- Stages 1–3 are proposal-only through their own sessions; they are **wired into the live path by
+  M3.S4a** (below).
 
-**Planned, not yet built (M3.S4 = the milestone close, re-sliced 2026-06-15):**
-- **M3.S4a** (backend) — the `candidates` staging table + **cascade wiring** + embed-on-extract + the
-  human-accept write-path; **retires INV-8 → lands INV-1's first enforcer** (+ possible INV-9) + **ADR
-  0004** (DM6 intercept-before-write); finalises `[[candidate-lifecycle]]` to `living`. Test-first — the
-  invariant flip is witnessed by the failing test ("no node without a human action").
+**M3.S4a — intercept-before-write, the backend milestone close (built, this PR / ADR 0004):**
+- The `ExtractionCoordinator` no longer writes the graph: it *stages* each candidate into a new
+  Postgres `candidates` table with the cascade's proposal (embed-on-extract → Matching S1/S2 → Judge
+  S3, fail-closed), writing **zero** Neo4j nodes. The graph is written **only** by the human-accept
+  path (`CandidateReviewService` → `POST /stories/{id}/candidates/{cid}/accept|reject`).
+- This **retires INV-8 → lands INV-1's first enforcer + INV-9** ("no automated stage writes the
+  graph"), finalises `[[candidate-lifecycle]]` to `living`, and is recorded in **ADR 0004**. Mentions
+  move to accept-time (with the candidate's context vector); the resume checkpoint is a
+  `paragraph_processed` marker; accept/reject leave an append-only `candidate_decisions` evidence row.
+  The store-down→503 fail-closed mapping + a Neo4j-driver lifespan close landed with it.
+
+**Planned, not yet built:**
 - **M3.S4b** (frontend) — the `features/extraction-review/` review-queue UI (§3.3 Stage-4 elements +
-  keyboard nav). INV-2 consent gate is **deferred past M3** (2026-06-15, persona-justified).
+  keyboard nav) consuming S4a's endpoints; the relation graph-write + re-point-on-merge (S4a stages
+  relation data but writes no edge). INV-2 consent gate is **deferred past M3** (2026-06-15,
+  persona-justified).
 
 So today Story Forge ingests and structures text, produces deterministic candidate spans,
-**extracts entity/relation candidates with an LLM** (routed, budgeted, recorded), and **writes
-them into the Neo4j graph with no dedupe** (every candidate a fresh node, INV-8) plus the
-`entity_mentions` back-reference — but it does **not** yet dedupe (M3's cascade). That ordering is
-deliberate — deterministic-first, smallest blast radius (see [[prefer-deterministic]]).
+**extracts entity/relation candidates with an LLM** (routed, budgeted, recorded), runs the §3.3
+cascade and **stages** each candidate with a NEW-vs-MERGE proposal — and writes the graph **only when
+the author accepts** at the (backend) review queue (INV-1/INV-9). The graph is empty until reviewed;
+the §3.3 dedupe is now the human's gated decision, not an automatic write.
 
 ---
 

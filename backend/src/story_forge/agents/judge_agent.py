@@ -13,10 +13,14 @@ cost ledger live in the router; the agent owns only the *prompt-retry* axis — 
 call → parse + validate → retry on schema failure — via the shared `validate_with_retry`.
 
 The output schema is **strict** (§3.3): a parseable-but-degenerate body (confidence out
-of [0,1], blank reasoning) must *fail* validation and trigger a retry, never pass. On
-give-up after retries the agent raises `JudgeError`, mirroring its sibling agents; the
-cascade coordinator (M3.S4) maps that to a fail-closed "uncertain → review queue", so a
-flaky judge never silently drops a candidate or auto-merges (the [[fail-closed]] rule).
+of [0,1], blank reasoning) must *fail* validation and trigger a retry, never pass. The
+agent's "couldn't judge" contract is **total**: it raises `JudgeError` on *any* failure to
+produce a verdict — schema give-up after retries, **and** a terminal transport/envelope
+failure (provider unreachable / unusable envelope after the router's failover). Only the
+pause-and-ask control signals (`BudgetExceededError` / `QuotaExhaustedError`) propagate
+untouched. The cascade maps `JudgeError` to a fail-closed "uncertain → review queue", so a
+flaky *or unreachable* judge never silently drops a candidate, auto-merges, or aborts the
+batch (the [[fail-closed]] rule).
 
 Both this and the verdict→outcome mapping only *propose* (INV-1: a human commits at Stage
 4). Built proposal-only and **unwired** through M3.S3 — the cascade is wired into the live
@@ -27,9 +31,10 @@ from __future__ import annotations
 
 import json
 
+import httpx
 from pydantic import BaseModel, Field, field_validator
 
-from story_forge.adapters.llm.base import Router
+from story_forge.adapters.llm.base import ProviderResponseError, Router
 from story_forge.agents.matching_agent import MatchOutcome
 from story_forge.agents.validation import validate_with_retry
 from story_forge.config import settings
@@ -172,16 +177,26 @@ class JudgeAgent:
 
         # The router owns transport/envelope failover and the budget cap, so its
         # `BudgetExceededError` / `QuotaExhaustedError` fall straight through to the
-        # caller; the shared loop retries only schema failures (a degenerate verdict).
-        verdict = await validate_with_retry(
-            JudgeVerdict,
-            lambda: self._router.complete(
-                messages, weight="medium", task_type="judge", json_schema=_SCHEMA
-            ),
-            max_retries=self._max_retries,
-            error=JudgeError,
-            label="judge",
-        )
+        # caller (the cascade pauses on them); the shared loop retries only schema failures.
+        # A terminal transport/envelope failure (provider unreachable, or an unusable
+        # envelope after failover) is *not* a prompt problem and not a pause signal — it
+        # means no verdict can be produced, so convert it to `JudgeError` (this agent's
+        # "couldn't judge" contract). The cascade fail-closes JudgeError toward the human,
+        # so a judge outage routes the candidate to review rather than aborting the batch.
+        try:
+            verdict = await validate_with_retry(
+                JudgeVerdict,
+                lambda: self._router.complete(
+                    messages, weight="medium", task_type="judge", json_schema=_SCHEMA
+                ),
+                max_retries=self._max_retries,
+                error=JudgeError,
+                label="judge",
+            )
+        except (ProviderResponseError, httpx.HTTPError) as exc:
+            raise JudgeError(
+                "judge unavailable — provider unreachable or unusable response"
+            ) from exc
         outcome = classify_verdict(verdict, confidence_merge=self._confidence_merge)
         # A NEW/uncertain proposal has no merge target; only a merge carries the entity.
         target = existing.id if outcome == "auto-merge-proposed" else None
