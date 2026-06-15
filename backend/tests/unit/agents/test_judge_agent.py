@@ -16,6 +16,7 @@ the router must *propagate*, never be retried.
 
 from __future__ import annotations
 
+import httpx
 import pytest
 from pydantic import ValidationError
 
@@ -23,6 +24,7 @@ from story_forge.adapters.llm.base import (
     BudgetExceededError,
     CompletionResult,
     Message,
+    ProviderResponseError,
     QuotaExhaustedError,
     Usage,
 )
@@ -217,6 +219,23 @@ async def test_quota_exhausted_propagates_and_is_not_retried() -> None:
     with pytest.raises(QuotaExhaustedError):
         await _judge(router)
     assert len(router.calls) == 1
+
+
+async def test_transport_failure_becomes_judge_error() -> None:
+    # A provider unreachable after the router's failover is not a pause signal and not a
+    # prompt problem — the agent's "couldn't judge" contract is total, so it surfaces as
+    # JudgeError (which the cascade fail-closes to the human, never aborts the batch).
+    router = FakeRouter([httpx.ConnectError("connection refused")])
+    with pytest.raises(JudgeError):
+        await _judge(router)
+
+
+async def test_unusable_envelope_becomes_judge_error() -> None:
+    # A 200 with a malformed envelope that exhausted failover (`ProviderResponseError`) is
+    # likewise converted to JudgeError, not propagated raw.
+    router = FakeRouter([ProviderResponseError("null content after failover")])
+    with pytest.raises(JudgeError):
+        await _judge(router)
 
 
 async def test_candidate_and_existing_entity_reach_the_prompt() -> None:

@@ -75,7 +75,8 @@ class CandidateDecision(BaseModel):
     A focused decisions log (DM-S4a-4) — *not* the §4.2 `edit_history` text-edit dataset,
     which is graph-decision-shaped here and is deferred to the editing milestone. Each row
     captures what the human decided, against which target, and the proposal they were shown.
-    The matcher consults `rejected` rows so it does not re-pester the author (DM-rej).
+    Rejections are recorded here **so a future matcher can consult them** and not re-pester the
+    author (DM-rej) — that consult is not built in S4a; this is the data it will read.
     """
 
     id: UUID = Field(default_factory=uuid4)

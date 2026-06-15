@@ -131,7 +131,8 @@ class CandidateReviewService:
         return ReviewResult(candidate.id, status, entity_id, already_decided=False)
 
     async def reject(self, candidate_id: UUID) -> ReviewResult:
-        """Reject a candidate — nothing enters the graph; the rejection is remembered (DM-rej)."""
+        """Reject a candidate — nothing enters the graph; the rejection is recorded as evidence
+        for a future matcher consult (DM-rej; that consult is not built in S4a)."""
         candidate = await self._load_open(candidate_id)
         if candidate is None:
             return await self._terminal_noop(candidate_id)
@@ -211,9 +212,21 @@ class CandidateReviewService:
         return candidate if candidate.status == "review-queued" else None
 
     async def _terminal_noop(self, candidate_id: UUID) -> ReviewResult:
-        """An already-decided candidate: return its terminal state without re-writing."""
+        """An already-decided candidate: return its terminal state without re-writing.
+
+        Reports the same `entity_id` the original accept committed, so an idempotent
+        re-accept (a double-submit) still hands the caller the live node: a `created`
+        candidate's node lives at the deterministic accept id; a `merged` one folded into
+        its target. (For a merge the reviewer *retargeted*, this reflects the proposal
+        target — the committed-target precision is the decision row's, an edge of the
+        double-submit edge, not worth a second read here.)
+        """
         candidate = await self._candidates.get(candidate_id)
-        assert candidate is not None  # _load_open already proved it exists
-        return ReviewResult(
-            candidate.id, candidate.status, candidate.target_entity_id, already_decided=True
-        )
+        if candidate is None:
+            raise CandidateNotFound(str(candidate_id))  # deleted between the two reads
+        entity_id: UUID | None = None
+        if candidate.status == "created":
+            entity_id = uuid5(_ACCEPT_NS, f"entity:{candidate.id}")
+        elif candidate.status == "merged":
+            entity_id = candidate.target_entity_id
+        return ReviewResult(candidate.id, candidate.status, entity_id, already_decided=True)

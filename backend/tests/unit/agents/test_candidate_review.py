@@ -148,11 +148,12 @@ async def test_reaccept_after_success_is_a_noop() -> None:
     candidate = _candidate(proposal="new")
     service, graph, _, _, _ = _service(candidate)
 
-    await service.accept(candidate.id, language=LANG)
+    first = await service.accept(candidate.id, language=LANG)
     second = await service.accept(candidate.id, language=LANG)
 
     assert second.already_decided is True
     assert second.status == "created"
+    assert second.entity_id == first.entity_id  # idempotent path still returns the live node
     assert len(graph.entities) == 1  # no second node
 
 

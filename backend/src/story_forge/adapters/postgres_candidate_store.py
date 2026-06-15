@@ -132,7 +132,8 @@ class PostgresCandidateStore:
             return await cur.fetchone()
 
     async def insert_decision(self, decision: CandidateDecision) -> None:
-        """Append an accept/reject evidence row (INV-3; the matcher consults rejections, DM-rej)."""
+        """Append an accept/reject evidence row (INV-3; rejections recorded for a future
+        matcher consult — DM-rej, not built in S4a)."""
         async with await self._connect(autocommit=True) as conn:
             await conn.execute(
                 "INSERT INTO candidate_decisions "

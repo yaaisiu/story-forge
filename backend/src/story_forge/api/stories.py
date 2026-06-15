@@ -624,9 +624,10 @@ async def reject_candidate(
     conn: Annotated[AsyncConnection, Depends(get_connection)],
     review: Annotated[CandidateReviewService, Depends(get_candidate_review)],
 ) -> ReviewResponse:
-    """Reject a staged candidate — nothing enters the graph; the rejection is remembered.
+    """Reject a staged candidate — nothing enters the graph; the rejection is recorded.
 
-    The matcher consults rejected candidates so it does not re-pester the author (DM-rej).
+    The rejection is stored as evidence so a future matcher can consult it and not re-pester
+    the author (DM-rej); that consult is not built in S4a.
     """
     if await get_story(conn, story_id) is None:
         raise HTTPException(status_code=404, detail="story not found")
