@@ -100,7 +100,17 @@ path the tests assert — find the cases nobody wrote a test for. Check, concret
   Walk the loop's fall-through and ask "which causes land me here, and does each get the honest
   outcome?" (M2.S2 router, PR #36: both bugs shipped — `RequestError` uncaught, *and* every
   exhausted `cloud_free` tier mislabelled "quota" regardless of cause — Codex caught both, this
-  skill's first pass missed both.)
+  skill's first pass missed both.) (c) **A fail-closed `except` that catches the agent's give-up
+  error but not the error classes the router *propagates past* it.** When code fail-closes on an
+  LLM agent — catching its give-up error (`JudgeError`, `ExtractionError`) to route to the human
+  instead of crashing — `validate_with_retry` only raises that give-up error on *schema* give-up;
+  the router's terminal **transport/envelope** failures (`httpx.HTTPError`, `ProviderResponseError`)
+  propagate *raw*. So a `except JudgeError` lets "provider unreachable" escape the fail-closed branch
+  and crash/502 the batch — the opposite of fail-closed. Check that either the agent's give-up error
+  is *total* (it wraps transport→give-up; see `backend/src/story_forge/AGENTS.md` Agents) or the
+  consumer's `except` also names `(ProviderResponseError, httpx.HTTPError)` — while still letting
+  `Budget`/`Quota` propagate as the pause signal. (M3.S4a PR #63: the cascade caught only `JudgeError`,
+  so a judge outage 502'd the batch; `/review-pr` missed it, multi-agent `/code-review` caught it.)
 
 For each suspected bug: state the input that triggers it and the wrong outcome. If you're
 unsure it's real, say so and how to confirm — don't drop it, don't overstate it.
@@ -150,6 +160,15 @@ repo, not the diff's touched files**:
   amended one — the §-summaries, hardware tables, roadmap, setup/key lists), `README.md`, *every*
   `AGENTS.md`, both plan files, the `architecture/` vault. The keyword the new decision uses
   (`OpenRouter`, `pause-and-ask`) finds the easy ones.
+- **A changed API *shape* has code consumers, not just doc homes — and regenerating the typed
+  client is not reconciling them.** When the PR renames/adds/removes a backend route's request or
+  response field, the regenerated `frontend/src/lib/api/schema.d.ts` updates the *types* but every
+  hand-written usage — hooks, components, and especially **test fixtures** that build the old shape —
+  still references the gone field and fails `tsc` (the frontend `build`, not lint). `grep -rn
+  "<old_field>\|<new_field>" frontend/src` and reconcile each hit. Confirm `openapi.json` +
+  `schema.d.ts` were regenerated *and* committed together (one without the other is drift). (M3.S4a
+  PR #63: `ExtractResponse` field rename left three frontend test fixtures on the old names — green
+  locally, red in CI; authoring-side mirror: `frontend/src/lib/api/AGENTS.md`.)
 - **Tracking / registry / navigation / status notes describe the fact in *different words*, so a
   keyword grep misses them — check them by hand.** ADR registries and "existing docs" lists (do
   they name the new ADR?); priority queues / "next steps" (is completed work still listed as

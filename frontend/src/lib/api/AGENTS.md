@@ -29,6 +29,17 @@ Commit both `openapi.json` and `schema.d.ts` together. A PR that changes one
 without the other means the snapshot drifted from the generated client — a
 review red flag.
 
+**Regenerating the client does NOT update its consumers — grep them.** When a
+backend route's request/response _shape_ changes (a renamed/added/removed field,
+e.g. M3.S4a's `ExtractResponse.{entities_written,relations_written}` →
+`candidates_staged`), regenerating `schema.d.ts` updates the _types_ but leaves
+every hand-written usage — hooks, components, and especially **test fixtures**
+that build the old shape — referencing the gone field. Those fail `tsc` (the
+`build` step), not lint. So after a regen, `grep -rn "<old_field>\|<new_field>"
+frontend/src` and reconcile each hit. (M3.S4a / PR #63: three test fixtures kept
+`entities_written` and bounced the frontend CI build — the regen looked done but
+the consumers weren't. Review-side mirror: `/review-pr` §2.)
+
 ## Why `openapi-typescript` runs via `npx`, not as a devDependency
 
 `openapi-typescript@7.13.0` declares a peer of `typescript@^5.x` while this
