@@ -218,12 +218,44 @@ async def test_redecide_after_success_is_a_noop() -> None:
     assert await service.list_committable(STORY) == []  # no longer staged
 
 
+def _merged(name: str, target: UUID, *, paragraph_id: UUID = PARA) -> StagedCandidate:
+    """A candidate accepted as a MERGE into `target` — `committed_entity_id` → the target id."""
+    return StagedCandidate(
+        project_id=PROJECT,
+        story_id=STORY,
+        paragraph_id=paragraph_id,
+        candidate_name=name,
+        type="Character",
+        context=f"{name} walked.",
+        proposal="merge",
+        target_entity_id=target,
+        stage_reached=1,
+        status="merged",
+    )
+
+
 async def test_self_loop_is_dropped() -> None:
-    # Two surface forms that resolve to the SAME entity (a merge artifact) → no self-edge.
-    janek = _accepted("Janek")
-    jan = _accepted("Janek")  # same paragraph + same normalised name → same committed id
-    rel = _relation(subject="Janek", predicate="IS", object_="Janek")
+    # Two distinct surface forms merged into the SAME entity (a merge artifact) resolve to one
+    # id → subject_id == object_id → no self-edge (the self-loop branch, not ambiguity).
+    target = uuid4()
+    janek = _merged("Janek", target)
+    jan = _merged("Jan", target)  # different name, same merge target → same committed id
+    rel = _relation(subject="Janek", predicate="KNOWS", object_="Jan")
     service, graph, _repo, _events = _service([rel], [janek, jan])
+
+    assert await service.list_committable(STORY) == []
+    with pytest.raises(RelationEndpointsUnresolved):
+        await service.decide(rel.id, action="commit")
+    assert graph.relations == {}
+
+
+async def test_ambiguous_same_name_endpoint_is_held() -> None:
+    # Two accepted candidates with the SAME name in one paragraph resolve to DIFFERENT entities
+    # → the endpoint is ambiguous → held, never guessed.
+    janek_a, janek_b = _accepted("Janek"), _accepted("Janek")  # distinct ids → distinct entities
+    mokosz = _accepted("Mokosz")
+    rel = _relation(subject="Janek", predicate="KNOWS", object_="Mokosz")
+    service, graph, _repo, _events = _service([rel], [janek_a, janek_b, mokosz])
 
     assert await service.list_committable(STORY) == []
     with pytest.raises(RelationEndpointsUnresolved):
