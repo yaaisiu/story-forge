@@ -107,6 +107,37 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/stories/{story_id}/entities": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Search Entities Route
+         * @description Search the project's accepted entities for the Stage-4 *manual handpick* (spec §3.3).
+         *
+         *     The reviewer can search **all** accepted entities in the project and pick any one as the
+         *     merge target — the safety net for a true duplicate the deterministic cascade missed (a
+         *     nickname embeddings don't catch, a name scoring just under threshold). Scope is the
+         *     story's **project** (the §6.4 tenancy key); cross-project / "whole world" search is
+         *     deferred with the §3.4 graph.
+         *
+         *     The query `q` is ranked **in Python** with the same RapidFuzz signal the matcher uses
+         *     (`search_entities` over `canonical_name` + aliases) — so the human's search ≈ the
+         *     machine's match — and so `q` **never reaches Cypher**: the only graph query
+         *     (`list_entities`) is parameterised by `project_id` alone. Blank `q` → no results.
+         */
+        get: operations["search_entities_route_stories__story_id__entities_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/stories/{story_id}/candidates": {
         parameters: {
             query?: never;
@@ -286,6 +317,39 @@ export interface components {
         CandidatesResponse: {
             /** Candidates */
             candidates: components["schemas"]["CandidateView"][];
+        };
+        /**
+         * EntitySearchResponse
+         * @description The handpick search hits, ranked best-first (spec §3.3 *Manual handpick*).
+         */
+        EntitySearchResponse: {
+            /** Entities */
+            entities: components["schemas"]["EntitySearchResult"][];
+        };
+        /**
+         * EntitySearchResult
+         * @description One accepted entity matched by the handpick search — the picker's row (M3.S4d).
+         *
+         *     Mirrors the review card's existing top-3 *alternative* shape (`entity_id` +
+         *     `canonical_name` + `score`) so a picked search result feeds the same merge-accept path,
+         *     plus `type` (to disambiguate same-named entities) and `aliases` (so the card can show
+         *     *why* it matched). `canonical_name` is the project-language-resolved name the matcher
+         *     ranks on, so the human's search reads the same name the machine matched.
+         */
+        EntitySearchResult: {
+            /**
+             * Entity Id
+             * Format: uuid
+             */
+            entity_id: string;
+            /** Canonical Name */
+            canonical_name: string;
+            /** Type */
+            type: string;
+            /** Score */
+            score: number;
+            /** Aliases */
+            aliases: string[];
         };
         /**
          * ErrorResponse
@@ -774,6 +838,48 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["GraphResponse"];
+                };
+            };
+            /** @description Story not found. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    search_entities_route_stories__story_id__entities_get: {
+        parameters: {
+            query?: {
+                q?: string;
+            };
+            header?: never;
+            path: {
+                story_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EntitySearchResponse"];
                 };
             };
             /** @description Story not found. */

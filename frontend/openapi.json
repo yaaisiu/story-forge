@@ -320,6 +320,70 @@
         }
       }
     },
+    "/stories/{story_id}/entities": {
+      "get": {
+        "tags": [
+          "stories"
+        ],
+        "summary": "Search Entities Route",
+        "description": "Search the project's accepted entities for the Stage-4 *manual handpick* (spec \u00a73.3).\n\nThe reviewer can search **all** accepted entities in the project and pick any one as the\nmerge target \u2014 the safety net for a true duplicate the deterministic cascade missed (a\nnickname embeddings don't catch, a name scoring just under threshold). Scope is the\nstory's **project** (the \u00a76.4 tenancy key); cross-project / \"whole world\" search is\ndeferred with the \u00a73.4 graph.\n\nThe query `q` is ranked **in Python** with the same RapidFuzz signal the matcher uses\n(`search_entities` over `canonical_name` + aliases) \u2014 so the human's search \u2248 the\nmachine's match \u2014 and so `q` **never reaches Cypher**: the only graph query\n(`list_entities`) is parameterised by `project_id` alone. Blank `q` \u2192 no results.",
+        "operationId": "search_entities_route_stories__story_id__entities_get",
+        "parameters": [
+          {
+            "name": "story_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Story Id"
+            }
+          },
+          {
+            "name": "q",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "default": "",
+              "title": "Q"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EntitySearchResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Story not found.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/stories/{story_id}/candidates": {
       "get": {
         "tags": [
@@ -778,6 +842,61 @@
         ],
         "title": "CandidatesResponse",
         "description": "A story's pending review queue."
+      },
+      "EntitySearchResponse": {
+        "properties": {
+          "entities": {
+            "items": {
+              "$ref": "#/components/schemas/EntitySearchResult"
+            },
+            "type": "array",
+            "title": "Entities"
+          }
+        },
+        "type": "object",
+        "required": [
+          "entities"
+        ],
+        "title": "EntitySearchResponse",
+        "description": "The handpick search hits, ranked best-first (spec \u00a73.3 *Manual handpick*)."
+      },
+      "EntitySearchResult": {
+        "properties": {
+          "entity_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Entity Id"
+          },
+          "canonical_name": {
+            "type": "string",
+            "title": "Canonical Name"
+          },
+          "type": {
+            "type": "string",
+            "title": "Type"
+          },
+          "score": {
+            "type": "number",
+            "title": "Score"
+          },
+          "aliases": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Aliases"
+          }
+        },
+        "type": "object",
+        "required": [
+          "entity_id",
+          "canonical_name",
+          "type",
+          "score",
+          "aliases"
+        ],
+        "title": "EntitySearchResult",
+        "description": "One accepted entity matched by the handpick search \u2014 the picker's row (M3.S4d).\n\nMirrors the review card's existing top-3 *alternative* shape (`entity_id` +\n`canonical_name` + `score`) so a picked search result feeds the same merge-accept path,\nplus `type` (to disambiguate same-named entities) and `aliases` (so the card can show\n*why* it matched). `canonical_name` is the project-language-resolved name the matcher\nranks on, so the human's search reads the same name the machine matched."
       },
       "ErrorResponse": {
         "properties": {

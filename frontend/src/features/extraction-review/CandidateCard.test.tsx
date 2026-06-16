@@ -11,6 +11,40 @@ import { describe, expect, it, vi } from "vitest";
 import { CandidateCard } from "./CandidateCard";
 import type { CandidateView } from "../../lib/api/useCandidates";
 
+// Stub the picker: it owns a network hook (covered by EntityPicker.test.tsx). Here it
+// stands in as a button that hands the card a fixed handpicked entity, so the card's own
+// wiring — handpick → merge-accept, precedence over the alternatives — is tested in
+// isolation. It echoes its storyId so we can assert the card threads it through.
+const HANDPICKED = {
+  entity_id: "handpicked-id",
+  canonical_name: "Katarzyna",
+  type: "Character",
+  score: 42,
+  aliases: [],
+};
+
+vi.mock("./EntityPicker", () => ({
+  EntityPicker: ({
+    storyId,
+    onPick,
+    disabled,
+  }: {
+    storyId?: string;
+    onPick: (r: typeof HANDPICKED) => void;
+    disabled?: boolean;
+  }) => (
+    <button
+      type="button"
+      data-testid="entity-picker-stub"
+      data-story-id={storyId ?? ""}
+      data-disabled={String(Boolean(disabled))}
+      onClick={() => onPick(HANDPICKED)}
+    >
+      pick handpicked
+    </button>
+  ),
+}));
+
 function candidate(over: Partial<CandidateView> = {}): CandidateView {
   return {
     id: "c1",
@@ -133,5 +167,61 @@ describe("CandidateCard — dispatch", () => {
   it("disables Merge until a target is picked", () => {
     renderCard({ mergeTargetIndex: null });
     expect(screen.getByTestId("accept-merge")).toBeDisabled();
+  });
+});
+
+describe("CandidateCard — manual handpick (M3.S4d)", () => {
+  it("threads the story id into the picker", () => {
+    renderCard({ storyId: "s1" });
+    expect(screen.getByTestId("entity-picker-stub")).toHaveAttribute("data-story-id", "s1");
+  });
+
+  it("a handpicked entity enables Merge and commits to it — even with no alternative picked", () => {
+    const { onAct } = renderCard({ mergeTargetIndex: null });
+    // No alternative picked → Merge starts disabled.
+    expect(screen.getByTestId("accept-merge")).toBeDisabled();
+
+    fireEvent.click(screen.getByTestId("entity-picker-stub"));
+
+    expect(screen.getByTestId("accept-merge")).toBeEnabled();
+    fireEvent.click(screen.getByTestId("accept-merge"));
+    expect(onAct).toHaveBeenCalledWith({
+      decision: "accept",
+      accept: { action: "merge", target_entity_id: "handpicked-id" },
+    });
+  });
+
+  it("a handpicked entity takes precedence over a picked alternative", () => {
+    const { onAct } = renderCard({ mergeTargetIndex: 1 }); // alternative "e2" picked
+    fireEvent.click(screen.getByTestId("entity-picker-stub")); // then handpick
+
+    fireEvent.click(screen.getByTestId("accept-merge"));
+    expect(onAct).toHaveBeenCalledWith({
+      decision: "accept",
+      accept: { action: "merge", target_entity_id: "handpicked-id" },
+    });
+  });
+
+  it("picking an alternative after a handpick wins — the handpick is cleared (last pick wins)", () => {
+    // Precedence is handpick-over-alternative *only while the handpick stands*; choosing an
+    // alternative is a newer decision and must override the handpick, not be swallowed by it.
+    const { onPickTarget } = renderCard({ mergeTargetIndex: null });
+    fireEvent.click(screen.getByTestId("entity-picker-stub")); // handpick "handpicked-id"
+    fireEvent.click(screen.getAllByTestId("candidate-alternative")[0]!); // then an alternative
+
+    expect(onPickTarget).toHaveBeenCalledWith(0);
+    // The handpick is gone, so the handpick "will merge into" hint clears.
+    expect(screen.queryByTestId("handpick-target")).not.toBeInTheDocument();
+  });
+
+  it("shows which entity a handpick will merge into", () => {
+    renderCard();
+    fireEvent.click(screen.getByTestId("entity-picker-stub"));
+    expect(screen.getByTestId("handpick-target")).toHaveTextContent("Katarzyna");
+  });
+
+  it("disables the picker while a decision is in flight", () => {
+    renderCard({ pending: true });
+    expect(screen.getByTestId("entity-picker-stub")).toHaveAttribute("data-disabled", "true");
   });
 });

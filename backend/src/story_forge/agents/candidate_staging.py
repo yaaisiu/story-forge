@@ -117,8 +117,12 @@ def derive_context(paragraph_text: str, evidence_quote: str | None) -> str:
     return paragraph_text
 
 
-def _canonical(entity: GraphEntity, language: str) -> str:
-    """Pick the single name Stages 1/3 match against — project language first, peer fallback."""
+def canonical_for_language(entity: GraphEntity, language: str) -> str:
+    """Pick the single name Stages 1/3 match against — project language first, peer fallback.
+
+    Public so the manual-handpick search route (M3.S4d) builds its `ExistingEntity` with the
+    *same* name the matcher ranks on — "search ≈ match". `api → agents` is an allowed import.
+    """
     if language == "pl":
         return entity.canonical_name_pl or entity.canonical_name_en or ""
     return entity.canonical_name_en or entity.canonical_name_pl or ""
@@ -272,7 +276,9 @@ def _new(*, stage: int, confidence: float | None, reasoning: str | None = None) 
 
 def _to_existing(entity: GraphEntity, language: str) -> ExistingEntity:
     return ExistingEntity(
-        id=str(entity.id), canonical_name=_canonical(entity, language), aliases=entity.aliases
+        id=str(entity.id),
+        canonical_name=canonical_for_language(entity, language),
+        aliases=entity.aliases,
     )
 
 
@@ -281,7 +287,7 @@ def _to_context(
 ) -> ExistingEntityContext:
     return ExistingEntityContext(
         id=str(entity.id),
-        canonical_name=_canonical(entity, language),
+        canonical_name=canonical_for_language(entity, language),
         aliases=entity.aliases,
         type=entity.type,
         properties=entity.properties,

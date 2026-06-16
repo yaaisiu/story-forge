@@ -105,6 +105,23 @@ def cosine_similarity(a: Sequence[float], b: Sequence[float]) -> float:
     return dot / (norm_a * norm_b)
 
 
+def _rank(query: str, existing: list[ExistingEntity]) -> list[tuple[float, str, str]]:
+    """Score every entity by its best token_set_ratio over canonical_name + aliases.
+
+    The one ranking core both the Stage-4 alternatives (`top_alternatives`) and the
+    manual-handpick search (`search_entities`) share, so the human's "search" ranks by
+    the exact same RapidFuzz signal Stage 1 matches on ("search ≈ match"). Returns
+    `(score, entity_id, canonical_name)` rows sorted best-first. Empty graph → `[]`.
+    """
+    scored: list[tuple[float, str, str]] = []
+    for entity in existing:
+        names = [entity.canonical_name, *entity.aliases]
+        best = max((fuzz.token_set_ratio(query, name) for name in names), default=0.0)
+        scored.append((best, entity.id, entity.canonical_name))
+    scored.sort(key=lambda row: row[0], reverse=True)
+    return scored
+
+
 def top_alternatives(
     candidate_name: str, existing: list[ExistingEntity], *, k: int = 3
 ) -> list[dict[str, object]]:
@@ -116,16 +133,37 @@ def top_alternatives(
     the staged candidate carries the alternatives the review UI (S4b) renders without
     re-querying the graph. Empty graph → empty list.
     """
-    scored: list[tuple[float, str, str]] = []
-    for entity in existing:
-        names = [entity.canonical_name, *entity.aliases]
-        best = max((fuzz.token_set_ratio(candidate_name, name) for name in names), default=0.0)
-        scored.append((best, entity.id, entity.canonical_name))
-    scored.sort(key=lambda row: row[0], reverse=True)
     return [
         {"entity_id": entity_id, "canonical_name": name, "score": score}
-        for score, entity_id, name in scored[:k]
+        for score, entity_id, name in _rank(candidate_name, existing)[:k]
     ]
+
+
+def search_entities(
+    query: str, existing: list[ExistingEntity], *, limit: int
+) -> list[dict[str, object]]:
+    """Rank existing entities for the author's *manual-handpick* search (spec §3.3, M3.S4d).
+
+    The Stage-4 reviewer can search **all** accepted entities and pick any as the merge
+    target — the safety net for a true duplicate the cascade missed. This uses the same
+    `_rank` (RapidFuzz token_set_ratio over canonical_name + aliases) as Stage 1 and the
+    top-3 alternatives, so the human's search ranks by the machine's matching signal.
+
+    Differs from `top_alternatives` only in being a search: an arbitrary query (not a
+    candidate's surface form), and a `limit` cap on the payload (a top-N, no pagination —
+    one solo author over one project's entities). A blank/whitespace query is not a search
+    → `[]`. **No score floor on purpose**: the duplicates handpick exists to catch — a
+    diminutive like "Kasia"↔"Katarzyna" — score *below* unrelated cross-category noise, so
+    any cut that removes the noise would also hide the very target the feature is for. The
+    target must stay *reachable*; the human (INV-1) makes the final pick. The cap bounds the
+    list; ranking puts the closest surface forms first.
+    """
+    if not query.strip():
+        return []
+    return [
+        {"entity_id": entity_id, "canonical_name": name, "score": score}
+        for score, entity_id, name in _rank(query, existing)
+    ][:limit]
 
 
 def classify(score: float, *, merge_threshold: float, ambiguous_floor: float) -> MatchOutcome:

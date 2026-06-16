@@ -42,6 +42,7 @@ from story_forge.agents.candidate_review import (
     CandidateReviewService,
     StaleMergeTarget,
 )
+from story_forge.agents.candidate_staging import canonical_for_language
 from story_forge.agents.chunking_agent import ChunkingError
 from story_forge.agents.chunking_coordinator import (
     ChunkingCoordinator,
@@ -49,6 +50,7 @@ from story_forge.agents.chunking_coordinator import (
 )
 from story_forge.agents.extraction_agent import ExtractionError
 from story_forge.agents.extraction_coordinator import ExtractionCoordinator
+from story_forge.agents.matching_agent import ExistingEntity, search_entities
 from story_forge.config import settings
 from story_forge.domain.candidates import CandidateProposal, StagedCandidate
 from story_forge.domain.chunking import outline_to_tree
@@ -416,6 +418,35 @@ class GraphResponse(BaseModel):
     edges: list[GraphEdge]
 
 
+# A top-N cap on the manual-handpick search payload (M3.S4d). Not a §3.3 matching
+# threshold (those live in config.py / DM1) — a presentation bound: one solo author over
+# one project's entities never needs pagination, and ranking puts the best matches first.
+ENTITY_SEARCH_LIMIT = 20
+
+
+class EntitySearchResult(BaseModel):
+    """One accepted entity matched by the handpick search — the picker's row (M3.S4d).
+
+    Mirrors the review card's existing top-3 *alternative* shape (`entity_id` +
+    `canonical_name` + `score`) so a picked search result feeds the same merge-accept path,
+    plus `type` (to disambiguate same-named entities) and `aliases` (so the card can show
+    *why* it matched). `canonical_name` is the project-language-resolved name the matcher
+    ranks on, so the human's search reads the same name the machine matched.
+    """
+
+    entity_id: UUID
+    canonical_name: str
+    type: str
+    score: float
+    aliases: list[str]
+
+
+class EntitySearchResponse(BaseModel):
+    """The handpick search hits, ranked best-first (spec §3.3 *Manual handpick*)."""
+
+    entities: list[EntitySearchResult]
+
+
 @router.get(
     "/{story_id}/graph",
     responses={404: {"model": ErrorResponse, "description": "Story not found."}},
@@ -460,6 +491,58 @@ async def get_story_graph(
             )
             for r in relations
         ],
+    )
+
+
+@router.get(
+    "/{story_id}/entities",
+    responses={404: {"model": ErrorResponse, "description": "Story not found."}},
+)
+async def search_entities_route(
+    story_id: UUID,
+    conn: Annotated[AsyncConnection, Depends(get_connection)],
+    repo: Annotated[Neo4jRepo, Depends(get_neo4j_repo)],
+    q: str = "",
+) -> EntitySearchResponse:
+    """Search the project's accepted entities for the Stage-4 *manual handpick* (spec §3.3).
+
+    The reviewer can search **all** accepted entities in the project and pick any one as the
+    merge target — the safety net for a true duplicate the deterministic cascade missed (a
+    nickname embeddings don't catch, a name scoring just under threshold). Scope is the
+    story's **project** (the §6.4 tenancy key); cross-project / "whole world" search is
+    deferred with the §3.4 graph.
+
+    The query `q` is ranked **in Python** with the same RapidFuzz signal the matcher uses
+    (`search_entities` over `canonical_name` + aliases) — so the human's search ≈ the
+    machine's match — and so `q` **never reaches Cypher**: the only graph query
+    (`list_entities`) is parameterised by `project_id` alone. Blank `q` → no results.
+    """
+    story = await get_story(conn, story_id)
+    if story is None:
+        raise HTTPException(status_code=404, detail="story not found")
+    project = await get_project(conn, story.project_id)
+    language = project.language if project is not None else "pl"
+
+    entities = await repo.list_entities(story.project_id)
+    by_id = {str(e.id): e for e in entities}
+    existing = [
+        ExistingEntity(
+            id=str(e.id), canonical_name=canonical_for_language(e, language), aliases=e.aliases
+        )
+        for e in entities
+    ]
+    ranked = search_entities(q, existing, limit=ENTITY_SEARCH_LIMIT)
+    return EntitySearchResponse(
+        entities=[
+            EntitySearchResult(
+                entity_id=UUID(str(row["entity_id"])),
+                canonical_name=str(row["canonical_name"]),
+                type=by_id[str(row["entity_id"])].type,
+                score=float(row["score"]),  # type: ignore[arg-type]
+                aliases=by_id[str(row["entity_id"])].aliases,
+            )
+            for row in ranked
+        ]
     )
 
 
