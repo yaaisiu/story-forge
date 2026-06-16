@@ -65,8 +65,8 @@ export function ReviewQueue() {
   useEffect(() => {
     function onKeyDown(event: KeyboardEvent) {
       // The scheme is bound at the window, so skip it when the user is typing into a
-      // field (none today, but the deferred arbitrary-search picker will add one —
-      // see docs/PLAN_SHORT.md cross-cutting) — else J/K/A/… would hijack their input.
+      // field — the handpick search box (EntityPicker, M3.S4d) is one — else J/K/A/…
+      // would hijack their input.
       if (isEditableTarget(event.target)) return;
       const result = reduceReviewKey(event.key, { ...nav, selectedIndex }, candidates);
       if (!result) return;
@@ -131,6 +131,7 @@ export function ReviewQueue() {
               <CandidateCard
                 candidate={candidate}
                 isSelected={index === selectedIndex}
+                storyId={storyId}
                 mergeTargetIndex={index === selectedIndex ? nav.mergeTargetIndex : null}
                 onAct={(intent) => commit(index, intent)}
                 onPickTarget={(altIndex) =>

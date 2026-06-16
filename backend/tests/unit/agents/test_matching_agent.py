@@ -24,6 +24,8 @@ from story_forge.agents.matching_agent import (
     MatchingAgent,
     classify,
     cosine_similarity,
+    search_entities,
+    top_alternatives,
 )
 
 # Appendix B characters, in the post-merge shape Stage 1 matches against: an entity
@@ -212,3 +214,63 @@ def test_stage2_opposite_vector_still_selects_the_entity(agent: MatchingAgent) -
     assert result.outcome == "ambiguous"
     assert result.target_entity_id == "e-1"
     assert result.score == pytest.approx(-1.0)
+
+
+# ── Manual-handpick search (M3.S4d) — same RapidFuzz signal as the matcher ────
+
+
+def test_search_entities_ranks_by_fuzzy_score() -> None:
+    # The author types "Bronek"; the search ranks accepted entities by the *same*
+    # token_set_ratio the matcher uses, best first — so "search ≈ match".
+    results = search_entities("Bronek", [KAZIMIERZ, BRONEK], limit=20)
+
+    assert results[0]["entity_id"] == "e-bronek"  # best match leads
+    assert results[0]["canonical_name"] == "Stary Bronek"
+    assert results[0]["score"] >= results[-1]["score"]  # descending
+
+
+def test_search_entities_keeps_low_score_match_reachable() -> None:
+    # The feature's whole point: handpick must reach a duplicate the *matcher* missed.
+    # A diminutive like "Kasia"↔"Katarzyna" scores low on token_set_ratio (~43, below the
+    # cascade's bands) — yet it must NOT be filtered out, or the safety net has the same
+    # blind spot the cascade does. There is no score floor; the human makes the pick.
+    katarzyna = ExistingEntity(id="e-kat", canonical_name="Katarzyna", aliases=[])
+    results = search_entities("Kasia", [katarzyna], limit=20)
+
+    assert [r["entity_id"] for r in results] == ["e-kat"]
+
+
+def test_search_entities_respects_limit() -> None:
+    # The result cap bounds the payload (a top-N, no pagination — solo author).
+    people = [ExistingEntity(id=f"e-{i}", canonical_name=f"Jan {i}", aliases=[]) for i in range(10)]
+    results = search_entities("Jan", people, limit=3)
+
+    assert len(results) == 3
+
+
+def test_search_entities_blank_query_returns_empty() -> None:
+    # A blank/whitespace query is not a search — short-circuit to [] (the hook
+    # gates on a non-empty q, but the endpoint must be safe regardless).
+    assert search_entities("", [BRONEK], limit=20) == []
+    assert search_entities("   ", [BRONEK], limit=20) == []
+
+
+def test_search_entities_matches_on_aliases() -> None:
+    # The search scores against canonical_name *and* aliases, like the matcher — so a
+    # folded-in surface form ("Bronek" is an alias of "Stary Bronek") still hits.
+    results = search_entities("Bronek", [BRONEK], limit=20)
+
+    assert results and results[0]["entity_id"] == "e-bronek"
+
+
+def test_top_alternatives_still_returns_top_k_with_existing_shape() -> None:
+    # Regression guard: top_alternatives keeps its {entity_id, canonical_name, score}
+    # shape and top-k cut after the shared-ranking refactor that search_entities reuses.
+    alts = top_alternatives("Bronek", [KAZIMIERZ, BRONEK], k=3)
+
+    assert alts[0] == {
+        "entity_id": "e-bronek",
+        "canonical_name": "Stary Bronek",
+        "score": alts[0]["score"],
+    }
+    assert len(alts) <= 3

@@ -9,12 +9,18 @@
 // Stale alternatives: these are staged at extraction time and not re-validated here
 // (see reviewQueue.ts). The container handles the 409 a vanished merge target returns.
 
+import { useState } from "react";
+
 import type { CandidateView } from "../../lib/api/useCandidates";
+import type { EntitySearchResult } from "../../lib/api/useEntitySearch";
+import { EntityPicker } from "./EntityPicker";
 import { alternativesOf, type ReviewIntent } from "./reviewQueue";
 
 interface CandidateCardProps {
   candidate: CandidateView;
   isSelected: boolean;
+  /** The story whose project the handpick search is scoped to (M3.S4d). */
+  storyId?: string;
   /** Index of the alternative currently picked as the merge target, or null. */
   mergeTargetIndex: number | null;
   /** Commit a decision for this candidate. */
@@ -28,6 +34,7 @@ interface CandidateCardProps {
 export function CandidateCard({
   candidate,
   isSelected,
+  storyId,
   mergeTargetIndex,
   onAct,
   onPickTarget,
@@ -35,7 +42,12 @@ export function CandidateCard({
 }: CandidateCardProps) {
   const alternatives = alternativesOf(candidate);
   const proposalTarget = alternatives.find((a) => a.entity_id === candidate.target_entity_id);
-  const pickedTarget = mergeTargetIndex !== null ? alternatives[mergeTargetIndex] : undefined;
+  const pickedAlternative = mergeTargetIndex !== null ? alternatives[mergeTargetIndex] : undefined;
+  // A handpicked entity (searched from the whole project, M3.S4d) overrides a top-3
+  // alternative: it is the more deliberate choice, and is the only way to reach a target
+  // the cascade never surfaced. Both share {entity_id, canonical_name}.
+  const [handpicked, setHandpicked] = useState<EntitySearchResult | null>(null);
+  const mergeTarget = handpicked ?? pickedAlternative;
 
   return (
     <article
@@ -96,14 +108,20 @@ export function CandidateCard({
           </p>
           <ul className="flex flex-col gap-1">
             {alternatives.map((alt, index) => {
-              const active = index === mergeTargetIndex;
+              // A live handpick overrides the alternatives, so none reads as the active
+              // target while one is set — and picking an alternative clears the handpick,
+              // so the most recent choice always wins (no stale handpick silently winning).
+              const active = index === mergeTargetIndex && !handpicked;
               return (
                 <li key={alt.entity_id}>
                   <button
                     type="button"
                     data-testid="candidate-alternative"
                     data-active={String(active)}
-                    onClick={() => onPickTarget(index)}
+                    onClick={() => {
+                      setHandpicked(null);
+                      onPickTarget(index);
+                    }}
                     className={`w-full rounded border px-2 py-1 text-left text-xs ${
                       active
                         ? "border-amber-400 bg-amber-50 text-amber-900"
@@ -118,6 +136,14 @@ export function CandidateCard({
             })}
           </ul>
         </div>
+      )}
+
+      <EntityPicker storyId={storyId} onPick={setHandpicked} disabled={pending} />
+
+      {handpicked && (
+        <p data-testid="handpick-target" className="text-xs text-amber-800">
+          Will merge into <span className="font-medium">{handpicked.canonical_name}</span>
+        </p>
       )}
 
       <footer className="flex flex-wrap gap-2">
@@ -143,13 +169,13 @@ export function CandidateCard({
           type="button"
           data-testid="accept-merge"
           onClick={() =>
-            pickedTarget &&
+            mergeTarget &&
             onAct({
               decision: "accept",
-              accept: { action: "merge", target_entity_id: pickedTarget.entity_id },
+              accept: { action: "merge", target_entity_id: mergeTarget.entity_id },
             })
           }
-          disabled={pending || !pickedTarget}
+          disabled={pending || !mergeTarget}
           className="rounded border border-amber-300 px-3 py-1 text-xs font-medium text-amber-800 hover:bg-amber-50 disabled:opacity-50"
         >
           Merge (M)
