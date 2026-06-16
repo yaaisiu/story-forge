@@ -19,20 +19,32 @@ enforces is just a wish.
 
 ---
 
-### INV-1 — Human-in-the-loop on every entity create/merge
-No entity is ever created or merged into the graph without an explicit human decision. The
-automated cascade may *propose*; only the author *commits*. (**fail-closed** — on any
-uncertainty, fall through to the human, never auto-merge.)
-- **Source:** §3.3 Stage 4 ("CRITICAL"), §11 reversibility.
-- **Enforced at:** *(as-built, M3.S4a / ADR 0004)* the human-accept path —
-  `CandidateReviewService.accept` / `.reject` (`agents/candidate_review.py`), reached only via
-  `POST /stories/{id}/candidates/{cid}/accept|reject`. The cascade stages a *proposal*
-  (`status='review-queued'`); the **only** code that writes Neo4j is the accept handler, on an
-  explicit human action. Guard: a candidate transitions to `merged`/`created` only through that
-  service; the extraction coordinator holds no graph writer at all (see INV-9). Test-witnessed by
-  the coordinator flip test + the integration "extract → zero nodes, accept → one node".
-- **Why it matters here:** the graph is the world's source of truth; ceding entity identity to
-  a model would make the whole graph untrustworthy. See [[human-in-the-loop]].
+### INV-1 — Human-in-the-loop on every entity create/merge **and every relation edge**
+No entity is ever created or merged into the graph — **and no relation edge is ever written** —
+without an explicit human decision. The automated cascade may *propose*; only the author
+*commits*. (**fail-closed** — on any uncertainty, fall through to the human, never auto-merge,
+never auto-write an edge.)
+- **Source:** §3.3 Stage 4 ("CRITICAL") — incl. the 5th human action *"decide on relations
+  (which entities it links to and how)"* — and §11 reversibility.
+- **Enforced at:** *(as-built, M3.S4a / ADR 0004 for nodes; M3.S4e / ADR 0005 for edges)* the
+  human-decision paths — `CandidateReviewService.accept` / `.reject` (`agents/candidate_review.py`,
+  via `POST …/candidates/{cid}/accept|reject`) for **nodes**, and
+  `RelationReviewService.decide` (`agents/relation_review.py`, via `POST …/relations/{rid}/decide`)
+  for **edges**. Each stages a *proposal* (`status='review-queued'` / `status='staged'`); the
+  **only** code that writes a Neo4j node is the accept handler and the **only** code that writes a
+  Neo4j edge is the relation-decide handler, each on an explicit human action. Guard: a candidate
+  reaches `merged`/`created` only through the accept service and a relation reaches `written` only
+  through the decide service; the extraction coordinator holds no graph writer at all (see INV-9).
+  Test-witnessed by the coordinator flip test + the integration "extract → zero nodes/edges, accept
+  → one node", "accept both endpoints → decide → exactly one edge; retried decide → no double".
+- **Broadened 2026-06-16 (M3.S4e, DM-Rel-1):** the relation slice chose an *explicit human gate*
+  over auto-writing an edge once both endpoints are accepted — an auto-write would commit a
+  hallucinated predicate/direction even when both nodes are right, the exact LLM error the gate
+  exists to catch. Rather than mint a near-duplicate INV-10, the single human-gate principle is
+  broadened to cover edges (the resolution stays deterministic so the human's act is a thin
+  confirm/prune, not data entry — [[prefer-deterministic]]).
+- **Why it matters here:** the graph is the world's source of truth; ceding entity identity *or a
+  relation's meaning* to a model would make the whole graph untrustworthy. See [[human-in-the-loop]].
 
 ### INV-2 — Text leaves the machine only to the chosen provider, only with consent
 Story text is never transmitted anywhere except the LLM provider the user explicitly selected
@@ -161,17 +173,25 @@ duplicate problem that M3's cascade then solves.
   live persistence) — those tests were rewritten/retired as INV-1/INV-9 landed.
 
 ### INV-9 — No automated stage writes the graph
-The graph is written by **exactly one** code path: the human-accept handler. No extraction agent,
-matching/embedding/judge stage, or coordinator may write a Neo4j node or edge — they may only
-*stage* a proposal into Postgres. The general, greppable form of INV-1's guarantee: where INV-1 is
-about *who commits* (a human), INV-9 is about *what code may touch Neo4j* (only the accept path).
-- **Source:** §3.3 (the cascade *proposes*; Stage 4 commits), §7 steps 6–7; DM6 / ADR 0004.
-- **Enforced at:** *(as-built, M3.S4a)* the `ExtractionCoordinator` is constructed with **no**
-  graph writer (its collaborators are the extractor, the cascade stager, the candidate store, and a
-  read-only accepted-graph reader); the cascade agents are pure proposal logic. The single writer is
-  `CandidateReviewService` (`agents/candidate_review.py`). Guard: a reviewer can grep for
-  `create_entity` / `add_alias` and find them reachable only from the accept handler — a future
-  contributor "optimising" a confident auto-merge into a direct write would violate this, not improve it.
+The graph is written by **exactly two** human-decision code paths: the accept handler (nodes) and
+the relation-decide handler (edges). No extraction agent, matching/embedding/judge stage, or
+coordinator may write a Neo4j node or edge — they may only *stage* a proposal into Postgres. The
+general, greppable form of INV-1's guarantee: where INV-1 is about *who commits* (a human), INV-9 is
+about *what code may touch Neo4j* (only the two human-reached handlers).
+- **Source:** §3.3 (the cascade *proposes*; Stage 4 commits), §7 steps 6–7; DM6 / ADR 0004; M3.S4e / ADR 0005.
+- **Enforced at:** *(as-built, M3.S4a for nodes; M3.S4e for edges)* the `ExtractionCoordinator` is
+  constructed with **no** graph writer (its collaborators are the extractor, the cascade stager, the
+  candidate store, and a read-only accepted-graph reader); the cascade agents are pure proposal logic.
+  The writers are `CandidateReviewService` (nodes, `agents/candidate_review.py`) and
+  `RelationReviewService` (edges, `agents/relation_review.py`). Guard: a reviewer can grep for
+  `create_entity` / `add_alias` / `create_relation` and find them reachable only from a human-decision
+  handler — a future contributor "optimising" a confident auto-merge or an auto-edge into a direct
+  write would violate this, not improve it.
+- **Second witnessed instance (M3.S4e, edges).** INV-9 always said "node *or edge*"; until S4e no
+  code wrote an edge at all (`create_relation` had zero callers). S4e makes the edge case real:
+  `RelationReviewService` is the sole edge writer, reached only from the human decide endpoint;
+  the coordinator still writes nothing. The "extract → zero edges, decide → one edge" integration
+  test is the edge analogue of the node flip test.
 - **Why it matters:** it is exactly the property a well-meaning optimisation would silently break, and
   it gives the flip test a name. See [[fail-closed]], [[candidate-lifecycle]].
 - **The line INV-9 draws is *graph vs staging*, not *human vs automated* (clarified M3.S4c).** On-accept

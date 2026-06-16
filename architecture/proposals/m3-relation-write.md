@@ -2,27 +2,29 @@
 type: proposal
 slug: m3-relation-write
 updated: 2026-06-16
-status: proposed
+status: accepted
 related: ["[[m3-cascade-matching]]", "[[m3s4a-intercept-write-path]]", "[[candidate-lifecycle]]", "[[invariants]]", "[[open-questions]]", "[[overview]]", "[[human-in-the-loop]]", "[[fail-closed]]", "[[idempotency]]", "[[toctou]]", "[[open-world-ontology]]", "[[compliance-audit-layer]]"]
 ---
 
 # M3 relation-write — committing graph edges under human control (step-0)
 
-> **Status: proposed — register PARTLY RESOLVED (DM-Rel-1 + the slice decided 2026-06-16;
-> DM-Rel-2/4/5/6/7 still open). The owner decides; the architect proposes.**
-> This is the step-0 decompose for the M3 slice that completes *"the graph is clean"* (§9 M3) **for
-> relations**. Entity dedupe (S4a–S4d) is done; today a merge orphans a candidate's staged relations
-> because **no code writes graph edges**. Owner framing (2026-06-16): this is an **M3 slice**, not an
+> **Status: ACCEPTED — register FULLY RESOLVED. Built in M3.S4e (2026-06-16); recorded in ADR 0005.**
+> This was the step-0 decompose for the M3 slice that completes *"the graph is clean"* (§9 M3) **for
+> relations**. Entity dedupe (S4a–S4d) is done; before S4e a merge orphaned a candidate's staged
+> relations because **no code wrote graph edges**. Owner framing (2026-06-16): an **M3 slice**, not an
 > M3→M4 roll — relations are part of M3's clean-graph outcome.
 >
-> **Resolved (owner, 2026-06-16; authoritative in `docs/PLAN_SHORT.md` Decided S28 + Blocked / OQ-19):**
-> **DM-Rel-1 → (b) an EXPLICIT human gate** over relations — the §3.3 5th action "decide on relations",
-> *not* auto-write (option (a)) and *not* the hybrid (option (c)). **Slice → split BACKEND-now (S4e) /
-> UI-next (S4f)** (the S4a→S4b cut). The DM-Rel-1 register entry below reads as the Decision; options (a)
-> auto-write and (c) hybrid are kept for the record but are **rejected** — anywhere this note still poses
-> "auto vs human gate" as a *live* fork (the Mermaid gate node, the Intent/Decision stations, the INV
-> framing) now resolves to the **human gate**. Stays `proposed` because **DM-Rel-2/4/5/6/7 remain open**
-> (carried as proposed, confirm-at-build per the S4a pattern); the note goes to `accepted` when they resolve.
+> **Resolved (owner + build, 2026-06-16; authoritative in `docs/decisions/0005`, `docs/PLAN_SHORT.md`
+> Decided S29, `[[invariants]]` INV-1/INV-9):**
+> - **DM-Rel-1 → (b) an EXPLICIT human gate** over relations (the §3.3 5th action "decide on relations"),
+>   *not* auto-write (a) and *not* the hybrid (c, kept as a fallback). Slice **split BACKEND-now (S4e) /
+>   UI-next (S4f)**. Anywhere this note still poses "auto vs human gate" as a *live* fork resolves to the gate.
+> - **DM-Rel-2/4/5/6/7 → confirmed at build as the architect proposed** (the S4a pattern): normalised-exact
+>   same-paragraph resolution reading the committed id from `candidates` (the create-id derivation promoted
+>   to the shared `domain.candidates.committed_entity_id` helper — the drift fix DM-Rel-2 flagged); a
+>   `staged_relations` table; M3 writes / M4 re-points; idempotent MERGE on `uuid5(subject_id, predicate,
+>   object_id)` (one edge per fact across paragraphs — with the *lost-per-mention-provenance* follow-up noted
+>   in ADR 0005); dangling-to-known endpoints held. INV-1 was **broadened** (not INV-10 minted) to cover edges.
 >
 > **Authoritative contract (referenced, never restated):** spec **§3.2** (entity/relation data model),
 > **§3.3** (the Stage-4 human actions — incl. the 5th, *"decide on relations (which entities it links
@@ -215,12 +217,13 @@ the machine cannot be finalised until it resolves.
   sibling reached by a human endpoint), never from the `ExtractionCoordinator`. This slice must not weaken
   INV-9 — the greppable guard (no `create_relation` reachable from the coordinator/agents) extends to the new
   write. **No change to INV-9; it gains a second witnessed instance.**
-- **INV-1 broadened, or a new INV-10 (DM-Rel-1 ✅ explicit gate).** With the explicit gate chosen, the
-  human commits each edge, so the invariant is the strong form: either *broaden INV-1* ("human-in-the-loop on
-  every entity create/merge **and every relation edge**") or *mint INV-10* ("no edge is written without a
-  human decision"). (The auto-write branch — which would have given only the *transitive* narrower guarantee,
-  "an edge only between two human-accepted entities" — is rejected with option (a).) Broaden-vs-mint is a
-  build-time call, witnessed test-first; the architect frames it, does not pick it here.
+- **INV-1 broadened (DM-Rel-1 ✅ explicit gate; resolved at build M3.S4e).** With the explicit gate the
+  human commits each edge, so the invariant takes the strong form. **Decision: broaden INV-1**
+  ("human-in-the-loop on every entity create/merge **and every relation edge**") rather than mint a
+  near-duplicate INV-10 — the single human-gate principle now covers nodes and edges (`[[invariants]]` INV-1,
+  witnessed test-first by the "accept both endpoints → decide → exactly one edge" integration test). (The
+  auto-write branch — only the *transitive* guarantee "an edge between two human-accepted entities" — is
+  rejected with option (a).)
 
 ---
 
@@ -380,9 +383,12 @@ the machine cannot be finalised until it resolves.
 
 ## Gaps for the product owner
 
+> **All resolved at build (M3.S4e, 2026-06-16) — recorded in `docs/decisions/0005` + `[[invariants]]`.**
+> Items 1–9 below are kept for the record; each was decided as the proposal proposed unless noted.
+
 1. ~~**DM-Rel-1 — the human gate (auto-write vs the §3.3 5th action vs hybrid).**~~ ✅ **Resolved (owner,
-   2026-06-16): the explicit §3.3 5th-action gate; slice split backend-now (S4e) / UI-next (S4f).** Remaining:
-   whether INV-1 broadens or INV-10 is minted (build-time, test-first).
+   2026-06-16): the explicit §3.3 5th-action gate; slice split backend-now (S4e) / UI-next (S4f).** INV-1
+   was **broadened** to cover edges (not INV-10 minted).
 2. **DM-Rel-4 — `staged_relations` table vs JSONB blob**, and the **relation evidence/audit home** (INV-3 for
    edges). Largely a function of (1).
 3. **DM-Rel-6 — idempotent edge write** is a **must-fix regardless** (today's `CREATE` doubles edges on retry);
@@ -394,9 +400,9 @@ the machine cannot be finalised until it resolves.
 7. **Self-loop / merge-collapse policy** — write or drop a relation whose endpoints resolve to one entity?
 8. **The retry-after-accept sweep trap** (a re-accept noop must still let the edge land) — a build-time test,
    noted so the implementer designs for it.
-9. **ADR** — DM6's intercept-before-write is ADR 0004; this slice is its natural completion. Author an ADR
-   (likely **0006**) only on confirmation, stating the accepted cost of the chosen **explicit gate** (a
-   heavier slice + a UI follow-on — DM-Rel-1 ✅). `verify-at-build` the next ADR number against `docs/decisions/`.
+9. ~~**ADR**~~ ✅ **`docs/decisions/0005`** — DM6's intercept-before-write is ADR 0004; this slice is its
+   natural completion. ADR 0005 states the accepted cost of the chosen **explicit gate** (a heavier slice +
+   a UI follow-on + the lost-per-mention-provenance follow-up).
 
 ---
 

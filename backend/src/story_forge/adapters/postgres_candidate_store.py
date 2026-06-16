@@ -23,12 +23,14 @@ from psycopg.rows import class_row
 from psycopg.types.json import Jsonb
 
 from story_forge.adapters.db import connect, libpq_kwargs
+from story_forge.adapters.postgres_relation_store import PostgresRelationStore
 from story_forge.config import settings
 from story_forge.domain.candidates import (
     CandidateDecision,
     CandidateProposal,
     CandidateStatus,
     StagedCandidate,
+    StagedRelation,
 )
 
 _CANDIDATE_COLUMNS = (
@@ -59,18 +61,27 @@ class PostgresCandidateStore:
         candidates: list[StagedCandidate],
         relations: list[dict[str, object]],
     ) -> None:
-        """Stage a paragraph's candidates + its resume marker atomically (one transaction).
+        """Stage a paragraph's candidates + relations + its resume marker atomically (one txn).
 
         The marker is written even for a zero-candidate paragraph, so a re-run skips it.
-        `ON CONFLICT DO NOTHING` on the marker keeps a defensive re-persist idempotent.
+        `ON CONFLICT DO NOTHING` on the marker keeps a defensive re-persist idempotent. Since
+        M3.S4e relations are staged into `staged_relations` (so they carry a lifecycle) rather
+        than the `paragraph_processed.relations` JSONB, which is now left empty (vestigial).
         """
         async with await self._connect() as conn:  # autocommit=False → commits on clean exit
             for candidate in candidates:
                 await self._insert_candidate(conn, candidate)
+            for relation in relations:
+                await PostgresRelationStore.insert(
+                    conn,
+                    StagedRelation.from_proposal(
+                        story_id=story_id, paragraph_id=paragraph_id, relation=relation
+                    ),
+                )
             await conn.execute(
-                "INSERT INTO paragraph_processed (paragraph_id, story_id, relations) "
-                "VALUES (%s, %s, %s) ON CONFLICT (paragraph_id) DO NOTHING",
-                (paragraph_id, story_id, Jsonb(relations)),
+                "INSERT INTO paragraph_processed (paragraph_id, story_id) "
+                "VALUES (%s, %s) ON CONFLICT (paragraph_id) DO NOTHING",
+                (paragraph_id, story_id),
             )
 
     @staticmethod
@@ -127,6 +138,19 @@ class PostgresCandidateStore:
             )
             return await cur.fetchall()
 
+    async def list_accepted(self, story_id: UUID) -> list[StagedCandidate]:
+        """A story's committed candidates (`created`/`merged`) — the set a relation resolves
+        its surface endpoints against (M3.S4e, DM-Rel-2). Rejected/queued rows have no
+        committed entity, so they cannot anchor an endpoint and are excluded."""
+        async with await self._connect(autocommit=True) as conn:
+            cur = conn.cursor(row_factory=class_row(StagedCandidate))
+            await cur.execute(
+                f"SELECT {_CANDIDATE_COLUMNS} FROM candidates "
+                "WHERE story_id = %s AND status IN ('created', 'merged') ORDER BY created_at",
+                (story_id,),
+            )
+            return await cur.fetchall()
+
     async def get(self, candidate_id: UUID) -> StagedCandidate | None:
         async with await self._connect(autocommit=True) as conn:
             cur = conn.cursor(row_factory=class_row(StagedCandidate))
@@ -155,18 +179,35 @@ class PostgresCandidateStore:
                 ),
             )
 
-    async def set_status(self, candidate_id: UUID, status: CandidateStatus) -> None:
+    async def set_status(
+        self,
+        candidate_id: UUID,
+        status: CandidateStatus,
+        *,
+        target_entity_id: UUID | None = None,
+    ) -> None:
         """Flip a candidate's lifecycle status — the **last** write on the accept path.
 
         Done after the Neo4j + mention + evidence writes, so an un-flipped candidate is always
         safely retryable (the accept-path idempotency contract). Returns silently if the row
-        is gone.
+        is gone. On a **merge accept** the caller passes the *committed* `target_entity_id` so
+        the row reflects the entity actually merged into — which may differ from the staged
+        proposal when the reviewer **changed the merge target** (§3.3). Persisting it keeps
+        `committed_entity_id` honest, so relation-endpoint resolution (M3.S4e) and the
+        terminal-noop re-read resolve to the entity the human chose, not the stale proposal.
         """
         async with await self._connect(autocommit=True) as conn:
-            await conn.execute(
-                "UPDATE candidates SET status = %s, updated_at = now() WHERE id = %s",
-                (status, candidate_id),
-            )
+            if target_entity_id is not None:
+                await conn.execute(
+                    "UPDATE candidates SET status = %s, target_entity_id = %s, "
+                    "updated_at = now() WHERE id = %s",
+                    (status, target_entity_id, candidate_id),
+                )
+            else:
+                await conn.execute(
+                    "UPDATE candidates SET status = %s, updated_at = now() WHERE id = %s",
+                    (status, candidate_id),
+                )
 
     async def update_proposal(
         self,

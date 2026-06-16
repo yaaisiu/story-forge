@@ -18,12 +18,26 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
-from typing import Literal
-from uuid import UUID, uuid4
+from typing import Any, Literal
+from uuid import UUID, uuid4, uuid5
 
 from pydantic import BaseModel, Field
 
 from story_forge.domain.graph import GraphEntity
+
+# A fixed namespace so an accepted candidate's graph id is a deterministic function of the
+# candidate id — the basis of the accept-path retry-idempotency contract (same candidate →
+# same entity/mention/decision id). Lives here (the persisted-shapes home) rather than in
+# `agents/candidate_review.py` so both the accept path *and* relation-endpoint resolution
+# derive a committed id from the one source (no drift — `[[idempotency]]`).
+_ACCEPT_NS = UUID("a5f0c0de-0000-4000-8000-000000000001")
+
+# Namespaces for the M3 relation slice (S4e). A *staged-relation* id is per-paragraph
+# occurrence (one row per "this fact in this paragraph"); a *graph-edge* id is per the
+# (subject, predicate, object) triple, so the same fact stated in two paragraphs collapses
+# to one edge (DM-Rel-6). Distinct namespaces keep the two id spaces from ever colliding.
+_REL_STAGE_NS = UUID("a5f0c0de-0000-4000-8000-000000000002")
+_REL_EDGE_NS = UUID("a5f0c0de-0000-4000-8000-000000000003")
 
 
 def _now() -> datetime:
@@ -86,6 +100,100 @@ class CandidateDecision(BaseModel):
     actor: str = "human"
     shown_proposal: dict[str, object] = Field(default_factory=dict)
     created_at: datetime = Field(default_factory=_now)
+
+
+def committed_entity_id(candidate: StagedCandidate) -> UUID | None:
+    """The graph id a candidate resolves to once a human has committed it, else None.
+
+    The inverse of the accept path's write: a `created` candidate's node lives at the
+    deterministic accept id; a `merged` one folded into its chosen target. A still
+    `review-queued` or `rejected` candidate has *no* committed entity, so it cannot anchor a
+    relation endpoint (DM-Rel-2). Pure — the one home for this derivation, shared by the
+    accept path (`agents/candidate_review.py`) and relation-endpoint resolution.
+    """
+    if candidate.status == "created":
+        return uuid5(_ACCEPT_NS, f"entity:{candidate.id}")
+    if candidate.status == "merged":
+        return candidate.target_entity_id
+    return None
+
+
+def normalize_name(name: str) -> str:
+    """The relation-endpoint match key (DM-Rel-2): casefold + strip whitespace.
+
+    The LLM emitted both an entity candidate and a relation endpoint from the *same* text,
+    so their surface forms align up to case/whitespace; this is the tightest rule that links
+    them without the silent mis-links a fuzzy match would risk (`[[prefer-deterministic]]`).
+    """
+    return name.strip().casefold()
+
+
+def staged_relation_id(paragraph_id: UUID, subject: str, predicate: str, object_: str) -> UUID:
+    """Deterministic per-paragraph-occurrence id, so re-staging a paragraph is idempotent
+    (`ON CONFLICT (id) DO NOTHING`). Keyed on the *surface* triple within one paragraph."""
+    return uuid5(_REL_STAGE_NS, f"{paragraph_id}|{subject}|{predicate}|{object_}")
+
+
+def relation_edge_id(subject_id: UUID, predicate: str, object_id: UUID) -> UUID:
+    """Deterministic graph-edge id (DM-Rel-6): keyed on the *resolved* triple, so the same
+    fact stated in two paragraphs MERGEs to one edge and a retried commit never doubles it."""
+    return uuid5(_REL_EDGE_NS, f"{subject_id}|{predicate}|{object_id}")
+
+
+# The staged relation's lifecycle (mirrors `CandidateStatus`): a resting `staged` the
+# decide-relations queue resolves + the two human-decided terminals. Closed — a state
+# machine, not the open-world relation *type* (INV-4).
+RelationStatus = Literal["staged", "written", "rejected"]
+
+
+class StagedRelation(BaseModel):
+    """One extracted relation, staged with surface endpoints awaiting the §3.3 5th human
+    action ("decide on relations", DM-Rel-1). Endpoints are *surface strings* (no entity id
+    until both are resolved against accepted candidates); `subject_entity_id`/`object_entity_id`
+    /`edge_id` fill in at commit. Mirrors `StagedCandidate`'s persisted shape — pure, no I/O.
+    """
+
+    id: UUID
+    story_id: UUID
+    paragraph_id: UUID
+    subject: str
+    predicate: str
+    object: str
+    confidence: float | None = None
+    evidence_quote: str | None = None
+    subject_entity_id: UUID | None = None
+    object_entity_id: UUID | None = None
+    edge_id: UUID | None = None
+    status: RelationStatus = "staged"
+    created_at: datetime = Field(default_factory=_now)
+    updated_at: datetime = Field(default_factory=_now)
+
+    @classmethod
+    def from_proposal(
+        cls,
+        *,
+        story_id: UUID,
+        paragraph_id: UUID,
+        relation: dict[str, Any],
+    ) -> StagedRelation:
+        """Build a staged row from a raw `RelationCandidate.model_dump()` dict (the JSONB
+        shape extraction stages). Derives the deterministic per-paragraph id from the
+        surface triple so re-staging is idempotent."""
+        subject = str(relation["subject"])
+        predicate = str(relation["predicate"])
+        object_ = str(relation["object"])
+        confidence = relation.get("confidence")
+        evidence = relation.get("evidence_quote")
+        return cls(
+            id=staged_relation_id(paragraph_id, subject, predicate, object_),
+            story_id=story_id,
+            paragraph_id=paragraph_id,
+            subject=subject,
+            predicate=predicate,
+            object=object_,
+            confidence=float(confidence) if confidence is not None else None,
+            evidence_quote=str(evidence) if evidence is not None else None,
+        )
 
 
 @dataclass(frozen=True)
