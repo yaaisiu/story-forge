@@ -1,7 +1,7 @@
 ---
 type: open-questions
 slug: open-questions
-updated: 2026-06-15
+updated: 2026-06-16
 status: living
 related: ["[[overview]]", "[[project]]", "[[invariants]]", "[[2026-06-02-architecture-review]]", "[[m2s3-extraction-agent]]", "[[2026-06-09-architecture-review]]", "[[2026-06-11-architecture-review]]"]
 ---
@@ -428,6 +428,41 @@ review queue can't merge → duplicate Neo4j nodes, undercutting §9 M3's "the g
   contained change (staging-only, INV-9 holds) already fully recorded in the proposal + spec §3.3, so
   the rationale lives in `docs/PLAN_SHORT.md` Decided + the INV-9 graph-vs-staging clarification rather
   than a separate decision file.
+
+### OQ-19 — M3 relation-write decision register (DM-Rel-1..7) + the empty relation stations
+Raised by the M3 relation-write `decompose-requirement` step-0 (2026-06-16, `[[m3-relation-write]]`).
+Entity dedupe (S4a–S4d) is done, but **no code writes graph edges** — a merge orphans a candidate's
+staged relations, so §9 M3's "the graph is clean" is not yet met for relations. The owner framed this as
+an **M3 slice** (2026-06-16), not an M3→M4 roll. **Partly resolved 2026-06-16 (Session 28):** DM-Rel-1 +
+the slice are decided (below); DM-Rel-2/4/5/6/7 stay open (carried as proposed, confirm-at-build). Full
+Context/Options for each entry live in the proposal's register.
+- ~~**DM-Rel-1 — the human gate for relations (the central call):**~~ ✅ **Resolved (owner, 2026-06-16):
+  an EXPLICIT human gate** — the §3.3 5th action ("decide on relations"), *not* auto-write and *not* the
+  hybrid; **slice split backend-now (S4e) / UI-next (S4f)**. *Considered & rejected:* auto-write-on-both-
+  endpoints-accepted (commits a hallucinated predicate/direction even when both nodes are right); hybrid
+  bulk-confirm (kept as a fallback). Remaining: broaden INV-1 vs mint **INV-10** — build-time, test-first.
+- **DM-Rel-2 — endpoint resolution:** surface string → same-paragraph candidate → its *committed* entity
+  id (`created` → deterministic create-id; `merged` → `target_entity_id`). Match rule (exact / normalised /
+  fuzzy) + where the id is read. `verify-at-build`: the create-id derivation couples to
+  `CandidateReviewService._ACCEPT_NS` — promote to a shared helper?
+- **DM-Rel-3 — when the edge-write fires:** on-accept sweep (mirrors `_maybe_rematch`) vs an explicit
+  finalize endpoint vs end-of-review batch. Down to DM-Rel-1.
+- **DM-Rel-4 — staged-relation persistence + evidence:** a `staged_relations` table (status lifecycle +
+  idempotency + audit) vs the current inert JSONB blob on `paragraph_processed`; and the **relation
+  evidence home** (`candidate_decisions` is entity-keyed → INV-3 reversibility for edges has no row). The
+  **Evidence** and **Expiry** stations are empty/weak for relations — mirrored here.
+- **DM-Rel-5 — re-point boundary:** confirm **M3 writes, M4 re-points** (an accepted-entity↔entity merge,
+  which doesn't exist in M3, is the only true re-point case). Records a deferred edge, not a build task.
+- **DM-Rel-6 — idempotent edge write (must-fix regardless):** `create_relation` uses `CREATE`, so a
+  retried accept **doubles** the edge; needs a deterministic edge id + `MERGE`-on-id (the entity-path
+  pattern). Only the id-derivation is open.
+- **DM-Rel-7 — dangling-to-known endpoints:** a relation endpoint naming a known accepted entity not
+  re-extracted this paragraph — resolve against the accepted graph, hold, or surface for manual binding?
+- **Vault hygiene flagged:** the **INDEX priority queue is stale** — "Next steps" framed S4c as next
+  though S4c/S4d shipped (this run refreshes those lines); a fuller **`review-architecture` re-sync** (a
+  dated post-S4d as-built snapshot) is **overdue** at this milestone boundary. **Lands in:** the M3
+  relation-write **S4e backend** slice (test-first; DM-Rel-1 + slice resolved, DM-Rel-2/4/5/6/7 at build),
+  then **S4f UI**. Open (the remaining register).
 
 ## Referenced — owned by spec §10 (not duplicated)
 

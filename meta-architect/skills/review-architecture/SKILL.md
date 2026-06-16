@@ -13,8 +13,11 @@ argument-hint: "[scope: path or component slug; default whole vault]"
 # Review architecture
 
 **Operate as the meta-architect.** Read `${CLAUDE_PLUGIN_ROOT}/agents/meta-architect.md` first
-and adopt it. Read the matching template before writing. **Report-only: you never edit code,
-never auto-fix, never resolve a decision.** Get today's date with `date +%F`.
+and adopt it. Before writing, read `${CLAUDE_PLUGIN_ROOT}/templates/vault-note.md` for the
+canonical frontmatter shape. **A `review` note has no dedicated template by design: its section
+structure is the one this skill enumerates below** (kept in the skill body as the single home, not
+duplicated as a template). **Report-only: you never edit code, never auto-fix, never resolve a
+decision.** Get today's date with `date +%F`.
 
 ## 0. Ground yourself
 - Scope = `$ARGUMENTS` (a path or component slug) if given, else the whole vault.

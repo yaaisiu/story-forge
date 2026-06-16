@@ -1,7 +1,7 @@
 ---
 type: changelog
 slug: changelog
-updated: 2026-06-15
+updated: 2026-06-16
 status: living
 related: []
 ---
@@ -10,6 +10,28 @@ related: []
 
 Append-only audit trail of writes into the vault. Newest entries at the top. History also lives
 in `updated` fields (freshness) and git (diffs); this is the human-readable "what changed when".
+
+## 2026-06-16 — decompose-requirement: M3 relation-write (graph edges under human control, step-0)
+
+Forward-design pass for the M3 slice that completes §9 M3's *"the graph is clean"* **for relations**:
+entity dedupe (S4a–S4d) is done, but a merge orphans a candidate's staged relations because **no code
+writes graph edges** — the gap M3.S4a's own "but what if" had named and deferred. Owner framing
+(2026-06-16): this is an **M3 slice**, not an M3→M4 roll.
+
+Wrote **`proposals/m3-relation-write.md`** (`status: proposed`, register **OPEN**): the nine-layer +
+nine-station pass, a Mermaid data-flow, a sketched relation-lifecycle (standalone note deferred until
+the gate decision resolves), a seven-entry decision register (**DM-Rel-1..7**), the "but what if" set,
+and the gaps-for-PO. Central finding (the *reframe*): under intercept-before-write the feared
+"re-point edges on merge" **mostly dissolves** — a relation endpoint is a surface string with no entity
+id until accept, so edges can only be written **lazily** by resolving each endpoint to its candidate's
+*committed* id; a merge is then handled by construction, and only an accepted-entity↔entity merge (M4)
+would re-point a written edge. Concrete must-fix surfaced: `create_relation` uses `CREATE`, so a
+retried accept **doubles** the edge — needs deterministic-id `MERGE` (DM-Rel-6). Added glossary
+**[[referential-integrity]]** + a learning-log line. Mirrored the register + the empty Evidence/Expiry
+stations to `open-questions.md` **OQ-19**. Regenerated `INDEX.md` (new proposal row; refreshed the stale
+"Next steps" that still framed S4c as next though S4c/S4d shipped; glossary 21→22) and the `glossary.md`
+index (also folded in the previously-missing [[intra-batch-dedup]], count → 22). No ADR, no invariant
+fold, no state-machine note, no production code — all deferred to register-resolution per the skill.
 
 ## 2026-06-15 — decompose-requirement: M3.S4c intra-batch dedup (live re-match + handpick, step-0)
 
