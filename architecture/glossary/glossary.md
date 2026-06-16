@@ -1,7 +1,7 @@
 ---
 type: glossary
 slug: glossary
-updated: 2026-06-08
+updated: 2026-06-16
 status: living
 related: []
 ---
@@ -11,7 +11,7 @@ related: []
 The glossary is a **knowledge graph**, not a flat list: each term is its own note (a node) in
 `glossary/`, cross-linked via `related` so concepts form a web you can wander in Obsidian. This
 index is **regenerated** each run; the term notes are the source. Terms are added *organically* —
-only when real work first surfaces them — and deduped by slug. Count today: **20**.
+only when real work first surfaces them — and deduped by slug. Count today: **22**.
 
 | Term (EN / PL) | Answers | Note |
 |---|---|---|
@@ -35,3 +35,5 @@ only when real work first surfaces them — and deduped by slug. Count today: **
 | poison message / zatruta wiadomość | what about input that fails every retry? | [[poison-message]] |
 | software composition analysis / analiza składu oprogramowania | do any of our deps have a known vuln? | [[software-composition-analysis]] |
 | defense in depth / obrona w głąb | if one control misses, does another catch it? | [[defense-in-depth]] |
+| intra-batch deduplication / deduplikacja wewnątrz partii | why can't the queue merge dupes from one pass? | [[intra-batch-dedup]] |
+| referential integrity / integralność referencyjna | why not write the edge the moment we see it? | [[referential-integrity]] |

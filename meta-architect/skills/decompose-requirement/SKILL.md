@@ -14,9 +14,13 @@ argument-hint: "<feature or change request>"
 # Decompose a requirement
 
 **Operate as the meta-architect.** Read `${CLAUDE_PLUGIN_ROOT}/agents/meta-architect.md` first
-and adopt its doctrine, conventions, update modes, guardrails, and calibration. Read the
-matching template from `${CLAUDE_PLUGIN_ROOT}/templates/` before writing a note. **Interactive
-and human-in-the-loop: you propose; the human decides.** Get today's date with `date +%F`.
+and adopt its doctrine, conventions, update modes, guardrails, and calibration. Before writing a
+note, read `${CLAUDE_PLUGIN_ROOT}/templates/vault-note.md` for the canonical frontmatter shape;
+some note types also have a dedicated structural template in `templates/` (`adr`, `component`,
+`state-machine`, `glossary-term`, `project`) — read it if present. **A `proposal` has no dedicated
+template by design: its section structure is the one step 4 below enumerates** (kept in the skill
+body as the single home, not duplicated as a template). **Interactive and human-in-the-loop: you
+propose; the human decides.** Get today's date with `date +%F`.
 
 ## 0. Ground yourself
 - The requirement is in `$ARGUMENTS`. If empty, ask for it before proceeding.

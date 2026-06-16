@@ -1,7 +1,7 @@
 ---
 type: index
 slug: index
-updated: 2026-06-15
+updated: 2026-06-16
 status: living
 related: []
 ---
@@ -30,13 +30,13 @@ related: []
 | [[learning-log]] | learning-log | append-only |
 | [[changelog]] | changelog | append-only |
 
-## Glossary (21 terms — see [[glossary]])
+## Glossary (22 terms — see [[glossary]])
 [[trust-boundary]] · [[invariant]] · [[state-machine]] · [[fail-closed]] ·
 [[human-in-the-loop]] · [[idempotency]] · [[open-world-ontology]] · [[source-of-truth]] ·
 [[c4-model]] · [[agent]] · [[cascade-matching]] · [[model-tier-routing]] ·
 [[compliance-audit-layer]] · [[prefer-deterministic]] · [[failover]] · [[toctou]] ·
 [[prompt-injection]] · [[poison-message]] · [[software-composition-analysis]] ·
-[[defense-in-depth]] · [[intra-batch-dedup]]
+[[defense-in-depth]] · [[intra-batch-dedup]] · [[referential-integrity]]
 
 ## Proposals & reports
 | Note | Type | What |
@@ -45,6 +45,7 @@ related: []
 | [[m2s3-extraction-agent]] | proposal | **M2.S3 nine-layer pass (✅ accepted 2026-06-08, register resolved)** — `ExtractionAgent`, first `LLMRouter` consumer. Decisions: per-paragraph, single-paragraph agent (batch→M2.S4), `candidate_name`, typed `ProviderResponseError`, soft-flag `evidence_quote`. **Built + merged (PR #42).** |
 | [[m3-cascade-matching]] | proposal | **M3 cascade dedupe — step-0 forward pass (✅ register FULLY resolved: DM1–DM6 + DM7 + DM-rej; PLAN_SHORT Decided S23)** — the §3.3 four-stage cascade (RapidFuzz → embedding → JudgeAgent → human queue). Draws the candidate lifecycle; 8-entry register (DM1–DM7 + DM-rej). Central fork **DM6** ✅ intercept-before-write. Retires INV-8 at **M3.S4a** (the re-slice), lands INV-1's enforcer. Stages built proposal-only: M3.S1 RapidFuzz ✅ (PR #56), M3.S2 Stage 2 + pgvector ✅ (PR #58), M3.S3 JudgeAgent ✅ (PR #60). DM7 outcome: **INV-2 consent deferred past M3**. DM-rej: **remember rejections**. |
 | [[m3s4a-intercept-write-path]] | proposal | **M3.S4a step-0 — intercept-before-write (✅ BUILT / ADR 0004)** — stages candidates in the new Postgres `candidates` table, wired the cascade into the coordinator (embed-on-extract → Matching → Judge), moved Neo4j+`entity_mentions` writes to the human-accept endpoints; **retired INV-8 → landed INV-1's enforcer + INV-9**, test-first. Register **DM-S4a-1..5 resolved** (S23) + ADR 0004 authored; `[[candidate-lifecycle]]` → `living`. UI is S4b (✅ built). |
+| [[m3-relation-write]] | proposal | **M3 relation-write step-0 — graph edges under human control (🟡 PROPOSED, register OPEN / OQ-19)** — completes §9 M3's "clean graph" for *relations* (entity dedupe S4a–S4d is done; today a merge orphans staged relations because nothing writes edges). Owner-framed an **M3 slice** (2026-06-16). The *reframe*: a relation endpoint is a surface string with no entity id until accept → edges write **lazily** (resolve each endpoint to its candidate's *committed* id), so the feared **re-point-on-merge mostly dissolves** (only an M4 accepted-entity↔entity merge re-points a written edge). Register **DM-Rel-1..7** open — central call **DM-Rel-1** (auto-write vs the §3.3 5th human action); must-fix **DM-Rel-6** (`create_relation` `CREATE` doubles an edge on retry → needs `MERGE`-on-id). Added [[referential-integrity]]. No ADR/invariant/state-machine/code yet — all gated on register-resolution. |
 | [[m3s4c-intra-batch-rematch]] | proposal | **M3.S4c step-0 — intra-batch dedup (✅ accepted, register resolved / OQ-18)** — triggered by the S4b browser walk (a first pass staged `Janek` ×3 → duplicate nodes the queue couldn't merge). Two additive mechanisms on S4a/S4b: **(a) on-accept live re-match** (deterministic Stage 1/2 over still-pending candidates each accept → dupes flip `new → merge`; backend-only, no LLM) + **(b) manual handpick** (entity-search endpoint + picker for matcher false negatives). Writes **only the staging table** — INV-1/INV-9 *hold*. **Resolved (owner S25):** split **S4c** (re-match) + **S4d** (handpick); auto-flip **Stage 1 `>85%` OR Stage 2 `cosine >0.85`** (no live judge); **monotone** (guard, no INV-10); handpick **project-scoped** (supersedes the deferred arbitrary-search item). Spec §3.3 amended. Build test-first (the re-match flip test). |
 | [[m2s2-llm-router-budget-cap]] | proposal | M2.S2 nine-layer pass: paid adapters + router + budget cap + status endpoint |
 | [[2026-06-15-architecture-review]] | review | **current health snapshot** — M3.S3 merged → entering M3.S4 (no blockers; `risk`: DM5 resolved-but-framed-open, `overview.md` snapshot predates M3.S1–S3; `watch`: `task_type` label `judging`→`judge`, gate-less Stage-3 egress with INV-2 deferred, staging-table Expiry, store-chatty cascade. INV-8 correctly still live `[TEMPORARY]` — the flip is S4a's, test-first) |
@@ -109,17 +110,21 @@ related: []
    `[[candidate-lifecycle]]` is finalised, and the DM6/DM2 ADR(s) are drafted (test-first). Still-carried
    watch: INV-6 redaction-before-logging (OQ-15); the store-down→503 + Neo4j lifespan-close M2.S4
    follow-up — see `docs/PLAN_SHORT.md` cross-cutting.
-14. **M3.S2/S3/S4a/S4b all shipped ✅** (PRs #58/#60/#63 + the S4b review-queue UI). The cascade is
-   live end-to-end: extraction stages candidates, the human-accept path is the only graph writer
-   (INV-1/INV-9), and the React review queue (`features/extraction-review/`) drives accept/change-target/
-   create/reject with keyboard nav. **Next: M3.S4c — intra-batch dedup** ([[m3s4c-intra-batch-rematch]],
-   register **✅ resolved** OQ-18), surfaced by the S4b browser walk: a single first pass left duplicate
-   nodes the queue couldn't merge. Decompose done + **register resolved (owner, S25)** + **spec §3.3
-   amended**: slice **S4c** (on-accept live re-match, backend-only) + **S4d** (manual handpick); auto-flip
-   on Stage 1 `>85%` OR Stage 2 `cosine >0.85` (no live judge); monotone (guard); project-scoped handpick.
-   **Build S4c test-first** (the re-match flip test); the `candidate-lifecycle` self-loop + INV-9
-   graph-vs-staging clarification fold on that build. Still-carried: the **deferred relation-write** (now
-   higher priority — merges orphan relations); §3.4 graph scoping; INV-6 redaction (OQ-15).
+14. **M3.S2/S3/S4a/S4b/S4c/S4d all shipped ✅** (PRs #58/#60/#63 + the S4b review-queue UI + #67 S4c
+   on-accept re-match + #70 S4d manual handpick). The cascade is live end-to-end for **entities**:
+   extraction stages candidates, the human-accept path is the only graph writer (INV-1/INV-9), the React
+   review queue (`features/extraction-review/`) drives accept/change-target/create/reject with keyboard
+   nav, on-accept re-match flips intra-batch dupes `new→merge` (staging-only), and manual handpick
+   (`GET …/entities?q=`) covers matcher false negatives. **M3 *entity* dedupe is complete.**
+15. **Next: M3 relation-write** ([[m3-relation-write]], register **OPEN** / OQ-19) — the slice that makes
+   §9 M3 "the graph is clean" literally true for **relations**. Today a merge orphans staged relations
+   because **no code writes graph edges**. Owner-framed an **M3 slice** (2026-06-16, not an M3→M4 roll).
+   Decompose done; **register DM-Rel-1..7 awaits the owner** — central call **DM-Rel-1** (auto-write on
+   both-endpoints-accepted vs the §3.3 5th human action vs hybrid), must-fix **DM-Rel-6** (idempotent
+   `MERGE`-on-id edge). Build is **test-first once the register resolves** (the witness: accept both
+   endpoints → exactly one edge, accept one → none, retry → no double). Still-carried: §3.4 graph
+   story-vs-project scoping; INV-6 redaction (OQ-15); the security-waiver drops (PLAN_SHORT). A
+   `review-architecture` re-sync (post-S4d as-built snapshot) is **overdue** at this milestone boundary.
 
 _Run log: see [[changelog]]. Seeded by `initialize-project-architecture`; extended by
 `review-architecture` + `decompose-requirement`, 2026-06-02._
