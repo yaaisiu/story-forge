@@ -179,18 +179,35 @@ class PostgresCandidateStore:
                 ),
             )
 
-    async def set_status(self, candidate_id: UUID, status: CandidateStatus) -> None:
+    async def set_status(
+        self,
+        candidate_id: UUID,
+        status: CandidateStatus,
+        *,
+        target_entity_id: UUID | None = None,
+    ) -> None:
         """Flip a candidate's lifecycle status — the **last** write on the accept path.
 
         Done after the Neo4j + mention + evidence writes, so an un-flipped candidate is always
         safely retryable (the accept-path idempotency contract). Returns silently if the row
-        is gone.
+        is gone. On a **merge accept** the caller passes the *committed* `target_entity_id` so
+        the row reflects the entity actually merged into — which may differ from the staged
+        proposal when the reviewer **changed the merge target** (§3.3). Persisting it keeps
+        `committed_entity_id` honest, so relation-endpoint resolution (M3.S4e) and the
+        terminal-noop re-read resolve to the entity the human chose, not the stale proposal.
         """
         async with await self._connect(autocommit=True) as conn:
-            await conn.execute(
-                "UPDATE candidates SET status = %s, updated_at = now() WHERE id = %s",
-                (status, candidate_id),
-            )
+            if target_entity_id is not None:
+                await conn.execute(
+                    "UPDATE candidates SET status = %s, target_entity_id = %s, "
+                    "updated_at = now() WHERE id = %s",
+                    (status, target_entity_id, candidate_id),
+                )
+            else:
+                await conn.execute(
+                    "UPDATE candidates SET status = %s, updated_at = now() WHERE id = %s",
+                    (status, candidate_id),
+                )
 
     async def update_proposal(
         self,

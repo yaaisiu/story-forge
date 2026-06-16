@@ -17,7 +17,12 @@ from story_forge.agents.candidate_review import (
     CandidateReviewService,
     StaleMergeTarget,
 )
-from story_forge.domain.candidates import CandidateDecision, CandidateStatus, StagedCandidate
+from story_forge.domain.candidates import (
+    CandidateDecision,
+    CandidateStatus,
+    StagedCandidate,
+    committed_entity_id,
+)
 from story_forge.domain.graph import GraphEntity
 from story_forge.domain.models import EntityMention
 
@@ -91,10 +96,18 @@ class FakeCandidateRepo:
         self.decisions.append(decision)
         self._events.append(("decision", decision.id))
 
-    async def set_status(self, candidate_id: UUID, status: CandidateStatus) -> None:
+    async def set_status(
+        self,
+        candidate_id: UUID,
+        status: CandidateStatus,
+        *,
+        target_entity_id: UUID | None = None,
+    ) -> None:
         if self.set_status_boom:
             raise RuntimeError("crash before flip")
         self._by_id[candidate_id].status = status
+        if target_entity_id is not None:
+            self._by_id[candidate_id].target_entity_id = target_entity_id
         self._events.append(("status", status))
 
 
@@ -240,6 +253,26 @@ async def test_accept_can_override_proposal_to_create() -> None:
     assert result.status == "created"
     assert len(graph.entities) == 1
     assert next(iter(graph.entities.values())).type == "Deity"
+
+
+async def test_accept_merge_override_persists_committed_target() -> None:
+    # The reviewer *changes* the merge target. The committed entity must be persisted on the
+    # candidate row so `committed_entity_id` (relation-endpoint resolution, M3.S4e) reads the
+    # chosen target, not the stale staged proposal — else a same-paragraph relation endpoint
+    # would resolve to the wrong entity.
+    staged_target, chosen_target = uuid4(), uuid4()
+    candidate = _candidate(proposal="merge", target=staged_target)
+    service, _graph, _, repo, _ = _service(candidate, existing={staged_target, chosen_target})
+
+    result = await service.accept(
+        candidate.id, language=LANG, action="merge", target_entity_id=chosen_target
+    )
+
+    assert result.status == "merged"
+    assert result.entity_id == chosen_target
+    updated = repo._by_id[candidate.id]
+    assert updated.target_entity_id == chosen_target  # row reflects the chosen target
+    assert committed_entity_id(updated) == chosen_target  # resolution now reads the right entity
 
 
 # --- reject ----------------------------------------------------------------

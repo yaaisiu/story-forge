@@ -63,7 +63,13 @@ class CandidateRepo(Protocol):
 
     async def get(self, candidate_id: UUID) -> StagedCandidate | None: ...
     async def insert_decision(self, decision: CandidateDecision) -> None: ...
-    async def set_status(self, candidate_id: UUID, status: CandidateStatus) -> None: ...
+    async def set_status(
+        self,
+        candidate_id: UUID,
+        status: CandidateStatus,
+        *,
+        target_entity_id: UUID | None = None,
+    ) -> None: ...
 
 
 class ReMatcher(Protocol):
@@ -153,7 +159,12 @@ class CandidateReviewService:
             )
         )
         await self._record(candidate, decision=status, target_entity_id=entity_id)
-        await self._candidates.set_status(candidate.id, status)  # LAST graph-affecting write
+        # Persist the committed target on a merge so the row reflects the entity actually
+        # merged into (which differs from the staged proposal when the reviewer changed the
+        # target) — keeps `committed_entity_id` honest for relation resolution. LAST write.
+        await self._candidates.set_status(
+            candidate.id, status, target_entity_id=entity_id if status == "merged" else None
+        )
         await self._maybe_rematch(candidate, entity_id)
         return ReviewResult(candidate.id, status, entity_id, already_decided=False)
 

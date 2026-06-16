@@ -263,6 +263,29 @@ async def test_ambiguous_same_name_endpoint_is_held() -> None:
     assert graph.relations == {}
 
 
+async def test_same_fact_in_two_paragraphs_collapses_to_one_edge() -> None:
+    # Two paragraphs assert the same fact; paragraph-2's endpoints were *merged* into
+    # paragraph-1's entities, so both staged relations resolve to the same entity pair. Deciding
+    # both writes ONE graph edge (MERGE by the triple-derived edge id) while keeping the two
+    # per-paragraph staged rows — the DM-Rel-6 cross-paragraph collapse + the provenance the
+    # rows retain.
+    para2 = uuid4()
+    j1, m1 = _accepted("Janek"), _accepted("Mokosz")  # paragraph 1 (PARA): created
+    j2 = _merged("Janek", committed_entity_id(j1), paragraph_id=para2)  # merged into j1's entity
+    m2 = _merged("Mokosz", committed_entity_id(m1), paragraph_id=para2)
+    rel1 = _relation(subject="Janek", predicate="KNOWS", object_="Mokosz")
+    rel2 = _relation(subject="Janek", predicate="KNOWS", object_="Mokosz", paragraph_id=para2)
+    service, graph, _repo, _events = _service([rel1, rel2], [j1, m1, j2, m2])
+
+    await service.decide(rel1.id, action="commit")
+    await service.decide(rel2.id, action="commit")
+
+    assert len(graph.relations) == 1  # one edge for the same fact across two paragraphs
+    edge = next(iter(graph.relations.values()))
+    assert edge.subject_id == committed_entity_id(j1)
+    assert edge.object_id == committed_entity_id(m1)
+
+
 async def test_reject_writes_no_edge() -> None:
     janek, mokosz = _accepted("Janek"), _accepted("Mokosz")
     rel = _relation(subject="Janek", predicate="KNOWS", object_="Mokosz")
