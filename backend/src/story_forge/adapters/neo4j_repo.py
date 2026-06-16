@@ -137,15 +137,20 @@ class Neo4jRepo:
     # --- Relations ---------------------------------------------------------
 
     async def create_relation(self, relation: GraphRelation) -> None:
-        """Link two existing entities with a fresh, open-world-typed edge.
+        """Link two existing entities with an open-world-typed edge, idempotent by id (M3.S4e).
 
-        Only endpoints that exist are matched, so a dangling relation (an endpoint
-        no node satisfies) simply writes no edge — accepted at M2 (open-world; M3 +
-        human review resolve dangling endpoints).
+        `MERGE` on the deterministic edge `id` (a primary-key upsert) + `ON CREATE SET`, so a
+        retried decide-relations commit is a no-op rather than a second parallel edge — the
+        relation analogue of `create_entity`'s contract. Because the id is `uuid5` of the
+        resolved (subject, predicate, object) triple (DM-Rel-6), the *same fact* stated in two
+        paragraphs MERGEs to one edge. Only endpoints that exist are matched (`MATCH` first), so
+        a dangling relation writes no edge — though the human gate never commits an unresolved
+        endpoint, so dangling is the open-world safety net, not the expected path.
         """
         await self._driver.execute_query(
             f"MATCH (s:Entity {{id: $sid}}), (o:Entity {{id: $oid}}) "
-            f"CREATE (s)-[r:{_escape_rel_type(relation.type)}]->(o) SET r = $props",
+            f"MERGE (s)-[r:{_escape_rel_type(relation.type)} {{id: $props.id}}]->(o) "
+            f"ON CREATE SET r = $props",
             sid=str(relation.subject_id),
             oid=str(relation.object_id),
             props={

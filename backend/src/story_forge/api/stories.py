@@ -51,8 +51,13 @@ from story_forge.agents.chunking_coordinator import (
 from story_forge.agents.extraction_agent import ExtractionError
 from story_forge.agents.extraction_coordinator import ExtractionCoordinator
 from story_forge.agents.matching_agent import ExistingEntity, search_entities
+from story_forge.agents.relation_review import (
+    RelationEndpointsUnresolved,
+    RelationNotFound,
+    RelationReviewService,
+)
 from story_forge.config import settings
-from story_forge.domain.candidates import CandidateProposal, StagedCandidate
+from story_forge.domain.candidates import CandidateProposal, RelationStatus, StagedCandidate
 from story_forge.domain.chunking import outline_to_tree
 from story_forge.domain.language import detect_language
 from story_forge.domain.models import Project, Story
@@ -724,5 +729,139 @@ async def reject_candidate(
         candidate_id=result.candidate_id,
         status=result.status,  # terminal after reject
         entity_id=result.entity_id,
+        already_decided=result.already_decided,
+    )
+
+
+# --- Decide relations (Stage 4, the 5th human action): list committable / decide ---
+
+
+def get_relation_review(request: Request) -> RelationReviewService:
+    """The app-lifetime relation-decide service wired in `main.py` (the only edge writer)."""
+    service: RelationReviewService = request.app.state.relation_review
+    return service
+
+
+class RelationView(BaseModel):
+    """One committable relation for the §3.3 5th human action ("decide on relations").
+
+    Carries the surface triple + the cascade's confidence and the entity ids both endpoints
+    currently resolve to (committed entities in the same paragraph). The UI (S4f) renders the
+    surface strings and can resolve names from the resolved ids; persistence-only fields are
+    omitted.
+    """
+
+    id: UUID
+    paragraph_id: UUID
+    subject: str
+    predicate: str
+    object: str
+    confidence: float | None
+    subject_entity_id: UUID
+    object_entity_id: UUID
+
+
+class RelationsResponse(BaseModel):
+    """A story's committable relations (both endpoints resolved) — the decide queue."""
+
+    relations: list[RelationView]
+
+
+class DecideRelationRequest(BaseModel):
+    """The reviewer's relation decision: commit the edge, or reject the relation."""
+
+    action: Literal["commit", "reject"]
+
+
+class RelationDecisionResponse(BaseModel):
+    """Outcome of a relation decision: the terminal status + the committed edge id (if any)."""
+
+    relation_id: UUID
+    status: RelationStatus
+    edge_id: UUID | None
+    already_decided: bool
+
+
+@router.get(
+    "/{story_id}/relations",
+    responses={
+        404: {"model": ErrorResponse, "description": "Story not found."},
+        503: {"model": ErrorResponse, "description": "The staging store is unavailable."},
+    },
+)
+async def list_relations(
+    story_id: UUID,
+    conn: Annotated[AsyncConnection, Depends(get_connection)],
+    review: Annotated[RelationReviewService, Depends(get_relation_review)],
+) -> RelationsResponse:
+    """The committable relations for a story (spec §3.3's 5th Stage-4 action).
+
+    A relation is committable once **both** surface endpoints resolve to entities the human has
+    already accepted in that paragraph; relations with a held/unaccepted endpoint or a self-loop
+    are excluded. The edge is written only on an explicit `decide` (INV-1/INV-9 — the human gate).
+    """
+    if await get_story(conn, story_id) is None:
+        raise HTTPException(status_code=404, detail="story not found")
+    try:
+        committable = await review.list_committable(story_id)
+    except OperationalError as exc:
+        raise HTTPException(status_code=503, detail="the staging store is unavailable") from exc
+    return RelationsResponse(
+        relations=[
+            RelationView(
+                id=c.relation.id,
+                paragraph_id=c.relation.paragraph_id,
+                subject=c.relation.subject,
+                predicate=c.relation.predicate,
+                object=c.relation.object,
+                confidence=c.relation.confidence,
+                subject_entity_id=c.subject_entity_id,
+                object_entity_id=c.object_entity_id,
+            )
+            for c in committable
+        ]
+    )
+
+
+@router.post(
+    "/{story_id}/relations/{relation_id}/decide",
+    responses={
+        404: {"model": ErrorResponse, "description": "Story or relation not found."},
+        409: {
+            "model": ErrorResponse,
+            "description": "An endpoint no longer resolves (stale/held).",
+        },
+        503: {"model": ErrorResponse, "description": "A data store is unavailable."},
+    },
+)
+async def decide_relation(
+    story_id: UUID,
+    relation_id: UUID,
+    body: DecideRelationRequest,
+    conn: Annotated[AsyncConnection, Depends(get_connection)],
+    review: Annotated[RelationReviewService, Depends(get_relation_review)],
+) -> RelationDecisionResponse:
+    """Commit (write the edge) or reject a staged relation under the human gate (spec §3.3).
+
+    The **only** edge-writing path (INV-1/INV-9). Commit re-resolves both endpoints (TOCTOU)
+    and writes the edge idempotently; an endpoint that no longer resolves, or a self-loop,
+    yields 409 with nothing written.
+    """
+    if await get_story(conn, story_id) is None:
+        raise HTTPException(status_code=404, detail="story not found")
+    try:
+        result = await review.decide(relation_id, action=body.action)
+    except RelationNotFound as exc:
+        raise HTTPException(status_code=404, detail="relation not found") from exc
+    except RelationEndpointsUnresolved as exc:
+        raise HTTPException(
+            status_code=409, detail="a relation endpoint no longer resolves (stale/held)"
+        ) from exc
+    except (OperationalError, ServiceUnavailable) as exc:
+        raise HTTPException(status_code=503, detail="a data store is unavailable") from exc
+    return RelationDecisionResponse(
+        relation_id=result.relation_id,
+        status=result.status,
+        edge_id=result.edge_id,
         already_decided=result.already_decided,
     )

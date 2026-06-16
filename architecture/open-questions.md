@@ -429,13 +429,19 @@ review queue can't merge → duplicate Neo4j nodes, undercutting §9 M3's "the g
   the rationale lives in `docs/PLAN_SHORT.md` Decided + the INV-9 graph-vs-staging clarification rather
   than a separate decision file.
 
-### OQ-19 — M3 relation-write decision register (DM-Rel-1..7) + the empty relation stations
+### ~~OQ-19 — M3 relation-write decision register (DM-Rel-1..7) + the empty relation stations~~ ✅ Resolved 2026-06-16 (Session 29)
+**Resolved — built in M3.S4e; recorded in `docs/decisions/0005` + `[[m3-relation-write]]` (now `accepted`)
++ `[[invariants]]` INV-1/INV-9.** DM-Rel-1 = the **explicit human gate** (owner); DM-Rel-2/4/5/6/7
+confirmed at build as the architect proposed (the S4a pattern); INV-1 **broadened** (not INV-10 minted) to
+cover edges; the create-id derivation promoted to `domain.candidates.committed_entity_id` (the DM-Rel-2
+drift fix). The Evidence station is filled by `staged_relations`; the **Expiry** station (a held relation
+never expires) is an accepted none-at-PoC gap (ADR 0005). Carried follow-up: **per-mention provenance for
+triple-deduped edges** (post-PoC). Original register below, struck, for history.
+
 Raised by the M3 relation-write `decompose-requirement` step-0 (2026-06-16, `[[m3-relation-write]]`).
 Entity dedupe (S4a–S4d) is done, but **no code writes graph edges** — a merge orphans a candidate's
 staged relations, so §9 M3's "the graph is clean" is not yet met for relations. The owner framed this as
-an **M3 slice** (2026-06-16), not an M3→M4 roll. **Partly resolved 2026-06-16 (Session 28):** DM-Rel-1 +
-the slice are decided (below); DM-Rel-2/4/5/6/7 stay open (carried as proposed, confirm-at-build). Full
-Context/Options for each entry live in the proposal's register.
+an **M3 slice** (2026-06-16), not an M3→M4 roll. Full Context/Options for each entry live in the proposal's register.
 - ~~**DM-Rel-1 — the human gate for relations (the central call):**~~ ✅ **Resolved (owner, 2026-06-16):
   an EXPLICIT human gate** — the §3.3 5th action ("decide on relations"), *not* auto-write and *not* the
   hybrid; **slice split backend-now (S4e) / UI-next (S4f)**. *Considered & rejected:* auto-write-on-both-
@@ -459,10 +465,9 @@ Context/Options for each entry live in the proposal's register.
 - **DM-Rel-7 — dangling-to-known endpoints:** a relation endpoint naming a known accepted entity not
   re-extracted this paragraph — resolve against the accepted graph, hold, or surface for manual binding?
 - **Vault hygiene flagged:** the **INDEX priority queue is stale** — "Next steps" framed S4c as next
-  though S4c/S4d shipped (this run refreshes those lines); a fuller **`review-architecture` re-sync** (a
-  dated post-S4d as-built snapshot) is **overdue** at this milestone boundary. **Lands in:** the M3
-  relation-write **S4e backend** slice (test-first; DM-Rel-1 + slice resolved, DM-Rel-2/4/5/6/7 at build),
-  then **S4f UI**. Open (the remaining register).
+  though S4c/S4d shipped; a fuller **`review-architecture` re-sync** (a dated post-S4d/S4e as-built
+  snapshot) is **overdue** at this milestone boundary. **S4e backend shipped 2026-06-16** (this register
+  resolved); **S4f UI** remains the next relation slice.
 
 ## Referenced — owned by spec §10 (not duplicated)
 

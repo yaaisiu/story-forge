@@ -203,6 +203,54 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/stories/{story_id}/relations": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Relations
+         * @description The committable relations for a story (spec §3.3's 5th Stage-4 action).
+         *
+         *     A relation is committable once **both** surface endpoints resolve to entities the human has
+         *     already accepted in that paragraph; relations with a held/unaccepted endpoint or a self-loop
+         *     are excluded. The edge is written only on an explicit `decide` (INV-1/INV-9 — the human gate).
+         */
+        get: operations["list_relations_stories__story_id__relations_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/stories/{story_id}/relations/{relation_id}/decide": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Decide Relation
+         * @description Commit (write the edge) or reject a staged relation under the human gate (spec §3.3).
+         *
+         *     The **only** edge-writing path (INV-1/INV-9). Commit re-resolves both endpoints (TOCTOU)
+         *     and writes the edge idempotently; an endpoint that no longer resolves, or a self-loop,
+         *     yields 409 with nothing written.
+         */
+        post: operations["decide_relation_stories__story_id__relations__relation_id__decide_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/llm/status": {
         parameters: {
             query?: never;
@@ -317,6 +365,17 @@ export interface components {
         CandidatesResponse: {
             /** Candidates */
             candidates: components["schemas"]["CandidateView"][];
+        };
+        /**
+         * DecideRelationRequest
+         * @description The reviewer's relation decision: commit the edge, or reject the relation.
+         */
+        DecideRelationRequest: {
+            /**
+             * Action
+             * @enum {string}
+             */
+            action: "commit" | "reject";
         };
         /**
          * EntitySearchResponse
@@ -508,6 +567,73 @@ export interface components {
             /** By Task Type */
             by_task_type: components["schemas"]["TaskTypeUsage"][];
             last_call: components["schemas"]["LastCall"] | null;
+        };
+        /**
+         * RelationDecisionResponse
+         * @description Outcome of a relation decision: the terminal status + the committed edge id (if any).
+         */
+        RelationDecisionResponse: {
+            /**
+             * Relation Id
+             * Format: uuid
+             */
+            relation_id: string;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "staged" | "written" | "rejected";
+            /** Edge Id */
+            edge_id: string | null;
+            /** Already Decided */
+            already_decided: boolean;
+        };
+        /**
+         * RelationView
+         * @description One committable relation for the §3.3 5th human action ("decide on relations").
+         *
+         *     Carries the surface triple + the cascade's confidence and the entity ids both endpoints
+         *     currently resolve to (committed entities in the same paragraph). The UI (S4f) renders the
+         *     surface strings and can resolve names from the resolved ids; persistence-only fields are
+         *     omitted.
+         */
+        RelationView: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /**
+             * Paragraph Id
+             * Format: uuid
+             */
+            paragraph_id: string;
+            /** Subject */
+            subject: string;
+            /** Predicate */
+            predicate: string;
+            /** Object */
+            object: string;
+            /** Confidence */
+            confidence: number | null;
+            /**
+             * Subject Entity Id
+             * Format: uuid
+             */
+            subject_entity_id: string;
+            /**
+             * Object Entity Id
+             * Format: uuid
+             */
+            object_entity_id: string;
+        };
+        /**
+         * RelationsResponse
+         * @description A story's committable relations (both endpoints resolved) — the decide queue.
+         */
+        RelationsResponse: {
+            /** Relations */
+            relations: components["schemas"]["RelationView"][];
         };
         /**
          * ReviewResponse
@@ -1054,6 +1180,118 @@ export interface operations {
                 };
             };
             /** @description The staging store is unavailable. */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    list_relations_stories__story_id__relations_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                story_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RelationsResponse"];
+                };
+            };
+            /** @description Story not found. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+            /** @description The staging store is unavailable. */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    decide_relation_stories__story_id__relations__relation_id__decide_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                story_id: string;
+                relation_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DecideRelationRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RelationDecisionResponse"];
+                };
+            };
+            /** @description Story or relation not found. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description An endpoint no longer resolves (stale/held). */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+            /** @description A data store is unavailable. */
             503: {
                 headers: {
                     [name: string]: unknown;

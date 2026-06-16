@@ -623,6 +623,164 @@
         }
       }
     },
+    "/stories/{story_id}/relations": {
+      "get": {
+        "tags": [
+          "stories"
+        ],
+        "summary": "List Relations",
+        "description": "The committable relations for a story (spec \u00a73.3's 5th Stage-4 action).\n\nA relation is committable once **both** surface endpoints resolve to entities the human has\nalready accepted in that paragraph; relations with a held/unaccepted endpoint or a self-loop\nare excluded. The edge is written only on an explicit `decide` (INV-1/INV-9 \u2014 the human gate).",
+        "operationId": "list_relations_stories__story_id__relations_get",
+        "parameters": [
+          {
+            "name": "story_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Story Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RelationsResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Story not found.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "The staging store is unavailable.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/stories/{story_id}/relations/{relation_id}/decide": {
+      "post": {
+        "tags": [
+          "stories"
+        ],
+        "summary": "Decide Relation",
+        "description": "Commit (write the edge) or reject a staged relation under the human gate (spec \u00a73.3).\n\nThe **only** edge-writing path (INV-1/INV-9). Commit re-resolves both endpoints (TOCTOU)\nand writes the edge idempotently; an endpoint that no longer resolves, or a self-loop,\nyields 409 with nothing written.",
+        "operationId": "decide_relation_stories__story_id__relations__relation_id__decide_post",
+        "parameters": [
+          {
+            "name": "story_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Story Id"
+            }
+          },
+          {
+            "name": "relation_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Relation Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DecideRelationRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RelationDecisionResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Story or relation not found.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "An endpoint no longer resolves (stale/held).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "A data store is unavailable.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/llm/status": {
       "get": {
         "tags": [
@@ -842,6 +1000,24 @@
         ],
         "title": "CandidatesResponse",
         "description": "A story's pending review queue."
+      },
+      "DecideRelationRequest": {
+        "properties": {
+          "action": {
+            "type": "string",
+            "enum": [
+              "commit",
+              "reject"
+            ],
+            "title": "Action"
+          }
+        },
+        "type": "object",
+        "required": [
+          "action"
+        ],
+        "title": "DecideRelationRequest",
+        "description": "The reviewer's relation decision: commit the edge, or reject the relation."
       },
       "EntitySearchResponse": {
         "properties": {
@@ -1244,6 +1420,126 @@
         ],
         "title": "LlmStatusResponse",
         "description": "Budget + today's usage + the most recent call, for the agent-activity panel."
+      },
+      "RelationDecisionResponse": {
+        "properties": {
+          "relation_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Relation Id"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "staged",
+              "written",
+              "rejected"
+            ],
+            "title": "Status"
+          },
+          "edge_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Edge Id"
+          },
+          "already_decided": {
+            "type": "boolean",
+            "title": "Already Decided"
+          }
+        },
+        "type": "object",
+        "required": [
+          "relation_id",
+          "status",
+          "edge_id",
+          "already_decided"
+        ],
+        "title": "RelationDecisionResponse",
+        "description": "Outcome of a relation decision: the terminal status + the committed edge id (if any)."
+      },
+      "RelationView": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Id"
+          },
+          "paragraph_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Paragraph Id"
+          },
+          "subject": {
+            "type": "string",
+            "title": "Subject"
+          },
+          "predicate": {
+            "type": "string",
+            "title": "Predicate"
+          },
+          "object": {
+            "type": "string",
+            "title": "Object"
+          },
+          "confidence": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Confidence"
+          },
+          "subject_entity_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Subject Entity Id"
+          },
+          "object_entity_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Object Entity Id"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "paragraph_id",
+          "subject",
+          "predicate",
+          "object",
+          "confidence",
+          "subject_entity_id",
+          "object_entity_id"
+        ],
+        "title": "RelationView",
+        "description": "One committable relation for the \u00a73.3 5th human action (\"decide on relations\").\n\nCarries the surface triple + the cascade's confidence and the entity ids both endpoints\ncurrently resolve to (committed entities in the same paragraph). The UI (S4f) renders the\nsurface strings and can resolve names from the resolved ids; persistence-only fields are\nomitted."
+      },
+      "RelationsResponse": {
+        "properties": {
+          "relations": {
+            "items": {
+              "$ref": "#/components/schemas/RelationView"
+            },
+            "type": "array",
+            "title": "Relations"
+          }
+        },
+        "type": "object",
+        "required": [
+          "relations"
+        ],
+        "title": "RelationsResponse",
+        "description": "A story's committable relations (both endpoints resolved) \u2014 the decide queue."
       },
       "ReviewResponse": {
         "properties": {

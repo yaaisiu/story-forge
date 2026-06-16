@@ -17,6 +17,7 @@ from story_forge.adapters.llm.router import LLMRouter
 from story_forge.adapters.neo4j_repo import Neo4jRepo
 from story_forge.adapters.postgres_candidate_store import PostgresCandidateStore
 from story_forge.adapters.postgres_mention_store import PostgresMentionStore
+from story_forge.adapters.postgres_relation_store import PostgresRelationStore
 from story_forge.agents.candidate_rematch import ReMatchService
 from story_forge.agents.candidate_review import CandidateReviewService
 from story_forge.agents.candidate_staging import CandidateStager
@@ -27,6 +28,7 @@ from story_forge.agents.extraction_agent import ExtractionAgent
 from story_forge.agents.extraction_coordinator import ExtractionCoordinator
 from story_forge.agents.judge_agent import JudgeAgent
 from story_forge.agents.matching_agent import MatchingAgent
+from story_forge.agents.relation_review import RelationReviewService
 from story_forge.api import llm, stories
 from story_forge.config import settings
 
@@ -109,6 +111,13 @@ app.state.extraction_coordinator = ExtractionCoordinator(
 _rematch = ReMatchService(MatchingAgent(), _candidate_store)
 app.state.candidate_review = CandidateReviewService(
     _neo4j_repo, _candidate_store, PostgresMentionStore(), rematch=_rematch
+)
+# Relation-write (M3.S4e): the human-gated edge writer (§3.3's 5th action). Resolves a staged
+# relation's surface endpoints to committed entity ids (via the candidate store) and writes the
+# edge idempotently to Neo4j — the only edge-writing path (INV-1/INV-9), the sibling of the
+# candidate-accept node writer.
+app.state.relation_review = RelationReviewService(
+    _neo4j_repo, PostgresRelationStore(), _candidate_store
 )
 
 app.add_middleware(

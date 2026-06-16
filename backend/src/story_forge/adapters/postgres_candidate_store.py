@@ -23,12 +23,14 @@ from psycopg.rows import class_row
 from psycopg.types.json import Jsonb
 
 from story_forge.adapters.db import connect, libpq_kwargs
+from story_forge.adapters.postgres_relation_store import PostgresRelationStore
 from story_forge.config import settings
 from story_forge.domain.candidates import (
     CandidateDecision,
     CandidateProposal,
     CandidateStatus,
     StagedCandidate,
+    StagedRelation,
 )
 
 _CANDIDATE_COLUMNS = (
@@ -59,18 +61,27 @@ class PostgresCandidateStore:
         candidates: list[StagedCandidate],
         relations: list[dict[str, object]],
     ) -> None:
-        """Stage a paragraph's candidates + its resume marker atomically (one transaction).
+        """Stage a paragraph's candidates + relations + its resume marker atomically (one txn).
 
         The marker is written even for a zero-candidate paragraph, so a re-run skips it.
-        `ON CONFLICT DO NOTHING` on the marker keeps a defensive re-persist idempotent.
+        `ON CONFLICT DO NOTHING` on the marker keeps a defensive re-persist idempotent. Since
+        M3.S4e relations are staged into `staged_relations` (so they carry a lifecycle) rather
+        than the `paragraph_processed.relations` JSONB, which is now left empty (vestigial).
         """
         async with await self._connect() as conn:  # autocommit=False → commits on clean exit
             for candidate in candidates:
                 await self._insert_candidate(conn, candidate)
+            for relation in relations:
+                await PostgresRelationStore.insert(
+                    conn,
+                    StagedRelation.from_proposal(
+                        story_id=story_id, paragraph_id=paragraph_id, relation=relation
+                    ),
+                )
             await conn.execute(
-                "INSERT INTO paragraph_processed (paragraph_id, story_id, relations) "
-                "VALUES (%s, %s, %s) ON CONFLICT (paragraph_id) DO NOTHING",
-                (paragraph_id, story_id, Jsonb(relations)),
+                "INSERT INTO paragraph_processed (paragraph_id, story_id) "
+                "VALUES (%s, %s) ON CONFLICT (paragraph_id) DO NOTHING",
+                (paragraph_id, story_id),
             )
 
     @staticmethod
@@ -123,6 +134,19 @@ class PostgresCandidateStore:
             await cur.execute(
                 f"SELECT {_CANDIDATE_COLUMNS} FROM candidates "
                 "WHERE story_id = %s AND status = 'review-queued' ORDER BY created_at",
+                (story_id,),
+            )
+            return await cur.fetchall()
+
+    async def list_accepted(self, story_id: UUID) -> list[StagedCandidate]:
+        """A story's committed candidates (`created`/`merged`) — the set a relation resolves
+        its surface endpoints against (M3.S4e, DM-Rel-2). Rejected/queued rows have no
+        committed entity, so they cannot anchor an endpoint and are excluded."""
+        async with await self._connect(autocommit=True) as conn:
+            cur = conn.cursor(row_factory=class_row(StagedCandidate))
+            await cur.execute(
+                f"SELECT {_CANDIDATE_COLUMNS} FROM candidates "
+                "WHERE story_id = %s AND status IN ('created', 'merged') ORDER BY created_at",
                 (story_id,),
             )
             return await cur.fetchall()

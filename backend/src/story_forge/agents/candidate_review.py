@@ -28,16 +28,18 @@ from typing import Literal, Protocol
 from uuid import UUID, uuid5
 
 from story_forge.domain.candidates import (
+    _ACCEPT_NS,
     CandidateDecision,
     CandidateStatus,
     StagedCandidate,
+    committed_entity_id,
 )
 from story_forge.domain.graph import GraphEntity
 from story_forge.domain.models import EntityMention
 
-# A fixed namespace so accept-path ids are a deterministic function of the candidate id —
-# the basis of the retry-idempotency contract (same candidate → same entity/mention/decision id).
-_ACCEPT_NS = UUID("a5f0c0de-0000-4000-8000-000000000001")
+# `_ACCEPT_NS` (the deterministic-id namespace) and `committed_entity_id` (the create→uuid5 /
+# merge→target derivation) live in `domain/candidates.py`, shared with relation-endpoint
+# resolution so the two homes can't drift (`[[idempotency]]`).
 
 AcceptAction = Literal["create", "merge"]
 
@@ -275,9 +277,5 @@ class CandidateReviewService:
         candidate = await self._candidates.get(candidate_id)
         if candidate is None:
             raise CandidateNotFound(str(candidate_id))  # deleted between the two reads
-        entity_id: UUID | None = None
-        if candidate.status == "created":
-            entity_id = uuid5(_ACCEPT_NS, f"entity:{candidate.id}")
-        elif candidate.status == "merged":
-            entity_id = candidate.target_entity_id
+        entity_id = committed_entity_id(candidate)  # created → accept-id, merged → target
         return ReviewResult(candidate.id, candidate.status, entity_id, already_decided=True)
