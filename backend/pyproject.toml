@@ -17,18 +17,23 @@ authors = [{ name = "Marcin" }]
 # Versions are verified ≥14 days old via PyPI at pin time.
 dependencies = [
   "fastapi==0.136.1",
-  # starlette is a fastapi transitive; pinned explicitly to force the security bump
-  # off 1.0.0 (GHSA-86qp-5c8j-p5mr / PYSEC-2026-161 — Host-header path poisoning,
-  # the advisory the SCA gate exists to catch). Drop this pin once fastapi requires
-  # starlette>=1.0.1 on its own.
-  "starlette==1.0.1",
+  # starlette is a fastapi transitive; pinned explicitly to force the security bumps
+  # the SCA gate exists to catch (first off 1.0.0 — GHSA-86qp-5c8j-p5mr; then off 1.0.1
+  # — CVE-2026-48817/48818, fixed in 1.1.0). 1.2.0 is the newest soaked version; the
+  # two newer advisories (CVE-2026-54282/54283) are fixed only in 1.3.0/1.3.1, which
+  # are still inside the 14-day soak — waived time-boxed in infra/osv/WAIVERS.md until
+  # they bake. Drop this pin (and bump toward 1.3.1) once fastapi requires it on its own.
+  "starlette==1.2.0",
   "uvicorn[standard]==0.46.0",
   "pydantic==2.13.3",
   "pydantic-settings==2.14.0",
   "alembic==1.18.4",
   "sqlalchemy==2.0.49",
   "psycopg[binary]==3.3.4",
-  "python-multipart==0.0.27",
+  # bumped 0.0.27 → 0.0.30 to clear CVE-2026-53537/53538/53539 (fixed 0.0.30); the
+  # residual low CVE-2026-53540 is fixed only in 0.0.31 (inside the soak) — waived
+  # time-boxed in infra/osv/WAIVERS.md until it bakes.
+  "python-multipart==0.0.30",
   "python-docx==1.2.0",
   "langdetect==1.0.9",
   "jinja2==3.1.6",

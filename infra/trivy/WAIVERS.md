@@ -19,7 +19,7 @@ docker run --rm -v /var/run/docker.sock:/var/run/docker.sock \
   --ignorefile /tmp/ignore <IMAGE>:<TAG>
 ```
 
-**Last reviewed:** 2026-05-27.
+**Last reviewed:** 2026-06-16.
 
 > **Pattern note (pgvector CVE-rot recurrence) — THRESHOLD TRIPPED 2026-05-27.**
 > Since 2026-05-21 the pgvector image has gone from green → red **three times**
@@ -44,10 +44,10 @@ docker run --rm -v /var/run/docker.sock:/var/run/docker.sock \
 ## neo4j — `neo4j:5.26.25-community-ubi10`
 
 Scoped file: `infra/trivy/neo4j.trivyignore` · Issue #2 · added 2026-05-21
-(extended 2026-06-10: +CVE-2026-44249, +CVE-2026-45416).
+(extended 2026-06-10: +CVE-2026-44249, +CVE-2026-45416; 2026-06-16: +CVE-2026-50010).
 Class: **bundled** netty jars Neo4j ships itself (no base variant fixes them).
 **Drop when:** a Neo4j 5.26.x patch bundles netty ≥ 4.1.135.Final (the 4.1.x fix
-for the two 2026-06-10 additions; the first three were fixed in 4.1.133.Final,
+for the 2026-06-10/2026-06-16 additions; the first three were fixed in 4.1.133.Final,
 2026-05-04). None is data-disclosure/RCE on a 127.0.0.1 single-user deployment.
 
 | CVE | Pkg | Sev | Class | Fixed in | Why acceptable here |
@@ -57,6 +57,7 @@ for the two 2026-06-10 additions; the first three were fixed in 4.1.133.Final,
 | CVE-2026-42587 | netty-codec-http | HIGH | DoS (decompression bomb) | netty 4.1.133.Final | resource-exhaustion only |
 | CVE-2026-44249 | netty-handler | HIGH | IPv6 subnet-filter bypass (access-control) | netty 4.1.135.Final | netty IP-filtering not used as a boundary; 127.0.0.1 bind is |
 | CVE-2026-45416 | netty-handler | HIGH | DoS (SNI 16 MiB pre-alloc) | netty 4.1.135.Final | no public TLS surface; loopback, trusted client only |
+| CVE-2026-50010 | netty-handler | HIGH | TLS hostname-verification bypass (MITM; GHSA-c653-97m9-rcg9) | netty 4.1.135.Final | no public TLS surface; loopback, single trusted client — no untrusted TLS peer to impersonate |
 
 ## pgvector — `pgvector/pgvector:0.8.2-pg17-trixie`
 
