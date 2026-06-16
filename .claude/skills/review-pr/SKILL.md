@@ -62,6 +62,17 @@ path the tests assert — find the cases nobody wrote a test for. Check, concret
   not closed, shared mutable state across requests, ordering assumptions between awaits.
 - **Data integrity** — IDs generated/used consistently across the Postgres/Neo4j split;
   `order_index` renumbering; transactions committed/rolled back on the right paths.
+- **Shared-helper reuse — does the data the helper reads hold for the NEW caller?** When a PR
+  routes an existing shared helper (or pure domain function) to a *new* consumer, its **output**
+  contract can be satisfied while a **precondition the old caller happened to maintain** is
+  silently unmet for the new one. Find every field/state the helper reads and confirm it is kept
+  correct at the *new* call site, not just the old. This is structurally hard for a single
+  self-review (it can't trace call sites as systematically as the multi-agent cross-file tracer),
+  so check it deliberately — it is exactly where helper consolidation (the rule-of-three) plants
+  bugs. (PR #76: `committed_entity_id` read `candidates.target_entity_id`; the accept path never
+  persisted the *changed* merge target onto the row — harmless for the old terminal-noop reader,
+  but the new relation-endpoint-resolution reader resolved to the **stale** target → an edge to
+  the wrong entity. `/code-review`'s cross-file tracer caught it; the single self-review missed it.)
 - **Checkpoint / resume-marker ordering** — when a persisted write doubles as a *done /
   resume marker* (a row whose presence makes a re-run *skip* that unit of work), verify it
   lands **only after every operation whose completion it certifies** has succeeded. A marker
