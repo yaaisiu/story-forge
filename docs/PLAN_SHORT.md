@@ -127,9 +127,10 @@ additive UI. See Decided 2026-06-15.
    *changed* merge target wasn't persisted on the candidate row, so a relation endpoint resolved to the stale
    target — `set_status` now persists the committed target on merge-accept. Re-point of *written* edges stays
    **M4** (DM-Rel-5); per-mention provenance for triple-deduped edges is a post-PoC follow-up (ADR 0005).
-9. **M3.S4f — relation-review UI (frontend).** ⏳ Deferred to follow S4e (the S4a→S4b cut). The React
-   "decide on relations" surface consuming S4e's endpoints — list committable relations (both endpoints
-   accepted), confirm / re-target / edit predicate / reject. Scope firms once S4e's endpoint contract lands.
+9. **M3.S4f — relation-review UI (frontend).** ⏳ **NEXT** (the additive UI half of the S4a→S4b cut, now that
+   S4e's backend + endpoint contract have landed). The React "decide on relations" surface consuming S4e's
+   endpoints — list committable relations (both endpoints accepted), commit / reject (the endpoints expose
+   commit/reject today; re-target / edit-predicate are a later refinement). Mirror `features/extraction-review/`.
 
 Each ends green + committed; `/review-pr` (+ `/code-review` for substantive code) → PR
 → squash-merge, per feature.
