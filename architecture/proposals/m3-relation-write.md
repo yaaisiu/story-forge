@@ -8,11 +8,21 @@ related: ["[[m3-cascade-matching]]", "[[m3s4a-intercept-write-path]]", "[[candid
 
 # M3 relation-write — committing graph edges under human control (step-0)
 
-> **Status: proposed — register OPEN (DM-Rel-1..7). The owner decides; the architect proposes.**
+> **Status: proposed — register PARTLY RESOLVED (DM-Rel-1 + the slice decided 2026-06-16;
+> DM-Rel-2/4/5/6/7 still open). The owner decides; the architect proposes.**
 > This is the step-0 decompose for the M3 slice that completes *"the graph is clean"* (§9 M3) **for
 > relations**. Entity dedupe (S4a–S4d) is done; today a merge orphans a candidate's staged relations
 > because **no code writes graph edges**. Owner framing (2026-06-16): this is an **M3 slice**, not an
 > M3→M4 roll — relations are part of M3's clean-graph outcome.
+>
+> **Resolved (owner, 2026-06-16; authoritative in `docs/PLAN_SHORT.md` Decided S28 + Blocked / OQ-19):**
+> **DM-Rel-1 → (b) an EXPLICIT human gate** over relations — the §3.3 5th action "decide on relations",
+> *not* auto-write (option (a)) and *not* the hybrid (option (c)). **Slice → split BACKEND-now (S4e) /
+> UI-next (S4f)** (the S4a→S4b cut). The DM-Rel-1 register entry below reads as the Decision; options (a)
+> auto-write and (c) hybrid are kept for the record but are **rejected** — anywhere this note still poses
+> "auto vs human gate" as a *live* fork (the Mermaid gate node, the Intent/Decision stations, the INV
+> framing) now resolves to the **human gate**. Stays `proposed` because **DM-Rel-2/4/5/6/7 remain open**
+> (carried as proposed, confirm-at-build per the S4a pattern); the note goes to `accepted` when they resolve.
 >
 > **Authoritative contract (referenced, never restated):** spec **§3.2** (entity/relation data model),
 > **§3.3** (the Stage-4 human actions — incl. the 5th, *"decide on relations (which entities it links
@@ -140,25 +150,26 @@ alerting beyond the single-user-local baseline (n/a).
 | Station | Present after this slice? | Where / gap |
 |---|---|---|
 | **Identity** | n/a — single local user | localhost binding |
-| **Intent** | ⚠ **the central call** | is the *intent* the entity accepts (auto-write) or an explicit relation decision (§3.3 5th action)? → **DM-Rel-1** |
+| **Intent** | ✅ **resolved** | the explicit `decide-relations` human action *is* the intent (DM-Rel-1 ✅ — the §3.3 5th action, not auto-write) |
 | **Policy** | ⚠ | which surface→entity resolution counts; same-paragraph match rule; a confidence floor on edges? → **DM-Rel-2/7** |
-| **Decision** | ⚠ | who commits an edge — same **DM-Rel-1** question (mirrors INV-1's entity guard) |
+| **Decision** | ✅ **resolved** | the human commits each edge at `decide-relations` (DM-Rel-1 ✅), mirroring INV-1's entity guard |
 | **Access** | n/a | no inter-user access |
 | **Monitoring** | ✅ | committed edges visible via `get_relations` + the §3.4 graph viewer |
 | **Evidence** | ⚠ **gap** | a relation commit has **no audit row** (`candidate_decisions` is entity-keyed) — INV-3 reversibility for edges → **DM-Rel-4** |
 | **Expiry** | ◻ **inherited gap** | a relation whose endpoint is never accepted is **held forever** in `paragraph_processed` — same posture as DM-S4a-5 (none at PoC) but now a concrete second instance |
 | **Review** | ⚠ | the §3.3 5th action's *surface* — backend gate this slice; the UI is a likely follow-on (mirrors the S4a→S4b split) |
 
-Empty/weak stations (**Intent/Decision = DM-Rel-1; Evidence = DM-Rel-4; Expiry**) are mirrored to
+Empty/weak stations still open (**Evidence = DM-Rel-4; Expiry**; Intent/Decision now ✅ via DM-Rel-1) are mirrored to
 `open-questions.md` (OQ-19).
 
 ---
 
 ## Data flow
 
-Resolution and the edge write happen **only on the human path** (INV-9), never in the coordinator. Shown for
-the **on-accept sweep** trigger (DM-Rel-3 option a); an explicit-gate trigger replaces the amber auto box
-with a human `decide-relations` action.
+Resolution and the edge write happen **only on the human path** (INV-9), never in the coordinator. With
+DM-Rel-1 resolved to the **explicit human gate**, the commit edge leaves a human `decide-relations` action
+(not an auto-sweep). An on-accept sweep may still *resolve/hold* relations as endpoints land (DM-Rel-3,
+confirm-at-build), but the **commit** is the human's — the amber `GATE` box below is that human action.
 
 ```mermaid
 flowchart TD
@@ -168,7 +179,7 @@ flowchart TD
     PP -.->|"NO edge written here (INV-9)"| X((graph: nodes only))
     ACC{"human accepts a candidate<br/>(INV-1 — entity committed)"} --> SWEEP["sweep this paragraph's staged relations"]
     SWEEP --> RES{"resolve BOTH endpoints<br/>surface string → same-paragraph candidate<br/>→ committed entity id"}
-    RES -->|"both resolved"| GATE{"commit gate<br/>DM-Rel-1: auto? or human decide?"}
+    RES -->|"both resolved"| GATE{"decide-relations<br/>(HUMAN gate — DM-Rel-1 ✅ explicit)"}
     RES -->|"an endpoint pending/rejected"| HOLD["HOLD (stays staged;<br/>re-swept on the next accept)"]
     GATE -->|"commit"| WRITE[["MERGE edge by deterministic id<br/>(DM-Rel-6) + evidence (DM-Rel-4)"]]
     GATE -->|"human rejects edge"| REJ["mark relation rejected"]
@@ -204,19 +215,18 @@ the machine cannot be finalised until it resolves.
   sibling reached by a human endpoint), never from the `ExtractionCoordinator`. This slice must not weaken
   INV-9 — the greppable guard (no `create_relation` reachable from the coordinator/agents) extends to the new
   write. **No change to INV-9; it gains a second witnessed instance.**
-- **INV-1 vs a new INV-10 — depends on DM-Rel-1.** INV-1 today reads "human-in-the-loop on every entity
-  create/merge." If the owner picks an **explicit relation gate**, either *broaden INV-1* to "every entity
-  create/merge **and every relation edge**" or *mint INV-10* ("no edge is written without a human decision").
-  If the owner picks **auto-write on both-endpoints-accepted**, the human gate is **transitive** (the human
-  blessed both endpoints) and the honest invariant is narrower — "an edge is written only between two
-  human-accepted entities," not "the human commits each edge." I **propose** the framing; I do **not** mint
-  the invariant — it is downstream of DM-Rel-1.
+- **INV-1 broadened, or a new INV-10 (DM-Rel-1 ✅ explicit gate).** With the explicit gate chosen, the
+  human commits each edge, so the invariant is the strong form: either *broaden INV-1* ("human-in-the-loop on
+  every entity create/merge **and every relation edge**") or *mint INV-10* ("no edge is written without a
+  human decision"). (The auto-write branch — which would have given only the *transitive* narrower guarantee,
+  "an edge only between two human-accepted entities" — is rejected with option (a).) Broaden-vs-mint is a
+  build-time call, witnessed test-first; the architect frames it, does not pick it here.
 
 ---
 
-## Decision register (OPEN — owner decides; mirrored to `open-questions.md` OQ-19)
+## Decision register (PARTLY RESOLVED — DM-Rel-1 + slice decided 2026-06-16; DM-Rel-2/4/5/6/7 open; mirrored to `open-questions.md` OQ-19)
 
-### DM-Rel-1 — The human gate for relations (THE central call)
+### DM-Rel-1 — The human gate for relations (THE central call) — ✅ RESOLVED: (b) explicit gate
 - **Context.** §3.3 lists *"decide on relations (which entities it links to and how)"* as a Stage-4 human
   action. But entity dedupe already puts a human gate on both endpoints. Does an edge between two
   human-accepted entities need its **own** human decision, or does it ride on the entity accepts?
@@ -232,13 +242,17 @@ the machine cannot be finalised until it resolves.
   - **(c) Hybrid — auto-resolve, human-confirm in bulk.** The system resolves + pre-stages a *proposed* edge
     (deterministic, no LLM); the human confirms the batch with one action (accept-all / prune). Middle cost;
     keeps the human veto without a per-edge ceremony.
-- **My proposal.** **(b)** as the spec-faithful target, but the *resolution* is fully deterministic
-  (`[[prefer-deterministic]]`) so the human's job is a thin confirm/prune, not data entry — which makes (b)
-  and (c) nearly converge. If the owner wants the **smallest M3-closing slice**, **(a)** is defensible at PoC
-  scale (single user, reversible edges) **provided** we name the accepted cost (committed predicate errors)
-  in the ADR. **This decision sets the slice size and whether a UI follow-on exists.**
-- **Open.** Which one — and if (b)/(c), is the relation UI *this* slice or a follow-on (S?e backend now,
-  S?f UI next, mirroring S4a/S4b)?
+- **Decision (owner, 2026-06-16) — (b), the explicit human gate** (as proposed). A `decide-relations`
+  surface lists committable relations (both endpoints accepted) and the human confirms / re-targets / edits
+  the predicate / rejects each — the spec-faithful §3.3 5th action and the graph-as-source-of-truth posture.
+  The *resolution* stays fully deterministic (`[[prefer-deterministic]]`) so the human's job is a thin
+  confirm/prune, not data entry. *Rejected:* **(a) auto-write** — it commits a hallucinated predicate/direction
+  even when both nodes are right, the exact LLM error `[[human-in-the-loop]]` exists to catch; **(c) hybrid**
+  — kept as a fallback if the explicit gate proves heavy in practice, but not the build target.
+- **Slice (owner, 2026-06-16) — split BACKEND-now (S4e) / UI-next (S4f)** (the S4a→S4b cut): the backend
+  (resolution + idempotent edge + the `decide-relations` endpoints + the invariant flip) is test-first
+  witnessable at the API boundary; the React relation-review surface follows. *Rejected:* one combined slice
+  (too big for one conversation, the reason S4 itself was split).
 
 ### DM-Rel-2 — Endpoint resolution mechanism
 - **Context.** A surface string must become an accepted entity id. The natural key: the **same-paragraph**
@@ -366,8 +380,9 @@ the machine cannot be finalised until it resolves.
 
 ## Gaps for the product owner
 
-1. **DM-Rel-1 — the human gate (auto-write vs the §3.3 5th action vs hybrid).** The headline call: it sets the
-   slice size, whether a relation **UI** follow-on exists, and whether INV-1 broadens / INV-10 is minted.
+1. ~~**DM-Rel-1 — the human gate (auto-write vs the §3.3 5th action vs hybrid).**~~ ✅ **Resolved (owner,
+   2026-06-16): the explicit §3.3 5th-action gate; slice split backend-now (S4e) / UI-next (S4f).** Remaining:
+   whether INV-1 broadens or INV-10 is minted (build-time, test-first).
 2. **DM-Rel-4 — `staged_relations` table vs JSONB blob**, and the **relation evidence/audit home** (INV-3 for
    edges). Largely a function of (1).
 3. **DM-Rel-6 — idempotent edge write** is a **must-fix regardless** (today's `CREATE` doubles edges on retry);
@@ -380,9 +395,8 @@ the machine cannot be finalised until it resolves.
 8. **The retry-after-accept sweep trap** (a re-accept noop must still let the edge land) — a build-time test,
    noted so the implementer designs for it.
 9. **ADR** — DM6's intercept-before-write is ADR 0004; this slice is its natural completion. Author an ADR
-   (likely **0006**) only on confirmation, stating the accepted cost of whichever DM-Rel-1 option wins
-   (auto-write = committed-predicate risk; explicit gate = a heavier slice). `verify-at-build` the next ADR
-   number against `docs/decisions/`.
+   (likely **0006**) only on confirmation, stating the accepted cost of the chosen **explicit gate** (a
+   heavier slice + a UI follow-on — DM-Rel-1 ✅). `verify-at-build` the next ADR number against `docs/decisions/`.
 
 ---
 
@@ -399,16 +413,17 @@ the machine cannot be finalised until it resolves.
 
 ## Hand-off
 
-- **First code is a FAILING TEST**, test-first per the workflow rule — but **which** test depends on
-  DM-Rel-1. The invariant-level witness, whichever gate wins: *"accepting both endpoints of a staged relation
-  results in exactly one graph edge between the two committed entities; accepting only one writes none; a
-  retried accept does not double the edge."* That triplet pins resolution + the both-endpoints gate +
-  idempotency (DM-Rel-2/-3/-6) at once.
-- **Do not write production code, fold invariants, draw the standalone relation-lifecycle note, or author the
-  ADR until the register is resolved** — they are all downstream of DM-Rel-1. On resolution, this proposal is
-  brought to `accepted` (every register entry → Decision, the Mermaid auto/gate node de-activated to match,
-  OQ-19 struck) and the host homes reconciled (spec §3.3 if the gate semantics need an amendment, the plan's
-  Decided + a new session task, `[[invariants]]`, `[[candidate-lifecycle]]` or a new `relation-lifecycle`).
+- **First code is a FAILING TEST**, test-first per the workflow rule. With DM-Rel-1 resolved to the explicit
+  gate, the witness is settled: *"accepting both endpoints of a staged relation, then the `decide-relations`
+  human action, results in exactly one graph edge between the two committed entities; accepting only one (or
+  not deciding the relation) writes none; a retried accept/decide does not double the edge."* That pins
+  resolution + the both-endpoints gate + the human commit + idempotency (DM-Rel-2/-3/-6) at once.
+- **DM-Rel-1 + the slice are resolved; DM-Rel-2/4/5/6/7 are not** — so do not fold invariants, draw the
+  standalone relation-lifecycle note, or author the ADR until those resolve at build (the invariant flip is
+  witnessed by the failing test, not asserted ahead of it). On full resolution, this proposal goes to
+  `accepted` (the remaining register entries → Decision, OQ-19 fully struck) and the host homes are reconciled
+  (spec §3.3 if the gate *mechanism* needs an amendment — the gate *existence* is already §3.3; the plan's
+  Decided + the S4e/S4f tasks; `[[invariants]]`; `[[candidate-lifecycle]]` or a new `relation-lifecycle`).
 - **Reuse, don't rebuild:** `neo4j_repo.create_relation`/`get_relations` (make the write idempotent —
   DM-Rel-6), the `CandidateReviewService` accept path + its `_maybe_rematch` fail-closed pattern (the sweep
   hook), the `candidates`/`candidate_decisions` table design (the `staged_relations` mirror — DM-Rel-4), and

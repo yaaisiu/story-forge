@@ -433,14 +433,14 @@ review queue can't merge → duplicate Neo4j nodes, undercutting §9 M3's "the g
 Raised by the M3 relation-write `decompose-requirement` step-0 (2026-06-16, `[[m3-relation-write]]`).
 Entity dedupe (S4a–S4d) is done, but **no code writes graph edges** — a merge orphans a candidate's
 staged relations, so §9 M3's "the graph is clean" is not yet met for relations. The owner framed this as
-an **M3 slice** (2026-06-16), not an M3→M4 roll. Full Context/Options/My-proposal for each entry live in
-the proposal's register; listed here so the vault's reader knows they gate the build and that the
-architect has **not** resolved them.
-- **DM-Rel-1 — the human gate for relations (the central call):** auto-write on both-endpoints-accepted
-  vs the §3.3 5th human action ("decide on relations") vs a hybrid confirm/prune. Sets the slice size,
-  whether a relation **UI** follow-on exists, and whether INV-1 broadens or **INV-10** is minted. *My
-  proposal:* the spec-faithful explicit gate, made cheap because resolution is fully deterministic — but
-  auto-write is a defensible PoC simplification if the committed-predicate risk is named in the ADR.
+an **M3 slice** (2026-06-16), not an M3→M4 roll. **Partly resolved 2026-06-16 (Session 28):** DM-Rel-1 +
+the slice are decided (below); DM-Rel-2/4/5/6/7 stay open (carried as proposed, confirm-at-build). Full
+Context/Options for each entry live in the proposal's register.
+- ~~**DM-Rel-1 — the human gate for relations (the central call):**~~ ✅ **Resolved (owner, 2026-06-16):
+  an EXPLICIT human gate** — the §3.3 5th action ("decide on relations"), *not* auto-write and *not* the
+  hybrid; **slice split backend-now (S4e) / UI-next (S4f)**. *Considered & rejected:* auto-write-on-both-
+  endpoints-accepted (commits a hallucinated predicate/direction even when both nodes are right); hybrid
+  bulk-confirm (kept as a fallback). Remaining: broaden INV-1 vs mint **INV-10** — build-time, test-first.
 - **DM-Rel-2 — endpoint resolution:** surface string → same-paragraph candidate → its *committed* entity
   id (`created` → deterministic create-id; `merged` → `target_entity_id`). Match rule (exact / normalised /
   fuzzy) + where the id is read. `verify-at-build`: the create-id derivation couples to
@@ -461,7 +461,8 @@ architect has **not** resolved them.
 - **Vault hygiene flagged:** the **INDEX priority queue is stale** — "Next steps" framed S4c as next
   though S4c/S4d shipped (this run refreshes those lines); a fuller **`review-architecture` re-sync** (a
   dated post-S4d as-built snapshot) is **overdue** at this milestone boundary. **Lands in:** the M3
-  relation-write slice (its own session, test-first once the register resolves). Open.
+  relation-write **S4e backend** slice (test-first; DM-Rel-1 + slice resolved, DM-Rel-2/4/5/6/7 at build),
+  then **S4f UI**. Open (the remaining register).
 
 ## Referenced — owned by spec §10 (not duplicated)
 
