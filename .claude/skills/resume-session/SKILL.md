@@ -46,6 +46,27 @@ against the migrations (or a live `\d` / `SHOW`); "the compose service works" ge
 a handoff that twice asserted infra state (a table "already in the schema", "CI runs
 neo4j") that file-presence checks had passed but that was false.
 
+## 3b. Scan for expiring security waivers (don't let an "ignore" rot)
+
+A security-gate **waiver** (`infra/osv/osv-scanner.toml`, the three `infra/trivy/*.trivyignore`)
+is a deliberate "ignore *for now*" — safe only while its drop-condition holds. A waiver
+nobody revisits = a known-vulnerable dependency shipping behind a green board. This is the
+proactive layer; the `ignoreUntil` dates also make CI auto-re-red as a backstop, but catch
+it *before* the break, on purpose.
+
+Cheap, **date-only** check (no network — today's date is in your session context):
+
+```bash
+grep -n "ignoreUntil" infra/osv/osv-scanner.toml
+grep -nE "[Dd]rop when.*soaks|soaks 2026|2026-[0-9]{2}-[0-9]{2}" infra/osv/WAIVERS.md infra/trivy/WAIVERS.md
+```
+
+Compare each dated drop-when / `ignoreUntil` against **today**. If any is **due or overdue**
+(or within ~3 days), flag it in the report and recommend **`/triage-advisory`** to fix-first
+(bump now that the fix has soaked) and drop the waiver. Condition-based drop-whens ("drop
+when neo4j ships netty ≥4.1.135") aren't date-checkable here — `/triage-advisory` re-scans
+those by running the gates; just note they exist so the next sweep covers them.
+
 ## 4. Reconcile — surface drift, don't paper over it
 
 Compare what you found against the handoff. If anything disagrees — an anchor file is
@@ -61,7 +82,7 @@ and the spec are already consistent; if not, that reconciliation is the first ta
 
 Give the user a short brief:
 - **Where we are:** milestone + the session we're resuming, one line on last session.
-- **State check:** git branch/tree status; anchors verified ✓ or drift ⚠ with specifics.
+- **State check:** git branch/tree status; anchors verified ✓ or drift ⚠ with specifics; any **expiring security waiver** (step 3b) ⚠ with the date + a pointer to `/triage-advisory`.
 - **This session's goal + tasks:** the unchecked tasks for this session from `docs/PLAN_SHORT.md`.
 - **Decisions needed first:** any Blocked/questions item this session must resolve before coding (e.g. a library or threshold choice) — raise it now, one question at a time.
 
