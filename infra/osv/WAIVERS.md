@@ -36,7 +36,7 @@ docker run --rm -v "$PWD/backend:/src:ro" \
   scan source -L /src/uv.lock --config=/cfg/osv.toml
 ```
 
-**Last reviewed:** 2026-06-12.
+**Last reviewed:** 2026-06-16.
 
 ---
 
@@ -59,3 +59,37 @@ _Historical note: the advisory that motivated this gate — `starlette` 1.0.0,
 GHSA-86qp-5c8j-p5mr / PYSEC-2026-161, MEDIUM — was resolved by an explicit
 `starlette==1.0.1` pin in `backend/pyproject.toml`, not a waiver. That bump was
 this gate's first live self-test: red on 1.0.0, green on 1.0.1._
+
+### starlette — `starlette==1.2.0` (M3.S4d, added 2026-06-16)
+
+Scoped file: `infra/osv/osv-scanner.toml` (`[[IgnoredVulns]]`).
+On 2026-06-16 four new advisories landed against the pinned `starlette==1.0.1`. The
+bump to **1.2.0** (newest soaked version) cleared two of them — CVE-2026-48818 (HIGH,
+info-disclosure) and CVE-2026-48817 (low), both fixed in 1.1.0. The two below are fixed
+only in **1.3.0 / 1.3.1**, which are still inside the 14-day soak, so they are waived
+**fix-first, time-boxed** — not because they're unfixable, but because the fix can't be
+pinned yet under §6.7.
+**Reachability:** Story Forge runs **locally, single-user, bound to 127.0.0.1** (spec
+§6.7) — the only HTTP client is the author's own browser, so a remote denial-of-service
+has no untrusted caller to trigger it.
+**Drop when:** the fixed version clears the 14-day soak — bump `starlette` toward 1.3.1
+via `/add-dependency`, then delete the toml blocks + these rows. Dates below are the
+soak-completion backstops (`ignoreUntil` in the toml).
+
+| CVE / advisory | Severity | Class | Fixed in | Drop when (soaks) | Why safe meanwhile |
+|---|---|---|---|---|---|
+| GHSA-82w8-qh3p-5jfq (CVE-2026-54283) | HIGH (CVSS 7.5) | availability / DoS | 1.3.1 | 2026-06-26 | DoS only (no data exposure); not remotely reachable on a 127.0.0.1 single-user app |
+| GHSA-jp82-jpqv-5vv3 (CVE-2026-54282) | LOW (CVSS 3.7) | minor integrity | 1.3.0 | 2026-06-25 | Low severity; same local-only exposure |
+
+### python-multipart — `python-multipart==0.0.30` (M3.S4d, added 2026-06-16)
+
+Scoped file: `infra/osv/osv-scanner.toml` (`[[IgnoredVulns]]`).
+Same 2026-06-16 advisory wave. The bump **0.0.27 → 0.0.30** cleared three — including
+the HIGH CVE-2026-53539 (DoS) — leaving one low fixed only in **0.0.31** (inside the
+soak). Time-boxed, fix-first.
+**Drop when:** 0.0.31 clears the soak (2026-06-18) — bump via `/add-dependency`, then
+delete the toml block + this row.
+
+| CVE / advisory | Severity | Class | Fixed in | Drop when (soaks) | Why safe meanwhile |
+|---|---|---|---|---|---|
+| GHSA-v9pg-7xvm-68hf (CVE-2026-53540) | LOW (CVSS 3.7) | minor availability | 0.0.31 | 2026-06-18 | Low severity; local single-user, 127.0.0.1-bound app |
