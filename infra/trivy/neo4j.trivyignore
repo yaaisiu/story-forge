@@ -6,7 +6,7 @@
 # neo4j:5.26.25-community-ubi10. Switching from the Debian (`-trixie`) base to
 # Red Hat UBI-10 already eliminated all 14 HIGH/CRITICAL OS-package CVEs
 # (including 2 CRITICAL gnutls) — those are NOT waived, they are fixed by the
-# base choice. What remains are 5 HIGH CVEs in the netty jars that Neo4j 5.26.25
+# base choice. What remains are 6 HIGH CVEs in the netty jars that Neo4j 5.26.25
 # bundles itself (netty 4.1.132.Final). They are identical across every base
 # variant and cannot be fixed without a new Neo4j release that bumps netty to
 # >= 4.1.135.Final.
@@ -14,16 +14,18 @@
 # Why these are acceptable for THIS deployment (spec §6.7 accept-with-justification):
 #   - Story Forge runs Neo4j bound to 127.0.0.1 only, single trusted user,
 #     non-root container, no-new-privileges. There is no untrusted network peer.
-#   - None of the five is data-disclosure or RCE. Most are denial-of-service
+#   - None of the six is data-disclosure or RCE. Most are denial-of-service
 #     (resource exhaustion); one is an HTTP client-codec response-desync bug
 #     reachable only when Neo4j acts as an outbound HTTP client against a
 #     malicious server; one is an IPv6 subnet-*filter* bypass in netty's
 #     access-control filtering — a mechanism this deployment does not use as a
-#     security boundary (the loopback bind is the boundary). All require an
-#     untrusted network peer this single-user 127.0.0.1 deployment never has.
-#   - The first three are fixed in netty 4.1.133.Final (2026-05-04); the two
-#     added 2026-06-10 are fixed in netty 4.1.135.Final. Drop this file the
-#     moment a Neo4j 5.26.x patch ships bundling >= 4.1.135.Final; a re-scan
+#     security boundary (the loopback bind is the boundary); one silently disables
+#     TLS hostname verification (MITM) but only when netty terminates TLS for an
+#     untrusted peer — this deployment runs no public TLS. All require an untrusted
+#     network peer this single-user 127.0.0.1 deployment never has.
+#   - The first three are fixed in netty 4.1.133.Final (2026-05-04); the three
+#     added 2026-06-10/2026-06-16 are fixed in netty 4.1.135.Final. Drop this file
+#     the moment a Neo4j 5.26.x patch ships bundling >= 4.1.135.Final; a re-scan
 #     should then pass clean with no waiver.
 #
 # All waivers across images are also indexed in infra/trivy/WAIVERS.md (the
@@ -61,3 +63,12 @@ CVE-2026-44249
 # to 127.0.0.1, trusted local client only. Fixed in netty 4.1.135.Final (also
 # 4.2.15.Final). (Verified vs GitHub Advisory DB.)
 CVE-2026-45416
+
+# CVE-2026-50010 — netty-handler (SimpleTrustManagerFactory / X509TrustManagerWrapper):
+# wrapping a plain X509TrustManager silently disables TLS hostname verification
+# (GHSA-c653-97m9-rcg9), enabling MITM of a TLS peer. Reachable only where netty
+# terminates/initiates TLS against an untrusted peer using a plain trust manager;
+# Neo4j here runs without public TLS, bound to 127.0.0.1, single trusted local
+# client — there is no untrusted TLS peer to impersonate. Fixed in netty
+# 4.1.135.Final (also 4.2.15.Final). (Verified vs OSV / GitHub Advisory DB.)
+CVE-2026-50010
