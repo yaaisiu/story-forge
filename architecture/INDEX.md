@@ -124,8 +124,8 @@ related: []
    register resolved / OQ-19 struck; ADR 0005). §9 M3's "the graph is clean" is now literally true for
    **relations**: `RelationReviewService` resolves a staged relation's surface endpoints to committed
    entity ids and writes the edge under the explicit §3.3 5th human action, idempotent MERGE-on-id
-   (one edge per fact across paragraphs), INV-1 broadened to edges. **Next: M3.S4f — the relation-review
-   UI** (the S4a→S4b shape) consuming the new `GET …/relations` + `POST …/relations/{id}/decide`.
+   (one edge per fact across paragraphs), INV-1 broadened to edges. (M3.S4f — the relation-review UI, the
+   S4a→S4b shape — shipped next; see item 16.)
    Still-carried: §3.4 graph story-vs-project scoping; INV-6 redaction (OQ-15); the security-waiver
    drops (PLAN_SHORT); per-mention provenance for triple-deduped edges (ADR 0005 follow-up).
 16. **M3.S4f shipped ✅ (PR #78) → M3 FEATURE-COMPLETE; M3→M4 roll started.** The relation-review UI
