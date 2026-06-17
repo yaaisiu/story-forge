@@ -1,7 +1,7 @@
 ---
 type: index
 slug: index
-updated: 2026-06-16
+updated: 2026-06-17
 status: living
 related: []
 ---
@@ -44,11 +44,13 @@ related: []
 | [[backend-dependency-advisory-scan]] | proposal | **Continuous backend SCA gate in CI (✅ built 2026-06-08, PR #44)** — closes the gap where a vuln disclosed *after* pinning was caught only by Dependabot, not CI (the `starlette` 1.0.0 case). Built: osv-scanner step vs `uv.lock`, fail-on-any, **digest-pinned** scanner (the action is a no-`runs:` stub — stronger than the planned SHA-pin), `infra/osv/` waivers, `starlette` 1.0.0→1.0.1 (self-test red→green), §6.7 baseline (no new INV). |
 | [[m2s3-extraction-agent]] | proposal | **M2.S3 nine-layer pass (✅ accepted 2026-06-08, register resolved)** — `ExtractionAgent`, first `LLMRouter` consumer. Decisions: per-paragraph, single-paragraph agent (batch→M2.S4), `candidate_name`, typed `ProviderResponseError`, soft-flag `evidence_quote`. **Built + merged (PR #42).** |
 | [[m3-cascade-matching]] | proposal | **M3 cascade dedupe — step-0 forward pass (✅ register FULLY resolved: DM1–DM6 + DM7 + DM-rej; PLAN_SHORT Decided S23)** — the §3.3 four-stage cascade (RapidFuzz → embedding → JudgeAgent → human queue). Draws the candidate lifecycle; 8-entry register (DM1–DM7 + DM-rej). Central fork **DM6** ✅ intercept-before-write. Retires INV-8 at **M3.S4a** (the re-slice), lands INV-1's enforcer. Stages built proposal-only: M3.S1 RapidFuzz ✅ (PR #56), M3.S2 Stage 2 + pgvector ✅ (PR #58), M3.S3 JudgeAgent ✅ (PR #60). DM7 outcome: **INV-2 consent deferred past M3**. DM-rej: **remember rejections**. |
+| [[m4-inline-highlights]] | proposal | **M4.S1 step-0 — inline highlights (📋 PROPOSED, register OPEN: DM-IH-1..8 / OQ-21)** — the owner-chosen first M4 slice (spec §3.5): render the story text, highlight **accepted** entities inline (colour-by-type), hover→tooltip. A **read-only projection** (most stations n/a; INV-1/9 untouched; no LLM call). Centre of gravity = **DM-IH-1 span resolution**: `entity_mentions` carry **null char offsets**, so highlighting is a where-does-this-entity-sit problem (render-time string search vs persist real spans vs hybrid — PL inflection is the headline gap). Side-panel + manual-annotation + the entity↔entity-merge re-point are **later** slices. Build test-first from the span-resolution pure function once DM-IH-1/2/3 resolve. |
 | [[m3s4a-intercept-write-path]] | proposal | **M3.S4a step-0 — intercept-before-write (✅ BUILT / ADR 0004)** — stages candidates in the new Postgres `candidates` table, wired the cascade into the coordinator (embed-on-extract → Matching → Judge), moved Neo4j+`entity_mentions` writes to the human-accept endpoints; **retired INV-8 → landed INV-1's enforcer + INV-9**, test-first. Register **DM-S4a-1..5 resolved** (S23) + ADR 0004 authored; `[[candidate-lifecycle]]` → `living`. UI is S4b (✅ built). |
 | [[m3-relation-write]] | proposal | **M3 relation-write step-0 — graph edges under human control (✅ ACCEPTED, register resolved / OQ-19 struck; built M3.S4e, ADR 0005)** — completes §9 M3's "clean graph" for *relations*. The *reframe* held: a relation endpoint is a surface string with no entity id until accept → edges write **lazily** (resolve each endpoint to its candidate's *committed* id), so re-point-on-merge dissolved (only an M4 accepted-entity↔entity merge re-points a written edge — DM-Rel-5). **DM-Rel-1 = explicit human gate** (the §3.3 5th action, not auto-write) + slice split backend-now (S4e) / UI-next (S4f); **DM-Rel-2/4/5/6/7** confirmed at build as proposed; `create_relation` now idempotent `MERGE`-on-id (DM-Rel-6). INV-1 broadened to edges (not INV-10). Added [[referential-integrity]]. Carried follow-up: per-mention provenance for triple-deduped edges. |
 | [[m3s4c-intra-batch-rematch]] | proposal | **M3.S4c step-0 — intra-batch dedup (✅ accepted, register resolved / OQ-18)** — triggered by the S4b browser walk (a first pass staged `Janek` ×3 → duplicate nodes the queue couldn't merge). Two additive mechanisms on S4a/S4b: **(a) on-accept live re-match** (deterministic Stage 1/2 over still-pending candidates each accept → dupes flip `new → merge`; backend-only, no LLM) + **(b) manual handpick** (entity-search endpoint + picker for matcher false negatives). Writes **only the staging table** — INV-1/INV-9 *hold*. **Resolved (owner S25):** split **S4c** (re-match) + **S4d** (handpick); auto-flip **Stage 1 `>85%` OR Stage 2 `cosine >0.85`** (no live judge); **monotone** (guard, no INV-10); handpick **project-scoped** (supersedes the deferred arbitrary-search item). Spec §3.3 amended. Build test-first (the re-match flip test). |
 | [[m2s2-llm-router-budget-cap]] | proposal | M2.S2 nine-layer pass: paid adapters + router + budget cap + status endpoint |
-| [[2026-06-15-architecture-review]] | review | **current health snapshot** — M3.S3 merged → entering M3.S4 (no blockers; `risk`: DM5 resolved-but-framed-open, `overview.md` snapshot predates M3.S1–S3; `watch`: `task_type` label `judging`→`judge`, gate-less Stage-3 egress with INV-2 deferred, staging-table Expiry, store-chatty cascade. INV-8 correctly still live `[TEMPORARY]` — the flip is S4a's, test-first) |
+| [[2026-06-17-architecture-review]] | review | **current health snapshot** — M3 feature-complete (S4b–S4f all shipped) → M3→M4 roll. No blockers. `risk`: `overview.md` as-built ~5 sessions stale (lists the relation graph-write + review UI as "planned, not yet built" — both shipped); the relation lifecycle has no state-machine note (entity twin does → OQ-20). `watch`: `invariants.md` frontmatter date lags its correct body; edge-id provenance collapse (ADR-0005 follow-up); held-relation visibility; M4 forward flags (§3.4 graph scoping now live work; DM-Rel-5 re-point becomes real; OQ-14/OQ-15 open). |
+| [[2026-06-15-architecture-review]] | review | M3.S3 merged → entering M3.S4 (superseded as snapshot by 2026-06-17; no blockers; `risk`: DM5 resolved-but-framed-open, `overview.md` snapshot predates M3.S1–S3; `watch`: `task_type` label `judging`→`judge`, gate-less Stage-3 egress with INV-2 deferred, staging-table Expiry, store-chatty cascade. INV-8 correctly still live `[TEMPORARY]` — the flip is S4a's, test-first) |
 | [[2026-06-11-architecture-review]] | review | M2→M3 roll catch-up + forward sweep (superseded as snapshot by 2026-06-15) (no blockers; `risk`: INV-2 consent gate lost its M2.S5 landing → unscheduled + a real paid call fired gate-less; `overview.md` 2 sessions stale; INV-5/OQ-9 latency built but future-tensed. Forward: M3 lands INV-1's enforcer, lifts INV-8, needs the candidate state machine drawn — the decompose step-0) |
 | [[2026-06-09-architecture-review]] | review | pre-M2.S4 drift + forward sweep (superseded as snapshot by 2026-06-11; no blockers; `risk`: `overview.md` 3 sessions stale, `entity_mentions` table absent from migrations, INV-8 needs CREATE-not-MERGE, new write-path must map router errors→HTTP; M2.S4 plan aligned; OQ-1/OQ-2 were the owner's calls — since resolved) |
 | [[2026-06-02-architecture-review-post-m2s2]] | review | post-M2.S2 as-built drift sweep (superseded as snapshot by 2026-06-09; no blockers/risks; watches: latency OQ-9, malformed-envelope OQ-10 — now closed, redaction, state-machine undrawn) |
@@ -60,8 +62,10 @@ related: []
 - `components/` — per-component (C4 Component altitude) notes. Empty.
 - `state-machines/` — **[[candidate-lifecycle]]** drawn (the vault's **first**, `status: draft`, M3
   step-0): `extracted → {auto-merge|ambiguous|new}-proposed → judged → review-queued → (human) →
-  {merged|created|rejected}`; commit guard = INV-1. Still to draw: the **ingest-job** + **LLM-call**
-  lifecycles (the M2.S2 proposal sketches the latter).
+  {merged|created|rejected}`; commit guard = INV-1. Still to draw: the **relation lifecycle**
+  (S4e/S4f shipped a real `staged → held|committable → written|rejected` machine in code with no note —
+  OQ-20, the M3→M4 sweep's structural gap), the **ingest-job** + **LLM-call** lifecycles (the M2.S2
+  proposal sketches the latter).
 
 ## Next steps
 1. ~~Validation/drift sweep over M0→M2.S1 + ADRs 0001–0002~~ ✅ done — [[2026-06-02-architecture-review]].
@@ -123,8 +127,23 @@ related: []
    (one edge per fact across paragraphs), INV-1 broadened to edges. **Next: M3.S4f — the relation-review
    UI** (the S4a→S4b shape) consuming the new `GET …/relations` + `POST …/relations/{id}/decide`.
    Still-carried: §3.4 graph story-vs-project scoping; INV-6 redaction (OQ-15); the security-waiver
-   drops (PLAN_SHORT); per-mention provenance for triple-deduped edges (ADR 0005 follow-up). A
-   `review-architecture` re-sync (post-S4d/S4e as-built snapshot) is **overdue** at this milestone boundary.
+   drops (PLAN_SHORT); per-mention provenance for triple-deduped edges (ADR 0005 follow-up).
+16. **M3.S4f shipped ✅ (PR #78) → M3 FEATURE-COMPLETE; M3→M4 roll started.** The relation-review UI
+   (the S4a→S4b shape) closed §3.3's 5th human action; both gates (entities S4a–S4d, edges S4e–S4f)
+   ship. **Roll re-sync done (2026-06-17, [[2026-06-17-architecture-review]])** — the overdue post-S4e/S4f
+   sweep; no blockers, headline `risk` = a 5-session-stale `overview.md` + the un-drawn relation lifecycle
+   (OQ-20). **Next: M4 — "V1 polish"** (`docs/PLAN_LONG.md`: inline highlights, side panel, manual
+   annotation, properties/relations edit, multi-story, world graph). The §3.4 graph story-vs-project
+   scoping and DM-Rel-5's edge re-point both **graduate from deferred to live M4 work** (multi-story +
+   entity↔entity merge land here). The M4 first-slice `decompose-requirement` step-0 is the roll's last gate.
+17. **M4 first slice chosen + decomposed ✅ (2026-06-17, roll gate 3).** Owner picked **inline highlights**
+   (spec §3.5) as M4.S1 over multi-story/§3.4 and properties-edit. Step-0 → [[m4-inline-highlights]]
+   (`status: proposed`, register **OPEN** DM-IH-1..8 / OQ-21). The headline build call is **DM-IH-1 span
+   resolution** (mentions carry null offsets). **Next session:** *resolve* the open registers + the
+   2026-06-17 report findings (owner asked that the roll's reports be **acted on**, not just filed), then
+   build M4.S1 test-first from the span-resolution pure function. Still pending from this roll: the
+   **python-multipart OSV waiver drop** (fix 0.0.31 soaks 2026-06-18 → drop on/after, before the 06-19
+   `ignoreUntil`).
 
 _Run log: see [[changelog]]. Seeded by `initialize-project-architecture`; extended by
 `review-architecture` + `decompose-requirement`, 2026-06-02._

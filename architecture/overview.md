@@ -1,7 +1,7 @@
 ---
 type: overview
 slug: overview
-updated: 2026-06-15
+updated: 2026-06-17
 status: living
 related: ["[[project]]", "[[invariants]]", "[[open-questions]]", "[[cascade-matching]]", "[[model-tier-routing]]", "[[m3-cascade-matching]]"]
 ---
@@ -60,38 +60,50 @@ code.)
   **observability/operational logging** recorded as a later need (→ OQ-15). No direct vendor adapters
   (OpenRouter is the only paid route — `docs/decisions/0003`).
 
-**M3 in progress — Stages 1–3 built, proposal-only / unwired (PRs #56/#58/#60):**
-- **M3.S1** — `MatchingAgent` **Stage 1** (RapidFuzz token-set vs `canonical_name`+aliases; PR #56).
-- **M3.S2** — **Stage 2** embedding cosine + the **pgvector foundation** (PR #58): real `vector(768)`
-  on `entity_mentions`, `register_vector_async`, the multilingual mpnet model pinned via the §6.7
-  HF-model channel. EmbeddingAgent built but **not** wired (mentions still written `embedding=None`).
-- **M3.S3** — `JudgeAgent` **Stage 3** (PR #60): LLM-as-judge, cloud_free via the router
-  (`task_type="judge"`), strict `{match,confidence,reasoning}`, merge iff `match AND conf>0.8`.
-- Stages 1–3 are proposal-only through their own sessions; they are **wired into the live path by
-  M3.S4a** (below).
+**M3 — the §3.3 cascade, now FEATURE-COMPLETE (PRs #56/#58/#60/#63/#65/#67/#70/#76/#78):**
+- **M3.S1–S3** — the cascade stages, each shipped proposal-only then wired live at S4a:
+  **Stage 1** RapidFuzz token-set vs `canonical_name`+aliases (#56); **Stage 2** embedding cosine +
+  the **pgvector foundation** — real `vector(768)` on `entity_mentions`, `register_vector_async`, the
+  multilingual mpnet model pinned via the §6.7 HF-model channel (#58); **Stage 3** `JudgeAgent`
+  (LLM-as-judge, cloud_free via the router `task_type="judge"`, strict `{match,confidence,reasoning}`,
+  merge iff `match AND conf>0.8`, #60).
+- **M3.S4a — intercept-before-write (ADR 0004).** The `ExtractionCoordinator` no longer writes the
+  graph: it *stages* each candidate into a Postgres `candidates` table with the cascade's proposal
+  (embed-on-extract → Matching S1/S2 → Judge S3, fail-closed), writing **zero** Neo4j nodes. The graph
+  is written **only** by the human-accept path (`CandidateReviewService` → `POST …/candidates/{cid}/accept|reject`).
+  **Retired INV-8 → landed INV-1's first enforcer + INV-9**; finalised `[[candidate-lifecycle]]` to
+  `living`. Mentions move to accept-time (+ context vector); resume checkpoint = `paragraph_processed`;
+  accept/reject leave an append-only `candidate_decisions` evidence row. store-down→503 + the
+  Neo4j-driver lifespan close landed here.
+- **M3.S4b — review-queue UI (#65).** `features/extraction-review/`: the §3.3 Stage-4 elements +
+  keyboard nav, consuming S4a's endpoints (accept/change-target/create/reject).
+- **M3.S4c — on-accept live re-match (#67).** Each human accept re-runs the *deterministic* matcher
+  (Stage 1/2, no judge) over still-pending candidates, flipping intra-batch duplicates `new → merge`
+  in the staging table only (the [[candidate-lifecycle]] self-loop; INV-1/INV-9 hold — see
+  [[m3s4c-intra-batch-rematch]]).
+- **M3.S4d — manual handpick (#70).** `GET /stories/{id}/entities?q=` (project-scoped, RapidFuzz-ranked,
+  injection-safe) + a review-card picker, the false-negative safety net feeding the merge path.
+- **M3.S4e — relation-write backend (ADR 0005, #76).** `RelationReviewService` resolves a staged
+  relation's surface endpoints to their *committed* entity ids and writes the edge under the **§3.3 5th
+  human action** ("decide on relations"), idempotent `MERGE` on `uuid5(subject,predicate,object)` (one
+  edge per fact across paragraphs). **INV-1 broadened to edges; INV-9 second witnessed instance.** New
+  `staged_relations` table (the edge lifecycle + evidence). See [[m3-relation-write]].
+- **M3.S4f — relation-review UI (#78).** The S4a→S4b shape for edges: `features/relation-review/`
+  (A=commit / R=reject, J/K nav) consuming `GET …/relations` + `POST …/relations/{rid}/decide`.
 
-**M3.S4a — intercept-before-write, the backend milestone close (built, this PR / ADR 0004):**
-- The `ExtractionCoordinator` no longer writes the graph: it *stages* each candidate into a new
-  Postgres `candidates` table with the cascade's proposal (embed-on-extract → Matching S1/S2 → Judge
-  S3, fail-closed), writing **zero** Neo4j nodes. The graph is written **only** by the human-accept
-  path (`CandidateReviewService` → `POST /stories/{id}/candidates/{cid}/accept|reject`).
-- This **retires INV-8 → lands INV-1's first enforcer + INV-9** ("no automated stage writes the
-  graph"), finalises `[[candidate-lifecycle]]` to `living`, and is recorded in **ADR 0004**. Mentions
-  move to accept-time (with the candidate's context vector); the resume checkpoint is a
-  `paragraph_processed` marker; accept/reject leave an append-only `candidate_decisions` evidence row.
-  The store-down→503 fail-closed mapping + a Neo4j-driver lifespan close landed with it.
+So today Story Forge ingests and structures text, produces deterministic candidate spans, **extracts
+entity/relation candidates with an LLM** (routed, budgeted, recorded), runs the §3.3 cascade and
+**stages** each candidate with a NEW-vs-MERGE proposal — and writes **both** graph nodes **and edges**
+**only when the author accepts** at the review queues (INV-1/INV-9, entities + relations). On-accept
+re-match and manual handpick keep a single ingest's graph clean. The graph is empty until reviewed;
+the §3.3 dedupe — for nodes *and* relations — is the human's gated decision, not an automatic write.
 
-**Planned, not yet built:**
-- **M3.S4b** (frontend) — the `features/extraction-review/` review-queue UI (§3.3 Stage-4 elements +
-  keyboard nav) consuming S4a's endpoints; the relation graph-write + re-point-on-merge (S4a stages
-  relation data but writes no edge). INV-2 consent gate is **deferred past M3** (2026-06-15,
-  persona-justified).
-
-So today Story Forge ingests and structures text, produces deterministic candidate spans,
-**extracts entity/relation candidates with an LLM** (routed, budgeted, recorded), runs the §3.3
-cascade and **stages** each candidate with a NEW-vs-MERGE proposal — and writes the graph **only when
-the author accepts** at the (backend) review queue (INV-1/INV-9). The graph is empty until reviewed;
-the §3.3 dedupe is now the human's gated decision, not an automatic write.
+**Next — M4 ("V1 polish"):** inline highlights, side panel, manual annotation, properties/relations
+edit, **multi-story**, world graph (`docs/PLAN_LONG.md`). Two M3-deferred seams **graduate to live M4
+work**: the §3.4 graph **story-vs-project scoping** (multi-story breaks the one-story-per-project
+assumption the graph route rests on) and **DM-Rel-5**'s written-edge re-point (an accepted-entity↔entity
+merge, first possible in M4, re-points an already-written edge). INV-2 consent gate stays **deferred
+past M3** (persona-justified, 2026-06-15).
 
 ---
 

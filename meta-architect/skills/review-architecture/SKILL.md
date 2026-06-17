@@ -52,6 +52,14 @@ decision.** Get today's date with `date +%F`.
 
 ## 7. Write the report — `reports/<YYYY-MM-DD>-architecture-review.md` (type `review`)
 - Findings **grouped by category**, each tagged with a severity: **blocker · risk · watch**.
+- **Write findings to be *triaged*, not just read.** A report has no forcing function of its own (a
+  decision register blocks the build; a waiver re-reds CI) — so it relies on the **consumer half of the
+  pairing**: `/resume-session` step 3c walks the latest report's **blocker/risk** findings at the next
+  resume and flags any not yet resolved-or-tracked. Hold up your end: make every blocker/risk finding
+  **actionable and self-contained** (what's wrong, where, and the concrete next move), and **mirror it
+  into `open-questions.md`** (step 8) so it has a tracked home the triage can check against. A vague
+  `risk` with no locus or action is one step 3c can't triage — and the filed-and-forgotten finding the
+  pairing exists to prevent.
 - **Report only — never auto-fix.** You describe and locate; the human acts.
 - End with **Concepts worth studying**: terms or patterns visible in the project the reader
   would benefit from reading more about — a brief why for each, and a pointer where useful. This
