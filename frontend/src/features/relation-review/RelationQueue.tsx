@@ -40,7 +40,12 @@ function decideMessage(error: unknown): string {
   // error, so it must not assume one or the other (a thrown fetch — e.g. the backend
   // unreachable — is the non-ApiError case).
   if (!(error instanceof ApiError)) return "Please try again.";
-  if (error.status === 409 || error.status === 404) return "That relation was already decided.";
+  // 409 (decide): an endpoint this relation links to no longer resolves — an entity was
+  // rejected or merged away after the queue loaded, so the relation stays in the queue.
+  // (already-decided is NOT a 409 — the backend returns 200 with already_decided:true.)
+  if (error.status === 409)
+    return "An entity this relation links to is no longer available — it may have been rejected or merged.";
+  if (error.status === 404) return "That relation no longer exists.";
   return error.detail || `Request failed (HTTP ${error.status}).`;
 }
 

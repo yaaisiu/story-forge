@@ -169,11 +169,15 @@ describe("RelationQueue", () => {
     });
   });
 
-  it("surfaces a 409 already-decided as an error", async () => {
+  // A commit can 409 when an endpoint went stale after the queue loaded (the backend's
+  // RelationEndpointsUnresolved — an entity was rejected/merged away). NB: already-decided
+  // is NOT a 409; the backend returns 200 + already_decided:true. The card must surface the
+  // stale-endpoint meaning, not "already decided".
+  it("surfaces a 409 stale-endpoint as an error with the right message", async () => {
     const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
       const url = String(input);
       if (url.includes("/decide") && init?.method === "POST") {
-        return jsonResponse(409, { detail: "relation already decided" });
+        return jsonResponse(409, { detail: "a relation endpoint no longer resolves (stale/held)" });
       }
       return jsonResponse(200, { relations: [relation("r1")] });
     });
@@ -186,7 +190,9 @@ describe("RelationQueue", () => {
       fireEvent.keyDown(screen.getByTestId("relation-queue"), { key: "a" });
     });
 
-    expect(await screen.findByTestId("decide-error")).toBeInTheDocument();
+    const banner = await screen.findByTestId("decide-error");
+    expect(banner).toHaveTextContent(/no longer available/i);
+    expect(banner).not.toHaveTextContent(/already decided/i);
   });
 
   it("disables only the in-flight relation's actions, not the rest of the queue", async () => {
