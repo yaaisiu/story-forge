@@ -10,6 +10,7 @@ import { Route, Routes } from "react-router-dom";
 
 import { OutlineEditor } from "../features/chunking/OutlineEditor";
 import { ReviewQueue } from "../features/extraction-review/ReviewQueue";
+import { RelationQueue } from "../features/relation-review/RelationQueue";
 import { UploadScreen } from "../features/upload/UploadScreen";
 
 // Code-split the graph viewer: it pulls in cytoscape (~225 kB gzip), which only
@@ -40,6 +41,9 @@ export function AppRoutes() {
       {/* M3.S4b: review the staged candidates an extraction produced (the human gate
           that commits entities to the graph — spec §3.3 Stage 4 / §8.3). */}
       <Route path="/stories/:storyId/review" element={<ReviewQueue />} />
+      {/* M3.S4f: decide on the staged relations between accepted entities (the human
+          gate that commits edges to the graph — spec §3.3's 5th human action). */}
+      <Route path="/stories/:storyId/relations" element={<RelationQueue />} />
     </Routes>
   );
 }
