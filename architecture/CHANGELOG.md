@@ -461,3 +461,41 @@ M2→M3 roll gate 2, part 2: the forward-design pass on M3 — the §3.3 cascade
   re-pointed from "M3 review-queue UI" to "deferred past M3" (the report B1 item, now due since PLAN_SHORT
   records it). Authoritative homes (PLAN_SHORT Decided S23) were already correct; this brings the vault
   framing-notes into agreement throughout their bodies, not just their banners.
+
+## 2026-06-17 — `review-architecture` (M3→M4 roll re-sync)
+- **New report** `reports/2026-06-17-architecture-review.md` (`type: review`) — full as-built sweep at
+  the M3→M4 boundary, the first since edges + the relation lifecycle landed (S4b–S4f). No blockers.
+  **Risk:** `overview.md` as-built snapshot ~5 sessions stale (lists the relation graph-write + the
+  review UI as "planned, not yet built" — both shipped); the relation lifecycle has no state-machine
+  note while its entity twin does. **Watch:** `invariants.md` frontmatter date lags its (correct) body;
+  edge-id provenance collapse (carried ADR-0005 follow-up); held-relation visibility; M4 forward flags
+  (§3.4 graph scoping graduates to live work; DM-Rel-5 re-point becomes real; OQ-14/OQ-15 still open).
+  Source-of-truth conflicts: none. Missing ADRs: none (0004/0005 present; S4c/S4d ADR-declined on record).
+- **`open-questions.md`** — added **OQ-20** (relation lifecycle has no state-machine note; the node/edge
+  model asymmetry + held-relation visibility + edge Expiry sub-gaps); `updated` → 2026-06-17.
+- **`learning-log.md`** — +2 lines (state-machine symmetry; provenance vs deduplication).
+- **`INDEX.md`** — regenerated (priority queue advanced past S4f → M3 feature-complete; new report linked;
+  glossary 22 terms; relation-lifecycle named under "still to draw").
+- Report-only: no code or config touched.
+- **`overview.md`** — folded the headline `risk` (decision-independent as-built drift, all merged basis,
+  the same freshness-fold pattern as the 2026-06-11 sweep): the M3 block rewritten from "Stages 1–3 +
+  S4a, S4b/relation-write planned" to **M3 feature-complete (S4b–S4f shipped, nodes + edges gated)**; a
+  "Next — M4 (V1 polish)" block added naming the two M3-deferred seams that graduate to live M4 work
+  (§3.4 graph scoping; DM-Rel-5 written-edge re-point); `updated` → 2026-06-17. The un-drawn relation
+  lifecycle stays a *reported* gap (OQ-20) — drawing a state machine is decompose work, not a review fold.
+
+## 2026-06-17 — `decompose-requirement` (M4 first slice: inline highlights)
+- **New proposal** `proposals/m4-inline-highlights.md` (`type: proposal`, `status: proposed`) — step-0
+  nine-layer + nine-station forward pass on M4.S1 (spec §3.5). Centre of gravity: **span resolution** —
+  accepted `entity_mentions` carry null char offsets, so highlighting is a where-does-the-entity-sit
+  problem (DM-IH-1), not a render of stored spans. Read-only projection ⇒ most stations n/a, INV-1/9
+  untouched (carries only the read-side "highlight accepted-only" rule). 8-entry register (DM-IH-1..8,
+  all OPEN), Mermaid data-flow, a but-what-if pass (PL inflection, repeat-occurrence granularity,
+  rejected/merged dangling refs, 50k-word perf, overlap), gaps-for-PO. Surfaces the M4 entity↔entity
+  merge → mention/edge re-point coupling from a new direction.
+- **`open-questions.md`** — added **OQ-21** (the DM-IH register mirror, DM-IH-1 the central call);
+  `updated` → 2026-06-17.
+- **`learning-log.md`** — +2 lines (span resolution / the null-offset gap; read-only projection &
+  n/a stations).
+- **`INDEX.md`** — regenerated (proposal linked; priority queue advanced to M4.S1).
+- Register stays **OPEN** — the owner resolves DM-IH-1..8 before code (the decompose never self-resolves).

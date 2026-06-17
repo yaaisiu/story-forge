@@ -42,7 +42,12 @@ Start at **`INDEX.md`** — the regenerated map of the whole vault. From there:
   `m2s2-llm-router-budget-cap.md` for the router/budget work: data-flow diagram, decision register,
   and the full "but what if" edge-case enumeration.
 - **`reports/`** — dated `review-architecture` sweeps (drift, invariant near-misses, stale ADRs).
-  The latest one is the current health snapshot.
+  The latest one is the current health snapshot. **Findings don't rot:** a report's **blocker/risk**
+  findings are *triaged* at the next `/resume-session` (step 3c) — each must be resolved or tracked
+  (an `open-questions.md` OQ, a `docs/PLAN_SHORT.md` cross-cutting item, or the handoff) before the
+  session moves on. That step 3c ↔ the report's own actionable-findings discipline (`review-architecture`
+  SKILL step 7) is the producer/consumer pairing that gives a report the forcing function it otherwise
+  lacks (a report, unlike a decision register or a CVE waiver, can't block a build or re-red CI by itself).
 - **`decisions/`** — vault-framed ADRs *once confirmed* (host-project ADRs still live in
   `docs/decisions/`). The plugin's *own* framework ADRs are separate, under `meta-architect/decisions/`.
 - **`state-machines/`** — explicit state+transition models (guards enforce invariants; effects
@@ -70,3 +75,9 @@ The architect skills are **deliberately NOT wired into** `/resume-session`, `/wr
 nothing runs them automatically; invoke them by hand when the work calls for it (a milestone-boundary
 drift sweep, or a "step 0" decomposition of a genuinely branchy feature). The evidence for whether/
 how to wire them is being gathered run-by-run — see the `reports/` and `proposals/` history.
+
+**`/resume-session` step 3c is not a counter-example.** It triages a report that *already exists* (walks
+its blocker/risk findings, checks each is tracked) — it never *runs* the architect. Reading an artifact
+the architect left behind is the consumer side of a producer/consumer pairing; auto-*running* a
+`meta-architect:*` skill from a ritual is the wiring that stays deferred (ADR 0002 §4). Likewise
+`/resume-session` step 1 reads the handoff a human-invoked sweep may have seeded — same distinction.

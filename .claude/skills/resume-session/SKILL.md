@@ -67,6 +67,30 @@ Compare each dated drop-when / `ignoreUntil` against **today**. If any is **due 
 when neo4j ships netty ≥4.1.135") aren't date-checkable here — `/triage-advisory` re-scans
 those by running the gates; just note they exist so the next sweep covers them.
 
+## 3c. Triage the latest architecture report (don't let a finding rot)
+
+A `meta-architect:review-architecture` sweep writes a dated `architecture/reports/<date>-architecture-review.md`
+snapshot, grouping findings as **blocker · risk · watch**. But unlike a decision register (which stays
+OPEN and blocks the build) or a security waiver (which CI re-reds on its `ignoreUntil` and step 3b
+scans), a **report's findings have no forcing function** — they get mirrored into `open-questions.md`
+and linked in INDEX, but nothing *forces* a look, so a real `risk` can sit filed-and-forgotten. This
+step is that forcing function (the consumer half of the pairing the report's own skill writes — see
+`meta-architect/skills/review-architecture/SKILL.md` step 7).
+
+This is **not** wiring the architect into the ritual (that stays deferred — ADR 0002 / `architecture/AGENTS.md`):
+it only triages a report that *already exists*. Find the newest report:
+
+```bash
+ls -t architecture/reports/*.md 2>/dev/null | head -1
+```
+
+If that report is **newer than the last session's close** (i.e. a sweep ran since you last resumed and
+it hasn't been worked yet), open it and walk its **blocker / risk** findings (skim `watch`). For each,
+confirm it is either **resolved** or **tracked** with a home (an `open-questions.md` OQ, a `docs/PLAN_SHORT.md`
+cross-cutting item, or the handoff's open-blocks). **Flag any blocker/risk that is neither**, and
+recommend addressing it **this session** — a report exists to be acted on, not filed. (Reports older
+than the last close are presumed already triaged; don't re-litigate them.)
+
 ## 4. Reconcile — surface drift, don't paper over it
 
 Compare what you found against the handoff. If anything disagrees — an anchor file is

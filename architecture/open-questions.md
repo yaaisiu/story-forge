@@ -1,7 +1,7 @@
 ---
 type: open-questions
 slug: open-questions
-updated: 2026-06-16
+updated: 2026-06-17
 status: living
 related: ["[[overview]]", "[[project]]", "[[invariants]]", "[[2026-06-02-architecture-review]]", "[[m2s3-extraction-agent]]", "[[2026-06-09-architecture-review]]", "[[2026-06-11-architecture-review]]"]
 ---
@@ -468,6 +468,49 @@ an **M3 slice** (2026-06-16), not an M3→M4 roll. Full Context/Options for each
   though S4c/S4d shipped; a fuller **`review-architecture` re-sync** (a dated post-S4d/S4e as-built
   snapshot) is **overdue** at this milestone boundary. **S4e backend shipped 2026-06-16** (this register
   resolved); **S4f UI** remains the next relation slice.
+
+### OQ-20 — The relation lifecycle has no state-machine note (the node/edge model asymmetry)
+Raised by the M3→M4 roll sweep (2026-06-17, `[[2026-06-17-architecture-review]]`). S4e/S4f shipped a
+genuine relation lifecycle in code — a `staged_relations` row rests in **held** (an endpoint never
+accepted, or a post-merge self-loop → never committable, no fuzzy fallback), **committable** (both
+endpoints resolve to committed ids), or the terminals **written** / **rejected**, with a re-resolve-at-
+commit [[toctou]] guard and an idempotent-by-edge-id effect. That is a [[state-machine]], and its entity
+twin [[candidate-lifecycle]] has had a drawn note since S4a — the edge twin has none, and INDEX's
+"Awaiting content" doesn't even name it as a gap.
+- **What it needs (not a decision — a drawing task):** a `state-machines/relation-lifecycle.md` modelling
+  the states/transitions/guards/effects above, so the symmetric edge gate is projected the way the node
+  gate is. A `decompose`/drawing pass owns it (a `review` is report-only). Two sub-gaps to fold while
+  drawing: (a) **held-relation visibility** — does the author ever learn *why* an extracted relation never
+  became an edge, or is a held row an invisible non-decision? (ties INV-3 Evidence for edges); (b) confirm
+  the **edge Expiry** posture (held rows never expire — accepted none-at-PoC, ADR 0005, same as OQ-4).
+- **Lands:** naturally at the M4 step-0 decompose, or as a standalone drawing pass. Open.
+
+### OQ-21 — M4 inline-highlights decision register (DM-IH-1..8)
+Raised by the M4 first-slice `decompose-requirement` step-0 (2026-06-17, `[[m4-inline-highlights]]`).
+Full Context/Options/Proposal for each live in that proposal's register; listed here so the vault's
+reader knows they gate the M4.S1 build. **The central one is DM-IH-1** (span resolution): accepted
+`entity_mentions` carry **null char offsets** (the LLM path stores an evidence quote, not offsets; the
+spaCy `CandidateSpan` that has offsets is discarded at accept), so highlighting is first a
+*where-does-this-entity-sit* problem, not a render of known spans. Register, all **OPEN**:
+- **DM-IH-1 — span resolution** (render-time string search vs persist real spans + backfill vs hybrid).
+  My proposal: hybrid as two sub-slices — ship render-time search first (no backend change), measure
+  its hit-rate on the real corpus, add span persistence only if needed. **`verify-at-build`:** does the
+  stored `evidence_quote` reliably substring-match `raw_text` (it's a soft-flag), and is the spaCy span
+  still available at accept time to persist? Inflection (PL) is the headline gap.
+- **DM-IH-2 — backend read shape** (a new `GET /stories/{id}/reader` doing the cross-store join +
+  resolution, story-scoped — may be the first home of the §3.4 per-story filter).
+- **DM-IH-3 — render surface** (a plain read-only `<mark>` renderer now vs adopting Tiptap/ProseMirror
+  decorations now so the next slices inherit it).
+- **DM-IH-4 — overlap/nesting arbitration** (longest-match wins, proposed).
+- **DM-IH-5 — colour-by-type under the open-world type set** (fixed palette for common types +
+  deterministic hash fallback — honours INV-4; *rejected:* a fixed enum map).
+- **DM-IH-6 — whole-story render vs virtualise** (measure on a real 50k draft first).
+- **DM-IH-7 — highlight accepted-only** (the read-side echo of INV-1; *rejected:* preview staged).
+- **DM-IH-8 — tooltip "brief description"** (name+type+aliases now; richer description is the
+  side-panel slice's job; *rejected:* an LLM-generated summary in a read-only slice).
+- **Latent coupling surfaced (not this slice's fix):** a future M4 entity↔entity merge must re-point
+  `entity_mentions.entity_id` (and written edges — DM-Rel-5) onto the survivor, or the reader silently
+  drops those highlights. Ties the cross-cutting re-point item. **Lands in:** M4.S1 (the first M4 slice).
 
 ## Referenced — owned by spec §10 (not duplicated)
 
