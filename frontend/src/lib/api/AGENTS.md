@@ -40,6 +40,26 @@ frontend/src` and reconcile each hit. (M3.S4a / PR #63: three test fixtures kept
 `entities_written` and bounced the frontend CI build — the regen looked done but
 the consumers weren't. Review-side mirror: `/review-pr` §2.)
 
+## Derive an HTTP status code's meaning from the backend route, not a sibling feature
+
+When a hand-written hook or component branches on a response **status code** — an
+error-message mapper, a retry decision, a 4xx/5xx discriminator — read what that status
+_actually means_ off the backend route that raises it (`backend/src/story_forge/api/`),
+**not** a status→meaning mapping copy-adapted from a sibling feature. The generated
+`schema.d.ts` names every declared status (`responses=`) but not its semantics, so a
+copied mapper silently inherits the _wrong_ meaning when the new route uses the same code
+differently. And a **test fixture that fabricates an error body** (`jsonResponse(409,
+{detail: "..."})`) must use a status + detail the real route can return — a fabricated
+body validates fiction and makes the broken mapping pass green.
+
+(M3.S4f / PR #78: `RelationQueue`'s `decideMessage` copy-adapted the candidate queue's
+mapper and mapped **409 → "already decided"**, but the decide route returns 409 for a
+_stale/held endpoint_ (`RelationEndpointsUnresolved`) and already-decided is a **200**
+with `already_decided:true`. The test stubbed a `409 {detail:"relation already decided"}`
+the backend never sends, so it passed and _masked_ the inversion. The single `/review-pr`
+even listed "409 surfaces an error" as checked-clean without opening the route; the
+multi-agent `/code-review` caught it. Review-side mirror: `/review-pr` §2.)
+
 ## Why `openapi-typescript` runs via `npx`, not as a devDependency
 
 `openapi-typescript@7.13.0` declares a peer of `typescript@^5.x` while this

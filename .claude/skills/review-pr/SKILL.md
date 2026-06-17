@@ -180,6 +180,20 @@ repo, not the diff's touched files**:
   `schema.d.ts` were regenerated *and* committed together (one without the other is drift). (M3.S4a
   PR #63: `ExtractResponse` field rename left three frontend test fixtures on the old names — green
   locally, red in CI; authoring-side mirror: `frontend/src/lib/api/AGENTS.md`.)
+- **A frontend status-code branch carries an *assumed contract* — verify each status against the
+  backend route, don't trust a sibling feature's mapping.** When the PR adds/changes a hook or
+  component that branches on an HTTP **status code** (an error-message mapper, a retry decision, a
+  4xx/5xx discriminator), open the backend route it calls (`backend/src/story_forge/api/`) and
+  confirm what each status *means there* — the generated `schema.d.ts` names the declared statuses
+  but not their semantics, so a mapper copy-adapted from a sibling feature silently inherits the
+  **wrong** meaning when the new route uses the same code differently. Then check the **test fixture**:
+  a fabricated error body (`jsonResponse(409, {detail:"…"})`) that the route never actually returns
+  validates a fiction and makes the broken mapping pass green — match the fixture to a real
+  status+detail. Listing "409 surfaces an error" as checked-clean *without opening the route* is not
+  a check. (PR #78: `decideMessage` mapped 409→"already decided", but the decide route returns 409
+  for a stale/held endpoint and already-decided is a 200; the test stubbed a 409 body the backend
+  never sends, masking it — the single `/review-pr` missed it, `/code-review` caught it.
+  Authoring-side mirror: `frontend/src/lib/api/AGENTS.md`.)
 - **Tracking / registry / navigation / status notes describe the fact in *different words*, so a
   keyword grep misses them — check them by hand.** ADR registries and "existing docs" lists (do
   they name the new ADR?); priority queues / "next steps" (is completed work still listed as
