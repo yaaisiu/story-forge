@@ -182,3 +182,31 @@ The Session-33 reader run made the curation gap concrete. Three threads:
   ARTIFACT, FURNITURE, …) — INV-4 working as designed, but it crowds the reader legend and strains
   colour distinctness (DM-IH-5's hash fallback). Post-PoC: optional type consolidation/normalisation
   toward a coarser working taxonomy (without losing the open-world freedom). (Owner observations, Session 33.)
+
+## Reader as the paragraph-by-paragraph working surface (post-PoC)
+
+The reader (M4) starts read-only and gains correction (the next M4 slices). The owner's larger idea
+(noted Session 34): make the reader the **primary working surface for the whole entity workflow** —
+extraction, merging, and the user adding/removing entities — driven **paragraph by paragraph**.
+Instead of (or alongside) the batch extract → review-queue flow, the author walks the text and works
+each paragraph in place: extract this paragraph, see its candidates highlighted in context, accept/
+merge/reject, manually tag a missed entity, remove a wrong one — all where the prose gives the context
+the review queue lacks (this extends the "reader is a correction surface" thread above into a full
+working loop). It pairs naturally with per-paragraph extraction (each paragraph is already the unit of
+`entity_mentions` and the resume checkpoint).
+
+The open design question this raises is **how relationships are treated in a paragraph-by-paragraph
+context**, in two tiers:
+
+- **Local (within the paragraph).** Relationships extracted from a single paragraph have both endpoints
+  in view — the existing staged-relation → decide flow (`relation-lifecycle`) maps cleanly to "work this
+  paragraph's relations here." How the per-paragraph relation surface looks in the reader (vs the
+  separate relation-review queue) is the near design question.
+- **Wider (across the text).** The harder, later question: relationships **between entities in different
+  parts of the text** — a connection that only emerges from reading across paragraphs/chapters (the
+  Session-33 "the smuggler = Elara" link surfaced only after reading both halves; see "Entity-resolution
+  limitations… graph-traversal connection discovery"). A paragraph-local loop won't surface these, so we
+  need a complementary way to work cross-text relationships: traverse/suggest from the accumulated graph,
+  a whole-text relation pass, or a dedicated cross-section relation surface. How the local per-paragraph
+  loop and the wider cross-text relation work compose is the open architecture question to think through
+  before building this. (Owner idea, Session 34.)
