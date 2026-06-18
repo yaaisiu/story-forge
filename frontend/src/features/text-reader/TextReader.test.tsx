@@ -99,4 +99,17 @@ describe("TextReader", () => {
 
     expect(await screen.findByTestId("reader-error")).toBeInTheDocument();
   });
+
+  it("shows the loading state while the request is in flight", () => {
+    // A never-resolving fetch keeps the query pending so the loading branch renders.
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(() => new Promise<Response>(() => {})),
+    );
+
+    renderReader();
+
+    expect(screen.getByTestId("reader-loading")).toBeInTheDocument();
+    expect(screen.queryByTestId("reader-text")).toBeNull();
+  });
 });
