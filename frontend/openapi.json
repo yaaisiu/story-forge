@@ -384,6 +384,60 @@
         }
       }
     },
+    "/stories/{story_id}/reader": {
+      "get": {
+        "tags": [
+          "stories"
+        ],
+        "summary": "Get Story Reader",
+        "description": "The story text with accepted entities highlighted inline (spec \u00a73.5, M4.S1).\n\nA read-only projection of the accepted graph onto the prose. Paragraphs + their mentions\nare *story*-scoped; the entity catalog is read *project*-scoped (the \u00a76.4 tenancy key, the\nsame seam as `/graph` and `/entities`) \u2014 correct while one story = one project, and the\nnatural first home of the \u00a73.4 per-story filter when multi-story lands. Each paragraph's\nmentioned entities are resolved to character ranges by render-time search over their surface\nforms (`resolve_highlights`); an entity whose forms don't occur is omitted (fail-closed), and\nonly entities that actually appear are advertised in the tooltip catalog.",
+        "operationId": "get_story_reader_stories__story_id__reader_get",
+        "parameters": [
+          {
+            "name": "story_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Story Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReaderResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Story not found.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/stories/{story_id}/candidates": {
       "get": {
         "tags": [
@@ -1420,6 +1474,122 @@
         ],
         "title": "LlmStatusResponse",
         "description": "Budget + today's usage + the most recent call, for the agent-activity panel."
+      },
+      "ReaderEntity": {
+        "properties": {
+          "entity_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Entity Id"
+          },
+          "canonical_name": {
+            "type": "string",
+            "title": "Canonical Name"
+          },
+          "type": {
+            "type": "string",
+            "title": "Type"
+          },
+          "aliases": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Aliases"
+          }
+        },
+        "type": "object",
+        "required": [
+          "entity_id",
+          "canonical_name",
+          "type",
+          "aliases"
+        ],
+        "title": "ReaderEntity",
+        "description": "Tooltip data for an entity that appears in the reader (DM-IH-8: name + type + aliases)."
+      },
+      "ReaderHighlight": {
+        "properties": {
+          "start": {
+            "type": "integer",
+            "title": "Start"
+          },
+          "end": {
+            "type": "integer",
+            "title": "End"
+          },
+          "entity_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Entity Id"
+          },
+          "type": {
+            "type": "string",
+            "title": "Type"
+          }
+        },
+        "type": "object",
+        "required": [
+          "start",
+          "end",
+          "entity_id",
+          "type"
+        ],
+        "title": "ReaderHighlight",
+        "description": "One resolved highlight range `[start, end)` within a paragraph (spec \u00a73.5)."
+      },
+      "ReaderParagraph": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Id"
+          },
+          "text": {
+            "type": "string",
+            "title": "Text"
+          },
+          "highlights": {
+            "items": {
+              "$ref": "#/components/schemas/ReaderHighlight"
+            },
+            "type": "array",
+            "title": "Highlights"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "text",
+          "highlights"
+        ],
+        "title": "ReaderParagraph",
+        "description": "A paragraph, in document order, with its resolved highlight ranges over `text`."
+      },
+      "ReaderResponse": {
+        "properties": {
+          "paragraphs": {
+            "items": {
+              "$ref": "#/components/schemas/ReaderParagraph"
+            },
+            "type": "array",
+            "title": "Paragraphs"
+          },
+          "entities": {
+            "items": {
+              "$ref": "#/components/schemas/ReaderEntity"
+            },
+            "type": "array",
+            "title": "Entities"
+          }
+        },
+        "type": "object",
+        "required": [
+          "paragraphs",
+          "entities"
+        ],
+        "title": "ReaderResponse",
+        "description": "The story's text with inline highlights + a catalog of the entities that appeared."
       },
       "RelationDecisionResponse": {
         "properties": {
