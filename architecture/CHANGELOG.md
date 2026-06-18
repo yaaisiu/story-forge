@@ -11,6 +11,31 @@ related: []
 Append-only audit trail of writes into the vault. Newest entries at the top. History also lives
 in `updated` fields (freshness) and git (diffs); this is the human-readable "what changed when".
 
+## 2026-06-18 — orientation touch: npm-audit gate scoped to `--omit=dev` (spec §6.7, M4.S1)
+
+A minimal two-edit orienting reflection on a §6.7 amendment already made by the owner (Session 33,
+2026-06-18). The decision itself lives in **spec §6.7** (authoritative); the vault only records *why*
+the change is sound. The frontend `npm audit` CI gate was changed from `--audit-level=high` (all deps)
+to `--omit=dev --audit-level=high` (shipped runtime deps only): the SPA ships a static bundle, so a
+`devDependency` (jsdom/vitest/eslint/Vite plugins) never reaches the [[trust-boundary]] surface a user
+runs. Trigger: a HIGH `undici` advisory (GHSA-vmh5-mc38-953g) reaching us only transitively via `jsdom`,
+unreachable here, with no 14-day-soaked fix. The general principle — *scan what you ship* — and its
+escape hatch (narrow the gate's scope, an *adapt* recorded in §6.7, rather than waive or force an
+unsoaked bump) is the lesson kept.
+
+**(1) `learning-log.md`** — +1 line ("scan what you ship / gate scope = shipped risk", linked to
+[[software-composition-analysis]] / [[trust-boundary]] / [[defense-in-depth]]). `updated` already 2026-06-18.
+
+**(2) `proposals/backend-dependency-advisory-scan.md`** — added a clearly-marked **forward-pointer
+annotation** under **D5** (and noting its **G4** as-built). D5 decided the gate's *level* (fail-on-any
+vs HIGH/CRITICAL); this notes a *different axis*, the gate's *scope*, narrowed later. The original D5
+decision text is **unchanged** (frozen accepted history); `updated:` left at 2026-06-08 (append-pointer,
+not a decision change).
+
+**Reconciliation:** none beyond this changelog — no new notes, no glossary terms (the three linked terms
+already exist), so `INDEX.md` and `glossary.md` are untouched. No invariants, state machines, or overview
+edits. No production code, no spec/plan/`docs/` edits (the §6.7 amendment is the owner's, already landed).
+
 ## 2026-06-18 — vault maintenance: relation lifecycle drawn (OQ-20), DM-IH register reflected (OQ-21), glossary routing fixed
 
 A focused M3→M4-boundary sync pass — three already-scoped writes to bring the vault in line with the
