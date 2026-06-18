@@ -17,6 +17,11 @@ related:
 
 # M4.S2 — entity side panel in the reader (step-0 forward design)
 
+> **Status: ACCEPTED & BUILT — register fully RESOLVED.** Shipped in two slices: **M4.S2a backend**
+> (PR #89, Session 34) + **M4.S2b frontend** (PR #91, Session 35). DM-SP-1..3/5..8 resolved with the
+> owner Session 34; the lone confirm-at-build **DM-SP-4 resolved at build (Session 35) = reuse cytoscape**,
+> browser-verified. The original step-0 design + register below is kept intact (public-portfolio history).
+>
 > **Status: ACCEPTED — register RESOLVED with the owner (Session 34, 2026-06-18).** Owner chose the
 > **side panel** as M4.S2 (over manual-correction-in-reader): the read-only inspection surface shows
 > the context (an entity's aliases, type, properties, occurrences, relations, and a 1-hop graph around
@@ -39,8 +44,8 @@ related:
 > - **DM-SP-3 → (a) occurrences driven off the *rendered highlights*** (panel agrees with the prose;
 >   doubles as §3.4's timeline; click → scroll-to-paragraph + flash).
 > - **DM-SP-8 → confirm** (occurrences story-scoped, neighbourhood project-scoped — inherits the §3.4 debt).
-> - **DM-SP-4 → confirm-at-build (S2b)** — reuse `GraphCanvas`/cytoscape with the ego subset vs a
->   lightweight static view in a narrow panel; `verify-at-build` the embedded-cytoscape layout.
+> - **DM-SP-4 → ✅ resolved (S2b, Session 35): reuse cytoscape** — browser-verified the embedded-cytoscape
+>   layout in the narrow panel; the static fallback was unnecessary (neighbour-tap inspection + drill-to-text).
 
 **Requirement.** When the author clicks a highlighted (accepted) entity in the read-only reader
 ([[m4-inline-highlights]], shipped), open a **side panel** showing that entity's details — spec
@@ -195,7 +200,7 @@ next slice. The dashed (L) is the [[fail-closed]] omit posture for a [[referenti
 
 ---
 
-## Decision register (RESOLVED 2026-06-18, Session 34 — owner; DM-SP-4 confirm-at-build in S2b)
+## Decision register (RESOLVED 2026-06-18 — DM-SP-1..3/5..8 Session 34 owner; DM-SP-4 = cytoscape, Session 35 build)
 
 > Each entry keeps its original Context/Options/My-proposal text (history); the **✅ Decision** line is
 > appended. Authoritative home: `docs/PLAN_SHORT.md` Decided (Session 34). Mirrored to [[open-questions]]
@@ -295,10 +300,14 @@ next slice. The dashed (L) is the [[fail-closed]] omit posture for a [[referenti
   paragraph list? Cheap to add; defer unless the owner wants it now.
 
 ### DM-SP-4 — Rendering the local mini-graph (reuse cytoscape vs a lightweight view)
-> **◻ Confirm-at-build in M4.S2b (frontend).** Lean (a) reuse `GraphCanvas`/cytoscape with the ego
-> subset (one renderer), but `verify-at-build` that a second cytoscape instance lays out acceptably in a
-> ~288px panel — if awkward, fall back to (b) a lightweight static view (honestly fine for a 1-hop
-> handful of nodes). Still open-but-narrowed; flag which way it went in the S2b PR.
+> **✅ Resolved 2026-06-18 (Session 35, M4.S2b / PR #91): (a) reuse cytoscape.** A new `EgoGraphCanvas`
+> mount (mirroring `graph-viewer/GraphCanvas`'s pattern over the ego subset) — one graph renderer, and
+> it carries the two affordances the owner wanted: neighbour-node **inspection** (tap a neighbour → the
+> panel re-targets to it) and **drill-to-text** (occurrence click → scroll + flash). The `verify-at-build`
+> layout check passed: **browser-verified live** against the `c09ff519…` 115-node graph (Garret Locke,
+> 29 neighbours / 40 edges — the hairball case), so the (b) static fallback was unnecessary. Dense-graph
+> legibility for high-degree nodes is real but is the §3.4 graph-filters job (post-PoC, `docs/BACKLOG.md`
+> "Reader entity side panel — visual refinement").
 - **Context.** The graph viewer renders the full graph with **cytoscape** (`GraphCanvas`, the
   jsdom-untestable mount covered by browser smoke — `frontend/src/AGENTS.md`). The side panel needs a
   *small* graph in a *narrow* column.
@@ -310,7 +319,7 @@ next slice. The dashed (L) is the [[fail-closed]] omit posture for a [[referenti
   embedded in a ~288px side panel lays out acceptably; if it's awkward, fall back to (b)'s static
   view, which is honestly fine for a 1-hop neighbourhood (a few nodes). *Considered:* (b) first for
   simplicity — a 1-hop view rarely needs force-direction; this may win at build time.
-- **Open.** Resolved at build by the layout check — flag which way it went in the PR.
+- **Open.** ✅ none — resolved at build (Session 35): cytoscape, layout-verified in the browser.
 
 ### DM-SP-5 — Showing `properties` (the one unsurfaced field)
 > **✅ Decision (owner, 2026-06-18): (a) the focused endpoint returns `properties`**, rendered as a
@@ -450,7 +459,7 @@ then the `GET /stories/{id}/entities/{eid}` endpoint assembling details + `prope
 + this story's occurrences (integration over real Postgres + a graph reader; declare every non-2xx on
 `responses=`; regenerate the OpenAPI snapshot + typed client — `frontend/src/lib/api/AGENTS.md`). Then
 **M4.S2b** (frontend): the pure bundle→view mappers → a `useEntityDetail` hook → the new reader panel +
-the ego-graph mini-render (DM-SP-4 confirm-at-build) + occurrence drill-down (scroll + flash).
+the ego-graph mini-render (DM-SP-4 ✅ resolved Session 35 = cytoscape) + occurrence drill-down (scroll + flash).
 
 The slice stays **read-only** (INV-1/3/9 untouched, no LLM/INV-5; the read-side echo of INV-1), mirrors
 the M4.S1 test-first shape (pure logic → hook → component), and ends at inspection + drill-down —

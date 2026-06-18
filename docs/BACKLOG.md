@@ -228,7 +228,23 @@ flagged refinements deliberately deferred past V1:
 - **Richer occurrence entries.** The timeline shows a fixed ±60-char snippet (clamped to a few lines);
   an "expand to full paragraph" affordance would let the author read more without leaving the panel.
 
-These were kept light on purpose — proof-of-concept, not final UI. (Owner browser check, Session 35.)
+Two **code-level** refinements deferred from the Session-35 `/code-review` (recorded so a consciously-
+deferred nit doesn't quietly grow into something bigger):
+
+- **Cytoscape mounts rebuild the whole instance on data change.** Both `EgoGraphCanvas` (the panel
+  mini-graph) and `graph-viewer/GraphCanvas` (the main viewer) destroy + re-create the cytoscape
+  instance + re-run the `cose` layout whenever their data object's identity changes, rather than
+  reconciling elements. Harmless at PoC scale (TanStack structural sharing keeps the ref stable when
+  data is unchanged), but on a background refetch with genuinely new data it flickers/re-lays-out. If it
+  ever bites, reconcile elements in place (cytoscape `cy.json({elements})` / add-remove) instead of a
+  full teardown — and fix both mounts together (shared pattern).
+- **The side-panel scroll bound is a magic constant.** `TextReader` wraps the panel in
+  `sticky top-6 max-h-[calc(100vh-3rem)] overflow-y-auto` — the `3rem` is hand-synced to the page's
+  `p-6`/`top-6` spacing. If the page padding or a future sticky header changes, that subtraction is
+  silently wrong (panel overflows or leaves dead space). Folds naturally into the *resizable panel* work
+  above — derive the bound from layout rather than a literal. (Session 35 `/code-review`.)
+
+These were kept light on purpose — proof-of-concept, not final UI. (Owner browser check + `/code-review`, Session 35.)
 
 ## Automated test tooling — Playwright + Postman (post-PoC)
 

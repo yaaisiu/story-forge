@@ -534,15 +534,16 @@ spaCy `CandidateSpan` that has offsets is discarded at accept), so highlighting 
   `entity_mentions.entity_id` (and written edges — DM-Rel-5) onto the survivor, or the reader silently
   drops those highlights. Ties the cross-cutting re-point item. **Lands in:** M4.S1 (the first M4 slice).
 
-### OQ-22 — M4.S2 entity-side-panel decision register (DM-SP-1..8) — ✅ RESOLVED 2026-06-18 (DM-SP-4 confirm-at-build)
+### OQ-22 — M4.S2 entity-side-panel decision register (DM-SP-1..8) — ✅ FULLY RESOLVED (DM-SP-1..3/5..8 Session 34; DM-SP-4 = cytoscape, Session 35 build)
 **Resolved 2026-06-18 (owner, Session 34; resolved home = `[[m4-side-panel]]` now `accepted` +
 `docs/PLAN_SHORT.md` Decided S34).** **DM-SP-1 = a focused per-entity endpoint** `GET …/entities/{eid}`
 (BFF) → **DM-SP-7 = split** S2a backend / S2b frontend; **DM-SP-2 = strict 1-hop ego-graph**;
 **DM-SP-3 = occurrences from rendered highlights** (+ scroll/flash, doubles as the timeline); **DM-SP-5
 = `properties` from the endpoint** (read-only key→value); **DM-SP-6 = a new reader panel** (not unified
 with `NodeDetailsPanel`); **DM-SP-8 = confirm** (occurrences story-scoped, neighbourhood project-scoped).
-**DM-SP-4 (mini-graph render: cytoscape-reuse vs static) stays confirm-at-build in S2b.** Read the
-per-entry resolutions in `[[m4-side-panel]]`. Original framing kept below for history.
+**DM-SP-4 (mini-graph render: cytoscape-reuse vs static) ✅ resolved at S2b build (Session 35, PR #91)
+= reuse cytoscape** (`EgoGraphCanvas`), browser-verified in the narrow panel; static fallback unneeded.
+Read the per-entry resolutions in `[[m4-side-panel]]`. Original framing kept below for history.
 
 Raised by the M4.S2 first-slice `decompose-requirement` step-0 (2026-06-18, `[[m4-side-panel]]`).
 Owner picked **side panel** as M4.S2 (over manual-correction-in-reader) — the read-only inspection
