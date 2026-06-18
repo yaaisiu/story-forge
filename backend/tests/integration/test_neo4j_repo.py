@@ -167,3 +167,72 @@ async def test_relation_round_trip(graph: tuple[Neo4jRepo, UUID]) -> None:
     await repo.create_relation(relation)
 
     assert await repo.get_relations(project_id) == [relation]
+
+
+async def test_get_neighbourhood_returns_incident_edges_both_directions(
+    graph: tuple[Neo4jRepo, UUID],
+) -> None:
+    """The 1-hop query returns every edge touching the focal node — incoming and outgoing —
+    paired with the node on the far end, and ignores edges between other entities."""
+    repo, project_id = graph
+    janek = GraphEntity(type="Character", canonical_name_pl="Janek", project_id=project_id)
+    maria = GraphEntity(type="Character", canonical_name_pl="Maria", project_id=project_id)
+    garret = GraphEntity(type="Character", canonical_name_pl="Garret", project_id=project_id)
+    elsewhere = GraphEntity(type="Location", canonical_name_pl="Młyn", project_id=project_id)
+    for entity in (janek, maria, garret, elsewhere):
+        await repo.create_entity(entity)
+    out_edge = GraphRelation(type="LOVES", subject_id=janek.id, object_id=maria.id, confidence=0.9)
+    in_edge = GraphRelation(
+        type="EMPLOYS", subject_id=garret.id, object_id=janek.id, confidence=0.8
+    )
+    # An edge between two *other* entities — must not appear in Janek's neighbourhood.
+    other = GraphRelation(type="NEAR", subject_id=garret.id, object_id=elsewhere.id, confidence=0.7)
+    for relation in (out_edge, in_edge, other):
+        await repo.create_relation(relation)
+
+    pairs = await repo.get_neighbourhood(janek.id)
+
+    by_edge = {rel.id: (rel, neighbour) for rel, neighbour in pairs}
+    assert set(by_edge) == {out_edge.id, in_edge.id}
+    assert by_edge[out_edge.id][0] == out_edge
+    assert by_edge[out_edge.id][1] == maria  # far end of the outgoing edge
+    assert by_edge[in_edge.id][1] == garret  # far end of the incoming edge
+
+
+async def test_get_neighbourhood_empty_for_unconnected_entity(
+    graph: tuple[Neo4jRepo, UUID],
+) -> None:
+    repo, project_id = graph
+    lonely = GraphEntity(type="Character", canonical_name_pl="Sam", project_id=project_id)
+    await repo.create_entity(lonely)
+    assert await repo.get_neighbourhood(lonely.id) == []
+
+
+async def test_get_neighbourhood_excludes_cross_project_neighbour(
+    graph: tuple[Neo4jRepo, UUID],
+) -> None:
+    """Defense-in-depth (§6.4): the neighbourhood is scoped to the focal node's own project, so a
+    stray cross-project edge never surfaces another project's node in the side panel."""
+    repo, project_id = graph
+    other_project = uuid4()
+    janek = GraphEntity(type="Character", canonical_name_pl="Janek", project_id=project_id)
+    same = GraphEntity(type="Character", canonical_name_pl="Maria", project_id=project_id)
+    foreign = GraphEntity(type="Character", canonical_name_pl="Obcy", project_id=other_project)
+    in_project_edge = GraphRelation(
+        type="KNOWS", subject_id=janek.id, object_id=same.id, confidence=0.9
+    )
+    cross_project_edge = GraphRelation(
+        type="KNOWS", subject_id=janek.id, object_id=foreign.id, confidence=0.9
+    )
+    try:
+        for entity in (janek, same, foreign):
+            await repo.create_entity(entity)
+        for relation in (in_project_edge, cross_project_edge):
+            await repo.create_relation(relation)
+
+        pairs = await repo.get_neighbourhood(janek.id)
+
+        neighbour_ids = {neighbour.id for _, neighbour in pairs}
+        assert neighbour_ids == {same.id}  # foreign neighbour excluded
+    finally:
+        await repo.delete_project_graph(other_project)  # the fixture only cleans `project_id`

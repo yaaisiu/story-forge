@@ -534,6 +534,47 @@ spaCy `CandidateSpan` that has offsets is discarded at accept), so highlighting 
   `entity_mentions.entity_id` (and written edges — DM-Rel-5) onto the survivor, or the reader silently
   drops those highlights. Ties the cross-cutting re-point item. **Lands in:** M4.S1 (the first M4 slice).
 
+### OQ-22 — M4.S2 entity-side-panel decision register (DM-SP-1..8) — ✅ RESOLVED 2026-06-18 (DM-SP-4 confirm-at-build)
+**Resolved 2026-06-18 (owner, Session 34; resolved home = `[[m4-side-panel]]` now `accepted` +
+`docs/PLAN_SHORT.md` Decided S34).** **DM-SP-1 = a focused per-entity endpoint** `GET …/entities/{eid}`
+(BFF) → **DM-SP-7 = split** S2a backend / S2b frontend; **DM-SP-2 = strict 1-hop ego-graph**;
+**DM-SP-3 = occurrences from rendered highlights** (+ scroll/flash, doubles as the timeline); **DM-SP-5
+= `properties` from the endpoint** (read-only key→value); **DM-SP-6 = a new reader panel** (not unified
+with `NodeDetailsPanel`); **DM-SP-8 = confirm** (occurrences story-scoped, neighbourhood project-scoped).
+**DM-SP-4 (mini-graph render: cytoscape-reuse vs static) stays confirm-at-build in S2b.** Read the
+per-entry resolutions in `[[m4-side-panel]]`. Original framing kept below for history.
+
+Raised by the M4.S2 first-slice `decompose-requirement` step-0 (2026-06-18, `[[m4-side-panel]]`).
+Owner picked **side panel** as M4.S2 (over manual-correction-in-reader) — the read-only inspection
+surface that the *next* slice's corrections build on. Full Context/Options/Proposal for each entry
+live in that proposal's register; listed here so the vault's reader knows they gate the M4.S2 build.
+Still a **read-only projection** (INV-1/3/9 untouched, no LLM/INV-5; the read-side echo of INV-1
+applies as in `[[m4-inline-highlights]]`). Register, all **OPEN**:
+- **DM-SP-1 — where the panel's data comes from** (the central call): a focused per-entity endpoint
+  `GET /stories/{id}/entities/{eid}` (BFF — server-side join + neighbourhood, fetch-per-click; needs a
+  new 1-hop `Neo4jRepo` query) vs composing client-side (`useStoryGraph` whole-graph + reader
+  highlights + add `properties` to `GraphNode`). `properties` is the **one** §3.4 field surfaced by no
+  endpoint today. My lean: the focused endpoint (mirrors DM-IH-2).
+- **DM-SP-2 — ego-graph radius** ("local graph around that entity", §3.5): strict 1-hop entity-incident
+  (proposed, legible) vs 1-hop+inter-neighbour edges vs configurable depth. See [[ego-graph]].
+- **DM-SP-3 — occurrence drill-down + granularity**: occurrences driven off the *rendered highlights*
+  (panel agrees with the prose; doubles as §3.4's timeline) vs raw paragraph-level mentions; click →
+  scroll-to-paragraph + flash. The DM-IH-1 granularity mismatch (more highlights than mentions) recurs.
+- **DM-SP-4 — mini-graph render**: reuse `GraphCanvas`/cytoscape with the ego subset vs a lightweight
+  static view in a narrow panel (`verify-at-build` the embedded-cytoscape layout).
+- **DM-SP-5 — `properties` display** (read-only key→value, open-world; editing is the next slice).
+- **DM-SP-6 — panel component**: a new `ReaderEntityPanel` (proposed; the two panels diverge) vs
+  extending the graph viewer's `NodeDetailsPanel` into one shared panel.
+- **DM-SP-7 — slice size**: split M4.S2a backend (endpoint + 1-hop query) / M4.S2b frontend (panel +
+  mini-graph + drill-down) — *downstream of DM-SP-1* (1a→split, 1b→likely one slice).
+- **DM-SP-8 — story-vs-project scoping** (confirm, not fork): occurrences story-scoped, neighbourhood
+  project-scoped — inherits the §3.4 debt the reader endpoint first carried.
+- **Latent coupling re-surfaced (not this slice's fix):** a future M4 entity↔entity merge must
+  re-point written **edges** (DM-Rel-5 — [[relation-lifecycle]]) and `entity_mentions.entity_id`
+  (M4.S1), or the ego-graph draws an edge to a ghost node / the panel drops an occurrence. This slice
+  fail-closes (omit the dangling neighbour); it makes the re-point debt concrete from the relations
+  direction. **Lands in:** M4.S2 (the second M4 slice).
+
 ## Referenced — owned by spec §10 (not duplicated)
 
 The spec carries ten "decide as we go" questions; they remain the spec's to own. Listed here by

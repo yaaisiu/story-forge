@@ -11,6 +11,38 @@ related: []
 Append-only audit trail of writes into the vault. Newest entries at the top. History also lives
 in `updated` fields (freshness) and git (diffs); this is the human-readable "what changed when".
 
+## 2026-06-18 — decompose: M4.S2 entity side panel in the reader (step-0)
+
+`decompose-requirement` step-0 on the owner-chosen second M4 slice (Session 34): **entity side panel**
+(spec §3.4 detail panel + §3.5 local graph around the clicked entity), picked over manual-correction-
+in-reader because the read-only inspection surface is what the *next* slice's corrections build on.
+A **read-only projection** like its predecessor [[m4-inline-highlights]] — most stations n/a, INV-1/9
+untouched, no LLM. Centre of gravity = **DM-SP-1 data source**: most of the §3.4 panel's data is
+already on hand (occurrences derive from the reader's rendered highlights; relations/neighbours filter
+`get_relations`), so the slice is largely an *assembly* problem — only `properties` is surfaced by no
+endpoint, and no per-entity *neighbourhood* query exists. The call is a focused BFF endpoint
+(`GET …/entities/{eid}`) vs composing the whole-graph fetch the viewer already does; DM-SP-7 (slice
+split) is downstream of it.
+
+- **Register RESOLVED same session (owner, Session 34):** DM-SP-1 = the focused endpoint → DM-SP-7 =
+  split S2a backend / S2b frontend; strict 1-hop ego-graph; occurrences from rendered highlights; a new
+  reader panel; `properties` from the endpoint; DM-SP-4 (mini-graph render) confirm-at-build in S2b. The
+  proposal is flipped to `accepted` (banner + per-entry ✅ Decision lines; original Context/Options kept
+  as history), OQ-22 struck, INDEX row + next-steps updated. Authoritative home: `docs/PLAN_SHORT.md`
+  Decided S34. **Next: build M4.S2a backend test-first** (first failing test = the pure 1-hop
+  neighbourhood-assembly function, dangling endpoints omitted).
+- **`proposals/m4-side-panel.md`** (NEW, `status: accepted`) — the nine-layer + nine-station pass, a
+  Mermaid data-flow, State & invariants (the read-side echo of INV-1; the M4 merge-re-point coupling
+  re-surfaced from the relations direction), the **OPEN** register **DM-SP-1..8**, "but what if"
+  edge cases (dangling endpoints, occurrence/mention granularity, hairball protagonist), gaps-for-PO,
+  and the DM-SP-1-dependent hand-off.
+- **`glossary/ego-graph.md`** (NEW, term #23) — the 1-hop neighbourhood of a focal node; the spec's
+  "local graph around that entity" (§3.5) named and bounded (strict 1-hop for a narrow panel).
+- **`open-questions.md`** — added **OQ-22** (the DM-SP register mirror, DM-SP-1 the central call);
+  `updated` already 2026-06-18.
+- **`learning-log.md`** — +2 lines (ego-graph / 1-hop neighbourhood; backend-for-frontend BFF).
+- **`INDEX.md`** — regenerated (proposal row + next-steps linked; glossary 22→23; priority queue advanced to M4.S2).
+
 ## 2026-06-18 — orientation touch: npm-audit gate scoped to `--omit=dev` (spec §6.7, M4.S1)
 
 A minimal two-edit orienting reflection on a §6.7 amendment already made by the owner (Session 33,
