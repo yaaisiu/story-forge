@@ -79,6 +79,16 @@ For every advisory the scan reports:
      `<img>.trivyignore` line) — one-line reason.
    - The register (`WAIVERS.md`) — severity, fixed-in version, **reachability rationale**, and
      the **drop-when** date/condition.
+
+   **Compute a dated drop-when as a *floor*, not `+soak` exactly.** The age gate
+   (`scripts/check_dependency_age.py`: `CUTOFF = NOW - 14 days`) is **time-precise to the
+   second**, but a recorded date is calendar arithmetic — so a fix published at 08:27 UTC
+   "soaks 14 days later" only *after* 08:27 on that day, and a drop acting on the bare date
+   is a few hours too young and reds the gate / pre-push hook / CI. Record the date as the
+   fix's **first-publication date + (soak_days + 1)** calendar days (package: pub + **15**;
+   image: pub + **8**) — that floor clears the time-precise gate at any UTC time, so the
+   drop acts cleanly on the date. (Session 32 lost ~50 min to a `+14` date that was
+   intra-day optimistic.)
 4. **A HIGH/CRITICAL waiver is a §6.7 judgement — surface it to the owner**, don't self-approve.
    State the tradeoff in plain language (what the CVE does, why it's not reachable here, when
    it drops) and get the explicit call before committing.
