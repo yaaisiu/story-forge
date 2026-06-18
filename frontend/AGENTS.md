@@ -65,6 +65,14 @@ grep `.env` (hard rule), and you don't need to. The two things that actually nee
 - **Bring the two servers up:** backend `uv run uvicorn story_forge.main:app --port 8000`,
   frontend `npm run dev` (port **5173** — see the smoke-walk note above), then open
   `http://localhost:5173`.
+- **Confirm the running backend actually loaded the route you're testing.** If the feature
+  calls a _recently-merged_ backend endpoint, a backend started **before** that merge (or
+  started without `--reload`) is frozen on the old code and the route 404s with Starlette's
+  bare `{"detail":"Not Found"}` (route-not-matched) — which looks like a frontend bug but
+  isn't. Verify the live process has the route — `curl -s localhost:8000/openapi.json | python3 -c "import sys,json; print([p for p in json.load(sys.stdin)['paths'] if 'your-route' in p])"` —
+  and restart the backend (prefer `--reload`) before concluding the UI is at fault. (S35: the
+  M4.S2a `/stories/{id}/entities/{eid}` route was merged but the long-running uvicorn predated
+  it, so the new side panel's fetch 404'd during a browser check until the backend was restarted.)
 
 **Getting data to click:** a feature gated on prior human decisions (the review/relations
 queues) needs seeded state. Either drive the real upstream flow (upload → extract → accept),
