@@ -60,7 +60,8 @@ chosen version and its age to the user.
   (`"ecosystem":"npm"` for JS.) An empty `{}` means no known vulnerabilities for that
   version. If advisories come back, read severity; do not pin a version with an
   unfixed HIGH/CRITICAL — choose a patched version (re-run step 2 for its age).
-- Frontend additionally gets `npm audit --audit-level=high` in step 5.
+- Frontend additionally gets `npm audit --omit=dev --audit-level=high` in step 5 (the
+  prod-scoped CI gate; spec §6.7).
 
 ## 4. Add the exact pin
 
@@ -74,7 +75,9 @@ chosen version and its age to the user.
 
 - Backend: `cd backend && uv lock` (then `uv sync` to install).
 - Frontend: `cd frontend && npm install` (updates `package-lock.json`), then
-  `npm audit --audit-level=high` — must report no high/critical.
+  `npm audit --omit=dev --audit-level=high` — must report no high/critical (the
+  prod-scoped CI gate; spec §6.7). For a **dev**-only dep, also glance at a bare
+  `npm audit` — a dev advisory won't gate CI but you should know it's there.
 
 ## 6. Verify
 

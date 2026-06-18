@@ -7,7 +7,8 @@ description: Triage a security-gate advisory (OSV backend SCA / Trivy image / fr
 
 Story Forge's `security` CI job is **fail-on-any** across three gates — the backend OSV
 lockfile SCA (`infra/osv/osv-scanner.toml` vs `backend/uv.lock`), the per-image **Trivy**
-scans (`infra/trivy/*.trivyignore`), and the frontend **npm-audit** (`--audit-level=high`).
+scans (`infra/trivy/*.trivyignore`), and the frontend **npm-audit** (`--omit=dev --audit-level=high`
+— prod-scoped to shipped deps; spec §6.7, 2026-06-18).
 Fresh advisories land against *unchanged* pinned deps/images all the time (the treadmill),
 so this gate reds on branches that touched none of them — and fixing one gate can **unmask**
 the next (Trivy scans sequentially; OSV runs before Trivy).
@@ -49,8 +50,9 @@ docker run --rm -v /var/run/docker.sock:/var/run/docker.sock \
   aquasec/trivy:0.70.0 image --quiet --severity HIGH,CRITICAL --ignore-unfixed \
   --ignorefile /cfg/ignore "<IMAGE:TAG>"
 
-# Frontend npm-audit:
-cd frontend && npm audit --audit-level=high
+# Frontend npm-audit (prod-scoped, exactly as CI; a bare `npm audit` also shows
+# dev-only advisories for awareness — they don't gate, see spec §6.7):
+cd frontend && npm audit --omit=dev --audit-level=high
 ```
 
 Then list every **active waiver** and its drop-condition: `infra/osv/osv-scanner.toml`
