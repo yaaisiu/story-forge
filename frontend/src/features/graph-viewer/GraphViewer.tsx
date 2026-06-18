@@ -93,6 +93,15 @@ export function GraphViewer() {
               Relations
             </Link>
           )}
+          {storyId && (
+            <Link
+              to={`/stories/${storyId}/reader`}
+              data-testid="reader-link"
+              className="rounded border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
+            >
+              Read text
+            </Link>
+          )}
           <button
             type="button"
             data-testid="run-extraction"

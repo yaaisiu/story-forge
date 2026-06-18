@@ -172,6 +172,21 @@ describe("GraphViewer", () => {
     expect(link).toHaveAttribute("href", `/stories/${STORY_ID}/relations`);
   });
 
+  it("links to the story's text reader (the §3.5 inline-highlights view)", async () => {
+    const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
+      const url = String(input);
+      if (url.includes("/graph")) return jsonResponse(200, EMPTY_GRAPH);
+      if (url.includes("/llm/status")) return jsonResponse(200, STATUS_BODY);
+      throw new Error(`unexpected url ${url}`);
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    renderViewer();
+
+    const link = await screen.findByTestId("reader-link");
+    expect(link).toHaveAttribute("href", `/stories/${STORY_ID}/reader`);
+  });
+
   it("opens the node-details panel when a node is tapped", async () => {
     const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
       const url = String(input);
