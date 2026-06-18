@@ -20,7 +20,7 @@
     "cytoscape": "3.33.4",
     "react": "19.0.5",
     "react-dom": "19.0.5",
-    "react-router-dom": "7.15.0"
+    "react-router-dom": "7.16.0"
   },
   "devDependencies": {
     "@eslint/js": "10.0.1",

@@ -96,8 +96,11 @@ jobs:
         # Component/unit tests under src/**/*.test.{ts,tsx}. Runs after Build so
         # a type error fails first with a clearer message than a vitest crash.
         run: npm test
-      - name: npm audit (high/critical)
-        run: npm audit --audit-level=high
+      - name: npm audit (high/critical, shipped deps)
+        # --omit=dev: audit only what ships in the SPA bundle, not the build/test
+        # toolchain (jsdom, vitest, eslint, …). A dev-only advisory can't reach a
+        # user, so it shouldn't red main on un-shipped code (spec §6.7, 2026-06-18).
+        run: npm audit --omit=dev --audit-level=high
 
   security:
     runs-on: ubuntu-latest
