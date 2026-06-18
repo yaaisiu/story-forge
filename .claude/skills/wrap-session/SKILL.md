@@ -98,9 +98,11 @@ retrospective produced**. Write it for an outsider — this is public.
 Per root `CLAUDE.md` ("Where knowledge lives"), durable knowledge belongs in the repo,
 not in private agent memory. If anything was stashed in agent memory this session, move
 each item into its proper project home — a decision → **Decided**; a convention → the
-relevant `CLAUDE.md`; a roadmap note → `docs/PLAN_LONG.md`; a follow-up → the cross-cutting
-list — and then delete the memory entry (and its index line). The wrap is not done while a
-durable fact lives only in memory. A session that used no memory: nothing to do, say so.
+relevant `CLAUDE.md`; a roadmap note → `docs/PLAN_LONG.md`; a *current-milestone* follow-up →
+the cross-cutting list; a *post-PoC* follow-up (feature / UX nit / bug / refinement to revisit
+after V1) → `docs/BACKLOG.md` — and then delete the memory entry (and its index line). The wrap
+is not done while a durable fact lives only in memory. A session that used no memory: nothing to
+do, say so. (Full routing rule: root `CLAUDE.md` "Where knowledge lives" + `docs/BACKLOG.md` header.)
 
 ## 6. Check spec / plan consistency
 

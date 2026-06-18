@@ -120,8 +120,10 @@ the next session) finds them by reading the repo. This is a public portfolio: th
 of *how* and *why* we build must be in the open, version-controlled, and reviewable.
 
 - Prefer the most specific home: a layering rule → that directory's `AGENTS.md`; a
-  workflow rule → here or a skill; a decision → `docs/PLAN_SHORT.md` **Decided**; a roadmap
-  shift → `docs/PLAN_LONG.md`; a spec change → the spec (via the stop-and-amend flow).
+  workflow rule → here or a skill; a decision → `docs/PLAN_SHORT.md` **Decided**; a
+  current-milestone deferral → `docs/PLAN_SHORT.md` **Cross-cutting**; a **post-PoC
+  follow-up** (a feature / UX nit / bug / refinement to revisit after V1) → `docs/BACKLOG.md`;
+  a roadmap shift → `docs/PLAN_LONG.md`; a spec change → the spec (via the stop-and-amend flow).
 - **Reconcile a decision across *every* home in one pass — a fact lives in more places than you
   changed.** When you record or resolve a decision (amend the spec, land an ADR, flip a doc
   `proposed → accepted`, overturn a prior choice), the authoritative home is only the first edit.
@@ -156,6 +158,7 @@ of *how* and *why* we build must be in the open, version-controlled, and reviewa
 - `story-forge-poc-spec.md` — full PoC specification, source of truth
 - `docs/PLAN_LONG.md` — strategic milestones
 - `docs/PLAN_SHORT.md` — tactical task list, current milestone
+- `docs/BACKLOG.md` — post-PoC backlog (features / UX nits / bugs / refinements surfaced during PoC work, revisited after V1; its header carries the routing rule for where a follow-up goes)
 - `docs/AGENTS.md` — plan conventions (handoff-block contract, Decided/Blocked/Done structure, cross-cutting curation rule)
 - `docs/decisions/` — Architecture Decision Records (ADRs)
 - `architecture/` — the **meta-architect vault**: the architectural *projection* layer (named invariants, state machines, decision register, per-feature decompositions, dated review sweeps, teaching glossary). **Orienting context, not a source of truth** — it references the spec/plans/code and never overrides them; on disagreement the source wins and the vault is what drifted. Navigate from `architecture/INDEX.md`; conventions + the source-of-truth boundary are in `architecture/AGENTS.md`. The `meta-architect:*` skills (deferred from the rituals per `docs/decisions/0002`) are its only writers; everyone else reads it for orientation. Consult it when planning a milestone, decomposing a branchy feature, or checking which invariant guards a change.
