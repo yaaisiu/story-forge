@@ -11,6 +11,7 @@ import { Route, Routes } from "react-router-dom";
 import { OutlineEditor } from "../features/chunking/OutlineEditor";
 import { ReviewQueue } from "../features/extraction-review/ReviewQueue";
 import { RelationQueue } from "../features/relation-review/RelationQueue";
+import { TextReader } from "../features/text-reader/TextReader";
 import { UploadScreen } from "../features/upload/UploadScreen";
 
 // Code-split the graph viewer: it pulls in cytoscape (~225 kB gzip), which only
@@ -44,6 +45,9 @@ export function AppRoutes() {
       {/* M3.S4f: decide on the staged relations between accepted entities (the human
           gate that commits edges to the graph — spec §3.3's 5th human action). */}
       <Route path="/stories/:storyId/relations" element={<RelationQueue />} />
+      {/* M4.S1: read the story with accepted entities highlighted inline (spec §3.5).
+          Read-only — no editor dep, so it imports directly (no code-split needed). */}
+      <Route path="/stories/:storyId/reader" element={<TextReader />} />
     </Routes>
   );
 }
