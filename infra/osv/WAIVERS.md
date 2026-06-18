@@ -15,7 +15,10 @@ parent's version range forbids bumping). Each waiver here carries a reachability
 justification and a **condition-based "drop when"** (mirroring Trivy's model;
 the SCA analogue of "drop when upstream rebuilds" is "drop when a fixed version
 clears the 14-day soak"). An optional `ignoreUntil` hard date in the toml is a
-backstop, not the primary expiry.
+backstop, not the primary expiry. A dated "drop when (soaks)" is a **floor** =
+fixed-version publication date **+ 15 days** (one past the 14-day soak): the age
+gate is time-precise to the second, so a bare `+14` date is intra-day optimistic
+and a drop acting on it can red the gate by hours (`/triage-advisory` step 3).
 
 This complements, but does not replace, **Dependabot** on `main` (server-side,
 post-merge) — keeping both is [[defense-in-depth]]: the CI gate is the pre-merge
