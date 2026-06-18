@@ -166,6 +166,33 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/stories/{story_id}/entities/{entity_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Entity Detail
+         * @description An accepted entity's details + properties + 1-hop local graph (spec §3.4/§3.5, M4.S2a).
+         *
+         *     The read behind the reader side panel (DM-SP-1a — a focused per-entity endpoint): resolve the
+         *     story → its project (the §6.4 tenancy key, the same seam as `/graph` and `/reader`), confirm
+         *     the entity belongs to that project (else 404 — never leak another project's node), then return
+         *     its display fields + `properties` + the `build_ego_graph` projection of its
+         *     `get_neighbourhood` (DM-SP-2: strict 1-hop, entity-incident edges, self-loops dropped). A
+         *     read-only projection — INV-1/INV-9 untouched, no LLM call.
+         */
+        get: operations["get_entity_detail_stories__story_id__entities__entity_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/stories/{story_id}/candidates": {
         parameters: {
             query?: never;
@@ -404,6 +431,94 @@ export interface components {
              * @enum {string}
              */
             action: "commit" | "reject";
+        };
+        /**
+         * EgoEdge
+         * @description One relation edge incident to the focal entity, oriented relative to it.
+         *
+         *     `direction` is `out` when the focal entity is the relation's subject (focal→neighbour) and
+         *     `in` when it is the object (neighbour→focal); `neighbour_id` is the entity on the far end.
+         */
+        EgoEdge: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Type */
+            type: string;
+            /**
+             * Direction
+             * @enum {string}
+             */
+            direction: "out" | "in";
+            /**
+             * Neighbour Id
+             * Format: uuid
+             */
+            neighbour_id: string;
+            /** Confidence */
+            confidence: number;
+        };
+        /**
+         * EgoGraph
+         * @description The focal entity's 1-hop neighbourhood: its direct neighbours + the edges touching it.
+         */
+        EgoGraph: {
+            /** Neighbours */
+            neighbours?: components["schemas"]["EgoNeighbour"][];
+            /** Edges */
+            edges?: components["schemas"]["EgoEdge"][];
+        };
+        /**
+         * EgoNeighbour
+         * @description One directly-connected entity in the focal node's 1-hop neighbourhood (display subset).
+         *
+         *     The same colour-by-type/name fields the §3.4 graph node carries, so the panel's mini-graph
+         *     can render a neighbour without a second lookup. `type` is open-world (INV-4).
+         */
+        EgoNeighbour: {
+            /**
+             * Entity Id
+             * Format: uuid
+             */
+            entity_id: string;
+            /** Type */
+            type: string;
+            /** Canonical Name Pl */
+            canonical_name_pl?: string | null;
+            /** Canonical Name En */
+            canonical_name_en?: string | null;
+            /** Aliases */
+            aliases?: string[];
+        };
+        /**
+         * EntityDetailResponse
+         * @description One accepted entity's detail bundle for the reader side panel (spec §3.4/§3.5, M4.S2a).
+         *
+         *     The two things the reader page doesn't already hold: the entity's free-form `properties`
+         *     (surfaced by no other endpoint) and its 1-hop `ego_graph` (the "local graph around that
+         *     entity", §3.5). Name/type/aliases are included so the panel is self-contained. Occurrences
+         *     are derived frontend-side from the reader's already-rendered highlights (DM-SP-3), so they
+         *     are not repeated here. Read-only — editing properties/relations is the next M4 slice.
+         */
+        EntityDetailResponse: {
+            /**
+             * Entity Id
+             * Format: uuid
+             */
+            entity_id: string;
+            /** Canonical Name */
+            canonical_name: string;
+            /** Type */
+            type: string;
+            /** Aliases */
+            aliases: string[];
+            /** Properties */
+            properties: {
+                [key: string]: unknown;
+            };
+            ego_graph: components["schemas"]["EgoGraph"];
         };
         /**
          * EntitySearchResponse
@@ -1136,6 +1251,47 @@ export interface operations {
                 };
             };
             /** @description Story not found. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_entity_detail_stories__story_id__entities__entity_id__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                story_id: string;
+                entity_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EntityDetailResponse"];
+                };
+            };
+            /** @description Story or entity not found. */
             404: {
                 headers: {
                     [name: string]: unknown;

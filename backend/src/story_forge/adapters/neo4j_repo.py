@@ -169,6 +169,27 @@ class Neo4jRepo:
         )
         return [self._to_relation(record) for record in records]
 
+    async def get_neighbourhood(self, entity_id: UUID) -> list[tuple[GraphRelation, GraphEntity]]:
+        """The 1-hop neighbourhood of an entity: each incident edge + the node on its far end.
+
+        The targeted read behind the reader side panel's "local graph around that entity" (M4.S2a,
+        spec §3.5, DM-SP-1a) — `(e)-[r]-(n)` matches edges in **both** directions (the panel shows
+        incoming and outgoing), and `startNode`/`endNode` carry the true orientation so the pure
+        `build_ego_graph` can label each edge `out`/`in`. Fetches only the focal node's edges, not
+        the whole project graph. Returns `(relation, neighbour)` pairs; a self-loop yields the focal
+        node as the neighbour and is dropped by `build_ego_graph`, not here.
+        """
+        records, _, _ = await self._driver.execute_query(
+            "MATCH (e:Entity {id: $id})-[r]-(n:Entity) "
+            "RETURN type(r) AS type, properties(r) AS props, "
+            "startNode(r).id AS sid, endNode(r).id AS oid, properties(n) AS nprops",
+            id=str(entity_id),
+        )
+        return [
+            (self._to_relation(record), self._to_entity(dict(record["nprops"])))
+            for record in records
+        ]
+
     # --- Maintenance -------------------------------------------------------
 
     async def delete_project_graph(self, project_id: UUID) -> None:

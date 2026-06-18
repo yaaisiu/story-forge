@@ -64,6 +64,7 @@ from story_forge.domain.graph import GraphEntity
 from story_forge.domain.highlights import HighlightTarget, resolve_highlights
 from story_forge.domain.language import detect_language
 from story_forge.domain.models import Project, Story
+from story_forge.domain.neighbourhood import EgoGraph, build_ego_graph
 from story_forge.domain.parsing import ParseError, parse_document
 
 router = APIRouter(prefix="/stories", tags=["stories"])
@@ -666,6 +667,66 @@ async def get_story_reader(
         if e.id in appeared
     ]
     return ReaderResponse(paragraphs=reader_paragraphs, entities=catalog)
+
+
+# --- Entity side panel (§3.4/§3.5): details + properties + local graph -------
+
+
+class EntityDetailResponse(BaseModel):
+    """One accepted entity's detail bundle for the reader side panel (spec §3.4/§3.5, M4.S2a).
+
+    The two things the reader page doesn't already hold: the entity's free-form `properties`
+    (surfaced by no other endpoint) and its 1-hop `ego_graph` (the "local graph around that
+    entity", §3.5). Name/type/aliases are included so the panel is self-contained. Occurrences
+    are derived frontend-side from the reader's already-rendered highlights (DM-SP-3), so they
+    are not repeated here. Read-only — editing properties/relations is the next M4 slice.
+    """
+
+    entity_id: UUID
+    canonical_name: str
+    type: str
+    aliases: list[str]
+    properties: dict[str, object]
+    ego_graph: EgoGraph
+
+
+@router.get(
+    "/{story_id}/entities/{entity_id}",
+    responses={404: {"model": ErrorResponse, "description": "Story or entity not found."}},
+)
+async def get_entity_detail(
+    story_id: UUID,
+    entity_id: UUID,
+    conn: Annotated[AsyncConnection, Depends(get_connection)],
+    repo: Annotated[Neo4jRepo, Depends(get_neo4j_repo)],
+) -> EntityDetailResponse:
+    """An accepted entity's details + properties + 1-hop local graph (spec §3.4/§3.5, M4.S2a).
+
+    The read behind the reader side panel (DM-SP-1a — a focused per-entity endpoint): resolve the
+    story → its project (the §6.4 tenancy key, the same seam as `/graph` and `/reader`), confirm
+    the entity belongs to that project (else 404 — never leak another project's node), then return
+    its display fields + `properties` + the `build_ego_graph` projection of its
+    `get_neighbourhood` (DM-SP-2: strict 1-hop, entity-incident edges, self-loops dropped). A
+    read-only projection — INV-1/INV-9 untouched, no LLM call.
+    """
+    story = await get_story(conn, story_id)
+    if story is None:
+        raise HTTPException(status_code=404, detail="story not found")
+    entity = await repo.get_entity(entity_id)
+    if entity is None or entity.project_id != story.project_id:
+        raise HTTPException(status_code=404, detail="entity not found")
+
+    project = await get_project(conn, story.project_id)
+    language = project.language if project is not None else "pl"
+    incident = await repo.get_neighbourhood(entity_id)
+    return EntityDetailResponse(
+        entity_id=entity.id,
+        canonical_name=canonical_for_language(entity, language),
+        type=entity.type,
+        aliases=entity.aliases,
+        properties=entity.properties,
+        ego_graph=build_ego_graph(entity_id, incident),
+    )
 
 
 # --- Review queue (Stage 4): list pending / accept / reject -----------------

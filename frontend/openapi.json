@@ -438,6 +438,70 @@
         }
       }
     },
+    "/stories/{story_id}/entities/{entity_id}": {
+      "get": {
+        "tags": [
+          "stories"
+        ],
+        "summary": "Get Entity Detail",
+        "description": "An accepted entity's details + properties + 1-hop local graph (spec \u00a73.4/\u00a73.5, M4.S2a).\n\nThe read behind the reader side panel (DM-SP-1a \u2014 a focused per-entity endpoint): resolve the\nstory \u2192 its project (the \u00a76.4 tenancy key, the same seam as `/graph` and `/reader`), confirm\nthe entity belongs to that project (else 404 \u2014 never leak another project's node), then return\nits display fields + `properties` + the `build_ego_graph` projection of its\n`get_neighbourhood` (DM-SP-2: strict 1-hop, entity-incident edges, self-loops dropped). A\nread-only projection \u2014 INV-1/INV-9 untouched, no LLM call.",
+        "operationId": "get_entity_detail_stories__story_id__entities__entity_id__get",
+        "parameters": [
+          {
+            "name": "story_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Story Id"
+            }
+          },
+          {
+            "name": "entity_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Entity Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EntityDetailResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Story or entity not found.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/stories/{story_id}/candidates": {
       "get": {
         "tags": [
@@ -1072,6 +1136,159 @@
         ],
         "title": "DecideRelationRequest",
         "description": "The reviewer's relation decision: commit the edge, or reject the relation."
+      },
+      "EgoEdge": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Id"
+          },
+          "type": {
+            "type": "string",
+            "title": "Type"
+          },
+          "direction": {
+            "type": "string",
+            "enum": [
+              "out",
+              "in"
+            ],
+            "title": "Direction"
+          },
+          "neighbour_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Neighbour Id"
+          },
+          "confidence": {
+            "type": "number",
+            "title": "Confidence"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "type",
+          "direction",
+          "neighbour_id",
+          "confidence"
+        ],
+        "title": "EgoEdge",
+        "description": "One relation edge incident to the focal entity, oriented relative to it.\n\n`direction` is `out` when the focal entity is the relation's subject (focal\u2192neighbour) and\n`in` when it is the object (neighbour\u2192focal); `neighbour_id` is the entity on the far end."
+      },
+      "EgoGraph": {
+        "properties": {
+          "neighbours": {
+            "items": {
+              "$ref": "#/components/schemas/EgoNeighbour"
+            },
+            "type": "array",
+            "title": "Neighbours"
+          },
+          "edges": {
+            "items": {
+              "$ref": "#/components/schemas/EgoEdge"
+            },
+            "type": "array",
+            "title": "Edges"
+          }
+        },
+        "type": "object",
+        "title": "EgoGraph",
+        "description": "The focal entity's 1-hop neighbourhood: its direct neighbours + the edges touching it."
+      },
+      "EgoNeighbour": {
+        "properties": {
+          "entity_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Entity Id"
+          },
+          "type": {
+            "type": "string",
+            "title": "Type"
+          },
+          "canonical_name_pl": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Canonical Name Pl"
+          },
+          "canonical_name_en": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Canonical Name En"
+          },
+          "aliases": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Aliases"
+          }
+        },
+        "type": "object",
+        "required": [
+          "entity_id",
+          "type"
+        ],
+        "title": "EgoNeighbour",
+        "description": "One directly-connected entity in the focal node's 1-hop neighbourhood (display subset).\n\nThe same colour-by-type/name fields the \u00a73.4 graph node carries, so the panel's mini-graph\ncan render a neighbour without a second lookup. `type` is open-world (INV-4)."
+      },
+      "EntityDetailResponse": {
+        "properties": {
+          "entity_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Entity Id"
+          },
+          "canonical_name": {
+            "type": "string",
+            "title": "Canonical Name"
+          },
+          "type": {
+            "type": "string",
+            "title": "Type"
+          },
+          "aliases": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Aliases"
+          },
+          "properties": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Properties"
+          },
+          "ego_graph": {
+            "$ref": "#/components/schemas/EgoGraph"
+          }
+        },
+        "type": "object",
+        "required": [
+          "entity_id",
+          "canonical_name",
+          "type",
+          "aliases",
+          "properties",
+          "ego_graph"
+        ],
+        "title": "EntityDetailResponse",
+        "description": "One accepted entity's detail bundle for the reader side panel (spec \u00a73.4/\u00a73.5, M4.S2a).\n\nThe two things the reader page doesn't already hold: the entity's free-form `properties`\n(surfaced by no other endpoint) and its 1-hop `ego_graph` (the \"local graph around that\nentity\", \u00a73.5). Name/type/aliases are included so the panel is self-contained. Occurrences\nare derived frontend-side from the reader's already-rendered highlights (DM-SP-3), so they\nare not repeated here. Read-only \u2014 editing properties/relations is the next M4 slice."
       },
       "EntitySearchResponse": {
         "properties": {

@@ -30,13 +30,13 @@ related: []
 | [[learning-log]] | learning-log | append-only |
 | [[changelog]] | changelog | append-only |
 
-## Glossary (22 terms — see [[glossary]])
+## Glossary (23 terms — see [[glossary]])
 [[trust-boundary]] · [[invariant]] · [[state-machine]] · [[fail-closed]] ·
 [[human-in-the-loop]] · [[idempotency]] · [[open-world-ontology]] · [[source-of-truth]] ·
 [[c4-model]] · [[agent]] · [[cascade-matching]] · [[model-tier-routing]] ·
 [[compliance-audit-layer]] · [[prefer-deterministic]] · [[failover]] · [[toctou]] ·
 [[prompt-injection]] · [[poison-message]] · [[software-composition-analysis]] ·
-[[defense-in-depth]] · [[intra-batch-dedup]] · [[referential-integrity]]
+[[defense-in-depth]] · [[intra-batch-dedup]] · [[referential-integrity]] · [[ego-graph]]
 
 ## Proposals & reports
 | Note | Type | What |
@@ -44,6 +44,7 @@ related: []
 | [[backend-dependency-advisory-scan]] | proposal | **Continuous backend SCA gate in CI (✅ built 2026-06-08, PR #44)** — closes the gap where a vuln disclosed *after* pinning was caught only by Dependabot, not CI (the `starlette` 1.0.0 case). Built: osv-scanner step vs `uv.lock`, fail-on-any, **digest-pinned** scanner (the action is a no-`runs:` stub — stronger than the planned SHA-pin), `infra/osv/` waivers, `starlette` 1.0.0→1.0.1 (self-test red→green), §6.7 baseline (no new INV). |
 | [[m2s3-extraction-agent]] | proposal | **M2.S3 nine-layer pass (✅ accepted 2026-06-08, register resolved)** — `ExtractionAgent`, first `LLMRouter` consumer. Decisions: per-paragraph, single-paragraph agent (batch→M2.S4), `candidate_name`, typed `ProviderResponseError`, soft-flag `evidence_quote`. **Built + merged (PR #42).** |
 | [[m3-cascade-matching]] | proposal | **M3 cascade dedupe — step-0 forward pass (✅ register FULLY resolved: DM1–DM6 + DM7 + DM-rej; PLAN_SHORT Decided S23)** — the §3.3 four-stage cascade (RapidFuzz → embedding → JudgeAgent → human queue). Draws the candidate lifecycle; 8-entry register (DM1–DM7 + DM-rej). Central fork **DM6** ✅ intercept-before-write. Retires INV-8 at **M3.S4a** (the re-slice), lands INV-1's enforcer. Stages built proposal-only: M3.S1 RapidFuzz ✅ (PR #56), M3.S2 Stage 2 + pgvector ✅ (PR #58), M3.S3 JudgeAgent ✅ (PR #60). DM7 outcome: **INV-2 consent deferred past M3**. DM-rej: **remember rejections**. |
+| [[m4-side-panel]] | proposal | **M4.S2 step-0 — entity side panel in the reader (✅ ACCEPTED, register RESOLVED S34 / OQ-22; DM-SP-4 confirm-at-build)** — owner-chosen second M4 slice (side panel over manual-correction-in-reader): click a highlighted entity → side panel with §3.4 details (canonical/aliases/type/**properties**/occurrences/relations/timeline) + a §3.5 **local graph around that entity** (a 1-hop [[ego-graph]]). Still a **read-only projection** (most stations n/a; INV-1/9 untouched; no LLM) — *editing* is the next slice. **Centre of gravity = DM-SP-1 data source:** most data is already on hand (occurrences derive from the reader's highlights; relations/neighbours filter `get_relations`), only `properties` is surfaced by no endpoint and no per-entity *neighbourhood* query exists — so the call is a focused BFF endpoint (`GET …/entities/{eid}`, my lean) vs composing the whole-graph fetch the viewer already does. DM-SP-7 (slice split) is downstream of it. Latent: the M4 entity↔entity merge must re-point edges + mentions or the panel shows ghosts (fail-closed: omit). |
 | [[m4-inline-highlights]] | proposal | **M4.S1 step-0 — inline highlights (✅ ACCEPTED, register RESOLVED S32 / OQ-21 mostly resolved; backend built PR #81)** — the owner-chosen first M4 slice (spec §3.5): render the story text, highlight **accepted** entities inline (colour-by-type), hover→tooltip. A **read-only projection** (most stations n/a; INV-1/9 untouched; no LLM call). **DM-IH-1** resolved-as-built = **render-time string search** over name+aliases (*verify-first* found persist-spans illusory — null offsets, spaCy span gone at accept); DM-IH-2 = new `GET /stories/{id}/reader`; DM-IH-3 = plain `<mark>` (not Tiptap); DM-IH-4 longest-match; DM-IH-7 accepted-only; DM-IH-8 name+type+aliases. **DM-IH-5/6 confirm-at-build in the FRONTEND slice (next).** Side-panel + manual-annotation + the entity↔entity-merge re-point are **later** slices. |
 | [[m3s4a-intercept-write-path]] | proposal | **M3.S4a step-0 — intercept-before-write (✅ BUILT / ADR 0004)** — stages candidates in the new Postgres `candidates` table, wired the cascade into the coordinator (embed-on-extract → Matching → Judge), moved Neo4j+`entity_mentions` writes to the human-accept endpoints; **retired INV-8 → landed INV-1's enforcer + INV-9**, test-first. Register **DM-S4a-1..5 resolved** (S23) + ADR 0004 authored; `[[candidate-lifecycle]]` → `living`. UI is S4b (✅ built). |
 | [[m3-relation-write]] | proposal | **M3 relation-write step-0 — graph edges under human control (✅ ACCEPTED, register resolved / OQ-19 struck; built M3.S4e, ADR 0005)** — completes §9 M3's "clean graph" for *relations*. The *reframe* held: a relation endpoint is a surface string with no entity id until accept → edges write **lazily** (resolve each endpoint to its candidate's *committed* id), so re-point-on-merge dissolved (only an M4 accepted-entity↔entity merge re-points a written edge — DM-Rel-5). **DM-Rel-1 = explicit human gate** (the §3.3 5th action, not auto-write) + slice split backend-now (S4e) / UI-next (S4f); **DM-Rel-2/4/5/6/7** confirmed at build as proposed; `create_relation` now idempotent `MERGE`-on-id (DM-Rel-6). INV-1 broadened to edges (not INV-10). Added [[referential-integrity]]. Carried follow-up: per-mention provenance for triple-deduped edges. |
@@ -145,6 +146,16 @@ related: []
    build M4.S1 test-first from the span-resolution pure function. Still pending from this roll: the
    **python-multipart OSV waiver drop** (fix 0.0.31 soaks 2026-06-18 → drop on/after, before the 06-19
    `ignoreUntil`).
+18. **M4.S1 shipped ✅** — backend (S32, PR #81) + frontend (S33, PR #86), live-verified end-to-end by
+    the Oakhaven smoke test. [[m4-inline-highlights]] now `accepted`, register resolved.
+19. **M4.S2 first slice chosen + decomposed ✅ (2026-06-18, Session 34).** Owner picked **entity side
+    panel** (spec §3.4 detail panel + §3.5 local graph) over manual-correction-in-reader — the
+    read-only inspection surface the next slice's corrections build on. Step-0 → [[m4-side-panel]]
+    (`status: accepted`, register **RESOLVED** DM-SP-1..8 / OQ-22 — owner chose **DM-SP-1a focused
+    endpoint** → **DM-SP-7 split** S2a backend / S2b frontend; strict 1-hop [[ego-graph]]; read-only).
+    **Next:** build **M4.S2a backend** test-first — first failing test = the pure 1-hop
+    neighbourhood-assembly function (dangling endpoints omitted). DM-SP-4 (mini-graph render) is a
+    confirm-at-build in S2b.
 
 _Run log: see [[changelog]]. Seeded by `initialize-project-architecture`; extended by
 `review-architecture` + `decompose-requirement`, 2026-06-02._
