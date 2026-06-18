@@ -178,9 +178,16 @@ class Neo4jRepo:
         `build_ego_graph` can label each edge `out`/`in`. Fetches only the focal node's edges, not
         the whole project graph. Returns `(relation, neighbour)` pairs; a self-loop yields the focal
         node as the neighbour and is dropped by `build_ego_graph`, not here.
+
+        The neighbour is constrained to the focal node's **own project** (`n.project_id =
+        e.project_id`) — the same §6.4 tenancy scoping `get_relations` applies to both endpoints.
+        A cross-project edge shouldn't exist (endpoints resolve within one story/project), so this
+        is defense-in-depth: it keeps the panel from ever surfacing another project's node even if
+        a stray edge did, matching the tenancy guard the endpoint enforces on the focal entity.
         """
         records, _, _ = await self._driver.execute_query(
             "MATCH (e:Entity {id: $id})-[r]-(n:Entity) "
+            "WHERE n.project_id = e.project_id "
             "RETURN type(r) AS type, properties(r) AS props, "
             "startNode(r).id AS sid, endNode(r).id AS oid, properties(n) AS nprops",
             id=str(entity_id),

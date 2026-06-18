@@ -206,3 +206,33 @@ async def test_get_neighbourhood_empty_for_unconnected_entity(
     lonely = GraphEntity(type="Character", canonical_name_pl="Sam", project_id=project_id)
     await repo.create_entity(lonely)
     assert await repo.get_neighbourhood(lonely.id) == []
+
+
+async def test_get_neighbourhood_excludes_cross_project_neighbour(
+    graph: tuple[Neo4jRepo, UUID],
+) -> None:
+    """Defense-in-depth (§6.4): the neighbourhood is scoped to the focal node's own project, so a
+    stray cross-project edge never surfaces another project's node in the side panel."""
+    repo, project_id = graph
+    other_project = uuid4()
+    janek = GraphEntity(type="Character", canonical_name_pl="Janek", project_id=project_id)
+    same = GraphEntity(type="Character", canonical_name_pl="Maria", project_id=project_id)
+    foreign = GraphEntity(type="Character", canonical_name_pl="Obcy", project_id=other_project)
+    in_project_edge = GraphRelation(
+        type="KNOWS", subject_id=janek.id, object_id=same.id, confidence=0.9
+    )
+    cross_project_edge = GraphRelation(
+        type="KNOWS", subject_id=janek.id, object_id=foreign.id, confidence=0.9
+    )
+    try:
+        for entity in (janek, same, foreign):
+            await repo.create_entity(entity)
+        for relation in (in_project_edge, cross_project_edge):
+            await repo.create_relation(relation)
+
+        pairs = await repo.get_neighbourhood(janek.id)
+
+        neighbour_ids = {neighbour.id for _, neighbour in pairs}
+        assert neighbour_ids == {same.id}  # foreign neighbour excluded
+    finally:
+        await repo.delete_project_graph(other_project)  # the fixture only cleans `project_id`

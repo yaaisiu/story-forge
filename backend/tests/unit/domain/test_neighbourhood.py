@@ -100,6 +100,19 @@ def test_non_incident_edge_skipped() -> None:
     assert ego.edges == []
 
 
+def test_mispaired_neighbour_omitted() -> None:
+    # Defensive contract: if the co-returned neighbour isn't the edge's far endpoint (a mispaired
+    # input), it is omitted, not guessed — "omit, don't guess". (get_neighbourhood never mispairs,
+    # but build_ego_graph is a pure function that guarantees this for any caller.)
+    focal, real_far, wrong = _entity("Janek"), _entity("Maria"), _entity("Zofia")
+    rel = _relation(focal.id, real_far.id, "LOVES")
+
+    ego = build_ego_graph(focal.id, [(rel, wrong)])  # neighbour ≠ far endpoint
+
+    assert ego.neighbours == []
+    assert ego.edges == []
+
+
 def test_neighbours_sorted_deterministically() -> None:
     focal = _entity("Janek")
     # Insert in non-sorted order; expect a stable, name-then-id ordering out.
