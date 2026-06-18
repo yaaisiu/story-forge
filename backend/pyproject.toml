@@ -30,10 +30,7 @@ dependencies = [
   "alembic==1.18.4",
   "sqlalchemy==2.0.49",
   "psycopg[binary]==3.3.4",
-  # bumped 0.0.27 → 0.0.30 to clear CVE-2026-53537/53538/53539 (fixed 0.0.30); the
-  # residual low CVE-2026-53540 is fixed only in 0.0.31 (inside the soak) — waived
-  # time-boxed in infra/osv/WAIVERS.md until it bakes.
-  "python-multipart==0.0.30",
+  "python-multipart==0.0.31",
   "python-docx==1.2.0",
   "langdetect==1.0.9",
   "jinja2==3.1.6",
