@@ -10,6 +10,12 @@ of truth for *what* we build).
 - **`PLAN_SHORT.md`** — tactical, current milestone broken into one-conversation
   sessions. Read at session start (`/resume-session`); update at session end
   (`/wrap-session`).
+- **`BACKLOG.md`** — post-PoC backlog: concrete items surfaced *during* PoC work
+  (features, UX nits, bugs, design refinements) that are real but out of PoC scope.
+  Kept separate from `PLAN_LONG.md` so the strategic plan stays milestone-level and
+  stable. Its header carries the **routing rule** (which kind of follow-up goes where —
+  `PLAN_LONG` vs `PLAN_SHORT` cross-cutting vs Decided vs here). Reviewed at milestone
+  rolls; an item is promoted to `PLAN_SHORT.md` when picked up. (Added 2026-06-18, Session 33.)
 - **`decisions/`** — Architecture Decision Records, one per file.
 
 The two plan files were moved here at the M1 → M2 roll (2026-05-26) so the repo

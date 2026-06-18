@@ -76,7 +76,15 @@ When operational logging *is* added, §6.7's key-redaction stops being vacuous: 
 leak-check smoke (documented in `backend/CLAUDE.md`) becomes its regression guard — auth
 headers stripped, no `Bearer <token>` in any log line or traceback. Not scheduled.
 
----
+## Post-PoC backlog → `docs/BACKLOG.md`
+
+Concrete post-PoC items surfaced *during* PoC work — features, UX polish, bugs, and design
+refinements (e.g. LLM-task evaluation baselines, entity-resolution limitations like coreference
+and re-match ordering, ingest/review UX gaps, graph curation) — live in **`docs/BACKLOG.md`**,
+kept separate so this file stays milestone-level strategy rather than a tactical pile. The
+sections above (V1–V3, the data flywheel, security, observability) are the *stable strategic*
+themes; granular "found it, fix it later" items go to the backlog. Reviewed at milestone rolls;
+an item is promoted to `PLAN_SHORT.md` when picked up. (Split out Session 33.)
 
 ## When this file changes
 

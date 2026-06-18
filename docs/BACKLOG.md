@@ -1,0 +1,184 @@
+# BACKLOG.md — Post-PoC backlog
+
+> Concrete items surfaced **during** PoC work (mostly live smoke tests) that are real but
+> **deliberately out of PoC scope** — features, UX polish, bugs, and design refinements to
+> revisit after V1 ships. Kept here, not in `PLAN_LONG.md`, so the strategic plan stays
+> milestone-level and stable rather than accreting a pile of tactical prose nobody re-reads.
+
+## Where a follow-up goes (the routing rule)
+
+This file is one home in the project's knowledge map (root `AGENTS.md` → *Where knowledge lives*):
+
+| The item is… | It goes in… |
+|---|---|
+| a **strategic milestone / roadmap shift** | `docs/PLAN_LONG.md` |
+| a **current-milestone** deferral (do as the milestone touches it) | `docs/PLAN_SHORT.md` → *Cross-cutting* |
+| a **decision** made | `docs/PLAN_SHORT.md` → *Decided* / an ADR |
+| a **convention** | the relevant `AGENTS.md` |
+| a **post-PoC** feature / UX nit / bug / refinement | **this file** |
+
+Nothing here is scheduled. The list is **reviewed at milestone rolls** (especially the PoC→V2
+roll); when an item is picked up, **promote it to `PLAN_SHORT.md`** (and strike it here with a
+pointer). Add items as a bullet under the right heading, citing the session/source so the
+rationale survives.
+
+---
+
+## LLM task evaluation baselines (chunking, extraction, cascade)
+
+A recurring need surfaced across the Session-33 smoke test: **every LLM-backed task needs a
+model-vs-ground-truth benchmark**, not a one-off eyeball, so we can compare how different
+models/providers cope before relying on any of them. The concrete instances:
+
+### Chunking modes (auto / hybrid)
+
+Three chunking modes ship (spec §3.1, `domain/chunking.py` + `ChunkingAgent`): **manual**
+(deterministic `##`/`###` parsing, no LLM), **auto** (the LLM proposes the whole
+chapter/scene structure), and **hybrid** (the human marks the boundaries they're sure of,
+the LLM fills the rest). Only **manual** has ever been exercised end-to-end — every browser
+smoke to date (incl. the Session-33 Oakhaven run) went through it. **Auto and hybrid are
+untested in practice.**
+
+Post-PoC, before relying on the LLM-backed modes, stand up an **evaluation baseline**: a
+small set of real drafts (e.g. "Wody Święte" excerpts, the Oakhaven sample) each paired with
+a hand-authored *reference* chapter/scene structure ("ground truth"), plus a harness that
+runs auto/hybrid across the different model tiers (local Ollama, cloud-free, paid) and scores
+each model's output against the reference. The questions to answer: does a given model detect
+chapter/scene breaks sensibly, how does it handle ambiguous breaks (a scene shift with no
+heading), how does hybrid merge human + LLM boundaries, and what does each run cost per model.
+The point is a *comparable* benchmark — "how do different models cope with this task" — not a
+one-off eyeball. Pairs with the data-flywheel section in `PLAN_LONG.md`.
+
+### Extraction + cascade (entities, relations, matching, judge)
+
+Same shape, one layer down: a set of drafts each paired with a hand-authored *reference* set
+of entities + relations (and the expected dedupe outcome — which surface forms collapse to one
+entity, which near-duplicates must stay separate, e.g. the Oakhaven `Elara Vance` vs `Elira
+Vance`), plus a harness that runs the extraction + four-stage cascade across the model tiers and
+scores precision/recall against the reference. Distinct from the **data flywheel** in
+`PLAN_LONG.md` (which *finetunes* a custom NER model on accepted corrections): this is
+*evaluation* — comparing models on the task — not training. The two share the corrected-corpus
+substrate. **One dimension to score explicitly: surface fidelity** — are extracted entity
+*names* grounded verbatim in the source, or paraphrased/hallucinated? (Session 33: the extractor
+staged "broken table" where the source says "the overturned table.") This matters twice — it's an
+extraction-precision signal, *and* a paraphrased name **won't highlight in the reader**, whose
+render-time search (DM-IH-1) needs the canonical_name/aliases to actually occur in the prose.
+
+## Entity-resolution limitations surfaced in testing (context, coreference, re-match ordering)
+
+Session 33's live smoke test exposed several related gaps — all rooted in the matcher working on
+*words* (RapidFuzz + embeddings), not *meaning/context*. The human gate handles each at PoC scale
+(the author corrects in the review queue); noting them as post-PoC refinements.
+
+- **Cross-story / world-graph identity is context-dependent.** Extraction stages generic
+  role/common-noun candidates (`magistrate` TITLE, `harbor` PLACE). Within one story the gate
+  filters them, but **once multiple stories exist, identity across stories is context-dependent** —
+  story B's "magistrate" may be the same person as story A's, a *different* person, or really an
+  *epithet for a named character*. Similarity will wrongly fuse two different magistrates and miss
+  the epithet link. So **cross-story / world-graph merge cannot be similarity-only; it needs context
+  and must stay human-reviewed** — exactly why spec §3.6 runs world-merge "with greater caution and
+  always human review." Relates to the M4 §3.4 story-vs-project scoping + world-graph cross-cutting.
+- **Intra-story coreference.** Even within one story, generic references — "the artifact"/"the
+  device" → **Sunstone Compass**, "the magistrate" → **Garret Locke** — aren't linked by the matcher
+  (lexically "artifact" ≠ "Sunstone Compass"), so they stage as separate entities and the author
+  must handpick the merge by searching. The link is derivable from context (coreference), which
+  lexical/vector matching can't do. Argues for coref/context-aware resolution.
+- **Monotone re-match is order-sensitive — accept-the-decoy-first poisons the real target.**
+  `ReMatchService` is monotone (DM-S4c-4, `candidate_rematch.py`): it only upgrades a `new` proposal
+  to `merge`, never re-points an existing one. Concrete failure (the near-identical sisters):
+  accepting **Elara Vance** first flips every pending `Elira Vance` mention to "merge → Elara (0.91)";
+  then creating the correct **Elira Vance** entity does *not* re-target them (already `merge`, so the
+  monotone guard skips them) — they keep proposing the wrong sister, fixable only by manual handpick
+  (search → Elira Vance → merge). The order of acceptance matters. Monotone was chosen for
+  idempotency/simplicity; a refinement would let re-match re-point to a *strictly-better* target (an
+  exact 1.0 over an existing 0.91) or at least surface it in the card's alternatives, at the cost of
+  re-match complexity. The human gate catches it, but it adds manual work on near-duplicate clusters.
+- **Graph-traversal connection discovery (a possible mechanism for the above).** The "smuggler" =
+  Elara link only became obvious *after* accepting both — the author didn't know at the start she's
+  the smuggler; it emerged from reading, not from the words. Post-PoC, the accepted graph itself
+  could *suggest* such links: traverse it for entities that are subjects of the same actions, share
+  relations, or co-occur, and surface likely-same-entity / coreference candidates the lexical
+  matcher missed — still human-confirmed. Turns the graph into an aid for *discovering* connections,
+  not just storing them. (Owner idea, Session 33.)
+- **One mention may refer to more than one entity.** The whole pipeline assumes *one mention → one
+  entity*, but some references are plural or ambiguous: "his newest passenger" (Session 33) could be
+  Elara, Elira, or both; "the sisters" is two entities at once. Such a mention has nowhere to land
+  today. A post-PoC model would allow a mention→{entities} mapping (or an explicit "group/plural"
+  resolution). Out of PoC scope.
+- **Gate exact-name duplicate creation.** Accepting a candidate as *New* whose canonical_name
+  *exactly* matches an existing accepted entity should be **gated** (warn, or auto-offer the merge),
+  not silently create a second identical node — especially because M3 has no entity↔entity merge to
+  undo it (that's M4 / DM-Rel-5). A cheap safeguard at the accept gate. (Owner idea, Session 33.)
+- **Future direction — entity-level properties + embeddings enable richer matching.** Matching today
+  is name-fuzz (Stage 1) + *mention*-context vectors (Stage 2). Once accepted entities carry
+  **properties and an entity-level embedding** on the graph node, matching can compare *meaning and
+  attributes*, not just surface strings — the mechanism most likely to close the coreference/context
+  gaps above (smuggler→Elara, the magistrate→Locke). (Owner observation, Session 33.)
+
+## Ingest & review UX feedback
+
+Several "where am I / how much is left" gaps surfaced in the Session-33 smoke test. All
+V1-polish-adjacent; could become M4 slices if they bother the author enough.
+
+- **Extraction progress bar.** The extract trigger is one synchronous call: the button shows
+  "Extracting…" and the user waits with no per-paragraph feedback (the Oakhaven run took a
+  noticeable while). The extract result already carries `paragraphs_done`/`paragraphs_total`, so
+  a real progress bar is feasible but needs the backend to *report progress mid-run*
+  (SSE/streaming, or a poll-able job record) rather than returning only on completion — a small
+  feature, not just a frontend spinner.
+- **Review-queue count / position.** The review queue shows one card at a time with no "X of N
+  remaining" indicator, so the reviewer can't tell how much work is left or where they are. A
+  simple count (and maybe a position) would orient the author through a long queue.
+- **Bulk accept (keep the human gate).** Confirming every obvious high-confidence duplicate
+  one-by-one (the Oakhaven run had many confidence-1.00 stage-1 merge proposals) is tedious. The
+  aligned fix is a **bulk "accept all confident merges"** action (or multi-select → accept), or
+  **grouping duplicate mentions into one card** so an entity is accepted once, not per-mention —
+  both keep INV-1/INV-9 (a human still explicitly decides; we've just collapsed N clicks to one).
+  **Considered and advised against: threshold-based *auto-commit*** (the machine writing to the
+  graph without a human click). That crosses the milestone's central human-gate invariant
+  (INV-1/INV-9, ADR 0004) and weakens the "I control every decision" portfolio narrative; it would
+  require the stop-and-amend-spec flow, not a quiet feature add. (Owner raised this Session 33.)
+  **Concrete counter-example from the same session:** the matcher scored `Elira Vance` ↔ `Elara
+  Vance` (two *different* characters — sisters, one letter apart) at **0.91**, above the 0.85
+  re-match flip line — so any auto-commit threshold ≤0.91 would have *silently fused two distinct
+  entities*. The human gate caught it (the distinguisher is meaning — "her younger sister" — not
+  lexical/vector distance). This is the case-in-point for keeping the gate and adding a bulk lever
+  rather than auto-committing. The human's create-new override is also a persisted hard-negative
+  (`candidate_decisions` row) — the data-flywheel substrate, captured today.
+- **Accepted-entities reference during review (orientation).** The reviewer can't see *what's
+  already in the graph* while working the queue, so when a name recurs or a new surface form should
+  fold into an existing entity, they search blind (and the quick "merge with instead" list is
+  impoverished — see the entity-resolution note). A visible **panel of already-accepted entities**
+  (ideally click-to-merge-into) would make orientation + handpick far easier on a long queue.
+  Mechanism TBD. (Owner idea, Session 33.)
+- **Empty-queue dead-end.** When the review queue is drained it shows nothing and offers **no
+  onward navigation** (no "done → graph / relations" link, no back button) — the reviewer is
+  stranded and has to edit the URL. The drained state should route on to the graph / relations.
+  (Session 33.)
+- **Edge evidence on click (graph viewer).** A node opens a details panel, but an **edge does not** —
+  so the author can't see *what a relationship means* or *how it was stated in the text*. The
+  provenance exists (`staged_relations` keeps the per-paragraph source even though the graph edge id
+  collapses multiple mentions — ADR 0005), so an edge-click panel could show the predicate + the
+  source sentence(s). Pairs with the §3.4 "drill-down to text" the spec already calls for. (Session 33.)
+- **Graph navigation at density.** With many nodes the force-directed graph is hard to read (the
+  Session-33 run, accepting generously, made a hairball). Spec §3.4 already calls for **filters**
+  (entity type, story/chapter, connection density) — the intended navigation aid; not yet built into
+  the M2.S5 viewer. (Session 33.)
+
+## Graph curation & detail-level
+
+The Session-33 reader run made the curation gap concrete. Three threads:
+
+- **The reader is a correction surface.** Reading the highlighted text revealed errors the review
+  queue can't show — a wrong Elira→Elara merge, entities that should have been marked but weren't,
+  "the magistrate" highlighting as its own node instead of as Locke. This is direct evidence for the
+  **next M4 slices** (click→side panel + right-click manual correction *in the reader*, spec §3.5):
+  reading-with-context is where mistakes surface, so correction belongs there. Prioritise accordingly.
+- **Detail level is purpose-dependent.** Accepting generously yields a dense, "everything" graph;
+  other times the author wants a lean graph of just the principals. Post-PoC: a way to *curate* — bulk
+  prune/keep, filter by importance, or per-view detail levels — using the displayed text for the
+  context the graph alone lacks.
+- **Open-world type proliferation.** Extraction invented ~23 fine-grained types (TAVERN, SHIP,
+  ARTIFACT, FURNITURE, …) — INV-4 working as designed, but it crowds the reader legend and strains
+  colour distinctness (DM-IH-5's hash fallback). Post-PoC: optional type consolidation/normalisation
+  toward a coarser working taxonomy (without losing the open-world freedom). (Owner observations, Session 33.)

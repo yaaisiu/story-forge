@@ -353,8 +353,9 @@ The repo is public; every line is read by a stranger.
 
 - CI: all jobs green? If red, is it *pre-existing, unrelated, and diagnosed* (the only
   allowed exception per the green-main bar), and is that stated + tracked?
-- Are deferred items tracked (a GitHub issue or a `docs/PLAN_SHORT.md` cross-cutting note), not
-  silently dropped? Unrelated discoveries split out rather than scope-crept in?
+- Are deferred items tracked (a GitHub issue, a `docs/PLAN_SHORT.md` cross-cutting note, or — for
+  a post-PoC feature/UX/refinement — a `docs/BACKLOG.md` entry), not silently dropped? Unrelated
+  discoveries split out rather than scope-crept in?
 - Have prior review notes (Codex / earlier passes) been folded or explicitly deferred?
 - **Same bug, different fixes — consider folding both.** When `/review-pr` and the other
   reviewer (Codex) flag the **same bug class** but propose **different mechanisms**, the
