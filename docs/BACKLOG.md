@@ -210,3 +210,31 @@ context**, in two tiers:
   a whole-text relation pass, or a dedicated cross-section relation surface. How the local per-paragraph
   loop and the wider cross-text relation work compose is the open architecture question to think through
   before building this. (Owner idea, Session 34.)
+
+## Reader entity side panel — visual refinement (post-PoC)
+
+The M4.S2b side panel (click a highlight → details + `properties` + a 1-hop ego-graph mini-view +
+an occurrence timeline) shipped **functional for the PoC**; the owner browser-check (Session 35)
+flagged refinements deliberately deferred past V1:
+
+- **Dense ego-graph on high-degree entities.** The embedded cytoscape mini-graph is hard to read for a
+  busy node (Garret Locke = 29 neighbours / 40 edges crammed into a narrow column). The real fix is the
+  **§3.4 graph *filters*** (already listed under *Graph curation & detail-level*) applied to the
+  ego-graph, plus tuning the mini-graph's node/label sizing for a small box.
+- **Styling polish.** Smaller fonts and general visual tidy-up of the panel (it mirrors
+  `NodeDetailsPanel`'s plain structure; no design pass yet).
+- **Wider / resizable panel.** Session 35 widened it `w-72 → w-80` as a cheap win; a resizable or
+  larger panel would give the graph more room.
+- **Richer occurrence entries.** The timeline shows a fixed ±60-char snippet (clamped to a few lines);
+  an "expand to full paragraph" affordance would let the author read more without leaving the panel.
+
+These were kept light on purpose — proof-of-concept, not final UI. (Owner browser check, Session 35.)
+
+## Automated test tooling — Playwright + Postman (post-PoC)
+
+Stand up **end-to-end browser tests (Playwright)** and **API contract/integration tests (Postman)**
+after the PoC. Today the frontend is unit-tested (vitest + Testing Library) with the jsdom-untestable
+cytoscape mounts covered by **manual** browser smoke walks, and the backend by pytest; there is no
+automated browser-driven or external-API-contract layer. Post-PoC, Playwright drives the real UI flows
+(upload → extract → review → reader / side-panel) and Postman exercises the REST surface, so the manual
+smoke walks this project leans on become regression-guarded. (Owner note, Session 35.)

@@ -1,5 +1,5 @@
-import { render, screen } from "@testing-library/react";
-import { describe, expect, it } from "vitest";
+import { fireEvent, render, screen } from "@testing-library/react";
+import { describe, expect, it, vi } from "vitest";
 
 import type { ReaderEntity, ReaderParagraph } from "../../lib/api/useReader";
 import { ParagraphText } from "./ParagraphText";
@@ -19,15 +19,28 @@ function paragraph(text: string, highlights: ReaderParagraph["highlights"]): Rea
   return { id: "p1", text, highlights };
 }
 
+// Shared render with the now-required onEntityClick; tests that assert on the click pass
+// their own spy via overrides.
+function renderParagraph(
+  para: ReaderParagraph,
+  catalog: Map<string, ReaderEntity>,
+  overrides: { onEntityClick?: (id: string) => void; flashEntityId?: string | null } = {},
+) {
+  return render(
+    <ParagraphText
+      paragraph={para}
+      catalog={catalog}
+      onEntityClick={overrides.onEntityClick ?? vi.fn()}
+      flashEntityId={overrides.flashEntityId ?? null}
+    />,
+  );
+}
+
 describe("ParagraphText", () => {
   it("renders plain text and a highlighted entity span", () => {
-    render(
-      <ParagraphText
-        paragraph={paragraph("see Janek now", [
-          { start: 4, end: 9, entity_id: "e1", type: "character" },
-        ])}
-        catalog={catalogOf(ENTITY)}
-      />,
+    renderParagraph(
+      paragraph("see Janek now", [{ start: 4, end: 9, entity_id: "e1", type: "character" }]),
+      catalogOf(ENTITY),
     );
 
     const mark = screen.getByTestId("highlight");
@@ -40,11 +53,9 @@ describe("ParagraphText", () => {
   });
 
   it("tooltips a highlight with canonical_name + type + aliases (DM-IH-8)", () => {
-    render(
-      <ParagraphText
-        paragraph={paragraph("Janek", [{ start: 0, end: 5, entity_id: "e1", type: "character" }])}
-        catalog={catalogOf(ENTITY)}
-      />,
+    renderParagraph(
+      paragraph("Janek", [{ start: 0, end: 5, entity_id: "e1", type: "character" }]),
+      catalogOf(ENTITY),
     );
 
     expect(screen.getByTestId("highlight")).toHaveAttribute(
@@ -54,27 +65,18 @@ describe("ParagraphText", () => {
   });
 
   it("omits the aliases line when an entity has none", () => {
-    render(
-      <ParagraphText
-        paragraph={paragraph("Zosia", [{ start: 0, end: 5, entity_id: "e2", type: "place" }])}
-        catalog={catalogOf({
-          entity_id: "e2",
-          canonical_name: "Zosia",
-          type: "place",
-          aliases: [],
-        })}
-      />,
+    renderParagraph(
+      paragraph("Zosia", [{ start: 0, end: 5, entity_id: "e2", type: "place" }]),
+      catalogOf({ entity_id: "e2", canonical_name: "Zosia", type: "place", aliases: [] }),
     );
 
     expect(screen.getByTestId("highlight")).toHaveAttribute("title", "Zosia — place");
   });
 
   it("colours a highlight by its type via an inline style", () => {
-    render(
-      <ParagraphText
-        paragraph={paragraph("Janek", [{ start: 0, end: 5, entity_id: "e1", type: "character" }])}
-        catalog={catalogOf(ENTITY)}
-      />,
+    renderParagraph(
+      paragraph("Janek", [{ start: 0, end: 5, entity_id: "e1", type: "character" }]),
+      catalogOf(ENTITY),
     );
     // character → fixed blue #2563eb (jsdom normalises hex to rgb); the mark
     // carries it as a border colour.
@@ -82,11 +84,9 @@ describe("ParagraphText", () => {
   });
 
   it("still renders a highlight whose entity is missing from the catalog (graceful)", () => {
-    render(
-      <ParagraphText
-        paragraph={paragraph("Janek", [{ start: 0, end: 5, entity_id: "gone", type: "character" }])}
-        catalog={catalogOf()}
-      />,
+    renderParagraph(
+      paragraph("Janek", [{ start: 0, end: 5, entity_id: "gone", type: "character" }]),
+      catalogOf(),
     );
     const mark = screen.getByTestId("highlight");
     expect(mark).toHaveTextContent("Janek");
@@ -95,8 +95,52 @@ describe("ParagraphText", () => {
   });
 
   it("renders a paragraph with no highlights as plain text", () => {
-    render(<ParagraphText paragraph={paragraph("just prose", [])} catalog={catalogOf()} />);
+    renderParagraph(paragraph("just prose", []), catalogOf());
     expect(screen.queryByTestId("highlight")).toBeNull();
     expect(screen.getByTestId("reader-paragraph")).toHaveTextContent("just prose");
+  });
+
+  it("fires onEntityClick with the entity id when a highlight is clicked", () => {
+    const onEntityClick = vi.fn();
+    renderParagraph(
+      paragraph("Janek", [{ start: 0, end: 5, entity_id: "e1", type: "character" }]),
+      catalogOf(ENTITY),
+      { onEntityClick },
+    );
+
+    fireEvent.click(screen.getByTestId("highlight"));
+    expect(onEntityClick).toHaveBeenCalledWith("e1");
+  });
+
+  it("fires onEntityClick on Enter for keyboard access", () => {
+    const onEntityClick = vi.fn();
+    renderParagraph(
+      paragraph("Janek", [{ start: 0, end: 5, entity_id: "e1", type: "character" }]),
+      catalogOf(ENTITY),
+      { onEntityClick },
+    );
+
+    fireEvent.keyDown(screen.getByTestId("highlight"), { key: "Enter" });
+    expect(onEntityClick).toHaveBeenCalledWith("e1");
+  });
+
+  it("flashes only the marks of the flashed entity", () => {
+    renderParagraph(
+      paragraph("Janek met Zosia.", [
+        { start: 0, end: 5, entity_id: "e1", type: "character" },
+        { start: 10, end: 15, entity_id: "e2", type: "character" },
+      ]),
+      catalogOf(ENTITY, {
+        entity_id: "e2",
+        canonical_name: "Zosia",
+        type: "character",
+        aliases: [],
+      }),
+      { flashEntityId: "e1" },
+    );
+
+    const marks = screen.getAllByTestId("highlight");
+    expect(marks[0]).toHaveAttribute("data-flash", "true");
+    expect(marks[1]).not.toHaveAttribute("data-flash");
   });
 });
