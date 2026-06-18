@@ -12,7 +12,7 @@
 // passes `flashEntityId` for *this* paragraph so the matching marks pulse briefly,
 // pointing the author at the source text (DM-SP-3).
 
-import { Fragment } from "react";
+import { Fragment, memo } from "react";
 
 import type { ReaderEntity, ReaderParagraph } from "../../lib/api/useReader";
 import { colorForType } from "./palette";
@@ -32,7 +32,12 @@ function tooltipText(entity: ReaderEntity): string {
   return entity.aliases.length > 0 ? `${head}\nAliases: ${entity.aliases.join(", ")}` : head;
 }
 
-export function ParagraphText({
+// Memoized: the container holds whole-story selection + flash state, so it re-renders on
+// every click/flash; without memo each paragraph would re-run `splitParagraph` over its
+// full text on every one of those. With memo (props are stable refs — `catalog`/
+// `onEntityClick` memoized, `paragraph` from the query cache — and `flashEntityId` is null
+// for every paragraph except the flashed one), only the (un)flashed paragraph re-renders.
+function ParagraphTextComponent({
   paragraph,
   catalog,
   onEntityClick,
@@ -79,3 +84,5 @@ export function ParagraphText({
     </p>
   );
 }
+
+export const ParagraphText = memo(ParagraphTextComponent);

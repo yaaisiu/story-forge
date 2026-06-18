@@ -12,7 +12,7 @@
 // `entityOccurrences`, the panel's data is `useEntityDetail`. Whole-story render for now
 // (DM-IH-6: measure on a real draft, virtualise only if it stutters).
 
-import { useCallback, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { Link, useParams } from "react-router-dom";
 
@@ -75,8 +75,17 @@ export function TextReader() {
   );
 
   const handleClosePanel = useCallback(() => {
+    if (flashTimer.current) clearTimeout(flashTimer.current);
     setSelectedEntityId(null);
     setFlash(null);
+  }, []);
+
+  // Cancel a pending flash timer on unmount so it never fires setFlash after the reader
+  // is gone (e.g. navigating away within FLASH_MS of drilling an occurrence).
+  useEffect(() => {
+    return () => {
+      if (flashTimer.current) clearTimeout(flashTimer.current);
+    };
   }, []);
 
   const isEmpty = reader.isSuccess && reader.data.paragraphs.length === 0;
