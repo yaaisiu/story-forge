@@ -284,6 +284,30 @@ async def list_entity_mentions_for_paragraph(
         return await cur.fetchall()
 
 
+async def list_entity_mentions_for_story(
+    conn: AsyncConnection, story_id: UUID
+) -> list[EntityMention]:
+    """Every entity mention across a story's paragraphs (the §3.5 reader's per-paragraph join).
+
+    The reader highlights, in each paragraph, only the entities a human *accepted* as mentioned
+    there — and `entity_mentions` rows are written only by the accept path, so this is
+    accepted-only by construction (the read-side echo of INV-1, DM-IH-7). One query over the
+    document tree instead of per-paragraph fan-out; the route groups by `paragraph_id`.
+    """
+    async with conn.cursor(row_factory=class_row(EntityMention)) as cur:
+        await cur.execute(
+            "SELECT m.id, m.paragraph_id, m.entity_id, m.span_start, m.span_end, "
+            "m.confidence, m.embedding "
+            "FROM entity_mentions m "
+            "JOIN paragraphs p ON p.id = m.paragraph_id "
+            "JOIN scenes sc ON sc.id = p.scene_id "
+            "JOIN chapters ch ON ch.id = sc.chapter_id "
+            "WHERE ch.story_id = %s",
+            (story_id,),
+        )
+        return await cur.fetchall()
+
+
 async def list_mention_vectors_for_entities(
     conn: AsyncConnection, entity_ids: list[UUID]
 ) -> dict[UUID, list[list[float]]]:

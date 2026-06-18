@@ -138,6 +138,34 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/stories/{story_id}/reader": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Story Reader
+         * @description The story text with accepted entities highlighted inline (spec §3.5, M4.S1).
+         *
+         *     A read-only projection of the accepted graph onto the prose. Paragraphs + their mentions
+         *     are *story*-scoped; the entity catalog is read *project*-scoped (the §6.4 tenancy key, the
+         *     same seam as `/graph` and `/entities`) — correct while one story = one project, and the
+         *     natural first home of the §3.4 per-story filter when multi-story lands. Each paragraph's
+         *     mentioned entities are resolved to character ranges by render-time search over their surface
+         *     forms (`resolve_highlights`); an entity whose forms don't occur is omitted (fail-closed), and
+         *     only entities that actually appear are advertised in the tooltip catalog.
+         */
+        get: operations["get_story_reader_stories__story_id__reader_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/stories/{story_id}/candidates": {
         parameters: {
             query?: never;
@@ -567,6 +595,65 @@ export interface components {
             /** By Task Type */
             by_task_type: components["schemas"]["TaskTypeUsage"][];
             last_call: components["schemas"]["LastCall"] | null;
+        };
+        /**
+         * ReaderEntity
+         * @description Tooltip data for an entity that appears in the reader (DM-IH-8: name + type + aliases).
+         */
+        ReaderEntity: {
+            /**
+             * Entity Id
+             * Format: uuid
+             */
+            entity_id: string;
+            /** Canonical Name */
+            canonical_name: string;
+            /** Type */
+            type: string;
+            /** Aliases */
+            aliases: string[];
+        };
+        /**
+         * ReaderHighlight
+         * @description One resolved highlight range `[start, end)` within a paragraph (spec §3.5).
+         */
+        ReaderHighlight: {
+            /** Start */
+            start: number;
+            /** End */
+            end: number;
+            /**
+             * Entity Id
+             * Format: uuid
+             */
+            entity_id: string;
+            /** Type */
+            type: string;
+        };
+        /**
+         * ReaderParagraph
+         * @description A paragraph, in document order, with its resolved highlight ranges over `text`.
+         */
+        ReaderParagraph: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Text */
+            text: string;
+            /** Highlights */
+            highlights: components["schemas"]["ReaderHighlight"][];
+        };
+        /**
+         * ReaderResponse
+         * @description The story's text with inline highlights + a catalog of the entities that appeared.
+         */
+        ReaderResponse: {
+            /** Paragraphs */
+            paragraphs: components["schemas"]["ReaderParagraph"][];
+            /** Entities */
+            entities: components["schemas"]["ReaderEntity"][];
         };
         /**
          * RelationDecisionResponse
@@ -1006,6 +1093,46 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["EntitySearchResponse"];
+                };
+            };
+            /** @description Story not found. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_story_reader_stories__story_id__reader_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                story_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReaderResponse"];
                 };
             };
             /** @description Story not found. */

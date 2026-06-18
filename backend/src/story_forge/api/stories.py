@@ -33,6 +33,7 @@ from story_forge.adapters.postgres_repo import (
     insert_scene,
     insert_story,
     list_chapters,
+    list_entity_mentions_for_story,
     list_story_paragraphs,
     update_story_raw_text,
 )
@@ -59,6 +60,8 @@ from story_forge.agents.relation_review import (
 from story_forge.config import settings
 from story_forge.domain.candidates import CandidateProposal, RelationStatus, StagedCandidate
 from story_forge.domain.chunking import outline_to_tree
+from story_forge.domain.graph import GraphEntity
+from story_forge.domain.highlights import HighlightTarget, resolve_highlights
 from story_forge.domain.language import detect_language
 from story_forge.domain.models import Project, Story
 from story_forge.domain.parsing import ParseError, parse_document
@@ -549,6 +552,120 @@ async def search_entities_route(
             for row in ranked
         ]
     )
+
+
+# --- Reader (§3.5): story text with inline entity highlights ----------------
+
+
+class ReaderHighlight(BaseModel):
+    """One resolved highlight range `[start, end)` within a paragraph (spec §3.5)."""
+
+    start: int
+    end: int
+    entity_id: UUID
+    type: str
+
+
+class ReaderParagraph(BaseModel):
+    """A paragraph, in document order, with its resolved highlight ranges over `text`."""
+
+    id: UUID
+    text: str
+    highlights: list[ReaderHighlight]
+
+
+class ReaderEntity(BaseModel):
+    """Tooltip data for an entity that appears in the reader (DM-IH-8: name + type + aliases)."""
+
+    entity_id: UUID
+    canonical_name: str
+    type: str
+    aliases: list[str]
+
+
+class ReaderResponse(BaseModel):
+    """The story's text with inline highlights + a catalog of the entities that appeared."""
+
+    paragraphs: list[ReaderParagraph]
+    entities: list[ReaderEntity]
+
+
+def _entity_surface_forms(entity: GraphEntity) -> list[str]:
+    """Every surface form to search for: both canonical names + all aliases, de-duped."""
+    forms = [name for name in (entity.canonical_name_pl, entity.canonical_name_en) if name]
+    forms.extend(entity.aliases)
+    return list(dict.fromkeys(forms))
+
+
+@router.get(
+    "/{story_id}/reader",
+    responses={404: {"model": ErrorResponse, "description": "Story not found."}},
+)
+async def get_story_reader(
+    story_id: UUID,
+    conn: Annotated[AsyncConnection, Depends(get_connection)],
+    repo: Annotated[Neo4jRepo, Depends(get_neo4j_repo)],
+) -> ReaderResponse:
+    """The story text with accepted entities highlighted inline (spec §3.5, M4.S1).
+
+    A read-only projection of the accepted graph onto the prose. Paragraphs + their mentions
+    are *story*-scoped; the entity catalog is read *project*-scoped (the §6.4 tenancy key, the
+    same seam as `/graph` and `/entities`) — correct while one story = one project, and the
+    natural first home of the §3.4 per-story filter when multi-story lands. Each paragraph's
+    mentioned entities are resolved to character ranges by render-time search over their surface
+    forms (`resolve_highlights`); an entity whose forms don't occur is omitted (fail-closed), and
+    only entities that actually appear are advertised in the tooltip catalog.
+    """
+    story = await get_story(conn, story_id)
+    if story is None:
+        raise HTTPException(status_code=404, detail="story not found")
+    project = await get_project(conn, story.project_id)
+    language = project.language if project is not None else "pl"
+
+    paragraphs = await list_story_paragraphs(conn, story_id)
+    mentions = await list_entity_mentions_for_story(conn, story_id)
+    entities = await repo.list_entities(story.project_id)
+
+    target_by_id = {
+        e.id: HighlightTarget(entity_id=e.id, type=e.type, names=_entity_surface_forms(e))
+        for e in entities
+    }
+    mentioned_by_paragraph: dict[UUID, set[UUID]] = {}
+    for mention in mentions:
+        mentioned_by_paragraph.setdefault(mention.paragraph_id, set()).add(mention.entity_id)
+
+    reader_paragraphs: list[ReaderParagraph] = []
+    appeared: set[UUID] = set()
+    for paragraph in paragraphs:
+        targets = [
+            target_by_id[entity_id]
+            for entity_id in mentioned_by_paragraph.get(paragraph.id, set())
+            if entity_id in target_by_id
+        ]
+        resolved = resolve_highlights(paragraph.content, targets)
+        appeared.update(h.entity_id for h in resolved)
+        reader_paragraphs.append(
+            ReaderParagraph(
+                id=paragraph.id,
+                text=paragraph.content,
+                highlights=[
+                    ReaderHighlight(start=h.start, end=h.end, entity_id=h.entity_id, type=h.type)
+                    for h in resolved
+                ],
+            )
+        )
+
+    catalog = [
+        ReaderEntity(
+            entity_id=e.id,
+            canonical_name=canonical_for_language(e, language),
+            type=e.type,
+            aliases=e.aliases,
+        )
+        for e in entities
+        if e.id in appeared
+    ]
+    return ReaderResponse(paragraphs=reader_paragraphs, entities=catalog)
 
 
 # --- Review queue (Stage 4): list pending / accept / reject -----------------
