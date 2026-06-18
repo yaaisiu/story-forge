@@ -19,7 +19,8 @@ Work through the steps in order.
 `/wrap-session` closes out the **plan**, not the feature work. The usual order is:
 commit the implementation on a feature branch → push → open a PR → await **CI** (and the
 best-effort GitHub Codex PR review, if it posts) → fold review fixes + your own `/review-pr`
-(+ `/code-review` for substantive code) → **squash-merge to `main`** → *then* run
+(+ `/code-review` for substantive code) → **pause for the owner's OK, then squash-merge
+to `main`** (the owner holds the merge button — root `AGENTS.md` Merge flow) → *then* run
 `/wrap-session`. This skill produces the separate **`docs: close Session N`** bookkeeping
 commit; it does **not** replace the feature PR.
 
@@ -127,7 +128,9 @@ retrospective produced (skill / `CLAUDE.md` changes). Story Forge keeps `main` c
 governance branch and squash-merge as a **`docs: close Session N`** commit (bundling the
 retro changes is fine — see how `#7` closed the prior session). A docs/governance-only
 change still goes via PR so CI runs. **Commit only when the user asks** — do not
-auto-commit. Offer the `commit` / `commit-push-pr` skills if useful.
+auto-commit — and **the squash-merge of that PR waits for the owner's explicit OK**, like
+any merge to `main` (root `AGENTS.md` Merge flow). Offer the `commit` / `commit-push-pr`
+skills if useful.
 
 ## 9. Report
 

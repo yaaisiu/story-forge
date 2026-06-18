@@ -61,8 +61,9 @@ Recommend, don't decide. Ask one question at a time. Do **not** edit any skill o
 
 For anything the user approves:
 
-- Land it on a short governance branch and squash-merge to `main` (see root `CLAUDE.md`
-  portfolio hygiene) — process changes follow the same clean-history discipline as code.
+- Land it on a short governance branch and — **after the owner's explicit OK** (the owner
+  holds the merge button — root `CLAUDE.md` Merge flow) — squash-merge to `main` (clean-history
+  hygiene) — process changes follow the same discipline as code.
 - If a change touches the spec or is architectural, **stop** and reconcile
   `story-forge-poc-spec.md` / `docs/PLAN_LONG.md` / `docs/PLAN_SHORT.md` first, per the workflow rules.
 - Keep skill descriptions truthful after editing — the description is what future sessions
