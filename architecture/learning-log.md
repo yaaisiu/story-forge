@@ -1,7 +1,7 @@
 ---
 type: learning-log
 slug: learning-log
-updated: 2026-06-15
+updated: 2026-06-18
 status: living
 related: []
 ---
@@ -54,3 +54,4 @@ term · appeared in [[note]] · why it matters for THIS project`. New lines go a
 - 2026-06-17 · provenance vs deduplication · [[2026-06-17-architecture-review]] · a content-derived id (uuid5 over the relation triple) deduplicates one-fact-to-one-edge but erases multiplicity (how many mentions, where) — the standard escape is to keep the dedup key on the edge and an occurrence table for the N:1 provenance, which is exactly what `staged_relations` already is, un-promoted to the graph; worth re-reading before any "show every passage where X betrays Y" feature.
 - 2026-06-17 · span resolution (the null-offset gap) · [[m4-inline-highlights]] · inline highlighting looks like "render the offsets we stored" but `entity_mentions` carries null char offsets (the LLM path keeps an evidence quote, not offsets; the spaCy span that *has* them is discarded at accept) — so the first M4 slice is really a *where-does-this-entity-sit* problem, and the honest options trade a zero-backend render-time string search (inflection-blind, ambiguous on repeats) against persisting real spans (exact but a data change + backfill); naming the gap is what stops "just highlight the offsets" from being planned against data that doesn't exist.
 - 2026-06-17 · read-only projection (stations mostly n/a) · [[m4-inline-highlights]] · a feature that only *reads* and renders mutates nothing, so most of the nine stations (Evidence, Expiry, Monitoring, Review) are legitimately n/a and it cannot violate the human-gate invariants (INV-1/9) — the architectural move is to *name* the empties as the signature of a read view rather than hunt for missing controls, and to carry only the one rule that does bite: highlight the committed world, never staged candidates (the read-side echo of INV-1).
+- 2026-06-18 · derived state vs persisted state · [[relation-lifecycle]] · the edge gate's `held`/`committable` are *not* columns — only `staged|written|rejected` is persisted; held/committable are recomputed each read by re-resolving the surface endpoints against the current accepted set, so the same `staged` row shows two faces and can move between them freely as endpoints land or drift. Naming a derived state as a state is faithful to the *behaviour* (what the human sees, what the guard checks) even when no enum value exists for it — the twin candidate machine does the same with its in-memory cascade states; the discipline is to flag that the projection is recomputed, not written down, so nobody hunts for a `held` row in the table.

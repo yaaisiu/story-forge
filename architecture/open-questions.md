@@ -1,7 +1,7 @@
 ---
 type: open-questions
 slug: open-questions
-updated: 2026-06-17
+updated: 2026-06-18
 status: living
 related: ["[[overview]]", "[[project]]", "[[invariants]]", "[[2026-06-02-architecture-review]]", "[[m2s3-extraction-agent]]", "[[2026-06-09-architecture-review]]", "[[2026-06-11-architecture-review]]"]
 ---
@@ -469,7 +469,19 @@ an **M3 slice** (2026-06-16), not an M3→M4 roll. Full Context/Options for each
   snapshot) is **overdue** at this milestone boundary. **S4e backend shipped 2026-06-16** (this register
   resolved); **S4f UI** remains the next relation slice.
 
-### OQ-20 — The relation lifecycle has no state-machine note (the node/edge model asymmetry)
+### ~~OQ-20 — The relation lifecycle has no state-machine note (the node/edge model asymmetry)~~ ✅ Resolved 2026-06-18
+**Resolved 2026-06-18 (vault maintenance pass):** the edge twin is drawn —
+**`[[relation-lifecycle]]`** models the `staged → held|committable → written|rejected` machine as built
+in `RelationReviewService` (the re-resolve-at-commit [[toctou]] guard, the idempotent-by-edge-id effect,
+the held/committable derived-view asymmetry vs the persisted `staged` status, INV-1/INV-9 broadened to
+edges). The node/edge model asymmetry is closed; INDEX now names the note (no longer an "Awaiting
+content" gap). **The two sub-gaps stay tracked, not vanished — carried as watch-items in
+`[[relation-lifecycle]]` "Open points":** **(a) held-relation visibility** — a never-committable relation
+rests in `held` *silently* (the decide-relations surface lists only committable rows), so it is an
+invisible non-decision with no Evidence row (INV-3 for edges has no home); **(b) edge Expiry** — held
+rows never expire, the accepted none-at-PoC posture (ADR 0005, the edge twin of OQ-4 / DM-S4a-5).
+Original framing kept below for history.
+
 Raised by the M3→M4 roll sweep (2026-06-17, `[[2026-06-17-architecture-review]]`). S4e/S4f shipped a
 genuine relation lifecycle in code — a `staged_relations` row rests in **held** (an endpoint never
 accepted, or a post-merge self-loop → never committable, no fuzzy fallback), **committable** (both
@@ -485,7 +497,17 @@ twin [[candidate-lifecycle]] has had a drawn note since S4a — the edge twin ha
   the **edge Expiry** posture (held rows never expire — accepted none-at-PoC, ADR 0005, same as OQ-4).
 - **Lands:** naturally at the M4 step-0 decompose, or as a standalone drawing pass. Open.
 
-### OQ-21 — M4 inline-highlights decision register (DM-IH-1..8)
+### OQ-21 — M4 inline-highlights decision register (DM-IH-1..8) — ⚠ mostly resolved 2026-06-18
+**Mostly resolved 2026-06-18 (owner, Session 32; resolved home = `[[m4-inline-highlights]]` now
+`accepted`).** **DM-IH-1/2/3/4/7/8 resolved-as-built** (backend, PR #81): DM-IH-1 = render-time string
+search over `canonical_name` + aliases (*verify-first* found persist-spans illusory — null offsets, spaCy
+span gone at accept); DM-IH-2 = a new story-scoped `GET /stories/{id}/reader` (the §3.4 per-story filter's
+first home); DM-IH-3 = plain `<mark>` renderer, NOT Tiptap (Tiptap with manual annotation); DM-IH-4 =
+longest-match; DM-IH-7 = accepted-only (read-side echo of INV-1); DM-IH-8 = tooltip name+type+aliases.
+**DM-IH-5 (colour palette) + DM-IH-6 (perf/virtualise) remain confirm-at-build in the M4.S1 FRONTEND
+slice** (open-but-narrowed). Read the per-entry resolutions in `[[m4-inline-highlights]]`. Original
+framing kept below for history.
+
 Raised by the M4 first-slice `decompose-requirement` step-0 (2026-06-17, `[[m4-inline-highlights]]`).
 Full Context/Options/Proposal for each live in that proposal's register; listed here so the vault's
 reader knows they gate the M4.S1 build. **The central one is DM-IH-1** (span resolution): accepted

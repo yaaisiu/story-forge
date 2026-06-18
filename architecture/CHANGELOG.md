@@ -1,7 +1,7 @@
 ---
 type: changelog
 slug: changelog
-updated: 2026-06-16
+updated: 2026-06-18
 status: living
 related: []
 ---
@@ -10,6 +10,45 @@ related: []
 
 Append-only audit trail of writes into the vault. Newest entries at the top. History also lives
 in `updated` fields (freshness) and git (diffs); this is the human-readable "what changed when".
+
+## 2026-06-18 — vault maintenance: relation lifecycle drawn (OQ-20), DM-IH register reflected (OQ-21), glossary routing fixed
+
+A focused M3→M4-boundary sync pass — three already-scoped writes to bring the vault in line with the
+as-built reality, no new decomposition.
+
+**(1) OQ-20 closed — the edge gate's state machine.** Drew **`state-machines/relation-lifecycle.md`**
+(`living`), the **edge** twin of `[[candidate-lifecycle]]`, grounded in `agents/relation_review.py`
+(`RelationReviewService`) + the `staged_relations` migration + ADR 0005: states `staged → held |
+committable → written | rejected`, the re-resolve-at-commit [[toctou]] guard (list-time resolution is
+advisory; `decide` re-resolves → 409 on drift), the idempotent-by-edge-id effect
+(`relation_edge_id = uuid5(subject_id, predicate, object_id)`), and the evidence/status-last effects.
+**Faithful surprise recorded:** `held`/`committable` are **not persisted** — only `staged|written|rejected`
+is — so they are modelled as *derived views* of the single `staged` row, recomputed each read by
+re-resolving endpoints (the same in-memory-transient-states shape the twin uses). Folded OQ-20's two
+sub-gaps as carried watch-items in the note (**not** resolved): (a) **held-relation visibility** (a
+never-committable relation rests silently with no Evidence row — INV-3 for edges has no home); (b) **edge
+Expiry** (held rows never expire — accepted none-at-PoC, ADR 0005, the edge twin of OQ-4). Marked OQ-20
+**resolved** in `open-questions.md` with the sub-gaps pointed at the new note.
+
+**(2) OQ-21 reflected — the M4 inline-highlights register.** Brought `proposals/m4-inline-highlights.md`
+to `status: accepted` with a dated resolved banner and annotated the **whole** DM-IH register (not just a
+top banner): **DM-IH-1/2/3/4/7/8 resolved-as-built** (PR #81) — DM-IH-1 = render-time string search over
+name+aliases (*verify-first* found persist-spans illusory: null offsets + the spaCy span gone at accept);
+DM-IH-2 = new `GET /stories/{id}/reader`; DM-IH-3 = plain `<mark>` (not Tiptap); DM-IH-4 longest-match;
+DM-IH-7 accepted-only; DM-IH-8 name+type+aliases. **DM-IH-5/6 = frontend confirm-at-build (M4.S1 frontend
+slice).** Original Context/Options text kept intact (public-portfolio history). Annotated **OQ-21** as
+mostly-resolved, pointing at the proposal as the resolved home. Authoritative source: `docs/PLAN_SHORT.md`
+Session-32 Decided — the vault is the orienting layer that lagged.
+
+**(3) Glossary routing drift fixed.** `glossary/model-tier-routing.md` still said the `LLMRouter` + paid
+adapters were "Planned for M2.S2 — not yet built." Verified as-built (`adapters/llm/router.py` `LLMRouter`,
+`openrouter.py` `OpenRouterProvider`) and rewrote to the present tense ("Built in M2.S2"), referencing
+`docs/decisions/0003` for provider order — a reference, not a duplication. Bumped its `updated` stamp.
+
+**Reconciliation:** regenerated `INDEX.md` (two state machines now drawn, relation-lifecycle removed from
+"still to draw"; m4 proposal row → ACCEPTED; 2026-06-17 review row annotated with OQ-20 resolved); added a
+`[[relation-lifecycle]]` learning-log line (derived-vs-persisted state) + bumped its date. Glossary count
+unchanged at 22 (model-tier-routing edited, not added). No production code, no spec/plan/`docs/` edits.
 
 ## 2026-06-16 — decompose-requirement: M3 relation-write (graph edges under human control, step-0)
 

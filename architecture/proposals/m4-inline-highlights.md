@@ -1,8 +1,8 @@
 ---
 type: proposal
 slug: m4-inline-highlights
-updated: 2026-06-17
-status: proposed
+updated: 2026-06-18
+status: accepted
 related:
   - "[[overview]]"
   - "[[invariants]]"
@@ -11,9 +11,41 @@ related:
   - "[[m3-relation-write]]"
   - "[[open-world-ontology]]"
   - "[[referential-integrity]]"
+  - "[[prefer-deterministic]]"
 ---
 
 # M4 first slice — inline highlights (step-0 forward design)
+
+> **Status: ACCEPTED — register RESOLVED with the owner (Session 32, 2026-06-18); the read-only
+> BACKEND is built (PR #81).** This was the M4.S1 step-0 decompose; the gating calls are now decided.
+> Authoritative homes: `docs/PLAN_SHORT.md` (Session-32 **Decided** + Done) and the resolved-as-built
+> backend (`backend/src/story_forge/domain/highlights.py` + `GET /stories/{id}/reader`). The whole
+> register below is annotated to resolved; the original Context/Options reasoning is kept intact
+> (public-portfolio history — append resolution, don't delete the thinking).
+>
+> **Resolutions (lifted from `docs/PLAN_SHORT.md`, not invented):**
+> - **DM-IH-1 → (a) render-time string search over `canonical_name` + aliases — resolved-as-built**
+>   (backend `domain/highlights.py`). *Verify-first settled it:* the accept path writes the mention
+>   with **null** `span_start/end` and the spaCy `CandidateSpan` is gone by accept time, so option (b)
+>   "persist the existing span" was **illusory** — there is no span to persist. And aliases *accumulate*
+>   the prose's surface forms (each merge-accept calls `add_alias`), so inflected forms that were
+>   themselves extracted+merged become searchable — render-time search is both the only zero-data-change
+>   option *and* stronger on PL inflection than the decompose assumed. *Rejected:* persist-spans-now
+>   (nothing to persist + a data change in a low-risk UI slice); the verify-build-measure hybrid up front
+>   (the verify already answered it).
+> - **DM-IH-2 → (a) a new story-scoped `GET /stories/{id}/reader` — resolved-as-built** (the natural
+>   first home of the §3.4 per-story filter; does the cross-store join + span resolution server-side).
+> - **DM-IH-3 → (b) plain read-only `<mark>` renderer, NOT Tiptap — resolved** (Tiptap/ProseMirror
+>   arrives with the manual-annotation slice, where editing begins; *rejected:* adopt Tiptap now —
+>   ceremony ahead of need). *Built in the **frontend** slice (next), per this decision.*
+> - **DM-IH-4 → (a) longest-match overlap arbitration — resolved-as-built.**
+> - **DM-IH-7 → (a) highlight accepted-only — resolved-as-built** (the read-side echo of INV-1; mentions
+>   are written only by the human-accept path).
+> - **DM-IH-8 → (a) tooltip = canonical_name + type + aliases — resolved-as-built** (a tooltip catalog
+>   of only the entities that appeared).
+> - **DM-IH-5 (colour-by-type palette) + DM-IH-6 (whole-story render vs virtualise) → confirm-at-build
+>   in the M4.S1 FRONTEND slice** — still open-but-narrowed, not yet resolved (a fixed palette + a
+>   deterministic hash fallback honouring open-world INV-4 + a legend, and measure-then-virtualise).
 
 **Requirement.** Render the full story text and highlight **accepted** entities inline (colour by
 type), so the knowledge graph becomes *live over the prose*; hovering a highlight shows the entity's
@@ -146,9 +178,21 @@ are later slices.
 
 ---
 
-## Decision register (OPEN — the owner decides; I propose, I do not resolve)
+## Decision register (RESOLVED 2026-06-18, Session 32 — owner; DM-IH-5/6 confirm-at-build in the frontend slice)
+
+> Each entry below keeps its original Context/Options/My-proposal text (history); the **Resolution**
+> line is appended. Authoritative home: `docs/PLAN_SHORT.md` Decided (Session 32). Mirrored to
+> [[open-questions]] OQ-21.
 
 ### DM-IH-1 — Span resolution: how do we know *where* to highlight? **(the central decision)**
+> **✅ Resolved-as-built (owner, 2026-06-18): (a) render-time string search over `canonical_name` +
+> aliases.** *Verify-first* found option (b) illusory — the accept path stores **null** offsets and the
+> spaCy span is gone by accept time, so there is no span to persist; meanwhile aliases accumulate the
+> prose's surface forms (each merge-accept adds one), making search stronger on PL inflection than this
+> proposal assumed. Built in `backend/src/story_forge/domain/highlights.py` (word-boundary,
+> case-insensitive via the original text + `re.IGNORECASE`, longest-match overlap, omit-on-miss). The
+> proposed hybrid/persist-spans path was *not* taken — there was nothing to persist. *Rejected:*
+> persist-spans-now (no span exists; a data change in a low-risk slice).
 - **Context.** Accepted mentions have `paragraph_id` + `entity_id` but usually **null spans**; the
   spaCy `CandidateSpan` that *does* carry exact paragraph offsets is discarded at accept time. So the
   renderer has, per paragraph, a *set of entities known to appear* but not *where*.
@@ -181,6 +225,11 @@ are later slices.
   PreNER.) — `verify-at-build`.
 
 ### DM-IH-2 — Backend read shape
+> **✅ Resolved-as-built (owner, 2026-06-18): (a) a new story-scoped `GET /stories/{id}/reader`.** Does
+> the cross-store join (Postgres paragraphs+mentions × Neo4j entities) + span resolution server-side;
+> returns per-paragraph highlight ranges + a tooltip catalog of only the entities that appeared. It *is*
+> the first home of the §3.4 per-story filter (cross-cutting, now live for M4). Built in
+> `api/stories.py` (`ReaderResponse`/`ReaderParagraph`/`ReaderHighlight`/`ReaderEntity`).
 - **Context.** The reader needs paragraphs + their resolved highlights. Today `GET /stories/{id}/graph`
   (project-scoped) returns the whole graph; there is no "story text + mentions" read endpoint.
 - **Options.** (a) a new `GET /stories/{id}/reader` returning the document tree with per-paragraph
@@ -195,6 +244,10 @@ are later slices.
 - **Open.** Page by chapter/scene, or whole story in one response? (ties DM-IH-6).
 
 ### DM-IH-3 — Rendering surface: Tiptap vs read-only renderer
+> **✅ Resolved (owner, 2026-06-18): (b) plain read-only `<mark>` renderer, NOT Tiptap.** Tiptap/
+> ProseMirror is deferred to the manual-annotation slice (where editing actually begins). This is the
+> **frontend** slice's build (next, per `docs/PLAN_SHORT.md` handoff): split each paragraph's text at
+> highlight boundaries. *Rejected:* adopt Tiptap now — ceremony ahead of need for a read-only view.
 - **Context.** Spec §6.1 names **Tiptap (ProseMirror)** as the editor "easy inline annotations";
   §3.5's reader is a single text column. This slice is read-only.
 - **Options.** (a) Tiptap in read-only mode with ProseMirror **decorations** for highlights (the
@@ -210,6 +263,8 @@ are later slices.
 - **Open.** Owner may prefer to pay the Tiptap setup now so the next two slices inherit it.
 
 ### DM-IH-4 — Overlap / nesting arbitration
+> **✅ Resolved-as-built (owner, 2026-06-18): (a) longest-match wins.** Built into the
+> `domain/highlights.py` resolver. Layered nesting (b) stays a later polish refinement.
 - **Context.** Two mentions can claim overlapping ranges ("Janek" inside "Janek Kowalski"; or two
   entities sharing a token). The DOM can't trivially render crossing ranges.
 - **Options.** (a) longest-match wins (drop the shorter); (b) innermost/nested rendering (layered
@@ -221,6 +276,10 @@ are later slices.
   shorter alias sometimes? (a UX call, defer.)
 
 ### DM-IH-5 — Colour-by-type under an open-world type set (INV-4)
+> **◻ Confirm-at-build in the M4.S1 FRONTEND slice (next) — narrowed toward (a).** The owner's direction
+> (`docs/PLAN_SHORT.md` Decided/handoff) is a small fixed palette for the common types + a deterministic
+> hash fallback honouring open-world INV-4 + a legend — i.e. proposal option (a). Not yet built; the
+> exact palette/contrast is the build-time confirm. Still open-but-narrowed, not resolved.
 - **Context.** §3.5 says "colour by type", but entity `type` is **open-world** ([[open-world-ontology]],
   INV-4) — a free string, not a fixed enum — so a hand-built colour map can't be exhaustive.
 - **Options.** (a) a small fixed palette for the common types (character/place/object/concept) +
@@ -233,6 +292,10 @@ are later slices.
 - **Open.** Accessibility — hash-colours can collide or be low-contrast; cap the palette + check contrast.
 
 ### DM-IH-6 — Whole-story render vs virtualisation (50k-word performance)
+> **◻ Confirm-at-build in the M4.S1 FRONTEND slice (next) — narrowed toward (c).** The owner's direction
+> is measure-first: whole-story render, profile a real draft, virtualise only if it stutters (proposal
+> option (c)). A client-side concern that only exists once the React reader is built. Still
+> open-but-narrowed, not resolved.
 - **Context.** §3.4 demands the *graph* handle 500+ nodes; §3.5's reader must handle a **50k-word
   story** (the real "Wody Święte" draft).
 - **Options.** (a) render the whole story DOM at once; (b) virtualise/paginate by chapter or scene
@@ -243,6 +306,9 @@ are later slices.
 - **Open.** none beyond the measurement.
 
 ### DM-IH-7 — Which entities highlight (accepted-only)
+> **✅ Resolved-as-built (owner, 2026-06-18): (a) accepted graph entities only** — the read-side echo of
+> INV-1. Falls out for free: mentions are written only by the human-accept path, so the reader's
+> cross-store join over `entity_mentions` × Neo4j surfaces only the committed world.
 - **Context.** The graph holds only accepted entities (INV-1/INV-9); staged candidates live in
   Postgres `candidates`, rejected ones leave evidence rows.
 - **Options.** (a) highlight **accepted graph entities only**; (b) optionally preview staged candidates
@@ -253,6 +319,10 @@ are later slices.
 - **Open.** none.
 
 ### DM-IH-8 — Tooltip "brief description" — what is it?
+> **✅ Resolved-as-built (owner, 2026-06-18): (a) canonical_name + type + aliases** (the data we have;
+> no new field). Delivered as a tooltip catalog of only the entities that appeared; the frontend slice
+> renders it. A richer description stays the side-panel slice's job. *Rejected:* (c) an LLM-generated
+> summary in a read-only no-egress slice.
 - **Context.** §3.5's tooltip shows "canonical_name + brief description", but an entity has no
   dedicated `description` field — it has `properties` (a free dict) and `aliases`.
 - **Options.** (a) show canonical_name + type + aliases (data we *have*) and defer a real description;
@@ -297,6 +367,12 @@ are later slices.
 
 ## Gaps for the product owner
 
+> **✅ All resolved (owner, Session 32, 2026-06-18)** — see the resolved banner at the top. (1) DM-IH-1 →
+> render-time search, after verify-first showed persist-spans was illusory; (2) DM-IH-3 → plain `<mark>`
+> renderer, Tiptap deferred to manual annotation; (3) DM-IH-2 → the story-scoped reader endpoint *is* the
+> first home of the §3.4 per-story filter (started here); (4) scope confirmed — ends at the tooltip.
+> Items 1–4 below kept as the original framing.
+
 1. **DM-IH-1 is the real call** — render-time search (cheap, inflection-blind) vs persisting spans
    (exact, a backend/data change in a "low-risk" slice) vs the hybrid sub-slice plan. Everything else
    is downstream of it. My recommendation (ship 1a first, measure, add 1b if needed) keeps the slice
@@ -312,11 +388,20 @@ are later slices.
 
 ---
 
-## Hand-off (when the register is resolved, test-first)
+## Hand-off (register resolved — backend built; frontend next)
 
-The first failing test is the **span-resolution pure function** (DM-IH-1): given a paragraph + a set of
-(entity, name, aliases) → the decorated ranges, including the omit-on-unresolvable and longest-match-
-overlap rules. Pure, deterministic, no store, no model — exactly the altitude the project unit-tests
-hardest. Then the read endpoint (DM-IH-2) with an integration test over real Postgres + a stubbed
-graph reader, then the React renderer (DM-IH-3). No production code before the owner resolves
-DM-IH-1/2/3 — they change the shape of the test.
+> **✅ Backend built test-first (Session 32, PR #81), exactly as this hand-off predicted.** The first
+> failing test was the span-resolution pure function (`domain/highlights.py`), then the
+> `GET /stories/{id}/reader` endpoint over real Postgres + a stubbed graph reader. 12 unit + 4
+> integration tests. `/code-review` caught a real crash `/review-pr` missed — a casefolded match-copy
+> diverged in length on an expanding codepoint (ß→ss) → `IndexError`/500; fixed by matching the
+> *original* text via `re.IGNORECASE` (a sharper instance of the [[referential-integrity]]/offset care
+> this note flagged). **Frontend next:** the React `<mark>` reader (DM-IH-3) — first failing test = the
+> pure paragraph-splitter; DM-IH-5 (palette) + DM-IH-6 (perf) confirm-at-build there.
+
+_Original hand-off (kept for history):_ The first failing test is the **span-resolution pure function**
+(DM-IH-1): given a paragraph + a set of (entity, name, aliases) → the decorated ranges, including the
+omit-on-unresolvable and longest-match-overlap rules. Pure, deterministic, no store, no model — exactly
+the altitude the project unit-tests hardest. Then the read endpoint (DM-IH-2) with an integration test
+over real Postgres + a stubbed graph reader, then the React renderer (DM-IH-3). No production code
+before the owner resolves DM-IH-1/2/3 — they change the shape of the test.
