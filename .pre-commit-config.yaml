@@ -34,6 +34,19 @@ repos:
       - id: check-added-large-files
         args: ["--maxkb=512"]
 
+  # --- Frontend formatting: prettier, mirroring the CI `format:check` gate ---
+  # Reuses the prettier already pinned in frontend/package.json (no extra external hook
+  # repo to vet or pin separately), so "passes locally" ⇒ "passes CI's format gate". Only
+  # fires when a frontend file is staged; runs `prettier --check .` over frontend/ (~1s).
+  - repo: local
+    hooks:
+      - id: prettier-frontend
+        name: prettier (frontend)
+        entry: bash -c 'cd frontend && npm run --silent format:check'
+        language: system
+        pass_filenames: false
+        files: ^frontend/
+
   # --- Dependency-age / non-exact-pin sweep (pre-push only — slow, network) ---
   - repo: local
     hooks:
