@@ -287,6 +287,14 @@ happening at build time.
   revisit deliberately. The asymmetry is defensible (npm's advisory noise floor is higher).
 - *As-built (PR #44):* **left `npm audit --audit-level=high` unchanged**; the asymmetry is noted and
   deliberately out of this branch's scope. Revisit deliberately if desired (a one-flag change).
+- *Forward-pointer (2026-06-18, M4.S1 — does not change D5):* D5 decided the gate's **level**
+  (fail-on-any vs HIGH/CRITICAL); a **different axis**, the gate's **scope**, was later narrowed —
+  the frontend `npm audit` gained `--omit=dev` so it audits only shipped runtime deps, not
+  devDependencies (jsdom/vitest/eslint/Vite plugins) that never reach the static SPA bundle.
+  Trigger: a HIGH `undici` advisory (GHSA-vmh5-mc38-953g) reaching us only transitively via `jsdom`,
+  unreachable here, with no 14-day-soaked fix. This *adapts* the control (scan what ships), not
+  relaxes it. Authoritative home: **spec §6.7** (amended 2026-06-18); orienting note in
+  `[[learning-log]]`. The *level* D5 settled is unchanged.
 
 **D6 — Scanner Action pinning & soak (§6.7 applies to Actions too).**
 - *Context:* the Trivy action is pinned `aquasecurity/trivy-action@v0.36.0`. A GitHub Action is itself
