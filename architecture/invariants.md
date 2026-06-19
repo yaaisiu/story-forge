@@ -173,25 +173,40 @@ duplicate problem that M3's cascade then solves.
   live persistence) — those tests were rewritten/retired as INV-1/INV-9 landed.
 
 ### INV-9 — No automated stage writes the graph
-The graph is written by **exactly two** human-decision code paths: the accept handler (nodes) and
-the relation-decide handler (edges). No extraction agent, matching/embedding/judge stage, or
-coordinator may write a Neo4j node or edge — they may only *stage* a proposal into Postgres. The
-general, greppable form of INV-1's guarantee: where INV-1 is about *who commits* (a human), INV-9 is
-about *what code may touch Neo4j* (only the two human-reached handlers).
-- **Source:** §3.3 (the cascade *proposes*; Stage 4 commits), §7 steps 6–7; DM6 / ADR 0004; M3.S4e / ADR 0005.
+The graph is written **only by human-reached handlers** — the accept handler (creates nodes), the
+relation-decide handler (commits staged edges), and the edit handler (edits committed nodes + adds/
+removes edges). No extraction agent, matching/embedding/judge stage, or coordinator may write a
+Neo4j node or edge — they may only *stage* a proposal into Postgres. The general, greppable form of
+INV-1's guarantee: where INV-1 is about *who commits* (a human), INV-9 is about *what code may touch
+Neo4j* (only the human-reached handlers). **The guarded property is unchanged from M3's "exactly two
+writers"; M4.S3a only grows the enumeration** — adding a third human-reached writer (the edit path)
+keeps INV-9 honest by making a *visible* writer rather than smuggling edits into the cascade. (The
+"exactly two → only human-reached handlers" rewording is the ADR-0005 broaden-don't-mint precedent:
+ADR 0006, DM-S3a-1.)
+- **Source:** §3.3 (the cascade *proposes*; Stage 4 commits), §3.4/§3.5 (manual correction — edit), §7 steps 6–7; DM6 / ADR 0004; M3.S4e / ADR 0005; M4.S3a / ADR 0006.
 - **Enforced at:** *(as-built, M3.S4a for nodes; M3.S4e for edges)* the `ExtractionCoordinator` is
   constructed with **no** graph writer (its collaborators are the extractor, the cascade stager, the
   candidate store, and a read-only accepted-graph reader); the cascade agents are pure proposal logic.
-  The writers are `CandidateReviewService` (nodes, `agents/candidate_review.py`) and
-  `RelationReviewService` (edges, `agents/relation_review.py`). Guard: a reviewer can grep for
-  `create_entity` / `add_alias` / `create_relation` and find them reachable only from a human-decision
-  handler — a future contributor "optimising" a confident auto-merge or an auto-edge into a direct
-  write would violate this, not improve it.
+  The writers are `CandidateReviewService` (nodes, `agents/candidate_review.py`),
+  `RelationReviewService` (staged edges, `agents/relation_review.py`), and — from M4.S3a —
+  `EntityEditService` (committed-node edits + manual edge add/remove, `agents/entity_edit.py`). Guard:
+  a reviewer can grep for `create_entity` / `add_alias` / `create_relation` / `update_entity` /
+  `delete_relation` and find them reachable only from a human-reached handler — a future contributor
+  "optimising" a confident auto-merge, an auto-edge, or an auto-edit into a direct write would violate
+  this, not improve it.
 - **Second witnessed instance (M3.S4e, edges).** INV-9 always said "node *or edge*"; until S4e no
   code wrote an edge at all (`create_relation` had zero callers). S4e makes the edge case real:
   `RelationReviewService` is the sole edge writer, reached only from the human decide endpoint;
   the coordinator still writes nothing. The "extract → zero edges, decide → one edge" integration
   test is the edge analogue of the node flip test.
+- **Third witnessed instance (M4.S3a, post-commit edits).** Editing an *already-committed* node/edge
+  is a write the cascade has no path to: `EntityEditService` is reached only from the human edit
+  endpoints (`PATCH …/entities/{eid}`, `POST`/`DELETE …/relations`). It writes Neo4j **directly**
+  (`update_entity`, `create_relation`, `delete_relation`) — the manual relation-add was *not* routed
+  through the decide path (that path resolves endpoints by surface-name-within-a-paragraph, which a
+  hand-picked edge has neither of — DM-S3a-3, owner-resolved at build), so the edge-writer set grows
+  too. Every write records a before→after `graph_edits` row (INV-3, DM-S3a-2). The guard is unchanged:
+  the writer is reached only from a human handler. See ADR 0006, [[m4-entity-editing]] register.
 - **Why it matters:** it is exactly the property a well-meaning optimisation would silently break, and
   it gives the flip test a name. See [[fail-closed]], [[candidate-lifecycle]].
 - **The line INV-9 draws is *graph vs staging*, not *human vs automated* (clarified M3.S4c).** On-accept

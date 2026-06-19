@@ -190,6 +190,69 @@ export interface paths {
         delete?: never;
         options?: never;
         head?: never;
+        /**
+         * Edit Entity Route
+         * @description Edit an accepted entity's name/aliases/type/`properties` (spec §3.4, DM-S3a-1).
+         *
+         *     A human-reached graph write (INV-9 as reworded — ADR 0006): re-reads under the project's
+         *     tenancy key, validates + merges the patch, writes the node, and records a before→after
+         *     edit-evidence row (INV-3, DM-S3a-2). A blank name/type is rejected (400). `properties` stays
+         *     open (INV-4). A corrected name/alias re-highlights in the reader for free (render-time search,
+         *     DM-S3a-4); the panel invalidates + refetches the detail bundle.
+         */
+        patch: operations["edit_entity_route_stories__story_id__entities__entity_id__patch"];
+        trace?: never;
+    };
+    "/stories/{story_id}/relations": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Relations
+         * @description The committable relations for a story (spec §3.3's 5th Stage-4 action).
+         *
+         *     A relation is committable once **both** surface endpoints resolve to entities the human has
+         *     already accepted in that paragraph; relations with a held/unaccepted endpoint or a self-loop
+         *     are excluded. The edge is written only on an explicit `decide` (INV-1/INV-9 — the human gate).
+         */
+        get: operations["list_relations_stories__story_id__relations_get"];
+        put?: never;
+        /**
+         * Add Relation Route
+         * @description Add a relation between two accepted entities (spec §3.4, DM-S3a-3, direct edge-writer).
+         *
+         *     Both endpoints must already be accepted in this project (else 404). A duplicate add MERGEs
+         *     onto the existing edge and is reported via `merged_into_existing` rather than erroring; a
+         *     manual self-loop is allowed. Records a before→after edit-evidence row (INV-3, DM-S3a-2).
+         */
+        post: operations["add_relation_route_stories__story_id__relations_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/stories/{story_id}/relations/{edge_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Remove Relation Route
+         * @description Remove a relation edge (spec §3.4, DM-S3a-3). 404s if the edge isn't in this project (a
+         *     stale double-remove); records the before-image for undo (INV-3, DM-S3a-2).
+         */
+        delete: operations["remove_relation_route_stories__story_id__relations__edge_id__delete"];
+        options?: never;
+        head?: never;
         patch?: never;
         trace?: never;
     };
@@ -252,30 +315,6 @@ export interface paths {
          *     the author (DM-rej); that consult is not built in S4a.
          */
         post: operations["reject_candidate_stories__story_id__candidates__candidate_id__reject_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/stories/{story_id}/relations": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * List Relations
-         * @description The committable relations for a story (spec §3.3's 5th Stage-4 action).
-         *
-         *     A relation is committable once **both** surface endpoints resolve to entities the human has
-         *     already accepted in that paragraph; relations with a held/unaccepted endpoint or a self-loop
-         *     are excluded. The edge is written only on an explicit `decide` (INV-1/INV-9 — the human gate).
-         */
-        get: operations["list_relations_stories__story_id__relations_get"];
-        put?: never;
-        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -364,6 +403,25 @@ export interface components {
             target_entity_id?: string | null;
             /** Custom Type */
             custom_type?: string | null;
+        };
+        /**
+         * AddRelationRequest
+         * @description Add a relation between two accepted entities (DM-S3a-3). A self-loop (subject == object)
+         *     is allowed — a manual one is intentional. Re-predicate is a remove + add, client-side.
+         */
+        AddRelationRequest: {
+            /**
+             * Subject Id
+             * Format: uuid
+             */
+            subject_id: string;
+            /** Predicate */
+            predicate: string;
+            /**
+             * Object Id
+             * Format: uuid
+             */
+            object_id: string;
         };
         /** Body_upload_story_stories_upload_post */
         Body_upload_story_stories_upload_post: {
@@ -519,6 +577,49 @@ export interface components {
                 [key: string]: unknown;
             };
             ego_graph: components["schemas"]["EgoGraph"];
+        };
+        /**
+         * EntityEditPatch
+         * @description A partial edit of a committed entity (M4.S3a). Every field optional; an unset field
+         *     (`None`) leaves it unchanged. `properties`, when set, replaces the whole map and stays open
+         *     per INV-4 (pydantic guarantees it is a JSON object; values keep their type — DM-S3a-5).
+         */
+        EntityEditPatch: {
+            /** Canonical Name Pl */
+            canonical_name_pl?: string | null;
+            /** Canonical Name En */
+            canonical_name_en?: string | null;
+            /** Type */
+            type?: string | null;
+            /** Aliases */
+            aliases?: string[] | null;
+            /** Properties */
+            properties?: {
+                [key: string]: unknown;
+            } | null;
+        };
+        /**
+         * EntityEditResponse
+         * @description The edited entity's display fields after a successful PATCH (M4.S3a). The side panel
+         *     invalidates + refetches the full detail bundle (ego-graph, occurrences) via the GET endpoint
+         *     (DM-S3a-4), so this slim shape carries only what the edit changed.
+         */
+        EntityEditResponse: {
+            /**
+             * Entity Id
+             * Format: uuid
+             */
+            entity_id: string;
+            /** Canonical Name */
+            canonical_name: string;
+            /** Type */
+            type: string;
+            /** Aliases */
+            aliases: string[];
+            /** Properties */
+            properties: {
+                [key: string]: unknown;
+            };
         };
         /**
          * EntitySearchResponse
@@ -789,6 +890,20 @@ export interface components {
             edge_id: string | null;
             /** Already Decided */
             already_decided: boolean;
+        };
+        /**
+         * RelationEditResponse
+         * @description Outcome of adding a relation: the edge id + whether the add folded onto an edge that
+         *     already existed (the duplicate/re-predicate collision the UI warns on, DM-S3a-3).
+         */
+        RelationEditResponse: {
+            /**
+             * Edge Id
+             * Format: uuid
+             */
+            edge_id: string;
+            /** Merged Into Existing */
+            merged_into_existing: boolean;
         };
         /**
          * RelationView
@@ -1311,6 +1426,219 @@ export interface operations {
             };
         };
     };
+    edit_entity_route_stories__story_id__entities__entity_id__patch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                story_id: string;
+                entity_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["EntityEditPatch"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EntityEditResponse"];
+                };
+            };
+            /** @description The edit is invalid (blank name or type). */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Story or entity not found. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+            /** @description A data store is unavailable. */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    list_relations_stories__story_id__relations_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                story_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RelationsResponse"];
+                };
+            };
+            /** @description Story not found. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+            /** @description The staging store is unavailable. */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    add_relation_route_stories__story_id__relations_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                story_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AddRelationRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RelationEditResponse"];
+                };
+            };
+            /** @description Story or an endpoint entity not found. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+            /** @description A data store is unavailable. */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    remove_relation_route_stories__story_id__relations__edge_id__delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                story_id: string;
+                edge_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Story or relation edge not found. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+            /** @description A data store is unavailable. */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
     list_candidates_stories__story_id__candidates_get: {
         parameters: {
             query?: never;
@@ -1445,55 +1773,6 @@ export interface operations {
                 };
             };
             /** @description Story or candidate not found. */
-            404: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-            /** @description The staging store is unavailable. */
-            503: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-        };
-    };
-    list_relations_stories__story_id__relations_get: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                story_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["RelationsResponse"];
-                };
-            };
-            /** @description Story not found. */
             404: {
                 headers: {
                     [name: string]: unknown;

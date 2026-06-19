@@ -104,6 +104,13 @@ stateDiagram-v2
 - **Terminal states are final** (INV-3 makes them *reversible by the human*, but the machine itself
   never auto-transitions out of `merged`/`created`/`rejected`; an undo is a new human action with its
   own evidence row).
+- **The candidate terminal is *not* the committed graph node (M4.S3a).** `created`/`merged` is the
+  terminal of this *candidate* machine; the entity node it commits then lives in Neo4j as editable
+  graph state. M4.S3a edits that node **in place** via `EntityEditService` (`PATCH …/entities/{eid}`:
+  name/aliases/type/`properties`) — a *self-transition on the committed node* (same id, new field
+  values), recorded as a before→after `graph_edits` row (ADR 0006, DM-S3a-2). This does **not** reopen
+  or re-transition the candidate row; the candidate machine stays terminal. (Edges have the parallel
+  extension in [[relation-lifecycle]] — manual add + `written → removed`.)
 - **`extracted` cannot skip to a terminal** — it must pass the cascade then the human.
 - **On-accept re-match is monotone and staging-only** (M3.S4c). The `review-queued → review-queued`
   self-loop re-runs the *deterministic* matcher (Stage 1/2, never the judge) over still-pending

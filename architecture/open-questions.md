@@ -580,8 +580,10 @@ applies as in `[[m4-inline-highlights]]`). Register, all **OPEN**:
 **Resolved 2026-06-19 (owner; resolved home = `[[m4-entity-editing]]` now `accepted` + `docs/PLAN_SHORT.md`
 Decided).** DM-S3a-1 = **new named edit handlers + reword INV-9** "exactly two writers" → "only
 human-reached handlers" (ADR-0005 precedent; ADR drafted at build); DM-S3a-2 = **a before→after edit-evidence
-log** (INV-3 undo + flywheel); DM-S3a-3 = **route manual adds through the decide path** (sole edge-writer),
-re-predicate = delete+re-add, warn-on-MERGE-collision, allow self-loops; DM-S3a-4 = invalidate-on-edit
+log** (INV-3 undo + flywheel); DM-S3a-3 = manual adds *intended* through the decide path but
+**resolved-at-build to a direct edge-writer** (M4.S3a-be, ADR 0006 — the decide path is
+surface-name/paragraph-keyed, which a hand-picked edge lacks; INV-9 broadens for edges too),
+re-predicate = delete+re-add, duplicate-add surfaces a collision flag, allow self-loops; DM-S3a-4 = invalidate-on-edit
 (rename re-highlights free); DM-S3a-5 = **typed `properties` values** (keys free, INV-4); DM-S3a-6 =
 **last-write-wins** at PoC ([[lost-update]] named); DM-S3a-7 = **split** S3a-be/S3a-fe; DM-S3a-8 = reuse
 `search_entities_route`. Read the per-entry resolutions in `[[m4-entity-editing]]`. Original framing kept

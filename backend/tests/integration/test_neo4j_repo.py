@@ -208,6 +208,75 @@ async def test_get_neighbourhood_empty_for_unconnected_entity(
     assert await repo.get_neighbourhood(lonely.id) == []
 
 
+async def test_update_entity_overwrites_editable_fields(
+    graph: tuple[Neo4jRepo, UUID],
+) -> None:
+    """The human-edit mutator (M4.S3a): re-SET an existing node's display + properties fields and
+    read the new state back, including clearing one canonical name to `None`."""
+    repo, project_id = graph
+    entity = GraphEntity(
+        type="Character",
+        canonical_name_pl="Janek",
+        canonical_name_en="Johnny",
+        aliases=["młynarczyk"],
+        properties={"age": 23},
+        project_id=project_id,
+    )
+    await repo.create_entity(entity)
+
+    edited = entity.model_copy(
+        update={
+            "type": "Deity",
+            "canonical_name_en": None,  # cleared — Neo4j drops the property
+            "aliases": ["the miller", "Jan"],
+            "properties": {"role": "priestess", "married": True},
+        }
+    )
+    await repo.update_entity(edited)
+
+    assert await repo.get_entity(entity.id) == edited
+
+
+async def test_update_entity_missing_node_is_a_noop(
+    graph: tuple[Neo4jRepo, UUID],
+) -> None:
+    """`MATCH`-not-`MERGE`: updating an absent id writes nothing (no resurrection)."""
+    repo, project_id = graph
+    ghost = GraphEntity(type="Character", canonical_name_pl="Nobody", project_id=project_id)
+    await repo.update_entity(ghost)
+    assert await repo.get_entity(ghost.id) is None
+
+
+async def test_delete_relation_removes_the_edge(graph: tuple[Neo4jRepo, UUID]) -> None:
+    """The human relation-remove path (M4.S3a): delete one edge by id; a re-delete is idempotent."""
+    repo, project_id = graph
+    janek = GraphEntity(type="Character", canonical_name_pl="Janek", project_id=project_id)
+    maria = GraphEntity(type="Character", canonical_name_pl="Maria", project_id=project_id)
+    await repo.create_entity(janek)
+    await repo.create_entity(maria)
+    edge = GraphRelation(type="LOVES", subject_id=janek.id, object_id=maria.id, confidence=0.9)
+    await repo.create_relation(edge)
+    assert await repo.get_relations(project_id) == [edge]
+
+    await repo.delete_relation(edge.id)
+    assert await repo.get_relations(project_id) == []
+    await repo.delete_relation(edge.id)  # idempotent re-delete
+    assert await repo.get_relations(project_id) == []
+
+
+async def test_manual_self_loop_relation_is_written(graph: tuple[Neo4jRepo, UUID]) -> None:
+    """A *manual* self-loop (subject == object) is intentional and is written (DM-S3a-3) —
+    unlike the extraction path, which drops self-loops as merge artifacts."""
+    repo, project_id = graph
+    sole = GraphEntity(type="Character", canonical_name_pl="Janek", project_id=project_id)
+    await repo.create_entity(sole)
+    loop = GraphRelation(
+        type="TALKS_TO_SELF", subject_id=sole.id, object_id=sole.id, confidence=1.0
+    )
+    await repo.create_relation(loop)
+    assert await repo.get_relations(project_id) == [loop]
+
+
 async def test_get_neighbourhood_excludes_cross_project_neighbour(
     graph: tuple[Neo4jRepo, UUID],
 ) -> None:

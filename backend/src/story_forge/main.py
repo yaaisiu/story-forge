@@ -16,6 +16,7 @@ from story_forge.adapters.llm.postgres_cost_store import PostgresCostStore
 from story_forge.adapters.llm.router import LLMRouter
 from story_forge.adapters.neo4j_repo import Neo4jRepo
 from story_forge.adapters.postgres_candidate_store import PostgresCandidateStore
+from story_forge.adapters.postgres_edit_store import PostgresEditStore
 from story_forge.adapters.postgres_mention_store import PostgresMentionStore
 from story_forge.adapters.postgres_relation_store import PostgresRelationStore
 from story_forge.agents.candidate_rematch import ReMatchService
@@ -24,6 +25,7 @@ from story_forge.agents.candidate_staging import CandidateStager
 from story_forge.agents.chunking_agent import ChunkingAgent
 from story_forge.agents.chunking_coordinator import ChunkingCoordinator
 from story_forge.agents.embedding_agent import EmbeddingAgent
+from story_forge.agents.entity_edit import EntityEditService
 from story_forge.agents.extraction_agent import ExtractionAgent
 from story_forge.agents.extraction_coordinator import ExtractionCoordinator
 from story_forge.agents.judge_agent import JudgeAgent
@@ -119,6 +121,11 @@ app.state.candidate_review = CandidateReviewService(
 app.state.relation_review = RelationReviewService(
     _neo4j_repo, PostgresRelationStore(), _candidate_store
 )
+# Manual correction (M4.S3a): the human edit-handler for committed graph state — edits an
+# accepted entity's fields and adds/removes relations directly, recording a before→after
+# edit-evidence row (INV-3, DM-S3a-2). A third human-reached graph writer (the INV-9 rewording,
+# ADR 0006); not an automated stage.
+app.state.entity_edit = EntityEditService(_neo4j_repo, PostgresEditStore())
 
 app.add_middleware(
     CORSMiddleware,

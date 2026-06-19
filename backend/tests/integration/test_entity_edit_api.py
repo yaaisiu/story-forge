@@ -1,0 +1,255 @@
+"""Integration tests for the M4.S3a edit routes — `PATCH /stories/{id}/entities/{eid}`,
+`POST /stories/{id}/relations`, `DELETE /stories/{id}/relations/{edge_id}`.
+
+Like `test_entities_search`, these exercise the HTTP contract against the throwaway test DB (a
+real story row, so the route resolves the §6.4 tenancy key) with a **stub** `EntityEditService`
+injected via override — the service's real behaviour is covered by `test_entity_edit`. Here we
+prove the route resolves story→project, maps each domain exception to its declared status, and
+projects the response shape (incl. the `merged_into_existing` collision flag and the 204 on delete).
+"""
+
+from __future__ import annotations
+
+from collections.abc import AsyncIterator
+from uuid import UUID, uuid4
+
+import psycopg
+import pytest
+import pytest_asyncio
+from httpx import ASGITransport, AsyncClient
+
+from story_forge.adapters.db import get_connection
+from story_forge.adapters.postgres_repo import insert_project, insert_story
+from story_forge.agents.entity_edit import (
+    EntityNotFound,
+    RelationEdgeNotFound,
+    RelationEditResult,
+)
+from story_forge.api.stories import get_entity_edit
+from story_forge.domain.entity_edits import EntityEditInvalid, EntityEditPatch
+from story_forge.domain.graph import GraphEntity
+from story_forge.domain.models import Project, Story
+from story_forge.main import app
+
+pytestmark = pytest.mark.integration
+
+
+class _StubEdit:
+    """A configurable `EntityEditService` double: returns a canned value or raises a set error."""
+
+    def __init__(
+        self,
+        *,
+        entity: GraphEntity | None = None,
+        relation: RelationEditResult | None = None,
+        raises: Exception | None = None,
+    ) -> None:
+        self._entity = entity
+        self._relation = relation
+        self._raises = raises
+        self.calls: list[tuple[str, tuple[object, ...]]] = []
+
+    async def edit_entity(
+        self, project_id: UUID, entity_id: UUID, patch: EntityEditPatch
+    ) -> GraphEntity:
+        self.calls.append(("edit_entity", (project_id, entity_id)))
+        if self._raises is not None:
+            raise self._raises
+        assert self._entity is not None
+        return self._entity
+
+    async def add_relation(
+        self, project_id: UUID, subject_id: UUID, predicate: str, object_id: UUID
+    ) -> RelationEditResult:
+        self.calls.append(("add_relation", (project_id, subject_id, predicate, object_id)))
+        if self._raises is not None:
+            raise self._raises
+        assert self._relation is not None
+        return self._relation
+
+    async def remove_relation(self, project_id: UUID, edge_id: UUID) -> None:
+        self.calls.append(("remove_relation", (project_id, edge_id)))
+        if self._raises is not None:
+            raise self._raises
+
+
+async def _make_story(conn: psycopg.AsyncConnection) -> Story:
+    project = Project(name="t", language="pl")
+    story = Story(project_id=project.id, title="t", raw_text="x")
+    await insert_project(conn, project)
+    await insert_story(conn, story)
+    return story
+
+
+@pytest_asyncio.fixture
+async def make_client(db_conn: psycopg.AsyncConnection) -> AsyncIterator[object]:
+    async def _override() -> AsyncIterator[psycopg.AsyncConnection]:
+        yield db_conn
+
+    app.dependency_overrides[get_connection] = _override
+    clients: list[AsyncClient] = []
+
+    def _factory(service: object) -> AsyncClient:
+        app.dependency_overrides[get_entity_edit] = lambda: service
+        client = AsyncClient(transport=ASGITransport(app=app), base_url="http://test")
+        clients.append(client)
+        return client
+
+    yield _factory
+    for client in clients:
+        await client.aclose()
+    app.dependency_overrides.clear()
+
+
+async def test_patch_entity_returns_edited_display_fields(
+    make_client: object, db_conn: psycopg.AsyncConnection
+) -> None:
+    story = await _make_story(db_conn)
+    edited = GraphEntity(
+        type="Deity",
+        canonical_name_pl="Mokosz",
+        aliases=["the mother"],
+        properties={"role": "priestess"},
+        project_id=story.project_id,
+    )
+    service = _StubEdit(entity=edited)
+    client: AsyncClient = make_client(service)  # type: ignore[operator]
+
+    resp = await client.patch(
+        f"/stories/{story.id}/entities/{edited.id}",
+        json={"type": "Deity", "properties": {"role": "priestess"}},
+    )
+
+    assert resp.status_code == 200, resp.text
+    assert service.calls[0] == ("edit_entity", (story.project_id, edited.id))
+    body = resp.json()
+    assert body == {
+        "entity_id": str(edited.id),
+        "canonical_name": "Mokosz",  # project language pl
+        "type": "Deity",
+        "aliases": ["the mother"],
+        "properties": {"role": "priestess"},
+    }
+
+
+async def test_patch_entity_invalid_edit_is_400(
+    make_client: object, db_conn: psycopg.AsyncConnection
+) -> None:
+    story = await _make_story(db_conn)
+    service = _StubEdit(raises=EntityEditInvalid("entity type must be a non-empty string"))
+    client: AsyncClient = make_client(service)  # type: ignore[operator]
+
+    resp = await client.patch(f"/stories/{story.id}/entities/{uuid4()}", json={"type": "  "})
+    assert resp.status_code == 400, resp.text
+
+
+async def test_patch_entity_unknown_entity_is_404(
+    make_client: object, db_conn: psycopg.AsyncConnection
+) -> None:
+    story = await _make_story(db_conn)
+    service = _StubEdit(raises=EntityNotFound("nope"))
+    client: AsyncClient = make_client(service)  # type: ignore[operator]
+
+    resp = await client.patch(f"/stories/{story.id}/entities/{uuid4()}", json={"type": "Deity"})
+    assert resp.status_code == 404, resp.text
+
+
+async def test_patch_entity_unknown_story_is_404(make_client: object) -> None:
+    service = _StubEdit(entity=None)
+    client: AsyncClient = make_client(service)  # type: ignore[operator]
+    resp = await client.patch(f"/stories/{uuid4()}/entities/{uuid4()}", json={"type": "Deity"})
+    assert resp.status_code == 404, resp.text
+
+
+async def test_post_relation_returns_edge_and_collision_flag(
+    make_client: object, db_conn: psycopg.AsyncConnection
+) -> None:
+    story = await _make_story(db_conn)
+    edge_id = uuid4()
+    subject, object_ = uuid4(), uuid4()
+    service = _StubEdit(relation=RelationEditResult(edge_id=edge_id, merged_into_existing=True))
+    client: AsyncClient = make_client(service)  # type: ignore[operator]
+
+    resp = await client.post(
+        f"/stories/{story.id}/relations",
+        json={"subject_id": str(subject), "predicate": "LOVES", "object_id": str(object_)},
+    )
+
+    assert resp.status_code == 200, resp.text
+    assert resp.json() == {"edge_id": str(edge_id), "merged_into_existing": True}
+    assert service.calls[0] == ("add_relation", (story.project_id, subject, "LOVES", object_))
+
+
+async def test_post_relation_strips_predicate_whitespace(
+    make_client: object, db_conn: psycopg.AsyncConnection
+) -> None:
+    # A padded predicate is stripped at the boundary, so the deterministic edge id (and Neo4j
+    # relationship type) don't fork on incidental whitespace.
+    story = await _make_story(db_conn)
+    subject, object_ = uuid4(), uuid4()
+    service = _StubEdit(relation=RelationEditResult(edge_id=uuid4(), merged_into_existing=False))
+    client: AsyncClient = make_client(service)  # type: ignore[operator]
+
+    resp = await client.post(
+        f"/stories/{story.id}/relations",
+        json={"subject_id": str(subject), "predicate": "  LOVES  ", "object_id": str(object_)},
+    )
+
+    assert resp.status_code == 200, resp.text
+    assert service.calls[0] == ("add_relation", (story.project_id, subject, "LOVES", object_))
+
+
+async def test_post_relation_missing_endpoint_is_404(
+    make_client: object, db_conn: psycopg.AsyncConnection
+) -> None:
+    story = await _make_story(db_conn)
+    service = _StubEdit(raises=EntityNotFound("gone"))
+    client: AsyncClient = make_client(service)  # type: ignore[operator]
+
+    resp = await client.post(
+        f"/stories/{story.id}/relations",
+        json={"subject_id": str(uuid4()), "predicate": "LOVES", "object_id": str(uuid4())},
+    )
+    assert resp.status_code == 404, resp.text
+
+
+async def test_post_relation_blank_predicate_is_422(
+    make_client: object, db_conn: psycopg.AsyncConnection
+) -> None:
+    # A blank predicate is a request-shape error (422) at the boundary, not a 500 from the
+    # GraphRelation type validator deeper in. The service is never reached.
+    story = await _make_story(db_conn)
+    service = _StubEdit()
+    client: AsyncClient = make_client(service)  # type: ignore[operator]
+
+    resp = await client.post(
+        f"/stories/{story.id}/relations",
+        json={"subject_id": str(uuid4()), "predicate": "  ", "object_id": str(uuid4())},
+    )
+    assert resp.status_code == 422, resp.text
+    assert service.calls == []  # rejected before dispatch
+
+
+async def test_delete_relation_returns_204(
+    make_client: object, db_conn: psycopg.AsyncConnection
+) -> None:
+    story = await _make_story(db_conn)
+    edge_id = uuid4()
+    service = _StubEdit()
+    client: AsyncClient = make_client(service)  # type: ignore[operator]
+
+    resp = await client.delete(f"/stories/{story.id}/relations/{edge_id}")
+
+    assert resp.status_code == 204, resp.text
+    assert service.calls[0] == ("remove_relation", (story.project_id, edge_id))
+
+
+async def test_delete_unknown_relation_is_404(
+    make_client: object, db_conn: psycopg.AsyncConnection
+) -> None:
+    story = await _make_story(db_conn)
+    service = _StubEdit(raises=RelationEdgeNotFound("nope"))
+    client: AsyncClient = make_client(service)  # type: ignore[operator]
+
+    resp = await client.delete(f"/stories/{story.id}/relations/{uuid4()}")
+    assert resp.status_code == 404, resp.text

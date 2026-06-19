@@ -120,15 +120,36 @@ takes it terminal.)
   uuid5(subject_id, predicate, object_id)` keys on the *resolved* triple, so the same fact stated in
   two paragraphs MERGEs to **one** edge and a retried commit never doubles it. (The provenance cost
   of this collapse is the carried follow-up below.)
-- **Terminal states are final.** `written`/`rejected` never auto-transition; a re-submitted `decide`
-  on a terminal row is an idempotent no-op. INV-3 reversibility (undoing a wrong edge) is a *new
-  human action*, not a machine transition out of the terminal — and today that undo has no first-class
-  surface (see watch-item (a)).
+- **Terminal states are final *within the decide machine*.** `written`/`rejected` never
+  auto-transition; a re-submitted `decide` on a terminal row is an idempotent no-op. INV-3
+  reversibility (undoing a wrong edge) is a *new human action*, not a machine transition out of the
+  terminal. **From M4.S3a that human action has a first-class surface** — see the edit-path note below.
 - **Merges need no edge re-point — by construction** ([[referential-integrity]]). Because endpoints
   resolve to the *committed* id of an accepted candidate (a `merged` candidate resolves to its
   target's id), an edge is *born* pointing at the survivor; M3 never writes-then-repoints. The only
   true re-point case — merging two **already-accepted** entities — does not exist in M3 (DM-Rel-5)
   and graduates to live M4 work (the entity↔entity merge; it must also re-point `entity_mentions`).
+
+## M4.S3a — the edit path extends the machine (ADR 0006, DM-S3a-3)
+
+The decide machine above commits *staged* edges. M4.S3a adds a second, human-reached origin and a
+terminal exit, written **directly** by `EntityEditService` (not the decide path — a hand-picked edge
+has no surface-form/paragraph to resolve, DM-S3a-3, owner-resolved at build):
+
+- **Manual-add origin: `[*] → written` directly.** `POST /stories/{id}/relations` writes a
+  hand-authored edge between two **already-accepted** entities — `create_relation` MERGE on the same
+  `relation_edge_id(subject, predicate, object)` triple, confidence `1.0`, **no `staged_relations`
+  predecessor** (so this edge carries no surface-form provenance — the accepted cost of the direct
+  writer). A duplicate add MERGEs onto the existing edge and is surfaced (`merged_into_existing`); a
+  manual **self-loop** is allowed (intentional, unlike the extraction path).
+- **Removal: `written → removed`.** `DELETE /stories/{id}/relations/{edge_id}` deletes the edge
+  (`delete_relation`); `removed` is a new exit the decide machine never had. Idempotent (a re-delete of
+  an absent edge is a no-op; the route 404s a stale double-remove).
+- **Re-predicate = `written → removed` + a fresh `[*] → written`** (the edge id is triple-keyed, so a
+  new predicate is a new edge), done client-side as remove + add.
+- **INV-3 now has its first-class undo substrate.** Every edit records a before→after `graph_edits`
+  row (DM-S3a-2) — the prior-value image a reversal needs. (The undo *action/UI* is a later slice; the
+  evidence that makes it possible lands here.)
 
 ## Open points carried while drawing this note (NOT resolved here — see [[open-questions]] OQ-20)
 

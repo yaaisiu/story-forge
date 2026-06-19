@@ -500,6 +500,301 @@
             }
           }
         }
+      },
+      "patch": {
+        "tags": [
+          "stories"
+        ],
+        "summary": "Edit Entity Route",
+        "description": "Edit an accepted entity's name/aliases/type/`properties` (spec \u00a73.4, DM-S3a-1).\n\nA human-reached graph write (INV-9 as reworded \u2014 ADR 0006): re-reads under the project's\ntenancy key, validates + merges the patch, writes the node, and records a before\u2192after\nedit-evidence row (INV-3, DM-S3a-2). A blank name/type is rejected (400). `properties` stays\nopen (INV-4). A corrected name/alias re-highlights in the reader for free (render-time search,\nDM-S3a-4); the panel invalidates + refetches the detail bundle.",
+        "operationId": "edit_entity_route_stories__story_id__entities__entity_id__patch",
+        "parameters": [
+          {
+            "name": "story_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Story Id"
+            }
+          },
+          {
+            "name": "entity_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Entity Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EntityEditPatch"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EntityEditResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The edit is invalid (blank name or type).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Story or entity not found.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "A data store is unavailable.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/stories/{story_id}/relations": {
+      "post": {
+        "tags": [
+          "stories"
+        ],
+        "summary": "Add Relation Route",
+        "description": "Add a relation between two accepted entities (spec \u00a73.4, DM-S3a-3, direct edge-writer).\n\nBoth endpoints must already be accepted in this project (else 404). A duplicate add MERGEs\nonto the existing edge and is reported via `merged_into_existing` rather than erroring; a\nmanual self-loop is allowed. Records a before\u2192after edit-evidence row (INV-3, DM-S3a-2).",
+        "operationId": "add_relation_route_stories__story_id__relations_post",
+        "parameters": [
+          {
+            "name": "story_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Story Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AddRelationRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RelationEditResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Story or an endpoint entity not found.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "A data store is unavailable.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "get": {
+        "tags": [
+          "stories"
+        ],
+        "summary": "List Relations",
+        "description": "The committable relations for a story (spec \u00a73.3's 5th Stage-4 action).\n\nA relation is committable once **both** surface endpoints resolve to entities the human has\nalready accepted in that paragraph; relations with a held/unaccepted endpoint or a self-loop\nare excluded. The edge is written only on an explicit `decide` (INV-1/INV-9 \u2014 the human gate).",
+        "operationId": "list_relations_stories__story_id__relations_get",
+        "parameters": [
+          {
+            "name": "story_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Story Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RelationsResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Story not found.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "The staging store is unavailable.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/stories/{story_id}/relations/{edge_id}": {
+      "delete": {
+        "tags": [
+          "stories"
+        ],
+        "summary": "Remove Relation Route",
+        "description": "Remove a relation edge (spec \u00a73.4, DM-S3a-3). 404s if the edge isn't in this project (a\nstale double-remove); records the before-image for undo (INV-3, DM-S3a-2).",
+        "operationId": "remove_relation_route_stories__story_id__relations__edge_id__delete",
+        "parameters": [
+          {
+            "name": "story_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Story Id"
+            }
+          },
+          {
+            "name": "edge_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Edge Id"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "404": {
+            "description": "Story or relation edge not found.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "A data store is unavailable.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
       }
     },
     "/stories/{story_id}/candidates": {
@@ -741,70 +1036,6 @@
         }
       }
     },
-    "/stories/{story_id}/relations": {
-      "get": {
-        "tags": [
-          "stories"
-        ],
-        "summary": "List Relations",
-        "description": "The committable relations for a story (spec \u00a73.3's 5th Stage-4 action).\n\nA relation is committable once **both** surface endpoints resolve to entities the human has\nalready accepted in that paragraph; relations with a held/unaccepted endpoint or a self-loop\nare excluded. The edge is written only on an explicit `decide` (INV-1/INV-9 \u2014 the human gate).",
-        "operationId": "list_relations_stories__story_id__relations_get",
-        "parameters": [
-          {
-            "name": "story_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "format": "uuid",
-              "title": "Story Id"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/RelationsResponse"
-                }
-              }
-            }
-          },
-          "404": {
-            "description": "Story not found.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
-          },
-          "503": {
-            "description": "The staging store is unavailable.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
     "/stories/{story_id}/relations/{relation_id}/decide": {
       "post": {
         "tags": [
@@ -991,6 +1222,32 @@
         "type": "object",
         "title": "AcceptRequest",
         "description": "The reviewer's decision (spec \u00a73.3 Stage 4). All optional \u2014 defaults to the proposal.\n\n`action` overrides the cascade's proposal (accept-as-merge / accept-as-create);\n`target_entity_id` retargets a merge (change-target); `custom_type` sets a type on create."
+      },
+      "AddRelationRequest": {
+        "properties": {
+          "subject_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Subject Id"
+          },
+          "predicate": {
+            "type": "string",
+            "title": "Predicate"
+          },
+          "object_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Object Id"
+          }
+        },
+        "type": "object",
+        "required": [
+          "subject_id",
+          "predicate",
+          "object_id"
+        ],
+        "title": "AddRelationRequest",
+        "description": "Add a relation between two accepted entities (DM-S3a-3). A self-loop (subject == object)\nis allowed \u2014 a manual one is intentional. Re-predicate is a remove + add, client-side."
       },
       "Body_upload_story_stories_upload_post": {
         "properties": {
@@ -1289,6 +1546,111 @@
         ],
         "title": "EntityDetailResponse",
         "description": "One accepted entity's detail bundle for the reader side panel (spec \u00a73.4/\u00a73.5, M4.S2a).\n\nThe two things the reader page doesn't already hold: the entity's free-form `properties`\n(surfaced by no other endpoint) and its 1-hop `ego_graph` (the \"local graph around that\nentity\", \u00a73.5). Name/type/aliases are included so the panel is self-contained. Occurrences\nare derived frontend-side from the reader's already-rendered highlights (DM-SP-3), so they\nare not repeated here. Read-only \u2014 editing properties/relations is the next M4 slice."
+      },
+      "EntityEditPatch": {
+        "properties": {
+          "canonical_name_pl": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Canonical Name Pl"
+          },
+          "canonical_name_en": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Canonical Name En"
+          },
+          "type": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Type"
+          },
+          "aliases": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Aliases"
+          },
+          "properties": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Properties"
+          }
+        },
+        "type": "object",
+        "title": "EntityEditPatch",
+        "description": "A partial edit of a committed entity (M4.S3a). Every field optional; an unset field\n(`None`) leaves it unchanged. `properties`, when set, replaces the whole map and stays open\nper INV-4 (pydantic guarantees it is a JSON object; values keep their type \u2014 DM-S3a-5)."
+      },
+      "EntityEditResponse": {
+        "properties": {
+          "entity_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Entity Id"
+          },
+          "canonical_name": {
+            "type": "string",
+            "title": "Canonical Name"
+          },
+          "type": {
+            "type": "string",
+            "title": "Type"
+          },
+          "aliases": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Aliases"
+          },
+          "properties": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Properties"
+          }
+        },
+        "type": "object",
+        "required": [
+          "entity_id",
+          "canonical_name",
+          "type",
+          "aliases",
+          "properties"
+        ],
+        "title": "EntityEditResponse",
+        "description": "The edited entity's display fields after a successful PATCH (M4.S3a). The side panel\ninvalidates + refetches the full detail bundle (ego-graph, occurrences) via the GET endpoint\n(DM-S3a-4), so this slim shape carries only what the edit changed."
       },
       "EntitySearchResponse": {
         "properties": {
@@ -1850,6 +2212,26 @@
         ],
         "title": "RelationDecisionResponse",
         "description": "Outcome of a relation decision: the terminal status + the committed edge id (if any)."
+      },
+      "RelationEditResponse": {
+        "properties": {
+          "edge_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Edge Id"
+          },
+          "merged_into_existing": {
+            "type": "boolean",
+            "title": "Merged Into Existing"
+          }
+        },
+        "type": "object",
+        "required": [
+          "edge_id",
+          "merged_into_existing"
+        ],
+        "title": "RelationEditResponse",
+        "description": "Outcome of adding a relation: the edge id + whether the add folded onto an edge that\nalready existed (the duplicate/re-predicate collision the UI warns on, DM-S3a-3)."
       },
       "RelationView": {
         "properties": {
