@@ -7,9 +7,11 @@
 # Red Hat UBI-10 already eliminated all 14 HIGH/CRITICAL OS-package CVEs
 # (including 2 CRITICAL gnutls) — those are NOT waived, they are fixed by the
 # base choice. What remains are 6 HIGH CVEs in the netty jars that Neo4j 5.26.25
-# bundles itself (netty 4.1.132.Final). They are identical across every base
-# variant and cannot be fixed without a new Neo4j release that bumps netty to
-# >= 4.1.135.Final.
+# bundles itself (netty 4.1.132.Final), plus 1 HIGH in the bundled Apache Shiro
+# auth framework (shiro-core 2.1.0). They are identical across every base
+# variant and cannot be fixed without a new Neo4j release that bumps the bundled
+# jars (netty >= 4.1.135.Final; shiro-core >= 2.2.1). The netty waivers are
+# below; the shiro waiver (CVE-2026-49268) is in its own section at the bottom.
 #
 # Why these are acceptable for THIS deployment (spec §6.7 accept-with-justification):
 #   - Story Forge runs Neo4j bound to 127.0.0.1 only, single trusted user,
@@ -72,3 +74,23 @@ CVE-2026-45416
 # client — there is no untrusted TLS peer to impersonate. Fixed in netty
 # 4.1.135.Final (also 4.2.15.Final). (Verified vs OSV / GitHub Advisory DB.)
 CVE-2026-50010
+
+# ── Bundled Apache Shiro (Neo4j's auth framework) — added 2026-06-19 ──
+# CVE-2026-49268 — org.apache.shiro:shiro-core (shiro-core-2.1.0.jar): LDAP
+# injection via insufficient escaping of RFC-2253 special characters when
+# constructing a Distinguished Name (DN) in the DefaultLdapRealm class —
+# potentially authentication bypass / user impersonation. Fixed in Shiro 2.2.1
+# (also 3.0.0-alpha-2). (Verified vs the Apache Shiro security-reports page;
+# the CVE is too fresh for NVD / the GitHub Advisory DB as of 2026-06-19.)
+# NOT REACHABLE here: the flaw is in Shiro's *LDAP authentication realm*, but
+# Neo4j LDAP/AD auth is an ENTERPRISE-only feature — this deployment runs Neo4j
+# COMMUNITY (neo4j:5.26.x-community-ubi10) with only the native auth realm, so
+# DefaultLdapRealm is never configured or instantiated; there is no LDAP
+# directory and no DN is ever built from user input. Defence in depth: Neo4j is
+# bound to 127.0.0.1, single trusted local user, native NEO4J_AUTH basic auth.
+# Bundled by Neo4j like the netty jars above — neo4j 5.26.26 (and the unsoaked
+# .27) still ship shiro-core 2.1.0 (verified by a local Trivy scan 2026-06-19),
+# so no image bump fixes it yet.
+# Drop when: a soaked (>= 7-day) Neo4j 5.26.x patch bundles shiro-core >= 2.2.1
+# (re-scan to confirm CVE-2026-49268 is gone); checked at each neo4j tag bump.
+CVE-2026-49268
