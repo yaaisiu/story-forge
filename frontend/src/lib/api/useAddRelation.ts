@@ -19,6 +19,7 @@ import { useMutation, useQueryClient, type UseMutationResult } from "@tanstack/r
 
 import { ApiError, postJsonBody } from "./client";
 import type { components } from "./schema";
+import { entityDetailStoryKey } from "./useEntityDetail";
 import { readerQueryKey } from "./useReader";
 import { storyGraphQueryKey } from "./useStoryGraph";
 
@@ -35,7 +36,7 @@ export function useAddRelation(
     mutationFn: (body) => postJsonBody<RelationEditResponse>(`/stories/${storyId}/relations`, body),
     onSuccess: () => {
       // Prefix key — invalidates the detail bundle of *both* endpoint entities' panels.
-      void queryClient.invalidateQueries({ queryKey: ["entity-detail", storyId] });
+      void queryClient.invalidateQueries({ queryKey: entityDetailStoryKey(storyId) });
       void queryClient.invalidateQueries({ queryKey: storyGraphQueryKey(storyId) });
       void queryClient.invalidateQueries({ queryKey: readerQueryKey(storyId) });
     },

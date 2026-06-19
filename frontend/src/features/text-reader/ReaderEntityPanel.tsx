@@ -28,6 +28,7 @@ import { useEntityDetail, type EntityDetailResponse } from "../../lib/api/useEnt
 import { useEntityEdit, type EntityEditPatch } from "../../lib/api/useEntityEdit";
 import { useRemoveRelation } from "../../lib/api/useRemoveRelation";
 import { EgoGraphCanvas } from "./EgoGraphCanvas";
+import { egoNeighbourLabel } from "./egoElements";
 import { entityOccurrences } from "./occurrences";
 import {
   isRowValueValid,
@@ -411,11 +412,12 @@ export function ReaderEntityPanel({
   );
 }
 
-/** Build a neighbour-id → display-name lookup from the ego-graph (PL name, EN fallback, id). */
+/** Build a neighbour-id → display-name lookup from the ego-graph (reusing the ego-graph's
+ * own label rule, so the relations list and the mini-graph name a neighbour identically). */
 function neighbourNames(detail: EntityDetailResponse): Map<string, string> {
   const names = new Map<string, string>();
   for (const n of detail.ego_graph.neighbours ?? []) {
-    names.set(n.entity_id, n.canonical_name_pl ?? n.canonical_name_en ?? n.entity_id);
+    names.set(n.entity_id, egoNeighbourLabel(n));
   }
   return names;
 }

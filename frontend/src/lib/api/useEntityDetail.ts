@@ -37,6 +37,15 @@ export function entityDetailQueryKey(
 }
 
 /**
+ * Prefix key matching *every* entity's detail bundle in a story — for a mutation that touches
+ * more than one entity (a relation add/remove hits both endpoints' panels). `invalidateQueries`
+ * fuzzy-matches by default, so this prefix invalidates all `entityDetailQueryKey(storyId, *)`.
+ */
+export function entityDetailStoryKey(storyId: string | undefined): [string, string | undefined] {
+  return ["entity-detail", storyId];
+}
+
+/**
  * Fetch one entity's detail bundle for the reader side panel. Disabled until both a
  * `storyId` and an `entityId` are known (so it never fires with `undefined` in the path
  * before the author has clicked a highlight, or during a deep-link race).

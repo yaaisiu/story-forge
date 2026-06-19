@@ -16,6 +16,7 @@
 import { useMutation, useQueryClient, type UseMutationResult } from "@tanstack/react-query";
 
 import { ApiError, del } from "./client";
+import { entityDetailStoryKey } from "./useEntityDetail";
 import { readerQueryKey } from "./useReader";
 import { storyGraphQueryKey } from "./useStoryGraph";
 
@@ -26,7 +27,7 @@ export function useRemoveRelation(storyId: string): UseMutationResult<void, ApiE
   return useMutation<void, ApiError, string>({
     mutationFn: (edgeId) => del(`/stories/${storyId}/relations/${edgeId}`),
     onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: ["entity-detail", storyId] });
+      void queryClient.invalidateQueries({ queryKey: entityDetailStoryKey(storyId) });
       void queryClient.invalidateQueries({ queryKey: storyGraphQueryKey(storyId) });
       void queryClient.invalidateQueries({ queryKey: readerQueryKey(storyId) });
     },

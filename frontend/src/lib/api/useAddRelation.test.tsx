@@ -13,6 +13,7 @@ import { renderHook, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { ApiError, useAddRelation } from "./useAddRelation";
+import { entityDetailStoryKey } from "./useEntityDetail";
 import { readerQueryKey } from "./useReader";
 import { storyGraphQueryKey } from "./useStoryGraph";
 
@@ -72,7 +73,7 @@ describe("useAddRelation", () => {
       object_id: OBJECT_ID,
     });
 
-    expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: ["entity-detail", STORY_ID] });
+    expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: entityDetailStoryKey(STORY_ID) });
     expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: storyGraphQueryKey(STORY_ID) });
     expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: readerQueryKey(STORY_ID) });
   });
