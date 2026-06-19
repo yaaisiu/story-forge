@@ -49,6 +49,11 @@ Class: **bundled** netty jars Neo4j ships itself (no base variant fixes them).
 **Drop when:** a Neo4j 5.26.x patch bundles netty ≥ 4.1.135.Final (the 4.1.x fix
 for the 2026-06-10/2026-06-16 additions; the first three were fixed in 4.1.133.Final,
 2026-05-04). None is data-disclosure/RCE on a 127.0.0.1 single-user deployment.
+**Partial-drop opportunity (noted 2026-06-19, not yet taken):** the soaked
+`neo4j:5.26.26-community-ubi10` (pushed 2026-06-06) ships netty **4.1.133.Final**,
+which fixes the first three (CVE-2026-42583/42584/42587) — a future `/pin-image` bump
+to a soaked tag could drop those three waivers; the other three still need 4.1.135.
+Revisit with the netty/shiro waivers at the next neo4j tag bump.
 
 | CVE | Pkg | Sev | Class | Fixed in | Why acceptable here |
 |---|---|---|---|---|---|
@@ -58,6 +63,24 @@ for the 2026-06-10/2026-06-16 additions; the first three were fixed in 4.1.133.F
 | CVE-2026-44249 | netty-handler | HIGH | IPv6 subnet-filter bypass (access-control) | netty 4.1.135.Final | netty IP-filtering not used as a boundary; 127.0.0.1 bind is |
 | CVE-2026-45416 | netty-handler | HIGH | DoS (SNI 16 MiB pre-alloc) | netty 4.1.135.Final | no public TLS surface; loopback, trusted client only |
 | CVE-2026-50010 | netty-handler | HIGH | TLS hostname-verification bypass (MITM; GHSA-c653-97m9-rcg9) | netty 4.1.135.Final | no public TLS surface; loopback, single trusted client — no untrusted TLS peer to impersonate |
+
+### Bundled Apache Shiro (Neo4j's auth framework) — added 2026-06-19
+
+Class: **bundled** Apache Shiro jar Neo4j ships as its auth framework (like the netty
+jars above; no base variant fixes it). Surfaced by the PR-#94 gate; **pre-existing on
+the `.25` pin** (the Trivy DB learned of the CVE on 2026-06-19), unrelated to that PR.
+**Not reachable here:** CVE-2026-49268 is in Shiro's **LDAP realm** (`DefaultLdapRealm`,
+unescaped DN construction), and **Neo4j LDAP/AD auth is Enterprise-only** — this is Neo4j
+**Community**, native auth realm only, so `DefaultLdapRealm` is never instantiated and no
+DN is built from user input (defence in depth: 127.0.0.1, single trusted user, native
+`NEO4J_AUTH`). **Fix-first not possible yet:** neo4j `5.26.26` (soaked) and `.27` (unsoaked)
+both still bundle shiro-core 2.1.0 (verified by local Trivy scan 2026-06-19).
+**Drop when:** a soaked (≥ 7-day) Neo4j 5.26.x patch bundles shiro-core ≥ 2.2.1 (re-scan to
+confirm the CVE is gone); checked at each neo4j tag bump.
+
+| CVE | Pkg | Sev | Class | Fixed in | Why acceptable here |
+|---|---|---|---|---|---|
+| CVE-2026-49268 | org.apache.shiro:shiro-core | HIGH | LDAP injection (unescaped DN in `DefaultLdapRealm`) | Shiro 2.2.1 / 3.0.0-alpha-2 | LDAP realm is Enterprise-only; Community uses native auth, `DefaultLdapRealm` never instantiated; 127.0.0.1, single trusted user |
 
 ## pgvector — `pgvector/pgvector:0.8.2-pg17-trixie`
 
