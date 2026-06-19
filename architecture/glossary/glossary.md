@@ -1,7 +1,7 @@
 ---
 type: glossary
 slug: glossary
-updated: 2026-06-16
+updated: 2026-06-19
 status: living
 related: []
 ---
@@ -11,7 +11,7 @@ related: []
 The glossary is a **knowledge graph**, not a flat list: each term is its own note (a node) in
 `glossary/`, cross-linked via `related` so concepts form a web you can wander in Obsidian. This
 index is **regenerated** each run; the term notes are the source. Terms are added *organically* —
-only when real work first surfaces them — and deduped by slug. Count today: **22**.
+only when real work first surfaces them — and deduped by slug. Count today: **25**.
 
 | Term (EN / PL) | Answers | Note |
 |---|---|---|
@@ -37,3 +37,6 @@ only when real work first surfaces them — and deduped by slug. Count today: **
 | defense in depth / obrona w głąb | if one control misses, does another catch it? | [[defense-in-depth]] |
 | intra-batch deduplication / deduplikacja wewnątrz partii | why can't the queue merge dupes from one pass? | [[intra-batch-dedup]] |
 | referential integrity / integralność referencyjna | why not write the edge the moment we see it? | [[referential-integrity]] |
+| ego-graph / graf egocentryczny | how much of the graph is "around" this entity? | [[ego-graph]] |
+| backend-for-frontend (BFF) | one endpoint per screen, or stitch in the client? | [[backend-for-frontend]] |
+| lost update / zgubiona aktualizacja | what stops one edit silently erasing another? | [[lost-update]] |

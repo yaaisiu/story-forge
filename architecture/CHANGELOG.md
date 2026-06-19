@@ -1,7 +1,7 @@
 ---
 type: changelog
 slug: changelog
-updated: 2026-06-18
+updated: 2026-06-19
 status: living
 related: []
 ---
@@ -10,6 +10,40 @@ related: []
 
 Append-only audit trail of writes into the vault. Newest entries at the top. History also lives
 in `updated` fields (freshness) and git (diffs); this is the human-readable "what changed when".
+
+## 2026-06-19 — resolve: M4.S3a register (DM-S3a-1..8) — owner, same day
+
+The owner resolved the M4.S3a register the same session it was framed: the four central calls took the
+recommended option and the rest my leans (no objection). **DM-S3a-1** = new named edit handlers + **reword
+INV-9** "exactly two writers" → "only human-reached handlers" (ADR drafted at build, test-first);
+**DM-S3a-2** = a before→after edit-evidence log (INV-3 undo + flywheel); **DM-S3a-3** = route manual adds
+through the decide path (sole edge-writer), re-predicate = delete+re-add, warn-on-collision, allow
+self-loops; **DM-S3a-4** = invalidate-on-edit; **DM-S3a-5** = typed `properties` values; **DM-S3a-6** =
+last-write-wins; **DM-S3a-7** = split S3a-be/S3a-fe; **DM-S3a-8** = reuse `search_entities_route`.
+[[m4-entity-editing]] → `accepted` + fully reconciled (banner + per-entry ✅ Decision lines); OQ-23 struck;
+authoritative home `docs/PLAN_SHORT.md` Decided (Session 36). No spec amendment (§3.4/§3.5 already specify
+the editable panel; the INV-9 rewording lands test-first at build). Next: build **M4.S3a-be** test-first.
+
+## 2026-06-19 — decompose: M4.S3a entity & relation editing (step-0, the first M4 *write* slice)
+
+`decompose-requirement` step-0 on the owner-confirmed first M4 *write* slice: from the read-only side
+panel ([[m4-side-panel]], shipped), make the inspected entity **editable** — scalar fields
+(`canonical_name`/`aliases`/`type`) + `properties`, and **add/re-predicate/remove** relations between
+two already-accepted entities. New proposal **[[m4-entity-editing]]** (`status: draft`, register
+**OPEN** DM-S3a-1..8 / [[open-questions]] OQ-23). Unlike the M4.S1/S2 read-only projections, this slice
+**writes committed graph state**, so the station fingerprint flips (Intent/Decision/Evidence/Review go
+live) and the design weight is the write path + reversibility: **DM-S3a-1** (new named edit handlers +
+**rewording INV-9** "exactly two writers" → "only human-reached handlers", the ADR-0005 broadening
+precedent), **DM-S3a-2** (the INV-3 before→after edit-evidence record — the load-bearing call),
+**DM-S3a-3** (relation mechanics: re-predicate = delete+re-add on the `uuid5` edge id, sole-edge-writer
+preservation, MERGE-collision dedup, manual self-loops). As-built grounding confirmed: `Neo4jRepo` has
+**no** committed-object mutators today (only `create_entity`/`add_alias`/`create_relation`/`get_*`), and
+the two existing graph-writers are the accept (nodes) + decide (edges) human gates. Two glossary terms
+added — [[backend-for-frontend]] (recurred from M4.S2, now also the *write* endpoint) and [[lost-update]]
+(the first concurrency anomaly a write slice surfaces); the glossary index was regenerated (22→25,
+folding in the [[ego-graph]] note that M4.S2 added but didn't index). Scope **S3b** (merge/delete/undo) +
+**S3c** (tag/boundaries/spans) noted at the seam only. Register stays OPEN — owner resolves before the
+first failing test.
 
 ## 2026-06-18 — decompose: M4.S2 entity side panel in the reader (step-0)
 

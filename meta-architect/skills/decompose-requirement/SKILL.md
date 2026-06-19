@@ -30,6 +30,22 @@ propose; the human decides.** Get today's date with `date +%F`.
 - Slug the requirement (kebab-case). If `proposals/<slug>.md` already exists, enter update mode:
   merge into it, never duplicate it.
 
+## 0b. Operation-surface completeness sweep (multi-slice features)
+
+When the requirement is one **slice** of a feature too big for a single session (it will be sliced
+across several — e.g. S3a/S3b/S3c), **before** committing to the slice boundaries do a completeness
+sweep: enumerate the **full set of operations the feature must eventually deliver** — typically the
+create/read/update/delete surface over each domain object it touches (entities, relations, mentions,
+…) — and confirm **every** operation is assigned a home: *this* slice, a *named later* slice, or
+*explicitly deferred-and-recorded* (a backlog item / a post-PoC note). An operation with **no** home
+is a **slicing gap** — surface it to the owner and route it before decomposing. This is distinct from
+the ripple analysis (step 3) and the "but what if" pass (step 4's edge cases): those ask *what could
+go wrong*; this asks *is the set of capabilities complete, and is each one homed* — so a needed
+capability isn't silently dropped and the first slice isn't secretly carrying a hard fork that belongs
+in a later one. (Single-slice features: name it n/a and move on. Story Forge M4.S3a, 2026-06-19: the
+sweep over CRUD-of-{entities, relations, mentions} caught two unplaced operations — entity
+field-editing and whole-entity delete — and routed them into S3a / S3b before the decompose.)
+
 ## 1. Run the nine layers
 - Pass the requirement through all nine layers; capture findings under each. Define any new
   architectural term inline (EN + PL) at the calibrated density.
