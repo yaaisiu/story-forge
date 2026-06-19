@@ -254,3 +254,81 @@ cytoscape mounts covered by **manual** browser smoke walks, and the backend by p
 automated browser-driven or external-API-contract layer. Post-PoC, Playwright drives the real UI flows
 (upload → extract → review → reader / side-panel) and Postman exercises the REST surface, so the manual
 smoke walks this project leans on become regression-guarded. (Owner note, Session 35.)
+
+## World graph from multiple sources — attributable knowledge (post-PoC; basic world-graph is already in-PoC scope)
+
+The spec already plans a **world graph**: §3.6 (mark a story as belonging to world X → its entities
+become merge candidates, same cascade with greater caution + always human review) and the M4 feature
+order (multi-story → world-graph parent are V1 slices). So *basic* world-building — merging entities
+across **stories** in one fictional universe — is already in scope and not a backlog item.
+
+What the owner flagged (2026-06-19) is a **further dimension** the current model doesn't carry: using
+Story Forge for **non-fiction / research** (the example: historical research) where the inputs are not
+one author's stories but **multiple independent sources** that may **corroborate, disagree, or be
+uncertain**. There, no single source is ground truth (unlike fiction, where the text *is* ground
+truth), so the goal is a graph of **attributable knowledge** — every entity/relation/property claim is
+**attributed to the source(s) that assert it**, and the graph preserves *who-says-what* rather than
+collapsing conflicting claims into one "fact".
+
+This generalises the existing world-merge: there the merge unifies entities and (per §10 q3) must
+resolve **contradictory properties across stories** — "dialog UI, or soft 'both versions coexist'?"
+The multi-source case pushes hard toward **"both coexist, each attributed"**: a relation/property
+edge would carry **provenance** (which source, which passage) and possibly **agreement/confidence**
+(how many sources assert it, do any contradict it). Building blocks already present:
+
+- **Per-mention provenance is already captured** — `staged_relations` keeps the per-paragraph source
+  even though the written graph edge collapses multiple mentions (ADR 0005). A source-attribution
+  model is the same idea promoted from *mention* to *claim*, and scoped by **source** rather than only
+  by chapter/paragraph.
+- **Cross-source identity is context-dependent** — exactly the hazard already logged under
+  *Entity-resolution limitations… "Cross-story / world-graph identity is context-dependent"*: source
+  B's "the magistrate" may or may not be source A's, and similarity-only merge will wrongly fuse or
+  miss links. Multi-source attribution makes this sharper (sources genuinely disagree), reinforcing
+  spec §3.6's human-reviewed world-merge.
+
+Open design questions to think through before building: what is the unit a source attaches to (a
+node? an edge? a property? a whole claim/triple?); how a claim asserted by N sources is represented
+(N attributed edges vs one edge with a provenance set); how contradiction is surfaced (the §10 q3
+question, now multi-source); and whether "source" is just another scoping label alongside
+story/project/world or a first-class node type. **Scope note:** the owner would like world-building in
+the PoC "at least on basic level" — basic world-graph/multi-story is already the M4 plan; whether any
+of the *multi-source attribution* model is pulled into PoC scope (vs recorded here as a post-PoC
+direction) is an **owner scope call** that would go through the stop-and-amend-spec flow, not a quiet
+feature add. (Owner idea, 2026-06-19.)
+
+## Timeline / temporal qualification of relations & properties (post-PoC)
+
+Owner flag (2026-06-19): **time is important in every aspect** and the model currently has no handle
+on it. A relation today is a timeless assertion — `Garret —WEARS→ grey cloak` — but the real question
+is **when** it holds, so wardrobe changes (and every other evolving state) can be tracked. Entities
+change attributes over narrative time, relations start and end, states evolve; without temporal
+qualification the graph flattens a whole story into one always-true snapshot.
+
+The spec has **latent, unbuilt hooks** for this — they are the right anchors, not net-new ideas:
+
+- An **`Event` node type** — "events on the world's timeline" (spec §3.2 taxonomy) — defined but never
+  exercised; a natural anchor for *when* a relation/state holds (reify a change as an event).
+- A per-entity **"timeline (where it appears in the story)"** in the §3.4 side panel — already shipped
+  in M4.S2b as the **occurrence list** (occurrences in *text order*). That text/reading order is a
+  proto-**narrative timeline** and the seed of real temporal ordering.
+
+Things to think through post-PoC:
+
+- **Two distinct time axes (bitemporal).** *Narrative/story time* — when in the fiction a fact holds —
+  vs *record time* — when we ingested/edited it (already partly covered by the §10 q2 graph-versioning
+  question + the `edit_history` log). Narrative time is the one the owner means and is the harder one:
+  it's usually **not wall-clock**, but **relative/ordinal** — chapter/scene order, "before the duel",
+  "after she leaves" — and may be vague or contradictory in the prose.
+- **Where time attaches.** A relation edge needs a **validity interval / point** (`valid_from` /
+  `valid_to`, or an anchor to an `Event` / scene), and the same for mutable **properties**. Modelling
+  options: time-qualified edges, **reified relations** (edge → node so it can carry time + provenance),
+  event nodes, or per-scene **state snapshots**.
+- **Forward-compatibility now (ties to "get the baseline graph right").** Even though the feature is
+  post-PoC, the **baseline graph we build during the PoC should not foreclose it.** The owner's stated
+  PoC goal is a *clean, correct baseline graph to test changes and compare models against*, so the
+  modelling choices made now (how relations are identified and stored, whether an edge is addressable
+  enough to later hang a validity interval or an event anchor on) should leave the door open to
+  temporal qualification + source attribution (see the multi-source section above), rather than baking
+  in a timeless, single-snapshot edge that a later temporal model has to unpick. This is a design
+  constraint to keep in mind on **current** relation-modelling decisions, not scheduled work. (Owner
+  idea, 2026-06-19.)

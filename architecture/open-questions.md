@@ -1,7 +1,7 @@
 ---
 type: open-questions
 slug: open-questions
-updated: 2026-06-18
+updated: 2026-06-19
 status: living
 related: ["[[overview]]", "[[project]]", "[[invariants]]", "[[2026-06-02-architecture-review]]", "[[m2s3-extraction-agent]]", "[[2026-06-09-architecture-review]]", "[[2026-06-11-architecture-review]]"]
 ---
@@ -575,6 +575,56 @@ applies as in `[[m4-inline-highlights]]`). Register, all **OPEN**:
   (M4.S1), or the ego-graph draws an edge to a ghost node / the panel drops an occurrence. This slice
   fail-closes (omit the dangling neighbour); it makes the re-point debt concrete from the relations
   direction. **Lands in:** M4.S2 (the second M4 slice).
+
+### OQ-23 — M4.S3a entity-&-relation editing decision register (DM-S3a-1..8) — ✅ RESOLVED 2026-06-19
+**Resolved 2026-06-19 (owner; resolved home = `[[m4-entity-editing]]` now `accepted` + `docs/PLAN_SHORT.md`
+Decided).** DM-S3a-1 = **new named edit handlers + reword INV-9** "exactly two writers" → "only
+human-reached handlers" (ADR-0005 precedent; ADR drafted at build); DM-S3a-2 = **a before→after edit-evidence
+log** (INV-3 undo + flywheel); DM-S3a-3 = **route manual adds through the decide path** (sole edge-writer),
+re-predicate = delete+re-add, warn-on-MERGE-collision, allow self-loops; DM-S3a-4 = invalidate-on-edit
+(rename re-highlights free); DM-S3a-5 = **typed `properties` values** (keys free, INV-4); DM-S3a-6 =
+**last-write-wins** at PoC ([[lost-update]] named); DM-S3a-7 = **split** S3a-be/S3a-fe; DM-S3a-8 = reuse
+`search_entities_route`. Read the per-entry resolutions in `[[m4-entity-editing]]`. Original framing kept
+below for history.
+
+Raised by the M4.S3a first-write-slice `decompose-requirement` step-0 (2026-06-19, `[[m4-entity-editing]]`).
+Owner-confirmed scope (this session): from the read-only side panel ([[m4-side-panel]], shipped), make
+the inspected entity **editable** — its scalar fields (`canonical_name`, `aliases`, `type`) + `properties`,
+and **add / re-predicate / remove** relations between two already-accepted entities. This is the **first
+M4 slice that *writes* the graph**, so most stations flip from the read view's `n/a` to live, and the
+weight is on the write path + reversibility, not the UI. Full Context/Options/Proposal per entry live in
+the proposal's register; listed here so the vault's reader knows they gate the M4.S3a build. Register, all
+**OPEN**:
+- **DM-S3a-1 — the write path + the INV-9 rewording** (the central call): new, explicitly-named edit
+  handlers (`PATCH …/entities/{eid}` + relation edit ops, a [[backend-for-frontend]] *write* endpoint;
+  my lean) vs overloading the existing review services. Either way **INV-9's "exactly two writers" is
+  *reworded* to "only human-reached handlers — accept, decide, edit"** (the property unchanged; the
+  enumeration grows — the relation-write/ADR-0005 broadening precedent, not a new INV-10).
+- **DM-S3a-2 — reversibility & the edit-evidence record (INV-3)** (the load-bearing call): a minimal
+  append-only before→after graph-edit log (the graph-edit twin of `candidate_decisions`; my lean, also
+  flywheel substrate) vs an explicit "no undo / no before-image at PoC" INV-3-narrowing. The biggest
+  slice-size lever.
+- **DM-S3a-3 — relation add/re-predicate/remove mechanics**: route a manual add through the existing
+  decide path to keep `RelationReviewService` the **sole edge-writer** (my lean) vs direct
+  `create_relation`/`delete_relation`. Re-predicate is **delete+re-add** (edge id =
+  `uuid5(subject_id, predicate, object_id)`); a re-add colliding with an existing predicate **silently
+  MERGE-dedups** (warn?); manual **self-loop** allow-vs-reject.
+- **DM-S3a-4 — field edits ripple into the read views**: invalidate reader catalog + entity-detail +
+  graph on edit (confirm). Teachable payoff — DM-IH-1 render-time search means a corrected name
+  **re-highlights for free**, no span migration; flip side — a name not in the prose stops highlighting.
+- **DM-S3a-5 — open-world `properties` editing**: typed key/value (my lean, true to §3.2) vs string-only,
+  backend-validated, keys free (INV-4 — never a fixed schema).
+- **DM-S3a-6 — concurrency**: last-write-wins at PoC (my lean; the [[lost-update]] anomaly *named and
+  accepted* for one local author) vs optimistic concurrency (version/etag → 409).
+- **DM-S3a-7 — slice size**: split **M4.S3a-be** (mutators + edit service + evidence + endpoints) /
+  **M4.S3a-fe** (panel edit affordances + picker + hooks), mirroring S2a/S2b (my lean) vs one slice.
+- **DM-S3a-8 — entity-picker for add-relation**: reuse the project-scoped `search_entities_route`
+  (`GET …/entities?q=`, built for M3.S4d handpick) — confirm-only.
+- **Seam to later slices (not this slice's to fix):** entity↔entity **merge** + the **DM-Rel-5**
+  written-edge & `entity_mentions.entity_id` re-point + **whole-entity delete** + **undo-merge** are
+  **S3b**; manual **tag** from selection / **un-tag** / **change boundaries** (reopening DM-IH-1 span
+  storage) are **S3c**; general **split** + relation temporal/source qualifiers are post-PoC
+  (`docs/BACKLOG.md`).
 
 ## Referenced — owned by spec §10 (not duplicated)
 
