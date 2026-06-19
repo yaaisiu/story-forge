@@ -1515,6 +1515,10 @@
             "type": "string",
             "title": "Canonical Name"
           },
+          "language": {
+            "type": "string",
+            "title": "Language"
+          },
           "type": {
             "type": "string",
             "title": "Type"
@@ -1539,6 +1543,7 @@
         "required": [
           "entity_id",
           "canonical_name",
+          "language",
           "type",
           "aliases",
           "properties",

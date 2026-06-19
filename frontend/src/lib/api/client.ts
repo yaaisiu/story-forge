@@ -68,6 +68,26 @@ export async function postJsonBody<T>(path: string, body: unknown): Promise<T> {
   return readJson<T>(response);
 }
 
+/** PATCH an `application/json` body to `path` and parse the JSON response. */
+export async function patchJsonBody<T>(path: string, body: unknown): Promise<T> {
+  const response = await fetch(`${API_BASE_URL}${path}`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+  return readJson<T>(response);
+}
+
+/**
+ * DELETE `path`. The backend replies `204 No Content` on success, so there is no JSON
+ * body to parse — `readJson` already treats an empty body as `null`. A non-2xx (e.g. a
+ * 404 for an already-removed edge) still bubbles as a typed `ApiError`.
+ */
+export async function del(path: string): Promise<void> {
+  const response = await fetch(`${API_BASE_URL}${path}`, { method: "DELETE" });
+  await readJson<null>(response);
+}
+
 async function readJson<T>(response: Response): Promise<T> {
   const text = await response.text();
   const body: unknown = text ? safeJsonParse(text) : null;
