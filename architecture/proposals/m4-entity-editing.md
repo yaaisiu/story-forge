@@ -244,7 +244,7 @@ into the state-machine notes / `invariants.md` **only on acceptance** — propos
 
 ---
 
-## Decision register (OPEN — DM-S3a-1..8)
+## Decision register (RESOLVED 2026-06-19 — DM-S3a-1..8, owner)
 
 > Each entry: **Context / Options / My proposal / Open.** I *propose*; the owner *resolves*. Mirrored
 > to [[open-questions]] OQ-23. `verify-at-build` marks any call resting on un-inspected behaviour.
