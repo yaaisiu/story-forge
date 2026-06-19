@@ -110,6 +110,30 @@ class Neo4jRepo:
             alias=alias,
         )
 
+    async def update_entity(self, entity: GraphEntity) -> None:
+        """Re-SET an existing entity's editable fields (the human-edit path, M4.S3a, DM-S3a-1).
+
+        `MATCH` (not `MERGE`) on the id, then `SET` the mutable display/properties fields, so a
+        missing node is a no-op rather than a resurrection — the edit service re-reads via
+        `get_entity` first (the TOCTOU guard) and 404s before calling this. `type` is a node
+        *property* (not a label — see `create_entity`), so it is a plain SET. `properties` is
+        re-serialised wholesale; clearing a `canonical_name_*` to `None` removes that property
+        (Neo4j drops a null-valued property), which `get_entity`'s `.get()` restores as `None`.
+        Idempotent: re-applying the same next-state writes the same values.
+        """
+        await self._driver.execute_query(
+            "MATCH (e:Entity {id: $id}) "
+            "SET e.type = $type, e.canonical_name_pl = $canonical_name_pl, "
+            "e.canonical_name_en = $canonical_name_en, e.aliases = $aliases, "
+            "e.properties_json = $properties_json",
+            id=str(entity.id),
+            type=entity.type,
+            canonical_name_pl=entity.canonical_name_pl,
+            canonical_name_en=entity.canonical_name_en,
+            aliases=entity.aliases,
+            properties_json=json.dumps(entity.properties, ensure_ascii=False),
+        )
+
     async def get_entity(self, entity_id: UUID) -> GraphEntity | None:
         records, _, _ = await self._driver.execute_query(
             "MATCH (e:Entity {id: $id}) RETURN properties(e) AS props",
@@ -169,6 +193,21 @@ class Neo4jRepo:
         )
         return [self._to_relation(record) for record in records]
 
+    async def get_relation(self, project_id: UUID, edge_id: UUID) -> GraphRelation | None:
+        """A single edge by id, scoped to a project (both endpoints in `project_id`) — the
+        tenancy-safe read behind the manual relation edit path (M4.S3a). Used to detect a
+        re-predicate MERGE-collision before an add and to confirm an edge belongs to the project
+        before a remove. Returns `None` if no such in-project edge exists."""
+        records, _, _ = await self._driver.execute_query(
+            "MATCH (s:Entity {project_id: $pid})-[r {id: $eid}]->(o:Entity {project_id: $pid}) "
+            "RETURN type(r) AS type, properties(r) AS props, s.id AS sid, o.id AS oid",
+            pid=str(project_id),
+            eid=str(edge_id),
+        )
+        if not records:
+            return None
+        return self._to_relation(records[0])
+
     async def get_neighbourhood(self, entity_id: UUID) -> list[tuple[GraphRelation, GraphEntity]]:
         """The 1-hop neighbourhood of an entity: each incident edge + the node on its far end.
 
@@ -196,6 +235,17 @@ class Neo4jRepo:
             (self._to_relation(record), self._to_entity(dict(record["nprops"])))
             for record in records
         ]
+
+    async def delete_relation(self, edge_id: UUID) -> None:
+        """Remove a single graph edge by its deterministic id (the human relation-remove path,
+        M4.S3a, DM-S3a-3). Matched by edge id in either direction; a missing edge is a no-op (so a
+        retried remove is idempotent). Re-predicate is delete-old + `create_relation`-new, since
+        the edge id is `uuid5` of the (subject, predicate, object) triple — a new predicate is a
+        new edge, not an in-place update."""
+        await self._driver.execute_query(
+            "MATCH ()-[r {id: $id}]-() DELETE r",
+            id=str(edge_id),
+        )
 
     # --- Maintenance -------------------------------------------------------
 

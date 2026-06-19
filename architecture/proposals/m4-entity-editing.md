@@ -173,7 +173,10 @@ affordances** to that panel. An edit is a deterministic human-authored mutation 
 the boundary, (2) writes the committed graph object, (3) records before→after evidence (DM-S3a-2), and
 (4) invalidates the read views so the reader's highlights/colours and the panel reflect the change. The
 diagram shows my lean (new edit endpoints + an edit service that is a named graph-writer; relation-add
-routed to keep `RelationReviewService` the sole edge-writer — DM-S3a-1/3).
+routed to keep `RelationReviewService` the sole edge-writer — DM-S3a-1/3). **Build update:** the
+relation-add **resolved-at-build to a direct edge-writer** (DM-S3a-3 — the decide path is
+surface-name/paragraph-keyed, which a hand-picked edge lacks; ADR 0006), so the edit service writes
+edges directly (the generic "edge edit op" the diagram already shows) and INV-9 broadens for edges too.
 
 ```mermaid
 flowchart TD
@@ -302,12 +305,18 @@ into the state-machine notes / `invariants.md` **only on acceptance** — propos
   at PoC" decision (b)? This is the INV-3 call and the slice's biggest scope lever.
 
 ### DM-S3a-3 — Relation add / re-predicate / remove mechanics + the sole-edge-writer property
-> **✅ Decision (owner, 2026-06-19): (a) route a manual add through the existing decide path** —
-> `RelationReviewService` stays the **sole edge-writer** (INV-9 unbroadened for edges) and the manual edge
-> gets an audit row. Re-predicate = **delete + re-add** (edge id is `uuid5`-derived from the predicate);
-> **warn** on a MERGE-collision dedup; **allow** manual self-loops (subject == object) as intentional.
-> *Rejected:* (b) direct `create_relation`/`delete_relation` from the edit service (second edge-writer +
-> provenance hole).
+> **✅ Decision (owner, 2026-06-19): (a) *intended*; resolved-at-build to (b) direct edge-writer
+> (M4.S3a-be, ADR 0006).** The owner first chose (a) — route a manual add through the decide path so
+> `RelationReviewService` stays the sole edge-writer — *contingent on the `verify-at-build` below*. At
+> build the synthetic-staged-row path **did not compose**: `decide` resolves endpoints by
+> surface-name-within-a-paragraph (`_resolve` keys on `(paragraph_id, normalized_name)`), which a
+> hand-picked edge between two arbitrary accepted entities has neither of — synthesising a row would
+> mean fabricating a paragraph + names that round-trip to the chosen ids. So per this entry's
+> pre-authorized fallback, the owner approved **(b): a direct edge-writer** in `EntityEditService`
+> (`create_relation` reused for add, a new `delete_relation` for remove). The edge-writer set grows
+> under the same INV-9 rewording as nodes (DM-S3a-1). Unchanged either way: re-predicate = **delete +
+> re-add** (edge id is `uuid5`-derived); a duplicate add **surfaces** `merged_into_existing` (not an
+> error); manual **self-loops allowed**.
 - **Context.** Add/edit/remove a relation between two **existing accepted** entities. Three sub-facts:
   (i) `relation_edge_id = uuid5(subject_id, predicate, object_id)` — so **re-predicate is a different
   edge** = remove-old + add-new, not an in-place update; (ii) `create_relation` already MERGEs

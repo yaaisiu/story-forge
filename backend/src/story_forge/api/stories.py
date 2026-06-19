@@ -17,7 +17,7 @@ import httpx
 from fastapi import APIRouter, Depends, HTTPException, Request, Response, UploadFile
 from neo4j.exceptions import ServiceUnavailable
 from psycopg import AsyncConnection, OperationalError
-from pydantic import BaseModel
+from pydantic import BaseModel, field_validator
 
 from story_forge.adapters.db import get_connection
 from story_forge.adapters.llm.base import ProviderResponseError
@@ -49,6 +49,11 @@ from story_forge.agents.chunking_coordinator import (
     ChunkingCoordinator,
     ChunkingTooLongError,
 )
+from story_forge.agents.entity_edit import (
+    EntityEditService,
+    EntityNotFound,
+    RelationEdgeNotFound,
+)
 from story_forge.agents.extraction_agent import ExtractionError
 from story_forge.agents.extraction_coordinator import ExtractionCoordinator
 from story_forge.agents.matching_agent import ExistingEntity, search_entities
@@ -60,6 +65,7 @@ from story_forge.agents.relation_review import (
 from story_forge.config import settings
 from story_forge.domain.candidates import CandidateProposal, RelationStatus, StagedCandidate
 from story_forge.domain.chunking import outline_to_tree
+from story_forge.domain.entity_edits import EntityEditInvalid, EntityEditPatch
 from story_forge.domain.graph import GraphEntity
 from story_forge.domain.highlights import HighlightTarget, resolve_highlights
 from story_forge.domain.language import detect_language
@@ -727,6 +733,166 @@ async def get_entity_detail(
         properties=entity.properties,
         ego_graph=build_ego_graph(entity_id, incident),
     )
+
+
+# --- Edit the side panel (§3.4/§3.5 manual correction): the first M4 write slice ---
+
+
+def get_entity_edit(request: Request) -> EntityEditService:
+    """The app-lifetime entity/relation edit handler wired in `main.py` (a human-reached graph
+    writer alongside accept + decide — the INV-9 rewording, ADR 0006)."""
+    service: EntityEditService = request.app.state.entity_edit
+    return service
+
+
+class EntityEditResponse(BaseModel):
+    """The edited entity's display fields after a successful PATCH (M4.S3a). The side panel
+    invalidates + refetches the full detail bundle (ego-graph, occurrences) via the GET endpoint
+    (DM-S3a-4), so this slim shape carries only what the edit changed."""
+
+    entity_id: UUID
+    canonical_name: str
+    type: str
+    aliases: list[str]
+    properties: dict[str, object]
+
+
+class AddRelationRequest(BaseModel):
+    """Add a relation between two accepted entities (DM-S3a-3). A self-loop (subject == object)
+    is allowed — a manual one is intentional. Re-predicate is a remove + add, client-side."""
+
+    subject_id: UUID
+    predicate: str
+    object_id: UUID
+
+    @field_validator("predicate")
+    @classmethod
+    def _predicate_non_empty(cls, value: str) -> str:
+        # Reject a blank predicate at the request boundary (a clean 422, vs an uncaught
+        # ValidationError from `GraphRelation` → 500), and **strip** it so the deterministic
+        # `relation_edge_id` and the Neo4j relationship type don't fork on incidental whitespace
+        # ("  LOVES  " vs "LOVES") — matching how `apply_entity_edit` strips an entity's `type`.
+        stripped = value.strip()
+        if not stripped:
+            raise ValueError("predicate must be a non-empty string")
+        return stripped
+
+
+class RelationEditResponse(BaseModel):
+    """Outcome of adding a relation: the edge id + whether the add folded onto an edge that
+    already existed (the duplicate/re-predicate collision the UI warns on, DM-S3a-3)."""
+
+    edge_id: UUID
+    merged_into_existing: bool
+
+
+@router.patch(
+    "/{story_id}/entities/{entity_id}",
+    responses={
+        400: {"model": ErrorResponse, "description": "The edit is invalid (blank name or type)."},
+        404: {"model": ErrorResponse, "description": "Story or entity not found."},
+        503: {"model": ErrorResponse, "description": "A data store is unavailable."},
+    },
+)
+async def edit_entity_route(
+    story_id: UUID,
+    entity_id: UUID,
+    body: EntityEditPatch,
+    conn: Annotated[AsyncConnection, Depends(get_connection)],
+    edit: Annotated[EntityEditService, Depends(get_entity_edit)],
+) -> EntityEditResponse:
+    """Edit an accepted entity's name/aliases/type/`properties` (spec §3.4, DM-S3a-1).
+
+    A human-reached graph write (INV-9 as reworded — ADR 0006): re-reads under the project's
+    tenancy key, validates + merges the patch, writes the node, and records a before→after
+    edit-evidence row (INV-3, DM-S3a-2). A blank name/type is rejected (400). `properties` stays
+    open (INV-4). A corrected name/alias re-highlights in the reader for free (render-time search,
+    DM-S3a-4); the panel invalidates + refetches the detail bundle.
+    """
+    story = await get_story(conn, story_id)
+    if story is None:
+        raise HTTPException(status_code=404, detail="story not found")
+    try:
+        updated = await edit.edit_entity(story.project_id, entity_id, body)
+    except EntityNotFound as exc:
+        raise HTTPException(status_code=404, detail="entity not found") from exc
+    except EntityEditInvalid as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except (OperationalError, ServiceUnavailable) as exc:
+        raise HTTPException(status_code=503, detail="a data store is unavailable") from exc
+
+    project = await get_project(conn, story.project_id)
+    language = project.language if project is not None else "pl"
+    return EntityEditResponse(
+        entity_id=updated.id,
+        canonical_name=canonical_for_language(updated, language),
+        type=updated.type,
+        aliases=updated.aliases,
+        properties=updated.properties,
+    )
+
+
+@router.post(
+    "/{story_id}/relations",
+    responses={
+        404: {"model": ErrorResponse, "description": "Story or an endpoint entity not found."},
+        503: {"model": ErrorResponse, "description": "A data store is unavailable."},
+    },
+)
+async def add_relation_route(
+    story_id: UUID,
+    body: AddRelationRequest,
+    conn: Annotated[AsyncConnection, Depends(get_connection)],
+    edit: Annotated[EntityEditService, Depends(get_entity_edit)],
+) -> RelationEditResponse:
+    """Add a relation between two accepted entities (spec §3.4, DM-S3a-3, direct edge-writer).
+
+    Both endpoints must already be accepted in this project (else 404). A duplicate add MERGEs
+    onto the existing edge and is reported via `merged_into_existing` rather than erroring; a
+    manual self-loop is allowed. Records a before→after edit-evidence row (INV-3, DM-S3a-2).
+    """
+    story = await get_story(conn, story_id)
+    if story is None:
+        raise HTTPException(status_code=404, detail="story not found")
+    try:
+        result = await edit.add_relation(
+            story.project_id, body.subject_id, body.predicate, body.object_id
+        )
+    except EntityNotFound as exc:
+        raise HTTPException(status_code=404, detail="an endpoint entity not found") from exc
+    except (OperationalError, ServiceUnavailable) as exc:
+        raise HTTPException(status_code=503, detail="a data store is unavailable") from exc
+    return RelationEditResponse(
+        edge_id=result.edge_id, merged_into_existing=result.merged_into_existing
+    )
+
+
+@router.delete(
+    "/{story_id}/relations/{edge_id}",
+    status_code=204,
+    responses={
+        404: {"model": ErrorResponse, "description": "Story or relation edge not found."},
+        503: {"model": ErrorResponse, "description": "A data store is unavailable."},
+    },
+)
+async def remove_relation_route(
+    story_id: UUID,
+    edge_id: UUID,
+    conn: Annotated[AsyncConnection, Depends(get_connection)],
+    edit: Annotated[EntityEditService, Depends(get_entity_edit)],
+) -> Response:
+    """Remove a relation edge (spec §3.4, DM-S3a-3). 404s if the edge isn't in this project (a
+    stale double-remove); records the before-image for undo (INV-3, DM-S3a-2)."""
+    story = await get_story(conn, story_id)
+    if story is None:
+        raise HTTPException(status_code=404, detail="story not found")
+    try:
+        await edit.remove_relation(story.project_id, edge_id)
+    except RelationEdgeNotFound as exc:
+        raise HTTPException(status_code=404, detail="relation not found") from exc
+    except (OperationalError, ServiceUnavailable) as exc:
+        raise HTTPException(status_code=503, detail="a data store is unavailable") from exc
+    return Response(status_code=204)
 
 
 # --- Review queue (Stage 4): list pending / accept / reject -----------------
