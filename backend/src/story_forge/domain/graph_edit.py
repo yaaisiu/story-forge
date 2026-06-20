@@ -30,6 +30,13 @@ class GraphEdit(BaseModel):
     `target_id` is a **Neo4j** id (entity id or edge id) — a soft cross-store key, no FK.
     `before`/`after` carry the changed state: for an entity field edit, the changed-fields maps;
     for an edge add, only `after`; for an edge remove, only `before`.
+
+    M4.S3b adds the **grouping** fields. A single author action (a merge, later a delete/undo)
+    fans out into many rows that must be reversed as one unit, so they share an `operation_id` and
+    carry a per-operation `seq`. `op_kind` names the grouped operation (`'merge'`; later
+    `'delete'`/`'undo'`), `description` is the human-readable label the undo affordance previews
+    (DM-S3b-1, see-what-I-undo), and `project_id` scopes the undo stack per project. A standalone
+    S3a edit row leaves these `None` (no group) — `operation_id is None` = its own singleton.
     """
 
     id: UUID = Field(default_factory=uuid4)
@@ -40,3 +47,8 @@ class GraphEdit(BaseModel):
     after: dict[str, object] | None = None
     actor: str = "human"
     created_at: datetime = Field(default_factory=_now)
+    operation_id: UUID | None = None
+    seq: int = 0
+    op_kind: str | None = None
+    description: str | None = None
+    project_id: UUID | None = None

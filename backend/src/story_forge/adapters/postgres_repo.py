@@ -272,6 +272,24 @@ async def insert_entity_mention(conn: AsyncConnection, mention: EntityMention) -
     )
 
 
+async def repoint_entity_mentions(
+    conn: AsyncConnection, *, from_entity_id: UUID, to_entity_id: UUID
+) -> list[UUID]:
+    """Move every mention of one entity onto another — the cross-store half of a merge (M4.S3b,
+    DM-S3b-4). When B is merged into A, B's `entity_mentions` rows must follow or the reader
+    silently drops B's highlights / the side panel shows a ghost. There is no FK on `entity_id`
+    (the entity lives in Neo4j), so this is a plain bulk `UPDATE`; the per-mention `embedding`
+    `vector(768)` follows the row for free. Idempotent: a re-run after the move matches no rows
+    (B is gone) and returns ``[]``. **Returns the ids of the rows it moved** (via `RETURNING`) —
+    the merge records them in the before-image so undo (M4.S3b-be2) re-points *exactly* those
+    rows back to B, not A's own mentions."""
+    cur = await conn.execute(
+        "UPDATE entity_mentions SET entity_id = %s WHERE entity_id = %s RETURNING id",
+        (to_entity_id, from_entity_id),
+    )
+    return [row[0] for row in await cur.fetchall()]
+
+
 async def list_entity_mentions_for_paragraph(
     conn: AsyncConnection, paragraph_id: UUID
 ) -> list[EntityMention]:

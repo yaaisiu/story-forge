@@ -81,6 +81,12 @@ edit. "Never trust the LLM and forget."
   decisions (DM-S4a-4). The §4.2 `edit_history` (the *text-edit* dataset) is a different shape and
   is deferred to the editing milestone; graph operations are designed undoable; the review queue is
   the human surface. See [[compliance-audit-layer]].
+- **Edit + merge trail (M4.S3a/S3b).** Every committed-graph edit (S3a) records a before→after
+  `graph_edits` row; a merge (S3b-be1) records its whole fan-out as **one grouped operation** in the
+  same log (`operation_id` + `seq` + a human-readable `description`) — the compensating-transaction
+  *substrate* for undo (ADR 0007, DM-S3b-1, resolving §10 q2 as "append-only log, executed"). The
+  log is *written* in be1; the undo *executor* that consumes it (newest-first, with a drift check)
+  lands in M4.S3b-be2 — so reversibility is **enabled and recorded** now, **executed** in be2.
 
 ### INV-4 — Open-world ontology: types are never a closed enum
 Entity `type` and relation type are open-world (**ontologia otwarta** — the set of kinds is not
@@ -174,8 +180,8 @@ duplicate problem that M3's cascade then solves.
 
 ### INV-9 — No automated stage writes the graph
 The graph is written **only by human-reached handlers** — the accept handler (creates nodes), the
-relation-decide handler (commits staged edges), and the edit handler (edits committed nodes + adds/
-removes edges). No extraction agent, matching/embedding/judge stage, or coordinator may write a
+relation-decide handler (commits staged edges), and the edit handler (edits committed nodes, adds/
+removes edges, and **merges/deletes** entities). No extraction agent, matching/embedding/judge stage, or coordinator may write a
 Neo4j node or edge — they may only *stage* a proposal into Postgres. The general, greppable form of
 INV-1's guarantee: where INV-1 is about *who commits* (a human), INV-9 is about *what code may touch
 Neo4j* (only the human-reached handlers). **The guarded property is unchanged from M3's "exactly two
@@ -191,9 +197,9 @@ ADR 0006, DM-S3a-1.)
   `RelationReviewService` (staged edges, `agents/relation_review.py`), and — from M4.S3a —
   `EntityEditService` (committed-node edits + manual edge add/remove, `agents/entity_edit.py`). Guard:
   a reviewer can grep for `create_entity` / `add_alias` / `create_relation` / `update_entity` /
-  `delete_relation` and find them reachable only from a human-reached handler — a future contributor
-  "optimising" a confident auto-merge, an auto-edge, or an auto-edit into a direct write would violate
-  this, not improve it.
+  `delete_relation` / `delete_entity` and find them reachable only from a human-reached handler — a
+  future contributor "optimising" a confident auto-merge, an auto-edge, or an auto-edit into a direct
+  write would violate this, not improve it.
 - **Second witnessed instance (M3.S4e, edges).** INV-9 always said "node *or edge*"; until S4e no
   code wrote an edge at all (`create_relation` had zero callers). S4e makes the edge case real:
   `RelationReviewService` is the sole edge writer, reached only from the human decide endpoint;
@@ -207,6 +213,14 @@ ADR 0006, DM-S3a-1.)
   hand-picked edge has neither of — DM-S3a-3, owner-resolved at build), so the edge-writer set grows
   too. Every write records a before→after `graph_edits` row (INV-3, DM-S3a-2). The guard is unchanged:
   the writer is reached only from a human handler. See ADR 0006, [[m4-entity-editing]] register.
+- **Fourth witnessed instance (M4.S3b, merge — destructive, multi-write).** Merging entity B into A is
+  the first operation that *re-points already-committed identity*: `EntityEditService.merge_entities`
+  folds B into A, re-points every incident edge (delete-old + create-new via `create_relation`/
+  `delete_relation`), re-points B's Postgres mentions, and **`delete_entity`**-s B — all reached only
+  from `POST …/entities/{eid}/merge`. The new node-writer `delete_entity` joins the grep set; the
+  *enumeration* still grows (no new writer class — the operation lives in the existing edit handler),
+  and the guarded property is unchanged. The whole fan-out is recorded as one grouped, reversible
+  `graph_edits` operation (INV-3). See ADR 0007, [[m4-s3b-graph-mutations]] register.
 - **Why it matters:** it is exactly the property a well-meaning optimisation would silently break, and
   it gives the flip test a name. See [[fail-closed]], [[candidate-lifecycle]].
 - **The line INV-9 draws is *graph vs staging*, not *human vs automated* (clarified M3.S4c).** On-accept

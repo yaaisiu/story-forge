@@ -111,6 +111,14 @@ stateDiagram-v2
   values), recorded as a before→after `graph_edits` row (ADR 0006, DM-S3a-2). This does **not** reopen
   or re-transition the candidate row; the candidate machine stays terminal. (Edges have the parallel
   extension in [[relation-lifecycle]] — manual add + `written → removed`.)
+- **The committed node gains a `→ deleted` exit (M4.S3b-be1, merge).** Merging entity B into survivor
+  A `DETACH DELETE`-s B's node (`EntityEditService.merge_entities` → `delete_entity`) while A takes a
+  self-transition (B's aliases/properties fold in). So a committed node — the *terminal product* of
+  this candidate machine — can now leave the graph entirely, the first such exit. As with the edit
+  self-transition, this does **not** touch the absorbed candidate's terminal row (the `candidate_decisions`
+  history stays intact); the deletion is recorded in the merge's grouped `graph_edits` operation with a
+  full before-image snapshot, so undo (be2) can restore the node (ADR 0007, DM-S3b-5). (Whole-entity
+  *delete* — the same `→ deleted` exit without a survivor — is M4.S3b-be2.)
 - **`extracted` cannot skip to a terminal** — it must pass the cascade then the human.
 - **On-accept re-match is monotone and staging-only** (M3.S4c). The `review-queued → review-queued`
   self-loop re-runs the *deterministic* matcher (Stage 1/2, never the judge) over still-pending
