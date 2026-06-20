@@ -244,6 +244,25 @@ deferred nit doesn't quietly grow into something bigger):
   silently wrong (panel overflows or leaves dead space). Folds naturally into the *resizable panel* work
   above — derive the bound from layout rather than a literal. (Session 35 `/code-review`.)
 
+### Edit-affordance UX, deferred from M4.S3a-fe (Session 38)
+
+The editable panel (M4.S3a-fe, PR #98) shipped **functional**; the owner explicitly deferred UX polish
+past PoC ("not the time for UX… we'll iron the wrinkles after PoC"):
+
+- **Relation add/edit UX is bare.** Adding a relation is a predicate text box + an entity search + a
+  this→other/this←other direction toggle. Richer would be: edit a predicate in place (instead of
+  remove + re-add), autocomplete predicates from existing edge types, and a clearer subject/object
+  affordance than the arrow toggle.
+- **Undo execution (the button) isn't built.** Every edit already records a before→after `graph_edits`
+  row (INV-3 substrate), but there is no undo UI yet — corrections are forward-only (re-edit / remove +
+  re-add). Undo-execution lands with **M4.S3b** (alongside undo-merge); this note tracks the *UI* gap.
+- **A blank property key is silently dropped on save.** `rowsToProperties` skips a row whose key is
+  empty (and a duplicate key → last-wins) with no hint to the author. Harmless, but a soft inline
+  warning ("this row has no key and won't be saved") would be friendlier.
+- **No "this name no longer appears in the text" hint.** Renaming an entity to a string absent from the
+  prose correctly makes it stop highlighting (zero render-time matches, DM-S3a-4) — but silently. A soft
+  hint (DM-S3a-4's deferred half) would tell the author aliases are the lever to restore coverage.
+
 These were kept light on purpose — proof-of-concept, not final UI. (Owner browser check + `/code-review`, Session 35.)
 
 ## Automated test tooling — Playwright + Postman (post-PoC)
@@ -332,3 +351,21 @@ Things to think through post-PoC:
   in a timeless, single-snapshot edge that a later temporal model has to unpick. This is a design
   constraint to keep in mind on **current** relation-modelling decisions, not scheduled work. (Owner
   idea, 2026-06-19.)
+
+---
+
+## Process & tooling (post-PoC)
+
+Refinements to *how we build*, deferred so they don't churn the process mid-PoC. (Process
+changes still follow the human-in-the-loop `/retro` flow — this is just where the *idea* waits.)
+
+- **Sweep skills + `AGENTS.md`/`CLAUDE.md` for soft/optional latitude phrasing.** Session 38
+  surfaced that `/wrap-session` step 2 let the agent *self-assess* "this was routine" and skip the
+  `/retro` prompt instead of asking (now fixed). The **class** of issue — rules worded with
+  "maybe / at your discretion / if it feels routine / a X skipped by choice is fine" that let the
+  agent decide what should be a deterministic step or an explicit user ask — likely recurs in other
+  skills. Do a dedicated pass: grep the skills + the `AGENTS.md` files for that kind of latitude,
+  and propose tightenings **one at a time** (each through `/retro`, human-approved) so a soft rule
+  becomes either deterministic or an explicit "ask the user." Keep simplicity-first — only tighten
+  phrasing that actually invites the agent to skip/guess a step, not every hedge. (Owner nudge,
+  Session 38: "tighten up our rules and skills so they are more predictable/deterministic.")
