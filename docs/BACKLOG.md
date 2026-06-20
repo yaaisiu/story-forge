@@ -282,6 +282,42 @@ past PoC ("not the time for UX… we'll iron the wrinkles after PoC"):
 
 These were kept light on purpose — proof-of-concept, not final UI. (Owner browser check + `/code-review`, Session 35.)
 
+## Undo / delete robustness — V1 hardening (deferred from M4.S3b-be2, Session 42)
+
+The general undo executor (M4.S3b-be2, PR #105) is **correct and reversible for the single local
+author** the PoC targets; these make it sturdier for V1 / multi-context use. All were surfaced by the
+session's `/review-pr` + multi-agent `/code-review` and consciously deferred (PoC-acceptable), recorded
+here so they don't evaporate (owner ask: "note what should be done to make it more robust and better
+working"). Routed here, not `PLAN_SHORT`, because none gates the current milestone.
+
+- **Bound the undo stack (depth cap).** `graph_edits` retention is unbounded at PoC (the same
+  none-at-PoC posture as `candidate_decisions` / `staged_relations`; ADR 0007, DM-S3b-7). A V1 depth
+  cap (keep the last N operations, prune older grouped rows) prevents the log growing without limit.
+- **Make undo-stack-head selection clock-independent.** `latest_live_operation` finds the top of the
+  stack with `ORDER BY created_at DESC` over `graph_edits`, where each row of one grouped operation
+  carries its *own* `default_factory` timestamp. It's correct for a single sequential author, but it
+  leans on the highest-`seq` row being the latest-stamped. Stamp **one `created_at` per operation**
+  (or order by a monotonic per-operation sequence) so concurrent/interleaved writes can't make the
+  head land on the wrong (or a partial) operation.
+- **Signal when an undo can't fully restore (open-world churn).** Undo of a delete recreates the node
+  then its incident edges; if a *neighbour* was deleted in the meantime, `create_relation`'s
+  endpoint-`MATCH` silently no-ops and that edge isn't restored (and the drift check only guards the
+  primary entity, not far endpoints). Same for the delete-of-a-merge-survivor case (DM-S3b-5, owner
+  chose allow + drift-refuse). Acceptable at PoC, but undo should **report** what it couldn't restore
+  rather than claim a clean `applied`.
+- **Harden the delete snapshot against a mid-delete crash.** `delete_entity` snapshots mentions+edges
+  in memory, then deletes mentions, then the node, then writes evidence. A crash *between* the mention
+  delete and the node delete, followed by a re-invocation, re-snapshots empty mentions (the node is
+  still present) → that delete's undo can't restore them. Narrow window, single-user; a sturdier shape
+  (e.g. evidence-as-pending-first, or a single cross-store unit) would close it.
+- **Collapse the two grouped-row factories.** `_merge_rows` and `_delete_rows` (in
+  `agents/entity_edit.py`) hand-maintain the same `id=uuid5(operation_id:seq)` + grouping-column row
+  shape; a shared `_grouped_row(...)` factory would keep the id/idempotency scheme in one place when a
+  third grouped op (split/un-merge) arrives. (Altitude nit from `/code-review`; pure refactor.)
+- **`_next_generation` is a linear probe.** It queries `is_operation_undone` once per prior undone
+  generation of the same targets. Fine at PoC depths; a single `MAX(generation)`-style read (or storing
+  the generation explicitly) would make it O(1) and order-independent.
+
 ## Automated test tooling — Playwright + Postman (post-PoC)
 
 Stand up **end-to-end browser tests (Playwright)** and **API contract/integration tests (Postman)**
