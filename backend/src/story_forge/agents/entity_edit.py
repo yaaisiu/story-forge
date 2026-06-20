@@ -267,6 +267,9 @@ class EntityEditService:
                     "subject_id": str(subject_id),
                     "predicate": predicate,
                     "object_id": str(object_id),
+                    # whether the add MERGE-folded onto an edge that already existed: if so the add
+                    # created nothing, so undo must *not* delete that pre-existing edge (DM-S3a-3).
+                    "merged_into_existing": existing is not None,
                 },
                 project_id=project_id,
             )
@@ -286,11 +289,9 @@ class EntityEditService:
                 target_id=edge_id,
                 target_kind="relation",
                 op="remove_relation",
-                before={
-                    "subject_id": str(existing.subject_id),
-                    "predicate": existing.type,
-                    "object_id": str(existing.object_id),
-                },
+                # full edge snapshot (not just subject/predicate/object) so undo restores the exact
+                # edge — its `confidence`/`properties` too, not a manual-confidence approximation.
+                before=existing.model_dump(mode="json"),
                 project_id=project_id,
             )
         )

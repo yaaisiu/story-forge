@@ -255,6 +255,81 @@ def test_remove_relation_singleton_inverse_recreates_the_edge() -> None:
     )
 
 
+def test_fold_relation_inverse_recreates_old_without_removing_a_pre_existing_edge() -> None:
+    """A fold MERGEs B's re-pointed edge onto an edge A *already had*, so undo only recreates B's
+    old edge — never RemoveRelation the folded id, which is A's pre-existing edge (data loss)."""
+    survivor, absorbed, other = _entity(canonical_name_pl="A"), _entity(), uuid4()
+    b_edge = _edge(absorbed.id, other)  # B —KNOWS→ X
+    a_existing = _edge(survivor.id, other)  # A —KNOWS→ X (already on A → the fold target)
+    row = GraphEdit(
+        operation_id=uuid4(),
+        seq=1,
+        op_kind="merge",
+        project_id=PROJECT,
+        target_id=b_edge.id,
+        target_kind="relation",
+        op="fold_relation",
+        before=b_edge.model_dump(mode="json"),
+        after=a_existing.model_dump(mode="json"),
+    )
+
+    plan = invert_operation([row])
+
+    assert plan.actions == [RecreateRelation(relation=b_edge)]
+    assert not any(isinstance(a, RemoveRelation) for a in plan.actions)
+
+
+def test_add_relation_inverse_is_a_noop_when_it_folded_onto_an_existing_edge() -> None:
+    """If the forward add MERGE-folded onto a pre-existing edge it created nothing, so undo must not
+    delete that edge."""
+    row = GraphEdit(
+        target_id=uuid4(),
+        target_kind="relation",
+        op="add_relation",
+        after={
+            "subject_id": str(uuid4()),
+            "predicate": "LOVES",
+            "object_id": str(uuid4()),
+            "merged_into_existing": True,
+        },
+    )
+    assert invert_operation([row]).actions == []
+
+
+def test_remove_relation_inverse_restores_full_edge_from_a_snapshot() -> None:
+    """A be2 remove row carries the full edge dump, so undo restores its exact confidence/properties
+    (not a manual-confidence approximation)."""
+    edge = GraphRelation(
+        type="GUARDS",
+        subject_id=uuid4(),
+        object_id=uuid4(),
+        confidence=0.8,
+        properties={"since": "ch1"},
+    )
+    row = GraphEdit(
+        target_id=edge.id,
+        target_kind="relation",
+        op="remove_relation",
+        before=edge.model_dump(mode="json"),
+    )
+    plan = invert_operation([row])
+    assert plan.actions == [RecreateRelation(relation=edge)]
+
+
+def test_remove_relation_inverse_tolerates_a_legacy_thin_snapshot() -> None:
+    """A pre-be2 S3a remove row stored only subject/predicate/object — undo still rebuilds it."""
+    edge_id, subject, obj = uuid4(), uuid4(), uuid4()
+    row = GraphEdit(
+        target_id=edge_id,
+        target_kind="relation",
+        op="remove_relation",
+        before={"subject_id": str(subject), "predicate": "LOVES", "object_id": str(obj)},
+    )
+    rel = invert_operation([row]).actions[0]
+    assert isinstance(rel, RecreateRelation)
+    assert (rel.relation.id, rel.relation.type, rel.relation.confidence) == (edge_id, "LOVES", 1.0)
+
+
 def test_discard_self_loop_inverse_recreates_the_dropped_edge() -> None:
     survivor = _entity()
     loop = _edge(survivor.id, survivor.id)

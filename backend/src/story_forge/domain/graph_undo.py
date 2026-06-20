@@ -146,32 +146,46 @@ def invert_operation(rows: Sequence[GraphEdit]) -> InversePlan:
                 expect_present=True,
                 expected_fields=dict(row.after) if row.after is not None else None,
             )
-        elif row.op in ("repoint_relation", "fold_relation"):
-            # forward = delete old_edge, create new_edge(after); undo = delete new, recreate old.
+        elif row.op == "repoint_relation":
+            # forward = delete old_edge, create a *genuinely new* new_edge(after) on A; undo =
+            # delete that new edge, recreate the old one.
             after = _require(row.after, row.op)
             before = _require(row.before, row.op)
             actions.append(RemoveRelation(edge_id=UUID(str(after["id"]))))
             actions.append(RecreateRelation(relation=GraphRelation(**before)))
+        elif row.op == "fold_relation":
+            # forward = delete B's old_edge, then MERGE onto an edge **A already had** (new_edge.id
+            # is A's pre-existing edge — that's what makes it a fold). So the new edge must NOT be
+            # removed on undo (it was never created here); undo only recreates B's old edge.
+            actions.append(RecreateRelation(relation=GraphRelation(**_require(row.before, row.op))))
         elif row.op == "discard_self_loop":
             # forward dropped the old edge (no new edge); undo re-creates it.
             actions.append(RecreateRelation(relation=GraphRelation(**_require(row.before, row.op))))
         elif row.op == "add_relation":
-            # forward created the edge at target_id (before is None); undo removes it.
-            actions.append(RemoveRelation(edge_id=row.target_id))
+            # forward created the edge at target_id (before is None) — UNLESS it MERGE-folded onto
+            # an edge that already existed, creating nothing, in which case undo must not delete
+            # that pre-existing edge. The `after` image records which (legacy rows: no flag = made).
+            if not (row.after or {}).get("merged_into_existing"):
+                actions.append(RemoveRelation(edge_id=row.target_id))
         elif row.op == "remove_relation":
-            # forward deleted the edge; undo re-creates it from the before-image at target_id.
+            # forward deleted the edge; undo re-creates it from the before-image. A be2+ row carries
+            # the full edge snapshot (faithful confidence/properties); a legacy S3a row carried only
+            # subject/predicate/object — reconstruct it at manual confidence, the best it can do.
             before = _require(row.before, row.op)
-            actions.append(
-                RecreateRelation(
-                    relation=GraphRelation(
-                        id=row.target_id,
-                        type=str(before["predicate"]),
-                        subject_id=UUID(str(before["subject_id"])),
-                        object_id=UUID(str(before["object_id"])),
-                        confidence=1.0,
+            if "type" in before:
+                actions.append(RecreateRelation(relation=GraphRelation(**before)))
+            else:
+                actions.append(
+                    RecreateRelation(
+                        relation=GraphRelation(
+                            id=row.target_id,
+                            type=str(before["predicate"]),
+                            subject_id=UUID(str(before["subject_id"])),
+                            object_id=UUID(str(before["object_id"])),
+                            confidence=1.0,
+                        )
                     )
                 )
-            )
         elif row.op == "repoint_mentions":
             before = _require(row.before, row.op)
             actions.append(

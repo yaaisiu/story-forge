@@ -1162,7 +1162,7 @@ export interface components {
         /**
          * UndoResponse
          * @description What the undo affordance shows (DM-S3b-1, see-what-I-undo). On a real undo `applied` is True
-         *     and `description` names what was reversed ("merged Broniek into Bronisław"); with `?preview=true`
+         *     and `description` names what was reversed ("merged Broniek into Bronisław"); with `preview=true`
          *     `applied` is False and it reports what *would* be reversed without touching the graph.
          */
         UndoResponse: {

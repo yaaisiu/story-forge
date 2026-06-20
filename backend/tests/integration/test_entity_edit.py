@@ -385,6 +385,50 @@ async def test_remerge_after_undo_is_not_dropped_by_the_id_collision(live: _Live
     assert await live.graph.get_entity(absorbed.id) is not None  # the re-merge's undo worked
 
 
+async def test_merge_with_a_folded_edge_then_undo_keeps_the_survivors_own_edge(live: _Live) -> None:
+    """When B and A both relate to a common neighbour, B's edge folds onto A's existing one. Undo
+    must restore B's edge **without** deleting A's pre-existing edge (the fold-undo data-loss)."""
+    survivor = GraphEntity(
+        type="Character", canonical_name_pl="Bronisław", project_id=live.project_id
+    )
+    absorbed = GraphEntity(
+        type="Character", canonical_name_pl="Broniek", project_id=live.project_id
+    )
+    common = GraphEntity(type="Character", canonical_name_pl="Maria", project_id=live.project_id)
+    for entity in (survivor, absorbed, common):
+        await live.graph.create_entity(entity)
+    a_edge = await live.service.add_relation(live.project_id, survivor.id, "KNOWS", common.id)
+    b_edge = await live.service.add_relation(live.project_id, absorbed.id, "KNOWS", common.id)
+
+    # merge folds B's KNOWS edge onto A's existing one (A keeps a single A→Maria edge, B gone)
+    summary = await live.service.merge_entities(live.project_id, absorbed.id, survivor.id, {})
+    assert summary.folded_count == 1
+    assert await _relation_ids(live) == {a_edge.edge_id}
+
+    await live.service.undo_last(live.project_id)
+
+    # B is back with its own edge, AND A still has the edge it owned before the merge
+    assert await live.graph.get_entity(absorbed.id) is not None
+    assert await _relation_ids(live) == {a_edge.edge_id, b_edge.edge_id}
+
+
+async def test_undo_of_a_folded_add_does_not_delete_the_pre_existing_edge(live: _Live) -> None:
+    """Re-adding a relation that already exists MERGE-folds (creates nothing); undoing that add must
+    be a no-op, not a deletion of the edge that was already there."""
+    janek = GraphEntity(type="Character", canonical_name_pl="Janek", project_id=live.project_id)
+    maria = GraphEntity(type="Character", canonical_name_pl="Maria", project_id=live.project_id)
+    await live.graph.create_entity(janek)
+    await live.graph.create_entity(maria)
+    first = await live.service.add_relation(live.project_id, janek.id, "LOVES", maria.id)
+    folded = await live.service.add_relation(live.project_id, janek.id, "LOVES", maria.id)
+    assert folded.merged_into_existing is True
+
+    result = await live.service.undo_last(live.project_id)  # undoes the folded (no-op) add
+
+    assert result.applied is True
+    assert await _relation_ids(live) == {first.edge_id}  # the edge survives
+
+
 async def test_undo_with_empty_stack_is_not_found(live: _Live) -> None:
     with pytest.raises(NothingToUndo):
         await live.service.undo_last(live.project_id)

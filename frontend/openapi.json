@@ -2812,7 +2812,7 @@
           "applied"
         ],
         "title": "UndoResponse",
-        "description": "What the undo affordance shows (DM-S3b-1, see-what-I-undo). On a real undo `applied` is True\nand `description` names what was reversed (\"merged Broniek into Bronis\u0142aw\"); with `?preview=true`\n`applied` is False and it reports what *would* be reversed without touching the graph."
+        "description": "What the undo affordance shows (DM-S3b-1, see-what-I-undo). On a real undo `applied` is True\nand `description` names what was reversed (\"merged Broniek into Bronis\u0142aw\"); with `preview=true`\n`applied` is False and it reports what *would* be reversed without touching the graph."
       },
       "ValidationError": {
         "properties": {

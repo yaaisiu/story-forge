@@ -38,6 +38,10 @@ class FakeGraph:
     async def get_entity(self, entity_id: UUID) -> GraphEntity | None:
         return self.entities.get(entity_id)
 
+    async def create_entity(self, entity: GraphEntity) -> None:
+        self.entities.setdefault(entity.id, entity)  # MERGE ... ON CREATE: no clobber
+        self._events.append(("create_entity", entity.id))
+
     async def update_entity(self, entity: GraphEntity) -> None:
         self.entities[entity.id] = entity
         self._events.append(("update_entity", entity.id))
@@ -219,6 +223,7 @@ async def test_add_relation_writes_edge_then_evidence_and_flags_no_collision() -
         "subject_id": str(janek.id),
         "predicate": "LOVES",
         "object_id": str(maria.id),
+        "merged_into_existing": False,  # the add created a new edge (so undo deletes it)
     }
 
 
@@ -266,11 +271,13 @@ async def test_remove_relation_records_before_image_then_deletes() -> None:
 
     assert add.edge_id not in graph.relations
     assert events == [("delete_relation", add.edge_id), ("record_edit", "remove_relation")]
-    assert evidence.rows[-1].before == {  # type: ignore[attr-defined]
-        "subject_id": str(janek.id),
-        "predicate": "LOVES",
-        "object_id": str(maria.id),
-    }
+    # the before-image is the full edge snapshot (so undo restores its exact confidence/properties)
+    before = evidence.rows[-1].before  # type: ignore[attr-defined]
+    assert before["id"] == str(add.edge_id)
+    assert before["type"] == "LOVES"
+    assert before["subject_id"] == str(janek.id)
+    assert before["object_id"] == str(maria.id)
+    assert before["confidence"] == 1.0
 
 
 async def test_remove_relation_missing_edge_is_not_found() -> None:
