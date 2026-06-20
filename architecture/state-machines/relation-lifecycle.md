@@ -1,7 +1,7 @@
 ---
 type: state-machine
 slug: relation-lifecycle
-updated: 2026-06-18
+updated: 2026-06-20
 status: living
 related:
   - "[[candidate-lifecycle]]"

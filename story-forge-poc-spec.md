@@ -206,6 +206,8 @@ Visualization requirements:
   - all occurrences (links to paragraphs)
   - outgoing/incoming relations (editable)
   - timeline (where it appears in the story)
+  - **Merge entities** — pick another entity as the merge target; you choose which one survives, and for any property the two set differently you pick the value to keep (non-conflicting properties and all aliases combine). The absorbed entity's relations and text occurrences re-point to the survivor. Reversible (§11).
+  - **Delete an entity** — remove the entity, its relations, and its text occurrences from the graph. Reversible (§11).
 - **Drill-down to text:** click on an "occurrence" → opens the paragraph in the reader with highlight
 - **"World" mode:** view aggregating multiple stories (if linked to a shared graph)
 
@@ -773,7 +775,7 @@ Plan outlined in §4 and §5. Concrete timelines after V1.
 These need a conversation with the developer at the start, or a conscious "decide as we go":
 
 1. **LLM extraction granularity:** per-paragraph, per-scene, or per-chapter? Trade-off: accuracy (smaller = better) vs token cost (larger = better).
-2. **Graph versioning strategies:** do we want rollback at the graph level, snapshots per story, or just an append-only log of changes?
+2. **Graph versioning strategies:** do we want rollback at the graph level, snapshots per story, or just an append-only log of changes? — **Resolved (PoC, M4.S3b, 2026-06-20):** an **append-only log of graph changes** (the `graph_edits` table), surfaced as **deterministic undo** — newest-first, showing what will be reversed before it happens (§4.3's deterministic undo stack, §11 reversibility, applied to graph edits/merges/deletes). Per-story snapshots / full version history are post-PoC.
 3. **Conflict in shared world graph:** how to resolve when two stories give the same entity contradictory properties? Dialog UI, or soft "both versions coexist"?
 4. **Export:** which format for the final "world bible"? Markdown, JSON, Obsidian-native format?
 5. **Agent framework:** roll our own minimal Protocol+Router pattern, or adopt a small framework (Pydantic AI, LangGraph, smolagents, OpenAI Agents SDK)? Trade-off: minimal surface vs. familiar abstractions and built-in tracing.
