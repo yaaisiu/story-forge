@@ -63,9 +63,15 @@ grep -nE "[Dd]rop when.*soaks|soaks 2026|2026-[0-9]{2}-[0-9]{2}" infra/osv/WAIVE
 
 Compare each dated drop-when / `ignoreUntil` against **today**. If any is **due or overdue**
 (or within ~3 days), flag it in the report and recommend **`/triage-advisory`** to fix-first
-(bump now that the fix has soaked) and drop the waiver. Condition-based drop-whens ("drop
-when neo4j ships netty ≥4.1.135") aren't date-checkable here — `/triage-advisory` re-scans
-those by running the gates; just note they exist so the next sweep covers them.
+(bump now that the fix has soaked) and drop the waiver. **Compute drop-readiness from the floor
+date vs today yourself — do not inherit the prior handoff's framing.** A handoff line that says
+a waiver is "due this week / should have soaked by now / fix-first next" is a stale pre-judged
+verdict, not a fact (the wrap that wrote it couldn't know today's date); a fix is droppable only
+once its floor date is **≤ today**, so a future floor date (e.g. 2026-06-26 read on 2026-06-20)
+is *not yet* actionable however the handoff phrased it. Acting on the stale framing means bumping
+a dep still inside its 14-day soak (a §6.7 misstep). Condition-based drop-whens ("drop when neo4j
+ships netty ≥4.1.135") aren't date-checkable here — `/triage-advisory` re-scans those by running
+the gates; just note they exist so the next sweep covers them.
 
 ## 3c. Triage the latest architecture report (don't let a finding rot)
 
