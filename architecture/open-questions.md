@@ -1,7 +1,7 @@
 ---
 type: open-questions
 slug: open-questions
-updated: 2026-06-19
+updated: 2026-06-20
 status: living
 related: ["[[overview]]", "[[project]]", "[[invariants]]", "[[2026-06-02-architecture-review]]", "[[m2s3-extraction-agent]]", "[[2026-06-09-architecture-review]]", "[[2026-06-11-architecture-review]]"]
 ---
@@ -627,6 +627,78 @@ the proposal's register; listed here so the vault's reader knows they gate the M
   **S3b**; manual **tag** from selection / **un-tag** / **change boundaries** (reopening DM-IH-1 span
   storage) are **S3c**; general **split** + relation temporal/source qualifiers are post-PoC
   (`docs/BACKLOG.md`).
+
+### OQ-24 — M4.S3b forward "what if" (inputs to the coming decompose, not yet a register)
+Raised by the 2026-06-20 pre-S3b re-sync sweep (`[[2026-06-20-architecture-review]]` §6). M4.S3b
+(entity↔entity **merge** + DM-Rel-5 written-edge re-point + `entity_mentions.entity_id` re-point +
+DM-Rel-6 idempotency + whole-entity **delete** + **undo**) is **unscoped** — its first task is the
+step-0 `decompose-requirement`, which will mint the **DM-S3b register**. These are not framed
+decisions to resolve here; they are the edge cases the decompose must take as input (tracked here so
+`/resume-session` step 3c finds the report's forward findings homed):
+- **Compound-undo before-image granularity (the centre of gravity).** The S3a `graph_edits` log is
+  *per-edit*; a merge is **one action, N writes** (re-point every edge incident to B — each a
+  delete+recreate, since `relation_edge_id = uuid5(subject,predicate,object)` changes when an endpoint
+  id changes — re-point `entity_mentions`, fold aliases/properties, delete B). Undo-merge must reverse
+  all of it atomically → the before-image needs **grouping** (a merge id over child rows / a
+  compensating-transaction shape), not a flat per-row log. The decompose must decide the schema/contract.
+- **MERGE-collision on edge re-point** silently folds two edges into one (the `uuid5` hazard DM-S3a-3
+  surfaced for re-predicate, now on a *merge*) — surface or accept, and record enough to undo.
+- **`entity_mentions.entity_id` re-point** is the cross-store (Neo4j + Postgres) half (OQ-1 on the write
+  side) — order it retryable so a crash is never a half-merge; or the reader drops B's highlights.
+- **Whole-entity delete vs dangling references** ([[referential-integrity]], fail-closed) — refuse-or-
+  cascade against incident edges + mentions; the S3a "no ghost write (404/409)" posture is the read of it.
+- **Carry, don't reopen:** held-relation visibility + edge Expiry ([[relation-lifecycle]] Open points
+  a/b) — a merge/delete touches both; the "reject/merge prunes now-impossible held relations" rule
+  (ADR 0005) is the natural home. **Lands:** the M4.S3b step-0 decompose. **→ Now framed as the
+  DM-S3b register (OQ-25 below); this OQ-24 was the pre-decompose forward note, superseded by it.**
+
+### ~~OQ-25 — M4.S3b merge/delete/undo decision register (DM-S3b-1..8)~~ ✅ RESOLVED 2026-06-20
+**Resolved 2026-06-20 (owner; resolved home = `[[m4-s3b-graph-mutations]]` now `accepted` +
+`docs/PLAN_SHORT.md` Decided).** DM-S3b-1 = **general undo** via a grouped append-only `graph_edits`
+log (a [[compensating-transaction]]; resolves §10 q2 as "append-only log of changes, executed") **+ the
+owner's added requirement that undo *show what it will reverse*** (each operation carries a
+human-readable description; the affordance previews + confirms); DM-S3b-2 = **author picks survivor +
+resolves property conflicts by hand** (owner chose this over my survivor-wins lean — enlarges the merge
+surface); DM-S3b-3 = re-point all incident edges, **report** MERGE-collisions, drop post-merge
+self-loops; DM-S3b-4 = Neo4j-then-Postgres-then-evidence, idempotent re-run; DM-S3b-5 = **real
+`DETACH DELETE` + full-snapshot undo** (not soft); DM-S3b-6 = **split be/fe**, be1/be2 fallback now
+likely; DM-S3b-7 = INV-9 enumeration unchanged, INV-3 now *executed*, none-at-PoC Expiry + a noted undo
+depth-cap, **ADR 0007** at build; DM-S3b-8 = `POST …/entities/{eid}/merge` / `DELETE …/entities/{eid}` /
+`POST …/graph-edits/undo`. **Spec amended 2026-06-20 (owner-approved wording): §3.4 (merge + delete in
+the detail panel) + §10 q2 (undo = append-only log of graph changes).** §3.5 left untouched — its
+right-click is *mention*-level un-tagging (S3c), not whole-entity delete (the decompose's "delete →
+§3.5" was corrected to §3.4 at sign-off). Read the per-entry
+resolutions in `[[m4-s3b-graph-mutations]]`. Original framing kept below for history.
+
+Raised by the M4.S3b step-0 `decompose-requirement` (2026-06-20, `[[m4-s3b-graph-mutations]]`).
+The first slice that **re-points already-written graph state** (entity↔entity merge + DM-Rel-5/6 edge
+re-point + `entity_mentions` re-point) and the first to **execute** INV-3 reversibility (undo, not just
+its S3a substrate). Full Context/Options/Proposal per entry live in the proposal's register; listed
+here so the vault's reader knows they gate the M4.S3b build. **The central one is DM-S3b-1** (undo scope
++ the `graph_edits` grouping — a merge is one action, N writes; the per-row S3a log can't group it).
+Register, all **OPEN**:
+- **DM-S3b-1 — undo scope + `graph_edits` grouping** (the central call; ties §10 q2): undo-merge-only vs
+  **general undo via a grouped append-only log** (my lean — add `operation_id`, a read path, a uniform
+  inverse-replay; the [[compensating-transaction]] pattern) vs full versioning. `verify-at-build` each
+  op's inverse round-trips.
+- **DM-S3b-2 — merge consolidation semantics** (spec-silent → likely a **§3.4 amendment**): survivor
+  selection (author-picks, my lean), alias union, property reconciliation (survivor-wins + record
+  discarded, my lean).
+- **DM-S3b-3 — edge re-point on merge** (DM-Rel-5/6 executed): re-point each incident edge
+  (delete-old+create-new, id is `uuid5`-derived); MERGE-collision **fold + report count** (my lean);
+  drop post-merge self-loops.
+- **DM-S3b-4 — mention re-point** (cross-store, OQ-1 write side): `UPDATE entity_mentions SET entity_id`;
+  Neo4j-then-Postgres-then-evidence, idempotent re-run (my lean). `verify-at-build` the crash-retryable order.
+- **DM-S3b-5 — whole-entity delete** (spec-silent): hard `DETACH DELETE` + full-snapshot undo (my lean)
+  vs soft/tombstone.
+- **DM-S3b-6 — slice split**: be/fe (my lean), with a pre-authorised be1(merge)/be2(delete+undo) fallback.
+- **DM-S3b-7 — invariants/Expiry/ADR**: INV-9 enumeration likely unchanged (ops live in
+  `EntityEditService`); INV-3 now *executed*; `graph_edits` unbounded = none-at-PoC + a noted depth cap;
+  **ADR 0007** (merge/delete/undo contract + §10-q2 resolution) at build on confirmation.
+- **DM-S3b-8 — endpoint shapes**: `POST …/entities/{eid}/merge`, `DELETE …/entities/{eid}`,
+  `POST …/graph-edits/undo`.
+- **Spec-silence to resolve first (stop-and-amend):** §3.4/§3.5 (merge + delete semantics), §10 q2
+  (undo = append-only log). **Lands:** M4.S3b, after the owner resolves the register. Open.
 
 ## Referenced — owned by spec §10 (not duplicated)
 

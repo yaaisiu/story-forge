@@ -629,3 +629,48 @@ M2→M3 roll gate 2, part 2: the forward-design pass on M3 — the §3.3 cascade
   n/a stations).
 - **`INDEX.md`** — regenerated (proposal linked; priority queue advanced to M4.S1).
 - Register stays **OPEN** — the owner resolves DM-IH-1..8 before code (the decompose never self-resolves).
+
+## 2026-06-20 — `review-architecture` (pre-M4.S3b re-sync; owner-requested before the S3b decompose)
+- **`reports/2026-06-20-architecture-review.md`** (new) — full vault sweep since the 2026-06-17 M3→M4
+  roll. **No blockers.** One `risk`: `overview.md` as-built stopped at M3 (named every M4 slice as
+  "Next" though M4.S1/S2/S3a all shipped) — **fixed on sight**. Three `watch`: state/invariant
+  frontmatter dates lagged current bodies (**bumped**); `m4-entity-editing` read build-pending though
+  M4.S3a is complete (**BUILT banner**); INDEX item 21 stale (**regenerated**). The invariant/lifecycle
+  layer (INV-9 rewording, candidate/relation edit-path extensions, ADR 0006, OQ-23) was already honest —
+  folded at the S36 decompose + S37 build. Forward "what if" over the S3b boundary: compound-undo
+  before-image granularity (a merge is N writes → needs a grouped before-image), MERGE-collision on edge
+  re-point, the `entity_mentions.entity_id` re-point cross-store seam — inputs to the S3b decompose.
+- **`overview.md`** — update-in-place: added a *Built (M4 so far)* block (S1 highlights / S2 side panel /
+  S3a editing-the-first-write-slice, ADR 0006, INV-9 reworded) and reduced "Next" to M4.S3b → S3c →
+  multi-story/§3.4 → world graph; `updated` → 2026-06-20.
+- **`invariants.md`, `candidate-lifecycle.md`, `relation-lifecycle.md`** — frontmatter `updated` → 2026-06-20
+  (bodies already carried the M4.S3a / M3.S4e content; only the freshness stamp lagged).
+- **`m4-entity-editing.md`** — BUILT banner appended (be #96 / fe #98, ADR 0006, the `language` read-side
+  deviation), pointing forward to S3b; `updated` → 2026-06-20. Status stays `accepted` (a proposal has no
+  "built" status).
+- **`open-questions.md`** — recorded the S3b forward "what if" against the coming decompose (no new OQ
+  minted — the S3b `decompose-requirement` creates the DM-S3b register); `updated` → 2026-06-20.
+- **`learning-log.md`** — +1 line (compound/transactional undo — a merge is one action but many writes).
+- **`INDEX.md`** — regenerated (2026-06-20 report added as current snapshot, 2026-06-17 marked superseded,
+  m4-entity-editing summary → BUILT, next-steps item 22 = M4.S3a built + S3b next).
+- Report-only; no code or config touched.
+
+## 2026-06-20 — `decompose-requirement` (M4.S3b — graph mutations: merge · delete · undo)
+- **`proposals/m4-s3b-graph-mutations.md`** (new) — step-0 forward design for the slice
+  [[m4-entity-editing]] named at its seam. Nine-layer + nine-station pass; **operation-surface
+  completeness sweep** over CRUD-of-{entities,relations,mentions} **closes** (every op homed — S3b owns
+  entity delete + entity↔entity merge (which contains edge re-point + mention re-point) + mention
+  delete-on-delete + undo execution; tag/boundaries → S3c, split/qualifiers → post-PoC). Mermaid
+  data-flow, "but what if" pass, gaps-for-owner. **Register OPEN — DM-S3b-1..8**, central call
+  **DM-S3b-1** (undo scope + the `graph_edits` grouping — a merge is one action/N writes, the per-row
+  S3a log can't group it; proposed: a grouped append-only log = a compensating transaction, which also
+  resolves spec §10 q2). **DM-S3b-2/5 flagged spec-silent** (merge + delete semantics) → a likely
+  §3.4/§3.5 stop-and-amend before code. `status: proposed` — the decompose never self-resolves.
+- **`open-questions.md`** — added **OQ-25** (the DM-S3b register mirror); OQ-24 (the 2026-06-20 report's
+  pre-decompose forward note) marked superseded by it.
+- **`glossary/compensating-transaction.md`** (new term, #26) — saga-style undo for a multi-write
+  operation with no shared transaction; the pattern behind DM-S3b-1's grouped before-image.
+- **`learning-log.md`** — +1 line (compensating transaction / saga undo); `updated` -> 2026-06-20.
+- **`INDEX.md`** — regenerated (proposal row added; glossary 25->26 + compensating-transaction;
+  next-steps item 23 = M4.S3b decomposed, register open).
+- Register stays **OPEN** — the owner resolves DM-S3b-1..8 (incl. the spec amendments) before any code.

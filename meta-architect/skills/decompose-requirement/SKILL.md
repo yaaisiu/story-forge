@@ -77,6 +77,14 @@ One note, these sections:
   proposal's "SHA-pin the scanner **Action**" rested on an action that turned out to be a
   no-`runs:` metadata stub — built as a digest-pinned container instead; the *intent*
   (pin the scanner immutably) held, the *mechanism* did not.)
+  **Likewise, a register entry that names a *spec section* as a decision's home or amendment
+  target is a hypothesis until you read that section.** When a decision is spec-silent and you
+  point at "§X" as where it lands or gets amended, *open §X and confirm the capability actually
+  belongs there* before asserting it — a section name inherited from a sibling proposal's seam
+  note (or from memory) may be the wrong one, and the register's spec-target assertion gets taken
+  as the build/amendment plan. (Story Forge M4.S3b: the register named "delete → §3.5", inherited
+  from the S3a seam note — but §3.5 is *mention-level* un-tagging (the S3c slice), not whole-entity
+  delete, which belongs in §3.4; caught only at spec sign-off when the section was finally read.)
 - **But what if** — edge cases, races, partial failures, hostile inputs; name failure patterns
   precisely and teach the names.
 - **Gaps for the product owner** — acknowledged gaps to carry back to the PO.

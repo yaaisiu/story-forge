@@ -1,7 +1,7 @@
 ---
 type: overview
 slug: overview
-updated: 2026-06-17
+updated: 2026-06-20
 status: living
 related: ["[[project]]", "[[invariants]]", "[[open-questions]]", "[[cascade-matching]]", "[[model-tier-routing]]", "[[m3-cascade-matching]]"]
 ---
@@ -98,12 +98,32 @@ entity/relation candidates with an LLM** (routed, budgeted, recorded), runs the 
 re-match and manual handpick keep a single ingest's graph clean. The graph is empty until reviewed;
 the §3.3 dedupe — for nodes *and* relations — is the human's gated decision, not an automatic write.
 
-**Next — M4 ("V1 polish"):** inline highlights, side panel, manual annotation, properties/relations
-edit, **multi-story**, world graph (`docs/PLAN_LONG.md`). Two M3-deferred seams **graduate to live M4
-work**: the §3.4 graph **story-vs-project scoping** (multi-story breaks the one-story-per-project
-assumption the graph route rests on) and **DM-Rel-5**'s written-edge re-point (an accepted-entity↔entity
-merge, first possible in M4, re-points an already-written edge). INV-2 consent gate stays **deferred
-past M3** (persona-justified, 2026-06-15).
+**M4 ("V1 polish") — in progress (PRs #81/#86, #89/#91, #96/#98):**
+- **M4.S1 — inline highlights** (#81 backend / #86 frontend). A **read-only projection** of the
+  accepted graph: render the story text, highlight accepted entities inline (colour-by-type), hover →
+  tooltip. **DM-IH-1** resolved render-time string search over name+aliases (`entity_mentions` carry
+  null char offsets — no stored span to render), exposed by a new story-scoped `GET …/reader` — the
+  §3.4 per-story filter's first home. See [[m4-inline-highlights]].
+- **M4.S2 — entity side panel** (#89 backend / #91 frontend). Click a highlight → a read-only panel
+  with the entity's details/`properties`/occurrences/relations + a 1-hop [[ego-graph]] mini-view, off a
+  focused BFF endpoint `GET …/entities/{eid}` ([[backend-for-frontend]]) + a new 1-hop `Neo4jRepo`
+  neighbourhood query. Still read-only (INV-1/3/9 untouched). See [[m4-side-panel]].
+- **M4.S3a — the panel becomes editable: the FIRST M4 *write* slice** (#96 backend / #98 frontend,
+  **ADR 0006**). Edit an accepted entity's `canonical_name`/`aliases`/`type`/`properties` + add/remove
+  relations between accepted entities, under a new human-reached `EntityEditService`. **INV-9 reworded**
+  "exactly two writers" → "only human-reached handlers — accept, decide, **edit**" (broaden-don't-mint,
+  the ADR-0005 precedent); every edit records a before→after `graph_edits` row (INV-3 undo substrate).
+  The graph-writer set grew to **two node-writers** (accept + edit) and **two edge-writers** (decide +
+  edit). See [[m4-entity-editing]], [[invariants]] INV-9, and the edit-path extensions in
+  [[candidate-lifecycle]] / [[relation-lifecycle]].
+
+**Next — M4.S3b → the rest of "V1 polish":** entity↔entity **merge** (the **DM-Rel-5** written-edge
+re-point + `entity_mentions.entity_id` re-point + **DM-Rel-6** idempotency), whole-entity **delete**, and
+**undo** (consuming the S3a `graph_edits` before-image log — no undo execution is wired yet); then S3c
+manual tag/un-tag/boundaries (reopens DM-IH-1 span storage), **multi-story** + the §3.4 graph
+**story-vs-project scoping** (multi-story breaks the one-story-per-project assumption the graph route
+rests on), and the world graph (`docs/PLAN_LONG.md`). INV-2 consent gate stays **deferred past M3**
+(persona-justified, 2026-06-15).
 
 ---
 

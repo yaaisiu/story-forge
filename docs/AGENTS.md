@@ -117,3 +117,29 @@ it. This is the "spec- and test-driven, in this order" rule from the root
 
 Plans, spec, and code must not drift apart. If you notice they have, the
 reconciliation is the next session's first task — not a quiet fix.
+
+### 7. Keep `PLAN_SHORT.md` slim — archive completed milestones, don't accumulate
+
+`PLAN_SHORT.md` is an **operational document read at the start of every session**, so it must
+stay slim. It is *not* the project's permanent archive — its job is the live milestone: the
+handoff block, the current-milestone task list, Decided/Blocked, the live cross-cutting list,
+and a short Done tail. When it grows heavy (the "Done in previous sessions" log of finished
+milestones is the usual culprit — dense, one-line-per-session entries), **slim it.**
+
+This does **not** override §4 (no deletions): the rule is **move, not delete.** Migrate
+completed-milestone content (the Done entries, the struck cross-cutting items, the resolved
+Blocked items of a milestone that has rolled) into **`docs/PLAN_ARCHIVE.md`** — a dated,
+append-only companion that preserves the full public-portfolio history — and leave a one-line
+pointer in `PLAN_SHORT.md` (`Earlier milestones (Mn and before): see docs/PLAN_ARCHIVE.md`).
+The history stays readable; the operational doc stays light.
+
+- **When:** at a milestone roll (move the milestone that just closed), or whenever `PLAN_SHORT.md`
+  has visibly bloated — `/wrap-session` close is the natural moment. Don't let it accrue across
+  many milestones before acting; accumulation *is* the failure mode this rule names.
+- **What stays in `PLAN_SHORT.md`:** the current milestone in full + the immediately-prior
+  milestone's Done tail for quick context. Everything older → archive.
+- **What never moves:** the handoff block (it always describes the *next* session) and any
+  still-live cross-cutting / Blocked item, regardless of which milestone first raised it.
+
+(Earned 2026-06-20, Session 39: the owner flagged `PLAN_SHORT.md` at 346 KB / 617 lines —
+"better than accumulation of data" — as too heavy for a read-every-session doc.)

@@ -1,7 +1,7 @@
 ---
 type: proposal
 slug: m4-entity-editing
-updated: 2026-06-19
+updated: 2026-06-20
 status: accepted
 related:
   - "[[overview]]"
@@ -22,6 +22,18 @@ related:
 
 # M4.S3a — the side panel becomes editable (entity & relation editing)
 
+> **✅ BUILT — M4.S3a COMPLETE (2026-06-20).** Backend **#96** (Session 37): `EntityEditService` +
+> `Neo4jRepo.update_entity`/`delete_relation`/`get_relation` + the `graph_edits` migration +
+> `PostgresEditStore` + `PATCH …/entities/{eid}` / `POST`+`DELETE …/relations`, **ADR 0006**, INV-9
+> reworded, the candidate/relation lifecycle edit-path extensions folded. Frontend **#98** (Session 38):
+> the panel's Edit mode (name/aliases/type/typed `properties`) + relation add (reusing the entity
+> picker)/remove with the `merged_into_existing` warning; mutation hooks invalidate reader+graph+detail
+> (DM-S3a-4). One read-side deviation from "no backend change": **`language` on `EntityDetailResponse`**
+> so the single name field writes the project-language `canonical_name_{pl,en}` slot —
+> **bilingual-per-project is out of PoC scope** (resolves spec §10 q8 for the PoC, owner). Both review
+> gates ran; live-smoke-verified. **Next slice: M4.S3b** — merge + DM-Rel-5/6 re-point + delete + undo
+> (the proposal's S3b seam, below). The original forward-design body is kept intact (portfolio history).
+>
 > **Status: ACCEPTED — register RESOLVED with the owner (2026-06-19).** Step-0 forward design for the
 > **first M4 slice that *writes* the graph**. Owner-confirmed scope: from the read-only entity side
 > panel ([[m4-side-panel]], shipped), make the inspected entity **editable** — its scalar fields
