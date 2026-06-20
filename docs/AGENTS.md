@@ -139,10 +139,12 @@ original reverse-chronological order is preserved verbatim.
 
 - **When (part of the milestone-roll ritual):** the roll is the moment the *just-closed*
   milestone moves to the archive — `/wrap-session` does/offers it as a roll step (see that
-  skill). Also slim opportunistically whenever `PLAN_SHORT.md` has visibly bloated mid-milestone
-  (e.g. a long milestone whose own Done/Decided log alone grows heavy). `/resume-session` flags
-  the bloat as a backstop. Don't let it accrue across milestones — accumulation *is* the failure
-  mode this rule names.
+  skill). A *current* milestone can't be archived (it stays in full), so a single milestone
+  whose own Done/Decided log alone threatens the 256 KB limit is primarily a **sizing** signal —
+  slice milestones small enough to stay readable; the fallback is to archive that milestone's own
+  earliest sessions (keep recent + a pointer). `/resume-session` flags bloat as a backstop. Don't
+  let it accrue across milestones — cross-milestone accumulation *is* the failure mode this rule
+  names.
 - **What stays in `PLAN_SHORT.md`:** the **current milestone only** — its task section in full,
   its Decided + Done entries, and the live cross-cutting/Blocked working lists.
 - **What never moves:** the handoff block (it always describes the *next* session) and any
@@ -157,4 +159,4 @@ original reverse-chronological order is preserved verbatim.
 tail"): even keeping one prior milestone left the file at ~365 KB / over the 256 KB single-read
 limit, so the owner directed current-only with older milestones archived-and-referenced as a
 standing roll-ritual step. First archive batch — M3 and earlier → `docs/PLAN_ARCHIVE.md` — moved
-the same session, taking `PLAN_SHORT.md` 368 KB → 132 KB.)
+the same session, taking `PLAN_SHORT.md` 368 KB → ~134 KB.)

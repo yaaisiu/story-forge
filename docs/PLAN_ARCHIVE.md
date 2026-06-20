@@ -19,7 +19,7 @@ matching), Milestone 2 (Basic extraction), Milestone 1, and M0 (Setup).
 
 ---
 
-## Completed-milestone task sections (M3, M2)
+**Completed-milestone task sections (M3, M2).**
 
 ## Completed milestone: Milestone 3 — Cascade matching (dedupe) — feature-complete 2026-06-17
 

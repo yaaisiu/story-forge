@@ -123,10 +123,15 @@ move content out — both **move, not delete** (§4), into **`docs/PLAN_ARCHIVE.
   reverse-chronological order verbatim). Leave the pointers in `PLAN_SHORT.md`: the
   `> **Earlier milestones — archived.**` blockquote near the top and the `- _Earlier
   decisions/sessions … see PLAN_ARCHIVE.md_` lines at the foot of Decided/Done.
-- **Mid-milestone, if visibly bloated:** if `PLAN_SHORT.md` is approaching the **256 KB
-  single-read limit** before a roll (a long milestone whose own Done/Decided log alone grew
-  heavy), flag it and offer to slim early — but only the cleanly milestone-keyed content; live
-  cross-cutting/Blocked stay (§7 "what never moves").
+- **Mid-milestone, if visibly bloated:** a *current* milestone can't be archived — it stays in
+  full — so there is no rolled milestone to move mid-cycle. A single milestone whose own
+  Done/Decided log alone threatens the **256 KB single-read limit** is therefore primarily a
+  **sizing signal**: the durable fix is to slice milestones small enough that one never
+  approaches the limit. If a milestone nonetheless nears it before its roll, **flag it to the
+  owner** rather than silently slim; the fallback relief valve (owner's call) is to archive
+  *that milestone's own earliest sessions'* Decided/Done — keep the recent ones + a pointer, the
+  same batch mechanism applied intra-milestone. Live cross-cutting/Blocked always stay
+  (§7 "what never moves").
 
 Preserve bytes exactly when moving (a scripted line-range split beats re-typing dense entries);
 then verify nothing was lost or duplicated (dated-bullet count before == sum after; no bullet in
