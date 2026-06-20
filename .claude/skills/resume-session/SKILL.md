@@ -91,6 +91,21 @@ cross-cutting item, or the handoff's open-blocks). **Flag any blocker/risk that 
 recommend addressing it **this session** — a report exists to be acted on, not filed. (Reports older
 than the last close are presumed already triaged; don't re-litigate them.)
 
+## 3d. Flag PLAN_SHORT bloat (the §7 backstop)
+
+`PLAN_SHORT.md` is read at the start of every session, so it must stay slim — **current
+milestone only** (`docs/AGENTS.md` §7). The roll-ritual archive move (`/wrap-session` step 5c)
+is the primary mechanism; this is the cheap backstop that catches a file that slipped past it.
+
+```bash
+wc -c docs/PLAN_SHORT.md   # bytes
+```
+
+If it's **over ~200 KB** (approaching the 256 KB single-read limit, above which the file can't
+be read in one pass), flag it in the report and recommend the **`/wrap-session` §7 archive move**
+— either now as a focused task or at the session's wrap. A milestone that has already *rolled*
+but whose content still sits in `PLAN_SHORT.md` is the usual cause; name it.
+
 ## 4. Reconcile — surface drift, don't paper over it
 
 Compare what you found against the handoff. If anything disagrees — an anchor file is
