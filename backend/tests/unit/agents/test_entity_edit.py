@@ -294,14 +294,14 @@ async def test_merge_consolidates_repoints_deletes_and_records_grouped_evidence(
         self_loops_dropped=0,
         mentions_repointed=2,
     )
-    # write order: Neo4j (A, edge swap, delete B) → Postgres mentions → evidence LAST
+    # write order: fold A + edge swap → move mentions → delete B LAST → evidence
     assert events == [
         ("update_entity", survivor.id),
         ("delete_relation", edge.edge_id),
         ("create_relation", new_edge_id),
-        ("delete_entity", absorbed.id),
         ("repoint_mentions", 2),
-        ("record_operation", 4),  # consolidate + 1 edge + delete-absorbed + mention re-point
+        ("delete_entity", absorbed.id),
+        ("record_operation", 4),  # consolidate + 1 edge + mention re-point + delete-absorbed
     ]
     # the grouped rows share one operation_id and carry the human-readable description
     (op_rows,) = evidence.operations
@@ -340,12 +340,12 @@ async def test_merge_dedupes_a_self_loop_returned_twice_by_the_neighbourhood() -
 
     assert summary.self_loops_dropped == 1  # not 2 — the duplicate was deduped
     (op_rows,) = evidence.operations
-    # consolidate + ONE edge row + delete-absorbed + mention re-point (no duplicate edge row)
+    # consolidate + ONE edge row + mention re-point + delete-absorbed (no duplicate edge row)
     assert [r.op for r in op_rows] == [
         "merge_consolidate",
         "discard_self_loop_relation",
-        "delete_absorbed",
         "repoint_mentions",
+        "delete_absorbed",
     ]
 
 

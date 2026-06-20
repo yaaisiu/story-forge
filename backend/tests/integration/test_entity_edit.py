@@ -207,8 +207,8 @@ async def test_merge_round_trip_across_neo4j_and_postgres(live: _Live) -> None:
         assert [r["op"] for r in rows] == [
             "merge_consolidate",
             "repoint_relation",
-            "delete_absorbed",
             "repoint_mentions",
+            "delete_absorbed",
         ]
         assert len({r["operation_id"] for r in rows}) == 1
         assert {r["description"] for r in rows} == {"merged Broniek into Bronisław"}

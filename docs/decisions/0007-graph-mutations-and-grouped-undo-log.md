@@ -75,14 +75,20 @@ Produced through a meta-architect dogfood pass — `decompose-requirement` →
    *Rejected:* a `deleted` tombstone flag — it would force every read path (reader, graph, panel,
    search, cascade) to learn to filter; the append-only-log undo already carries the snapshot.
 
-7. **Write order: Neo4j → Postgres mentions → evidence last; deterministic ids for idempotent retry
-   (DM-S3b-4).** The two stores cannot share a transaction (OQ-1), so the order leaves a **retryable**
-   state, never a half-merge: the mention `UPDATE` is a no-op once B is gone, and the operation +
-   row ids are `uuid5` of the (absorbed, survivor) pair, so `ON CONFLICT (id) DO NOTHING` makes the
-   evidence write idempotent. The **before-image is captured in memory before the Neo4j writes** (B is
-   unreadable once deleted). **Accepted window:** a crash *between* the Neo4j writes and the evidence
-   write strands a completed merge whose audit row was not written — the same last-write-wins posture
-   as ADR 0006 / DM-S3a-6, accepted for one local author at PoC.
+7. **Write order keeps B alive until the last graph write; deterministic ids for idempotent retry
+   (DM-S3b-4, refined at build).** The two stores cannot share a transaction (OQ-1), so the order is
+   chosen to leave a **retryable** state, never a half-merge: fold A + re-point edges → re-point B's
+   mentions → **delete B last** → evidence. Moving the mentions *before* deleting B means a mention
+   never references an already-gone node, and a crash anywhere up to the delete is cleanly retryable
+   (the retry re-reads B — still present — sees the edges + mentions already moved as no-ops, and
+   finishes). The operation + row ids are `uuid5` of the (absorbed, survivor) pair, so a retried merge
+   re-derives the same ids and `ON CONFLICT (id) DO NOTHING` never doubles the evidence; the
+   before-image is captured in memory before the writes. **Accepted window:** a crash *after* the B
+   delete but *before* the evidence write strands a **completed** merge whose audit row was not
+   written — the same last-write-wins posture as ADR 0006 / DM-S3a-6, accepted for one local author at
+   PoC. *(Build note: the resolved register said "Neo4j-then-Postgres-then-evidence"; the build defers
+   the B-delete to last — still serving DM-S3b-4's retryable-not-half-merge intent — because deleting B
+   first opened a window where its mentions were orphaned and the retry could not recover.)*
 
 ## Consequences
 
@@ -106,6 +112,14 @@ Produced through a meta-architect dogfood pass — `decompose-requirement` →
 - **Edit-vs-delete race accepted at PoC (LWW).** Undo of an operation whose state has since drifted is
   refused by be2's drift check (a [[lost-update]] in reverse); the executor + its drift mechanism land
   in be2.
+- **be2 must handle re-merging the same pair after an undo (deterministic-id collision).** Because the
+  merge `operation_id`/row ids are `uuid5(merge:B:A)` — keyed only on the pair, for crash-retry
+  idempotency — a *second, genuinely-new* merge of the same B→A (only possible once be2's undo has
+  recreated B) would re-derive the **same** row ids and be silently dropped by `ON CONFLICT (id) DO
+  NOTHING`, losing the new operation's evidence. This cannot occur in be1 (no undo → B stays deleted →
+  the pair can't be re-merged). be2's undo must therefore either **delete** an undone operation's
+  `graph_edits` rows (not just stamp `undone_at`) or fold a generation/nonce into the id derivation.
+  Recorded here so the be2 build treats it as a known design point, not a surprise.
 
 ## Alternatives considered
 

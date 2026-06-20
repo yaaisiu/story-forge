@@ -232,13 +232,13 @@ class EntityEditService:
         the whole thing is a *compensating transaction* — a grouped, reversible before-image is
         recorded so undo (be2) can reverse it as one unit.
 
-        Order, mirroring the accept/edit services: **Neo4j first → Postgres mention re-point →
-        evidence last**. The before-image is captured **in memory before** the Neo4j writes (B is
-        unreadable once deleted). A crash between the Neo4j writes and the evidence write strands a
-        completed merge whose audit row was not written — the narrow, accepted PoC window (the
-        DM-S3a-6 last-write-wins posture; ADR 0007). Guards: self-merge (→`SelfMergeError`), either
-        endpoint missing/cross-project (→`EntityNotFound`), an unresolved property conflict
-        (→`EntityMergeInvalid`).
+        Order: fold A + re-point edges → re-point mentions → **delete B last** → evidence. Keeping
+        B alive until the final graph write means a crash anywhere up to the delete is cleanly
+        retryable (the retry re-reads B, finds the work already done, and finishes); the only
+        post-completion window is the missing audit row (the merge is done, just unlogged — the
+        accepted DM-S3a-6 last-write-wins posture; ADR 0007). Guards: self-merge
+        (→`SelfMergeError`), either endpoint missing/cross-project (→`EntityNotFound`), an
+        unresolved property conflict (→`EntityMergeInvalid`).
         """
         if absorbed_id == target_id:
             raise SelfMergeError(str(absorbed_id))
@@ -263,19 +263,23 @@ class EntityEditService:
             existing_target_edge_ids=existing_target_edge_ids,
         )
 
-        # Neo4j first: fold B into A, re-point each incident edge (delete-old + create-new, or
-        # delete-only for a dropped self-loop), then DETACH DELETE B.
+        # Fold B into A and re-point each incident edge (delete-old + create-new, or delete-only
+        # for a dropped self-loop). B's node is **kept alive** through these writes.
         await self._graph.update_entity(plan.survivor)
         for step in plan.steps:
             await self._graph.delete_relation(step.repoint.old_edge.id)
             if step.kind in ("repoint", "fold"):
                 await self._graph.create_relation(step.repoint.new_edge)
-        await self._graph.delete_entity(absorbed_id)
 
-        # Postgres next: move B's mentions onto A (the moved ids feed the before-image for undo).
+        # Move B's mentions onto A **before** deleting B — so a mention never points at a node that
+        # is already gone, and so a crash anywhere up to the delete is cleanly retryable: the retry
+        # re-reads B (still present), finds its edges already moved + mentions already moved (a
+        # no-op), and completes. The moved ids feed the before-image for undo.
         moved_mention_ids = await self._mentions.repoint_mentions(absorbed_id, target_id)
 
-        # Evidence last: the grouped, reversible before-image of the whole operation.
+        # Delete B last (the only post-completion crash window is the missing audit row — the
+        # accepted DM-S3a-6 posture, ADR 0007), then record the grouped, reversible before-image.
+        await self._graph.delete_entity(absorbed_id)
         await self._evidence.record_operation(
             self._merge_rows(
                 project_id, survivor, absorbed, plan.survivor, plan.steps, moved_mention_ids
@@ -347,21 +351,13 @@ class EntityEditService:
                     after=after,
                 )
             )
+        # `seq` mirrors the forward execution order (mentions move while B is alive, *then* B is
+        # deleted last), so undo's reverse replay recreates B before re-pointing mentions to it.
         next_seq = len(steps) + 1
-        rows.append(
-            # B's full node snapshot (recreate B on undo).
-            row(
-                next_seq,
-                target_id=absorbed.id,
-                target_kind="entity",
-                op="delete_absorbed",
-                before=absorbed.model_dump(mode="json"),
-            )
-        )
         rows.append(
             # the moved mention ids (re-point them back to B on undo).
             row(
-                next_seq + 1,
+                next_seq,
                 target_id=absorbed.id,
                 target_kind="entity",
                 op="repoint_mentions",
@@ -370,6 +366,16 @@ class EntityEditService:
                     "to_entity_id": str(survivor_before.id),
                     "mention_ids": [str(mid) for mid in moved_mention_ids],
                 },
+            )
+        )
+        rows.append(
+            # B's full node snapshot (recreate B on undo) — last, so it reverses first.
+            row(
+                next_seq + 1,
+                target_id=absorbed.id,
+                target_kind="entity",
+                op="delete_absorbed",
+                before=absorbed.model_dump(mode="json"),
             )
         )
         return rows
