@@ -592,6 +592,71 @@
             }
           }
         }
+      },
+      "delete": {
+        "tags": [
+          "stories"
+        ],
+        "summary": "Delete Entity Route",
+        "description": "Delete an accepted entity, its relations, and its text occurrences (spec \u00a73.4, M4.S3b-be2,\nDM-S3b-5).\n\nA human-reached graph write (INV-9 as reworded \u2014 ADR 0006/0007): a real `DETACH DELETE` plus a\nfull-snapshot before-image (node fields + incident edges + mentions) recorded as one grouped,\n**reversible** operation (INV-3) so undo can restore it. 404s if the entity isn't accepted in\nthis project. The side panel invalidates + refetches the reader/graph bundle (DM-S3a-4).",
+        "operationId": "delete_entity_route_stories__story_id__entities__entity_id__delete",
+        "parameters": [
+          {
+            "name": "story_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Story Id"
+            }
+          },
+          {
+            "name": "entity_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Entity Id"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "404": {
+            "description": "Story or entity not found.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "A data store is unavailable.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
       }
     },
     "/stories/{story_id}/relations": {
@@ -870,6 +935,90 @@
           },
           "409": {
             "description": "Self-merge (absorbed == target).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "A data store is unavailable.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/stories/{story_id}/graph-edits/undo": {
+      "post": {
+        "tags": [
+          "stories"
+        ],
+        "summary": "Undo Last Route",
+        "description": "Reverse the newest not-yet-undone graph operation in this story's project \u2014 the general undo\nexecutor (spec \u00a710 q2 / \u00a711 / \u00a74.3, M4.S3b-be2, DM-S3b-1).\n\nPops the top of the per-project undo stack and replays each change's inverse in reverse order\n(INV-3), then marks the operation `undone`. With `?preview=true` it returns *what would be\nreversed* without acting, so the UI can confirm first (DM-S3b-1, see-what-I-undo). 404 when the\nstack is empty; 409 when the graph drifted since the operation (a lost update in reverse \u2014\nundoing would clobber a newer edit, so it refuses rather than overwrite).",
+        "operationId": "undo_last_route_stories__story_id__graph_edits_undo_post",
+        "parameters": [
+          {
+            "name": "story_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Story Id"
+            }
+          },
+          {
+            "name": "preview",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "default": false,
+              "title": "Preview"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UndoResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Story not found, or nothing left to undo.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "The graph drifted since; undo refused.",
             "content": {
               "application/json": {
                 "schema": {
@@ -2640,6 +2789,30 @@
         ],
         "title": "TaskTypeUsage",
         "description": "Today's call count and USD spend for one task type (status dashboard)."
+      },
+      "UndoResponse": {
+        "properties": {
+          "description": {
+            "type": "string",
+            "title": "Description"
+          },
+          "op_kind": {
+            "type": "string",
+            "title": "Op Kind"
+          },
+          "applied": {
+            "type": "boolean",
+            "title": "Applied"
+          }
+        },
+        "type": "object",
+        "required": [
+          "description",
+          "op_kind",
+          "applied"
+        ],
+        "title": "UndoResponse",
+        "description": "What the undo affordance shows (DM-S3b-1, see-what-I-undo). On a real undo `applied` is True\nand `description` names what was reversed (\"merged Broniek into Bronis\u0142aw\"); with `preview=true`\n`applied` is False and it reports what *would* be reversed without touching the graph."
       },
       "ValidationError": {
         "properties": {

@@ -187,7 +187,17 @@ export interface paths {
         get: operations["get_entity_detail_stories__story_id__entities__entity_id__get"];
         put?: never;
         post?: never;
-        delete?: never;
+        /**
+         * Delete Entity Route
+         * @description Delete an accepted entity, its relations, and its text occurrences (spec §3.4, M4.S3b-be2,
+         *     DM-S3b-5).
+         *
+         *     A human-reached graph write (INV-9 as reworded — ADR 0006/0007): a real `DETACH DELETE` plus a
+         *     full-snapshot before-image (node fields + incident edges + mentions) recorded as one grouped,
+         *     **reversible** operation (INV-3) so undo can restore it. 404s if the entity isn't accepted in
+         *     this project. The side panel invalidates + refetches the reader/graph bundle (DM-S3a-4).
+         */
+        delete: operations["delete_entity_route_stories__story_id__entities__entity_id__delete"];
         options?: never;
         head?: never;
         /**
@@ -278,6 +288,33 @@ export interface paths {
          *     invalidates + refetches the reader/graph/detail bundle (DM-S3a-4).
          */
         post: operations["merge_entity_route_stories__story_id__entities__entity_id__merge_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/stories/{story_id}/graph-edits/undo": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Undo Last Route
+         * @description Reverse the newest not-yet-undone graph operation in this story's project — the general undo
+         *     executor (spec §10 q2 / §11 / §4.3, M4.S3b-be2, DM-S3b-1).
+         *
+         *     Pops the top of the per-project undo stack and replays each change's inverse in reverse order
+         *     (INV-3), then marks the operation `undone`. With `?preview=true` it returns *what would be
+         *     reversed* without acting, so the UI can confirm first (DM-S3b-1, see-what-I-undo). 404 when the
+         *     stack is empty; 409 when the graph drifted since the operation (a lost update in reverse —
+         *     undoing would clobber a newer edit, so it refuses rather than overwrite).
+         */
+        post: operations["undo_last_route_stories__story_id__graph_edits_undo_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -1122,6 +1159,20 @@ export interface components {
             /** Cost Usd */
             cost_usd: number;
         };
+        /**
+         * UndoResponse
+         * @description What the undo affordance shows (DM-S3b-1, see-what-I-undo). On a real undo `applied` is True
+         *     and `description` names what was reversed ("merged Broniek into Bronisław"); with `preview=true`
+         *     `applied` is False and it reports what *would* be reversed without touching the graph.
+         */
+        UndoResponse: {
+            /** Description */
+            description: string;
+            /** Op Kind */
+            op_kind: string;
+            /** Applied */
+            applied: boolean;
+        };
         /** ValidationError */
         ValidationError: {
             /** Location */
@@ -1498,6 +1549,54 @@ export interface operations {
             };
         };
     };
+    delete_entity_route_stories__story_id__entities__entity_id__delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                story_id: string;
+                entity_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Story or entity not found. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+            /** @description A data store is unavailable. */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
     edit_entity_route_stories__story_id__entities__entity_id__patch: {
         parameters: {
             query?: never;
@@ -1755,6 +1854,66 @@ export interface operations {
                 };
             };
             /** @description Self-merge (absorbed == target). */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+            /** @description A data store is unavailable. */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    undo_last_route_stories__story_id__graph_edits_undo_post: {
+        parameters: {
+            query?: {
+                preview?: boolean;
+            };
+            header?: never;
+            path: {
+                story_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UndoResponse"];
+                };
+            };
+            /** @description Story not found, or nothing left to undo. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description The graph drifted since; undo refused. */
             409: {
                 headers: {
                     [name: string]: unknown;

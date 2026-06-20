@@ -21,11 +21,15 @@ from httpx import ASGITransport, AsyncClient
 from story_forge.adapters.db import get_connection
 from story_forge.adapters.postgres_repo import insert_project, insert_story
 from story_forge.agents.entity_edit import (
+    DeleteSummary,
     EntityNotFound,
     MergeSummary,
+    NothingToUndo,
     RelationEdgeNotFound,
     RelationEditResult,
     SelfMergeError,
+    UndoConflict,
+    UndoResult,
 )
 from story_forge.api.stories import get_entity_edit
 from story_forge.domain.entity_edits import EntityEditInvalid, EntityEditPatch
@@ -46,11 +50,15 @@ class _StubEdit:
         entity: GraphEntity | None = None,
         relation: RelationEditResult | None = None,
         merge: MergeSummary | None = None,
+        delete: DeleteSummary | None = None,
+        undo: UndoResult | None = None,
         raises: Exception | None = None,
     ) -> None:
         self._entity = entity
         self._relation = relation
         self._merge = merge
+        self._delete = delete
+        self._undo = undo
         self._raises = raises
         self.calls: list[tuple[str, tuple[object, ...]]] = []
 
@@ -89,6 +97,20 @@ class _StubEdit:
             raise self._raises
         assert self._merge is not None
         return self._merge
+
+    async def delete_entity(self, project_id: UUID, entity_id: UUID) -> DeleteSummary:
+        self.calls.append(("delete_entity", (project_id, entity_id)))
+        if self._raises is not None:
+            raise self._raises
+        assert self._delete is not None
+        return self._delete
+
+    async def undo_last(self, project_id: UUID, *, preview_only: bool = False) -> UndoResult:
+        self.calls.append(("undo_last", (project_id, preview_only)))
+        if self._raises is not None:
+            raise self._raises
+        assert self._undo is not None
+        return self._undo
 
 
 async def _make_story(conn: psycopg.AsyncConnection) -> Story:
@@ -354,4 +376,99 @@ async def test_merge_unknown_story_is_404(make_client: object) -> None:
         f"/stories/{uuid4()}/entities/{uuid4()}/merge",
         json={"target_entity_id": str(uuid4())},
     )
+    assert resp.status_code == 404, resp.text
+
+
+# --- delete + undo (M4.S3b-be2) --------------------------------------------
+
+
+async def test_delete_entity_is_204(make_client: object, db_conn: psycopg.AsyncConnection) -> None:
+    story = await _make_story(db_conn)
+    eid = uuid4()
+    service = _StubEdit(
+        delete=DeleteSummary(
+            deleted_entity_id=eid, edges_removed=2, mentions_removed=1, description="deleted X"
+        )
+    )
+    client: AsyncClient = make_client(service)  # type: ignore[operator]
+
+    resp = await client.delete(f"/stories/{story.id}/entities/{eid}")
+
+    assert resp.status_code == 204, resp.text
+    assert service.calls[0] == ("delete_entity", (story.project_id, eid))
+
+
+async def test_delete_unknown_entity_is_404(
+    make_client: object, db_conn: psycopg.AsyncConnection
+) -> None:
+    story = await _make_story(db_conn)
+    service = _StubEdit(raises=EntityNotFound("gone"))
+    client: AsyncClient = make_client(service)  # type: ignore[operator]
+    resp = await client.delete(f"/stories/{story.id}/entities/{uuid4()}")
+    assert resp.status_code == 404, resp.text
+
+
+async def test_delete_unknown_story_is_404(make_client: object) -> None:
+    service = _StubEdit()
+    client: AsyncClient = make_client(service)  # type: ignore[operator]
+    resp = await client.delete(f"/stories/{uuid4()}/entities/{uuid4()}")
+    assert resp.status_code == 404, resp.text
+
+
+async def test_undo_returns_what_was_reversed(
+    make_client: object, db_conn: psycopg.AsyncConnection
+) -> None:
+    story = await _make_story(db_conn)
+    service = _StubEdit(
+        undo=UndoResult(description="merged Broniek into Bronisław", op_kind="merge", applied=True)
+    )
+    client: AsyncClient = make_client(service)  # type: ignore[operator]
+
+    resp = await client.post(f"/stories/{story.id}/graph-edits/undo")
+
+    assert resp.status_code == 200, resp.text
+    assert resp.json() == {
+        "description": "merged Broniek into Bronisław",
+        "op_kind": "merge",
+        "applied": True,
+    }
+    assert service.calls[0] == ("undo_last", (story.project_id, False))
+
+
+async def test_undo_preview_passes_the_flag(
+    make_client: object, db_conn: psycopg.AsyncConnection
+) -> None:
+    story = await _make_story(db_conn)
+    service = _StubEdit(undo=UndoResult(description="deleted X", op_kind="delete", applied=False))
+    client: AsyncClient = make_client(service)  # type: ignore[operator]
+
+    resp = await client.post(f"/stories/{story.id}/graph-edits/undo?preview=true")
+
+    assert resp.status_code == 200, resp.text
+    assert resp.json()["applied"] is False
+    assert service.calls[0] == ("undo_last", (story.project_id, True))
+
+
+async def test_undo_nothing_to_undo_is_404(
+    make_client: object, db_conn: psycopg.AsyncConnection
+) -> None:
+    story = await _make_story(db_conn)
+    service = _StubEdit(raises=NothingToUndo(str(story.project_id)))
+    client: AsyncClient = make_client(service)  # type: ignore[operator]
+    resp = await client.post(f"/stories/{story.id}/graph-edits/undo")
+    assert resp.status_code == 404, resp.text
+
+
+async def test_undo_drift_is_409(make_client: object, db_conn: psycopg.AsyncConnection) -> None:
+    story = await _make_story(db_conn)
+    service = _StubEdit(raises=UndoConflict("the entity was edited since"))
+    client: AsyncClient = make_client(service)  # type: ignore[operator]
+    resp = await client.post(f"/stories/{story.id}/graph-edits/undo")
+    assert resp.status_code == 409, resp.text
+
+
+async def test_undo_unknown_story_is_404(make_client: object) -> None:
+    service = _StubEdit()
+    client: AsyncClient = make_client(service)  # type: ignore[operator]
+    resp = await client.post(f"/stories/{uuid4()}/graph-edits/undo")
     assert resp.status_code == 404, resp.text

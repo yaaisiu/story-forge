@@ -81,12 +81,20 @@ edit. "Never trust the LLM and forget."
   decisions (DM-S4a-4). The §4.2 `edit_history` (the *text-edit* dataset) is a different shape and
   is deferred to the editing milestone; graph operations are designed undoable; the review queue is
   the human surface. See [[compliance-audit-layer]].
-- **Edit + merge trail (M4.S3a/S3b).** Every committed-graph edit (S3a) records a before→after
-  `graph_edits` row; a merge (S3b-be1) records its whole fan-out as **one grouped operation** in the
-  same log (`operation_id` + `seq` + a human-readable `description`) — the compensating-transaction
-  *substrate* for undo (ADR 0007, DM-S3b-1, resolving §10 q2 as "append-only log, executed"). The
-  log is *written* in be1; the undo *executor* that consumes it (newest-first, with a drift check)
-  lands in M4.S3b-be2 — so reversibility is **enabled and recorded** now, **executed** in be2.
+- **Edit + merge + delete trail, now *executed* (M4.S3a/S3b).** Every committed-graph edit (S3a)
+  records a before→after `graph_edits` row; a merge (S3b-be1) and a whole-entity delete (S3b-be2)
+  record their whole fan-out as **one grouped operation** in the same log (`operation_id` + `seq` +
+  `op_kind` + a human-readable `description`) — the compensating-transaction substrate for undo
+  (ADR 0007, DM-S3b-1, resolving §10 q2 as "append-only log, executed"). **M4.S3b-be2 closes the
+  loop:** the undo *executor* (`EntityEditService.undo_last` → `POST …/graph-edits/undo`) reads the
+  newest live operation, inverts it (`domain/graph_undo`) in reverse `seq`, and stamps it `undone`
+  (the `applied → undone` transition — see [[graph-operation]]). So INV-3 moves from *substrate*
+  (recorded, be1) to **executed** (recorded *and* reversible, be2). The honest risk it now guards is
+  **before-image completeness**: a merge/delete snapshots N edges + M mentions, so undo restores
+  *exactly* those (the mention re-point returns the moved ids; a delete snapshots full mention rows)
+  — a partial snapshot would be a non-reversible action masquerading as reversible. A **drift check**
+  refuses an undo whose target was edited/re-created since (a lost update in reverse → 409); the undo
+  depth is unbounded at PoC (a V1 cap, ADR 0007).
 
 ### INV-4 — Open-world ontology: types are never a closed enum
 Entity `type` and relation type are open-world (**ontologia otwarta** — the set of kinds is not
@@ -221,6 +229,16 @@ ADR 0006, DM-S3a-1.)
   *enumeration* still grows (no new writer class — the operation lives in the existing edit handler),
   and the guarded property is unchanged. The whole fan-out is recorded as one grouped, reversible
   `graph_edits` operation (INV-3). See ADR 0007, [[m4-s3b-graph-mutations]] register.
+- **Fifth witnessed instance (M4.S3b-be2, delete + undo).** Whole-entity **delete**
+  (`EntityEditService.delete_entity`, reached only from `DELETE …/entities/{eid}`) `delete_entity`-s a
+  node + its mentions from a full snapshot. The general **undo executor** (`undo_last`, reached only
+  from `POST …/graph-edits/undo`) is the subtle case: it *writes* Neo4j — `create_entity` to recreate
+  a deleted/absorbed node, `create_relation`/`delete_relation` to reverse edges, `update_entity` to
+  un-fold fields — but it is **not a new writer**, it is a *reverser* that replays the recorded
+  inverse through the *same* human-reached writers, reached only from a human undo action. The
+  enumeration is unchanged — every name the grep guard lists (incl. `create_entity`) is still reached
+  only from a human handler; the undo executor adds no new graph-writing symbol, it re-uses them.
+  See ADR 0007, [[graph-operation]], [[m4-s3b-graph-mutations]] register.
 - **Why it matters:** it is exactly the property a well-meaning optimisation would silently break, and
   it gives the flip test a name. See [[fail-closed]], [[candidate-lifecycle]].
 - **The line INV-9 draws is *graph vs staging*, not *human vs automated* (clarified M3.S4c).** On-accept

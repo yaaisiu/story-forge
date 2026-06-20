@@ -65,13 +65,18 @@ related: []
 - `decisions/` — ADRs (host-project ADRs live in `docs/decisions/`; this folder is for
   vault-framed decisions once confirmed). Empty — the M2.S2 router/budget decision (D6) was authored as a **host-project** ADR (`docs/decisions/0003`), where product ADRs live; this vault folder stays empty until a vault-framed decision arises.
 - `components/` — per-component (C4 Component altitude) notes. Empty.
-- `state-machines/` — **two drawn:** **[[candidate-lifecycle]]** (the **node** gate, `living`, M3
+- `state-machines/` — **three drawn:** **[[candidate-lifecycle]]** (the **node** gate, `living`, M3
   step-0): `extracted → {auto-merge|ambiguous|new}-proposed → judged → review-queued → (human) →
   {merged|created|rejected}`; commit guard = INV-1. **[[relation-lifecycle]]** (the **edge** gate,
   `living`, drawn 2026-06-18 — closes OQ-20): `staged → held|committable → written|rejected` as built in
   `RelationReviewService` (re-resolve-at-commit TOCTOU guard, idempotent-by-edge-id effect, INV-1/INV-9
-  broadened to edges; held/committable are derived views of the persisted `staged` row). Still to draw:
-  the **ingest-job** + **LLM-call** lifecycles (the M2.S2 proposal sketches the latter).
+  broadened to edges; held/committable are derived views of the persisted `staged` row).
+  **[[graph-operation]]** (the **undo stack**, `living`, drawn 2026-06-20 — M4.S3b): the *operation*
+  twin of the per-object gates — `applied → undone` for a whole author action (edit/merge/delete) in
+  the grouped `graph_edits` log; transition = `undo_last` (replay inverse in reverse `seq`, stamp
+  `undone_at`); drift check guards it (lost-update-in-reverse → 409), re-undo a no-op. INV-3 *executed*
+  (ADR 0007). Still to draw: the **ingest-job** + **LLM-call** lifecycles (the M2.S2 proposal sketches
+  the latter).
 
 ## Next steps
 1. ~~Validation/drift sweep over M0→M2.S1 + ADRs 0001–0002~~ ✅ done — [[2026-06-02-architecture-review]].
