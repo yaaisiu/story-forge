@@ -97,6 +97,15 @@ class FakeEvidence:
         self.operations.append(rows)
         self._events.append(("record_operation", len(rows)))
 
+    async def latest_live_operation(self, project_id: UUID) -> list[object] | None:
+        return None
+
+    async def mark_operation_undone(self, op_key: UUID, *, undone_at: object) -> None:
+        self._events.append(("mark_operation_undone", op_key))
+
+    async def is_operation_undone(self, operation_id: UUID) -> bool:
+        return False  # no prior undone op in these unit tests → merge stays at generation 0
+
 
 class FakeMentions:
     """An in-memory `MentionRepo`: holds `entity_id → [mention_id]` and re-points on merge."""
@@ -110,6 +119,18 @@ class FakeMentions:
         self.by_entity.setdefault(to_entity_id, []).extend(moved)
         self._events.append(("repoint_mentions", len(moved)))
         return moved
+
+    async def reassign_mentions(self, mention_ids: list[UUID], to_entity_id: UUID) -> None:
+        self.by_entity.setdefault(to_entity_id, []).extend(mention_ids)
+
+    async def mentions_for_entity(self, entity_id: UUID) -> list[object]:
+        return []
+
+    async def delete_mentions_for_entity(self, entity_id: UUID) -> None:
+        self.by_entity.pop(entity_id, None)
+
+    async def restore_mentions(self, mentions: list[object]) -> None:
+        self._events.append(("restore_mentions", len(mentions)))
 
 
 def _service() -> tuple[

@@ -290,6 +290,43 @@ async def repoint_entity_mentions(
     return [row[0] for row in await cur.fetchall()]
 
 
+async def reassign_entity_mentions(
+    conn: AsyncConnection, *, mention_ids: list[UUID], to_entity_id: UUID
+) -> None:
+    """Move *specific* mention rows onto an entity by id — the inverse of a merge's mention
+    re-point (M4.S3b-be2 undo). Unlike `repoint_entity_mentions` (which moves *all* of one
+    entity's mentions), undo must move back **exactly** the ids the merge recorded, never the
+    survivor's own mentions. A no-op for an empty id list."""
+    if not mention_ids:
+        return
+    await conn.execute(
+        "UPDATE entity_mentions SET entity_id = %s WHERE id = ANY(%s)",
+        (to_entity_id, mention_ids),
+    )
+
+
+async def list_entity_mentions_for_entity(
+    conn: AsyncConnection, entity_id: UUID
+) -> list[EntityMention]:
+    """Every mention of one entity — the full-row snapshot a whole-entity delete captures for undo
+    (M4.S3b-be2, DM-S3b-5). Unlike a merge (which only *moves* mentions), a delete *removes* them,
+    so undo must re-insert the whole row, embedding and all — hence the full select."""
+    async with conn.cursor(row_factory=class_row(EntityMention)) as cur:
+        await cur.execute(
+            "SELECT id, paragraph_id, entity_id, span_start, span_end, confidence, embedding "
+            "FROM entity_mentions WHERE entity_id = %s",
+            (entity_id,),
+        )
+        return await cur.fetchall()
+
+
+async def delete_entity_mentions(conn: AsyncConnection, entity_id: UUID) -> None:
+    """Drop every mention of one entity — the Postgres half of a whole-entity delete (the Neo4j
+    half is `DETACH DELETE`; spec §3.4 "its text occurrences"). The caller snapshots them first
+    (`list_entity_mentions_for_entity`) so undo can restore them."""
+    await conn.execute("DELETE FROM entity_mentions WHERE entity_id = %s", (entity_id,))
+
+
 async def list_entity_mentions_for_paragraph(
     conn: AsyncConnection, paragraph_id: UUID
 ) -> list[EntityMention]:

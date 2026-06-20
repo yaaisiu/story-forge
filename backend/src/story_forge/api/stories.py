@@ -52,8 +52,10 @@ from story_forge.agents.chunking_coordinator import (
 from story_forge.agents.entity_edit import (
     EntityEditService,
     EntityNotFound,
+    NothingToUndo,
     RelationEdgeNotFound,
     SelfMergeError,
+    UndoConflict,
 )
 from story_forge.agents.extraction_agent import ExtractionError
 from story_forge.agents.extraction_coordinator import ExtractionCoordinator
@@ -974,6 +976,89 @@ async def merge_entity_route(
         folded_count=summary.folded_count,
         self_loops_dropped=summary.self_loops_dropped,
         mentions_repointed=summary.mentions_repointed,
+    )
+
+
+@router.delete(
+    "/{story_id}/entities/{entity_id}",
+    status_code=204,
+    responses={
+        404: {"model": ErrorResponse, "description": "Story or entity not found."},
+        503: {"model": ErrorResponse, "description": "A data store is unavailable."},
+    },
+)
+async def delete_entity_route(
+    story_id: UUID,
+    entity_id: UUID,
+    conn: Annotated[AsyncConnection, Depends(get_connection)],
+    edit: Annotated[EntityEditService, Depends(get_entity_edit)],
+) -> Response:
+    """Delete an accepted entity, its relations, and its text occurrences (spec §3.4, M4.S3b-be2,
+    DM-S3b-5).
+
+    A human-reached graph write (INV-9 as reworded — ADR 0006/0007): a real `DETACH DELETE` plus a
+    full-snapshot before-image (node fields + incident edges + mentions) recorded as one grouped,
+    **reversible** operation (INV-3) so undo can restore it. 404s if the entity isn't accepted in
+    this project. The side panel invalidates + refetches the reader/graph bundle (DM-S3a-4).
+    """
+    story = await get_story(conn, story_id)
+    if story is None:
+        raise HTTPException(status_code=404, detail="story not found")
+    try:
+        await edit.delete_entity(story.project_id, entity_id)
+    except EntityNotFound as exc:
+        raise HTTPException(status_code=404, detail="entity not found") from exc
+    except (OperationalError, ServiceUnavailable) as exc:
+        raise HTTPException(status_code=503, detail="a data store is unavailable") from exc
+    return Response(status_code=204)
+
+
+class UndoResponse(BaseModel):
+    """What the undo affordance shows (DM-S3b-1, see-what-I-undo). On a real undo `applied` is True
+    and `description` names what was reversed ("merged Broniek into Bronisław"); with `preview=true`
+    `applied` is False and it reports what *would* be reversed without touching the graph."""
+
+    description: str
+    op_kind: str
+    applied: bool
+
+
+@router.post(
+    "/{story_id}/graph-edits/undo",
+    responses={
+        404: {"model": ErrorResponse, "description": "Story not found, or nothing left to undo."},
+        409: {"model": ErrorResponse, "description": "The graph drifted since; undo refused."},
+        503: {"model": ErrorResponse, "description": "A data store is unavailable."},
+    },
+)
+async def undo_last_route(
+    story_id: UUID,
+    conn: Annotated[AsyncConnection, Depends(get_connection)],
+    edit: Annotated[EntityEditService, Depends(get_entity_edit)],
+    preview: bool = False,
+) -> UndoResponse:
+    """Reverse the newest not-yet-undone graph operation in this story's project — the general undo
+    executor (spec §10 q2 / §11 / §4.3, M4.S3b-be2, DM-S3b-1).
+
+    Pops the top of the per-project undo stack and replays each change's inverse in reverse order
+    (INV-3), then marks the operation `undone`. With `?preview=true` it returns *what would be
+    reversed* without acting, so the UI can confirm first (DM-S3b-1, see-what-I-undo). 404 when the
+    stack is empty; 409 when the graph drifted since the operation (a lost update in reverse —
+    undoing would clobber a newer edit, so it refuses rather than overwrite).
+    """
+    story = await get_story(conn, story_id)
+    if story is None:
+        raise HTTPException(status_code=404, detail="story not found")
+    try:
+        result = await edit.undo_last(story.project_id, preview_only=preview)
+    except NothingToUndo as exc:
+        raise HTTPException(status_code=404, detail="nothing to undo") from exc
+    except UndoConflict as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+    except (OperationalError, ServiceUnavailable) as exc:
+        raise HTTPException(status_code=503, detail="a data store is unavailable") from exc
+    return UndoResponse(
+        description=result.description, op_kind=result.op_kind, applied=result.applied
     )
 
 

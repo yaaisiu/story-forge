@@ -49,6 +49,33 @@ class PostgresMentionStore:
                 conn, from_entity_id=from_entity_id, to_entity_id=to_entity_id
             )
 
+    async def reassign_mentions(self, mention_ids: list[UUID], to_entity_id: UUID) -> None:
+        """Move *specific* mention rows onto an entity by id — the inverse of a merge's re-point
+        (M4.S3b-be2 undo). Moves back exactly the recorded ids, not the survivor's own mentions."""
+        async with await self._connect() as conn:
+            await postgres_repo.reassign_entity_mentions(
+                conn, mention_ids=mention_ids, to_entity_id=to_entity_id
+            )
+
+    async def mentions_for_entity(self, entity_id: UUID) -> list[EntityMention]:
+        """Full mention rows for one entity — the snapshot a whole-entity delete captures for undo
+        (M4.S3b-be2, DM-S3b-5)."""
+        async with await self._connect() as conn:
+            return await postgres_repo.list_entity_mentions_for_entity(conn, entity_id)
+
+    async def delete_mentions_for_entity(self, entity_id: UUID) -> None:
+        """Drop every mention of one entity — the Postgres half of a whole-entity delete."""
+        async with await self._connect() as conn:
+            await postgres_repo.delete_entity_mentions(conn, entity_id)
+
+    async def restore_mentions(self, mentions: list[EntityMention]) -> None:
+        """Re-insert deleted mention rows from their snapshot — the inverse of a whole-entity
+        delete (M4.S3b-be2). `insert_entity_mention` preserves the id (`ON CONFLICT (id) DO
+        NOTHING`), so a retried undo is idempotent."""
+        async with await self._connect() as conn:
+            for mention in mentions:
+                await postgres_repo.insert_entity_mention(conn, mention)
+
     async def paragraphs_with_mentions(self, paragraph_ids: list[UUID]) -> set[UUID]:
         """Which of `paragraph_ids` already carry ≥1 mention — the resume checkpoint."""
         if not paragraph_ids:

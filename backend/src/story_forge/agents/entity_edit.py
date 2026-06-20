@@ -23,6 +23,7 @@ from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
+from datetime import UTC, datetime
 from typing import Protocol
 from uuid import UUID, uuid5
 
@@ -31,6 +32,19 @@ from story_forge.domain.entity_edits import EntityEditPatch, apply_entity_edit, 
 from story_forge.domain.entity_merge import MergeStep, plan_merge
 from story_forge.domain.graph import GraphEntity, GraphRelation
 from story_forge.domain.graph_edit import GraphEdit
+from story_forge.domain.graph_undo import (
+    DriftCheck,
+    InverseAction,
+    ReassignMentions,
+    RecreateEntity,
+    RecreateRelation,
+    RemoveRelation,
+    RestoreEntityFields,
+    RestoreMentions,
+    fields_match,
+    invert_operation,
+)
+from story_forge.domain.models import EntityMention
 
 # A manually-asserted edge carries full confidence (a human stated it, not a model).
 _MANUAL_CONFIDENCE = 1.0
@@ -41,11 +55,20 @@ _MANUAL_CONFIDENCE = 1.0
 # from the accept/relation namespaces in `domain/candidates.py` so the id spaces never collide.
 _OP_NS = UUID("a5f0c0de-0000-4000-8000-000000000004")
 
+# Human-readable fallbacks for an S3a singleton edit (no grouped `description`) when the undo
+# affordance previews what it will reverse (DM-S3b-1).
+_SINGLETON_LABELS = {
+    "edit_fields": "an entity edit",
+    "add_relation": "a relation add",
+    "remove_relation": "a relation removal",
+}
+
 
 class EntityGraphEditor(Protocol):
     """The committed-graph mutators + reads the edit path needs (a `Neo4jRepo`)."""
 
     async def get_entity(self, entity_id: UUID) -> GraphEntity | None: ...
+    async def create_entity(self, entity: GraphEntity) -> None: ...
     async def update_entity(self, entity: GraphEntity) -> None: ...
     async def get_relation(self, project_id: UUID, edge_id: UUID) -> GraphRelation | None: ...
     async def create_relation(self, relation: GraphRelation) -> None: ...
@@ -57,16 +80,24 @@ class EntityGraphEditor(Protocol):
 
 
 class EditEvidenceRepo(Protocol):
-    """The before→after edit log (a `PostgresEditStore`)."""
+    """The before→after edit log + the undo read path (a `PostgresEditStore`)."""
 
     async def record_edit(self, edit: GraphEdit) -> None: ...
     async def record_operation(self, edits: Sequence[GraphEdit]) -> None: ...
+    async def latest_live_operation(self, project_id: UUID) -> list[GraphEdit] | None: ...
+    async def mark_operation_undone(self, op_key: UUID, *, undone_at: datetime) -> None: ...
+    async def is_operation_undone(self, operation_id: UUID) -> bool: ...
 
 
 class MentionRepo(Protocol):
-    """The cross-store mention re-point a merge needs (a `PostgresMentionStore`)."""
+    """The cross-store mention re-point/snapshot a merge, delete, and undo need (a
+    `PostgresMentionStore`)."""
 
     async def repoint_mentions(self, from_entity_id: UUID, to_entity_id: UUID) -> list[UUID]: ...
+    async def reassign_mentions(self, mention_ids: list[UUID], to_entity_id: UUID) -> None: ...
+    async def mentions_for_entity(self, entity_id: UUID) -> list[EntityMention]: ...
+    async def delete_mentions_for_entity(self, entity_id: UUID) -> None: ...
+    async def restore_mentions(self, mentions: list[EntityMention]) -> None: ...
 
 
 class EntityNotFound(LookupError):
@@ -81,6 +112,17 @@ class RelationEdgeNotFound(LookupError):
 class SelfMergeError(ValueError):
     """A merge whose absorbed and survivor are the same entity (→409) — a no-op that would delete
     the only node. Guarded before any read."""
+
+
+class NothingToUndo(LookupError):
+    """The undo stack is empty for this project (→404) — no live operation to reverse."""
+
+
+class UndoConflict(RuntimeError):
+    """The graph drifted since the operation was recorded (→409): the entity it touched was edited,
+    deleted, or re-created in the meantime, so undoing would clobber that newer change (a lost
+    update in reverse, ADR 0007 / DM-S3b "but what if" case 5). Refuse rather than silently
+    overwrite; the message names what drifted."""
 
 
 @dataclass(frozen=True)
@@ -104,6 +146,28 @@ class MergeSummary:
     mentions_repointed: int
 
 
+@dataclass(frozen=True)
+class DeleteSummary:
+    """Outcome of a whole-entity delete — the id removed + the counts the panel reports (DM-S3b-5),
+    plus the human-readable `description` the undo affordance will preview."""
+
+    deleted_entity_id: UUID
+    edges_removed: int
+    mentions_removed: int
+    description: str
+
+
+@dataclass(frozen=True)
+class UndoResult:
+    """Outcome of an undo (or, with `preview_only`, what *would* be reversed). `applied` is False in
+    preview mode. `description` is the human-readable label of the operation at the top of the
+    stack (DM-S3b-1, see-what-I-undo)."""
+
+    description: str
+    op_kind: str
+    applied: bool
+
+
 def _display_name(entity: GraphEntity) -> str:
     """A human label for the undo description (DM-S3b-1, see-what-I-undo): a canonical name, else
     the first alias, else the id — never blank."""
@@ -113,6 +177,14 @@ def _display_name(entity: GraphEntity) -> str:
         or (entity.aliases[0] if entity.aliases else None)
         or str(entity.id)
     )
+
+
+def _op_seed(base: str, generation: int) -> str:
+    """The `uuid5` seed for a grouped operation id. Generation 0 keeps the base seed (be1's exact
+    merge id for the common first-time case); re-doing the *same* operation on the *same* targets
+    after an undo (generation ≥ 1) suffixes it so the new evidence isn't dropped by `ON CONFLICT
+    (id) DO NOTHING` (ADR 0007 — applies to both re-merge and re-delete of a pair/entity)."""
+    return base if generation == 0 else f"{base}:{generation}"
 
 
 class EntityEditService:
@@ -156,6 +228,7 @@ class EntityEditService:
                 op="edit_fields",
                 before={change.field: change.before for change in changes},
                 after={change.field: change.after for change in changes},
+                project_id=project_id,
             )
         )
         return next_entity
@@ -195,6 +268,7 @@ class EntityEditService:
                     "predicate": predicate,
                     "object_id": str(object_id),
                 },
+                project_id=project_id,
             )
         )
         return RelationEditResult(edge_id=edge_id, merged_into_existing=existing is not None)
@@ -217,6 +291,7 @@ class EntityEditService:
                     "predicate": existing.type,
                     "object_id": str(existing.object_id),
                 },
+                project_id=project_id,
             )
         )
 
@@ -280,9 +355,16 @@ class EntityEditService:
         # Delete B last (the only post-completion crash window is the missing audit row — the
         # accepted DM-S3a-6 posture, ADR 0007), then record the grouped, reversible before-image.
         await self._graph.delete_entity(absorbed_id)
+        generation = await self._next_generation(f"merge:{absorbed_id}:{target_id}")
         await self._evidence.record_operation(
             self._merge_rows(
-                project_id, survivor, absorbed, plan.survivor, plan.steps, moved_mention_ids
+                project_id,
+                survivor,
+                absorbed,
+                plan.survivor,
+                plan.steps,
+                moved_mention_ids,
+                generation,
             )
         )
 
@@ -294,6 +376,155 @@ class EntityEditService:
             mentions_repointed=len(moved_mention_ids),
         )
 
+    async def delete_entity(self, project_id: UUID, entity_id: UUID) -> DeleteSummary:
+        """Delete an accepted entity, its relations, and its text occurrences (M4.S3b-be2,
+        DM-S3b-5; spec §3.4). A real `DETACH DELETE` (no soft tombstone — that would thread a
+        read-filter through every screen), reversible from a **full snapshot** (node fields +
+        incident edges + mentions) recorded as one grouped operation.
+
+        Order mirrors merge — snapshot in memory, then mutate, then evidence-last. The snapshot is
+        captured *before* any delete, so the recorded operation is complete; the only accepted crash
+        window is a crash before the evidence write (the delete happened, just isn't undoable — the
+        DM-S3a-6 last-write-wins posture, ADR 0007). 404s if the entity isn't in the project.
+
+        DM-S3b-5 (owner default): an entity that is some earlier merge's *survivor* is deleted
+        freely — the consistency check is pushed to that merge's undo, which a drift check refuses.
+        """
+        entity = await self._require_entity(project_id, entity_id)
+
+        # Snapshot first (dedupe self-loops, which the undirected query returns twice).
+        incident_edges = list(
+            {edge.id: edge for edge, _ in await self._graph.get_neighbourhood(entity_id)}.values()
+        )
+        mentions = await self._mentions.mentions_for_entity(entity_id)
+        description = f"deleted {_display_name(entity)}"
+
+        # Mutate: drop mentions (Postgres) then DETACH DELETE the node + its edges (Neo4j).
+        await self._mentions.delete_mentions_for_entity(entity_id)
+        await self._graph.delete_entity(entity_id)
+
+        # Evidence last (grouped, reversible). Generation guards a re-delete after an undo.
+        generation = await self._next_generation(f"delete:{entity_id}")
+        await self._evidence.record_operation(
+            self._delete_rows(project_id, entity, incident_edges, mentions, description, generation)
+        )
+        return DeleteSummary(
+            deleted_entity_id=entity_id,
+            edges_removed=len(incident_edges),
+            mentions_removed=len(mentions),
+            description=description,
+        )
+
+    async def undo_last(self, project_id: UUID, *, preview_only: bool = False) -> UndoResult:
+        """Reverse the newest not-yet-undone operation in this project — the general undo executor
+        (M4.S3b-be2, DM-S3b-1; resolves spec §10 q2 / §11 / §4.3). Reads the top of the stack,
+        inverts it (`domain/graph_undo`), runs the drift check, then — unless `preview_only` —
+        applies each inverse in reverse `seq` and stamps the operation `undone`.
+
+        404 (`NothingToUndo`) when the stack is empty; 409 (`UndoConflict`) when the graph drifted
+        since (a lost update in reverse). A re-undo of an already-undone operation can't recur — it
+        is no longer the live top of the stack — and the inverse actions are idempotent, so a
+        crashed undo's retry is safe.
+        """
+        rows = await self._evidence.latest_live_operation(project_id)
+        if not rows:
+            raise NothingToUndo(str(project_id))
+
+        head = rows[0]
+        op_kind = head.op_kind or head.op
+        description = head.description or _SINGLETON_LABELS.get(head.op, head.op)
+        plan = invert_operation(rows)
+
+        if plan.drift is not None:
+            await self._check_drift(plan.drift, description)
+        if preview_only:
+            return UndoResult(description=description, op_kind=op_kind, applied=False)
+
+        for action in plan.actions:
+            await self._apply_inverse(action)
+        op_key = head.operation_id or head.id
+        await self._evidence.mark_operation_undone(op_key, undone_at=datetime.now(UTC))
+        return UndoResult(description=description, op_kind=op_kind, applied=True)
+
+    async def _check_drift(self, drift: DriftCheck, description: str) -> None:
+        entity = await self._graph.get_entity(drift.entity_id)
+        if (entity is not None) != drift.expect_present:
+            verb = "no longer exists" if drift.expect_present else "was re-created"
+            raise UndoConflict(f"cannot undo '{description}': the entity {verb} since")
+        if (
+            entity is not None
+            and drift.expected_fields is not None
+            and not fields_match(entity, drift.expected_fields)
+        ):
+            raise UndoConflict(f"cannot undo '{description}': the entity was edited since")
+
+    async def _apply_inverse(self, action: InverseAction) -> None:
+        """Execute one inverse action against the stores. Each is idempotent (create = MERGE,
+        delete = no-op-if-absent, reassign/restore = id-keyed) — a crashed undo's retry is safe."""
+        if isinstance(action, RecreateEntity):
+            await self._graph.create_entity(action.entity)
+        elif isinstance(action, RestoreEntityFields):
+            current = await self._graph.get_entity(action.entity_id)
+            if current is not None:
+                await self._graph.update_entity(current.model_copy(update=action.fields))
+        elif isinstance(action, RecreateRelation):
+            await self._graph.create_relation(action.relation)
+        elif isinstance(action, RemoveRelation):
+            await self._graph.delete_relation(action.edge_id)
+        elif isinstance(action, ReassignMentions):
+            await self._mentions.reassign_mentions(action.mention_ids, action.to_entity_id)
+        elif isinstance(action, RestoreMentions):
+            await self._mentions.restore_mentions(action.mentions)
+
+    @staticmethod
+    def _delete_rows(
+        project_id: UUID,
+        entity: GraphEntity,
+        edges: list[GraphRelation],
+        mentions: list[EntityMention],
+        description: str,
+        generation: int,
+    ) -> list[GraphEdit]:
+        """The grouped before-image of a whole-entity delete. `seq` is ordered so undo's reverse
+        replay recreates the **node first** (seq 2), then its edges (seq 1 — Neo4j would drop an
+        edge whose endpoint is missing), then its mentions (seq 0)."""
+        operation_id = uuid5(_OP_NS, _op_seed(f"delete:{entity.id}", generation))
+
+        def row(seq: int, op: str, before: dict[str, object]) -> GraphEdit:
+            return GraphEdit(
+                id=uuid5(_OP_NS, f"{operation_id}:{seq}"),
+                operation_id=operation_id,
+                seq=seq,
+                op_kind="delete",
+                description=description,
+                project_id=project_id,
+                target_id=entity.id,
+                target_kind="entity",
+                op=op,
+                before=before,
+            )
+
+        return [
+            row(0, "delete_mentions", {"mentions": [m.model_dump(mode="json") for m in mentions]}),
+            row(1, "delete_relations", {"edges": [e.model_dump(mode="json") for e in edges]}),
+            row(2, "delete_entity", entity.model_dump(mode="json")),
+        ]
+
+    async def _next_generation(self, base: str) -> int:
+        """Pick the generation discriminator for a grouped operation's id (ADR 0007, Consequences).
+
+        The id is `uuid5` of the operation's targets so a crash-retry re-derives it and never
+        doubles the evidence. But after an undo, redoing the *same* operation on the *same* targets
+        (re-merge a pair, re-delete an entity) would re-derive the **same** id and be dropped by
+        `ON CONFLICT (id) DO NOTHING`. So we bump a generation past any *undone* operation for these
+        targets: a live op probes False (a retry of an in-flight op keeps the same generation —
+        still idempotent), only an undone prior op pushes the next generation. Almost always 0;
+        1+ only after a real undo-then-redo."""
+        generation = 0
+        while await self._evidence.is_operation_undone(uuid5(_OP_NS, _op_seed(base, generation))):
+            generation += 1
+        return generation
+
     @staticmethod
     def _merge_rows(
         project_id: UUID,
@@ -302,11 +533,15 @@ class EntityEditService:
         consolidated: GraphEntity,
         steps: tuple[MergeStep, ...],
         moved_mention_ids: list[UUID],
+        generation: int,
     ) -> list[GraphEdit]:
         """Build the grouped before-image of a merge — one reversible row per sub-change, so undo
         (be2) replays each inverse in reverse `seq` order (INV-3, the compensating-transaction
-        shape). Deterministic operation + row ids keep a crash-retry idempotent."""
-        operation_id = uuid5(_OP_NS, f"merge:{absorbed.id}:{survivor_before.id}")
+        shape). Deterministic operation + row ids keep a crash-retry idempotent; `generation`
+        disambiguates a re-merge of the same pair after an undo (ADR 0007)."""
+        operation_id = uuid5(
+            _OP_NS, _op_seed(f"merge:{absorbed.id}:{survivor_before.id}", generation)
+        )
         description = f"merged {_display_name(absorbed)} into {_display_name(survivor_before)}"
 
         def row(seq: int, **kw: object) -> GraphEdit:
