@@ -121,11 +121,12 @@ app.state.candidate_review = CandidateReviewService(
 app.state.relation_review = RelationReviewService(
     _neo4j_repo, PostgresRelationStore(), _candidate_store
 )
-# Manual correction (M4.S3a): the human edit-handler for committed graph state — edits an
-# accepted entity's fields and adds/removes relations directly, recording a before→after
-# edit-evidence row (INV-3, DM-S3a-2). A third human-reached graph writer (the INV-9 rewording,
-# ADR 0006); not an automated stage.
-app.state.entity_edit = EntityEditService(_neo4j_repo, PostgresEditStore())
+# Manual correction (M4.S3a/S3b): the human edit-handler for committed graph state — edits an
+# accepted entity's fields, adds/removes relations, and merges entity B into survivor A (re-pointing
+# its edges + mentions), recording a before→after / grouped edit-evidence trail (INV-3, DM-S3a-2 /
+# DM-S3b-1). A third human-reached graph writer (the INV-9 rewording, ADR 0006); not an automated
+# stage. The mention store re-points B's `entity_mentions` onto A on merge.
+app.state.entity_edit = EntityEditService(_neo4j_repo, PostgresEditStore(), PostgresMentionStore())
 
 app.add_middleware(
     CORSMiddleware,

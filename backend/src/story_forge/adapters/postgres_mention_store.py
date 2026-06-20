@@ -40,6 +40,15 @@ class PostgresMentionStore:
         async with await self._connect() as conn:
             await postgres_repo.insert_entity_mention(conn, mention)
 
+    async def repoint_mentions(self, from_entity_id: UUID, to_entity_id: UUID) -> list[UUID]:
+        """Move every mention of `from_entity_id` onto `to_entity_id` (the merge cross-store
+        re-point, M4.S3b, DM-S3b-4). Its own autocommit connection, like every write here.
+        Returns the ids of the moved rows (the before-image for undo)."""
+        async with await self._connect() as conn:
+            return await postgres_repo.repoint_entity_mentions(
+                conn, from_entity_id=from_entity_id, to_entity_id=to_entity_id
+            )
+
     async def paragraphs_with_mentions(self, paragraph_ids: list[UUID]) -> set[UUID]:
         """Which of `paragraph_ids` already carry ≥1 mention — the resume checkpoint."""
         if not paragraph_ids:

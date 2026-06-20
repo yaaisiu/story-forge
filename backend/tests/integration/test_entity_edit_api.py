@@ -22,11 +22,14 @@ from story_forge.adapters.db import get_connection
 from story_forge.adapters.postgres_repo import insert_project, insert_story
 from story_forge.agents.entity_edit import (
     EntityNotFound,
+    MergeSummary,
     RelationEdgeNotFound,
     RelationEditResult,
+    SelfMergeError,
 )
 from story_forge.api.stories import get_entity_edit
 from story_forge.domain.entity_edits import EntityEditInvalid, EntityEditPatch
+from story_forge.domain.entity_merge import EntityMergeInvalid
 from story_forge.domain.graph import GraphEntity
 from story_forge.domain.models import Project, Story
 from story_forge.main import app
@@ -42,10 +45,12 @@ class _StubEdit:
         *,
         entity: GraphEntity | None = None,
         relation: RelationEditResult | None = None,
+        merge: MergeSummary | None = None,
         raises: Exception | None = None,
     ) -> None:
         self._entity = entity
         self._relation = relation
+        self._merge = merge
         self._raises = raises
         self.calls: list[tuple[str, tuple[object, ...]]] = []
 
@@ -71,6 +76,19 @@ class _StubEdit:
         self.calls.append(("remove_relation", (project_id, edge_id)))
         if self._raises is not None:
             raise self._raises
+
+    async def merge_entities(
+        self,
+        project_id: UUID,
+        absorbed_id: UUID,
+        target_id: UUID,
+        resolved_properties: dict[str, object],
+    ) -> MergeSummary:
+        self.calls.append(("merge_entities", (project_id, absorbed_id, target_id)))
+        if self._raises is not None:
+            raise self._raises
+        assert self._merge is not None
+        return self._merge
 
 
 async def _make_story(conn: psycopg.AsyncConnection) -> Story:
@@ -252,4 +270,88 @@ async def test_delete_unknown_relation_is_404(
     client: AsyncClient = make_client(service)  # type: ignore[operator]
 
     resp = await client.delete(f"/stories/{story.id}/relations/{uuid4()}")
+    assert resp.status_code == 404, resp.text
+
+
+# --- merge (M4.S3b) --------------------------------------------------------
+
+
+async def test_merge_returns_summary(make_client: object, db_conn: psycopg.AsyncConnection) -> None:
+    story = await _make_story(db_conn)
+    absorbed, survivor = uuid4(), uuid4()
+    service = _StubEdit(
+        merge=MergeSummary(
+            survivor_entity_id=survivor,
+            repointed_count=2,
+            folded_count=1,
+            self_loops_dropped=0,
+            mentions_repointed=3,
+        )
+    )
+    client: AsyncClient = make_client(service)  # type: ignore[operator]
+
+    resp = await client.post(
+        f"/stories/{story.id}/entities/{absorbed}/merge",
+        json={"target_entity_id": str(survivor), "resolved_properties": {"age": 41}},
+    )
+
+    assert resp.status_code == 200, resp.text
+    assert resp.json() == {
+        "survivor_entity_id": str(survivor),
+        "repointed_count": 2,
+        "folded_count": 1,
+        "self_loops_dropped": 0,
+        "mentions_repointed": 3,
+    }
+    assert service.calls[0] == ("merge_entities", (story.project_id, absorbed, survivor))
+
+
+async def test_merge_self_is_409(make_client: object, db_conn: psycopg.AsyncConnection) -> None:
+    story = await _make_story(db_conn)
+    eid = uuid4()
+    service = _StubEdit(raises=SelfMergeError(str(eid)))
+    client: AsyncClient = make_client(service)  # type: ignore[operator]
+
+    resp = await client.post(
+        f"/stories/{story.id}/entities/{eid}/merge",
+        json={"target_entity_id": str(eid)},
+    )
+    assert resp.status_code == 409, resp.text
+
+
+async def test_merge_unknown_entity_is_404(
+    make_client: object, db_conn: psycopg.AsyncConnection
+) -> None:
+    story = await _make_story(db_conn)
+    service = _StubEdit(raises=EntityNotFound("gone"))
+    client: AsyncClient = make_client(service)  # type: ignore[operator]
+
+    resp = await client.post(
+        f"/stories/{story.id}/entities/{uuid4()}/merge",
+        json={"target_entity_id": str(uuid4())},
+    )
+    assert resp.status_code == 404, resp.text
+
+
+async def test_merge_unresolved_conflict_is_400(
+    make_client: object, db_conn: psycopg.AsyncConnection
+) -> None:
+    story = await _make_story(db_conn)
+    service = _StubEdit(raises=EntityMergeInvalid("unresolved property conflicts: ['age']"))
+    client: AsyncClient = make_client(service)  # type: ignore[operator]
+
+    resp = await client.post(
+        f"/stories/{story.id}/entities/{uuid4()}/merge",
+        json={"target_entity_id": str(uuid4())},
+    )
+    assert resp.status_code == 400, resp.text
+
+
+async def test_merge_unknown_story_is_404(make_client: object) -> None:
+    service = _StubEdit()
+    client: AsyncClient = make_client(service)  # type: ignore[operator]
+    resp = await client.post(
+        f"/stories/{uuid4()}/entities/{uuid4()}/merge",
+        json={"target_entity_id": str(uuid4())},
+    )
     assert resp.status_code == 404, resp.text

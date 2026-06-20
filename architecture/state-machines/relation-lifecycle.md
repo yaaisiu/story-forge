@@ -151,6 +151,26 @@ has no surface-form/paragraph to resolve, DM-S3a-3, owner-resolved at build):
   row (DM-S3a-2) — the prior-value image a reversal needs. (The undo *action/UI* is a later slice; the
   evidence that makes it possible lands here.)
 
+## M4.S3b-be1 — merge re-points an edge (ADR 0007, DM-S3b-3)
+
+Merging entity B into survivor A is the first operation that **moves an already-`written` edge to a
+new identity**. Because `relation_edge_id = uuid5(subject, predicate, object)` is content-addressed,
+re-pointing an endpoint *changes the id* — so a re-point is **`written → removed`** (the old triple's
+edge) **+ a fresh `[*] → written`** (the new triple on A), exactly the re-predicate mechanic above,
+now driven by a merge rather than the author re-typing a predicate. Three sub-cases (all in
+`EntityEditService.merge_entities`, planned purely in `domain/entity_merge.py`):
+
+- **Re-point** — `(B, p, X)` → `(A, p, X)`: `delete_relation(old)` + `create_relation(new)`.
+- **Fold (MERGE-collision)** — when A already has `(A, p, X)`, the create collapses onto it: the old
+  edge still goes `written → removed`, but no new edge is born (multiplicity is lost — **reported** as
+  `folded_count`, not silent; the old triple lives in the grouped before-image so undo can restore the
+  distinct edge).
+- **Dropped self-loop** — a `(B, p, A)` or `(B, p, B)` edge becomes `(A, p, A)` after the swap and is
+  dropped as an artifact (`written → removed`, no successor), consistent with the extraction path.
+
+Each sub-change is one row of the merge's **grouped** `graph_edits` operation (`operation_id` + `seq`),
+so undo (be2) reverses the whole re-point set as one unit.
+
 ## Open points carried while drawing this note (NOT resolved here — see [[open-questions]] OQ-20)
 
 These are the two sub-gaps OQ-20 asked to fold in while drawing the machine. They remain **open**;

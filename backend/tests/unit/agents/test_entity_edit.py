@@ -16,9 +16,11 @@ from story_forge.agents.entity_edit import (
     EntityEditService,
     EntityNotFound,
     RelationEdgeNotFound,
+    SelfMergeError,
 )
 from story_forge.domain.candidates import relation_edge_id
 from story_forge.domain.entity_edits import EntityEditInvalid, EntityEditPatch
+from story_forge.domain.entity_merge import EntityMergeInvalid
 from story_forge.domain.graph import GraphEntity, GraphRelation
 
 PROJECT = uuid4()
@@ -60,24 +62,64 @@ class FakeGraph:
         self.relations.pop(edge_id, None)
         self._events.append(("delete_relation", edge_id))
 
+    async def get_neighbourhood(self, entity_id: UUID) -> list[tuple[GraphRelation, GraphEntity]]:
+        pairs: list[tuple[GraphRelation, GraphEntity]] = []
+        for relation in self.relations.values():
+            far_id = relation.object_id if relation.subject_id == entity_id else relation.subject_id
+            if entity_id in (relation.subject_id, relation.object_id) and far_id in self.entities:
+                pairs.append((relation, self.entities[far_id]))
+        return pairs
+
+    async def delete_entity(self, entity_id: UUID) -> None:
+        self.entities.pop(entity_id, None)
+        self.relations = {
+            eid: r
+            for eid, r in self.relations.items()
+            if entity_id not in (r.subject_id, r.object_id)
+        }
+        self._events.append(("delete_entity", entity_id))
+
 
 class FakeEvidence:
     """An in-memory `EditEvidenceRepo` recording each row in `events` and keeping the rows."""
 
     def __init__(self, events: list[tuple[str, object]]) -> None:
         self.rows: list[object] = []
+        self.operations: list[list[object]] = []
         self._events = events
 
     async def record_edit(self, edit: object) -> None:
         self.rows.append(edit)
         self._events.append(("record_edit", getattr(edit, "op", None)))
 
+    async def record_operation(self, edits: object) -> None:
+        rows = list(edits)  # type: ignore[call-overload]
+        self.operations.append(rows)
+        self._events.append(("record_operation", len(rows)))
 
-def _service() -> tuple[EntityEditService, FakeGraph, FakeEvidence, list[tuple[str, object]]]:
+
+class FakeMentions:
+    """An in-memory `MentionRepo`: holds `entity_id → [mention_id]` and re-points on merge."""
+
+    def __init__(self, events: list[tuple[str, object]]) -> None:
+        self.by_entity: dict[UUID, list[UUID]] = {}
+        self._events = events
+
+    async def repoint_mentions(self, from_entity_id: UUID, to_entity_id: UUID) -> list[UUID]:
+        moved = self.by_entity.pop(from_entity_id, [])
+        self.by_entity.setdefault(to_entity_id, []).extend(moved)
+        self._events.append(("repoint_mentions", len(moved)))
+        return moved
+
+
+def _service() -> tuple[
+    EntityEditService, FakeGraph, FakeEvidence, FakeMentions, list[tuple[str, object]]
+]:
     events: list[tuple[str, object]] = []
     graph = FakeGraph(events)
     evidence = FakeEvidence(events)
-    return EntityEditService(graph, evidence), graph, evidence, events
+    mentions = FakeMentions(events)
+    return EntityEditService(graph, evidence, mentions), graph, evidence, mentions, events
 
 
 def _entity(project_id: UUID = PROJECT, **overrides: object) -> GraphEntity:
@@ -93,7 +135,7 @@ def _entity(project_id: UUID = PROJECT, **overrides: object) -> GraphEntity:
 
 
 async def test_edit_entity_writes_graph_then_evidence_with_field_diff() -> None:
-    service, graph, evidence, events = _service()
+    service, graph, evidence, _mentions, events = _service()
     janek = _entity()
     graph.entities[janek.id] = janek
 
@@ -109,7 +151,7 @@ async def test_edit_entity_writes_graph_then_evidence_with_field_diff() -> None:
 
 
 async def test_edit_entity_noop_writes_nothing() -> None:
-    service, graph, evidence, events = _service()
+    service, graph, evidence, _mentions, events = _service()
     janek = _entity()
     graph.entities[janek.id] = janek
 
@@ -120,7 +162,7 @@ async def test_edit_entity_noop_writes_nothing() -> None:
 
 
 async def test_edit_entity_invalid_patch_writes_nothing() -> None:
-    service, graph, _evidence, events = _service()
+    service, graph, _evidence, _mentions, events = _service()
     janek = _entity()
     graph.entities[janek.id] = janek
 
@@ -130,7 +172,7 @@ async def test_edit_entity_invalid_patch_writes_nothing() -> None:
 
 
 async def test_edit_entity_missing_or_cross_project_is_not_found() -> None:
-    service, graph, _evidence, _events = _service()
+    service, graph, _evidence, _mentions, _events = _service()
     with pytest.raises(EntityNotFound):
         await service.edit_entity(PROJECT, uuid4(), EntityEditPatch(type="Deity"))
 
@@ -141,7 +183,7 @@ async def test_edit_entity_missing_or_cross_project_is_not_found() -> None:
 
 
 async def test_add_relation_writes_edge_then_evidence_and_flags_no_collision() -> None:
-    service, graph, evidence, events = _service()
+    service, graph, evidence, _mentions, events = _service()
     janek = _entity()
     maria = _entity(canonical_name_pl="Maria")
     graph.entities[janek.id] = janek
@@ -160,7 +202,7 @@ async def test_add_relation_writes_edge_then_evidence_and_flags_no_collision() -
 
 
 async def test_add_relation_duplicate_flags_collision() -> None:
-    service, graph, _evidence, _events = _service()
+    service, graph, _evidence, _mentions, _events = _service()
     janek = _entity()
     maria = _entity(canonical_name_pl="Maria")
     graph.entities[janek.id] = janek
@@ -173,7 +215,7 @@ async def test_add_relation_duplicate_flags_collision() -> None:
 
 
 async def test_add_relation_allows_self_loop() -> None:
-    service, graph, _evidence, _events = _service()
+    service, graph, _evidence, _mentions, _events = _service()
     sole = _entity()
     graph.entities[sole.id] = sole
 
@@ -183,7 +225,7 @@ async def test_add_relation_allows_self_loop() -> None:
 
 
 async def test_add_relation_missing_endpoint_is_not_found() -> None:
-    service, graph, _evidence, _events = _service()
+    service, graph, _evidence, _mentions, _events = _service()
     janek = _entity()
     graph.entities[janek.id] = janek
     with pytest.raises(EntityNotFound):
@@ -191,7 +233,7 @@ async def test_add_relation_missing_endpoint_is_not_found() -> None:
 
 
 async def test_remove_relation_records_before_image_then_deletes() -> None:
-    service, graph, evidence, events = _service()
+    service, graph, evidence, _mentions, events = _service()
     janek = _entity()
     maria = _entity(canonical_name_pl="Maria")
     graph.entities[janek.id] = janek
@@ -211,6 +253,133 @@ async def test_remove_relation_records_before_image_then_deletes() -> None:
 
 
 async def test_remove_relation_missing_edge_is_not_found() -> None:
-    service, _graph, _evidence, _events = _service()
+    service, _graph, _evidence, _mentions, _events = _service()
     with pytest.raises(RelationEdgeNotFound):
         await service.remove_relation(PROJECT, uuid4())
+
+
+# --- merge (M4.S3b) --------------------------------------------------------
+
+
+async def test_merge_consolidates_repoints_deletes_and_records_grouped_evidence() -> None:
+    service, graph, evidence, mentions, events = _service()
+    survivor = _entity(canonical_name_pl="Bronisław", aliases=["Bronek"], properties={"age": 40})
+    absorbed = _entity(canonical_name_pl="Broniek", aliases=[], properties={"town": "Lwów"})
+    bystander = _entity(canonical_name_pl="Maria")
+    for e in (survivor, absorbed, bystander):
+        graph.entities[e.id] = e
+    # B has one incident edge (B → Maria) that must re-point onto A.
+    edge = await service.add_relation(PROJECT, absorbed.id, "LOVES", bystander.id)
+    mentions.by_entity[absorbed.id] = [uuid4(), uuid4()]
+    events.clear()
+
+    summary = await service.merge_entities(PROJECT, absorbed.id, survivor.id, {})
+
+    # consolidation landed on A
+    merged = graph.entities[survivor.id]
+    assert "Broniek" in merged.aliases  # B's canonical name folded in as an alias
+    assert merged.properties == {"age": 40, "town": "Lwów"}  # non-conflicting union
+    # B is gone, its edge re-pointed onto A
+    assert absorbed.id not in graph.entities
+    new_edge_id = relation_edge_id(survivor.id, "LOVES", bystander.id)
+    assert new_edge_id in graph.relations
+    assert edge.edge_id not in graph.relations
+    # mentions moved from B onto A
+    assert absorbed.id not in mentions.by_entity
+    assert len(mentions.by_entity[survivor.id]) == 2
+    assert summary == type(summary)(
+        survivor_entity_id=survivor.id,
+        repointed_count=1,
+        folded_count=0,
+        self_loops_dropped=0,
+        mentions_repointed=2,
+    )
+    # write order: fold A + edge swap → move mentions → delete B LAST → evidence
+    assert events == [
+        ("update_entity", survivor.id),
+        ("delete_relation", edge.edge_id),
+        ("create_relation", new_edge_id),
+        ("repoint_mentions", 2),
+        ("delete_entity", absorbed.id),
+        ("record_operation", 4),  # consolidate + 1 edge + mention re-point + delete-absorbed
+    ]
+    # the grouped rows share one operation_id and carry the human-readable description
+    (op_rows,) = evidence.operations
+    assert len({r.operation_id for r in op_rows}) == 1
+    assert all(r.op_kind == "merge" for r in op_rows)
+    assert {r.description for r in op_rows} == {"merged Broniek into Bronisław"}
+    assert [r.seq for r in op_rows] == [0, 1, 2, 3]
+
+
+async def test_merge_dedupes_a_self_loop_returned_twice_by_the_neighbourhood() -> None:
+    # A real Neo4j undirected neighbourhood query returns a self-loop *twice* (one per
+    # orientation); the service must dedupe by edge id so it isn't double-counted / double-logged.
+    service, graph, evidence, _mentions, _events = _service()
+    survivor = _entity(canonical_name_pl="Bronisław")
+    absorbed = _entity(canonical_name_pl="Broniek")
+    graph.entities[survivor.id] = survivor
+    graph.entities[absorbed.id] = absorbed
+    loop = GraphRelation(
+        id=relation_edge_id(absorbed.id, "MUTTERS", absorbed.id),
+        type="MUTTERS",
+        subject_id=absorbed.id,
+        object_id=absorbed.id,
+        confidence=1.0,
+    )
+    graph.relations[loop.id] = loop
+
+    # Force the both-orientation double-return the real adapter produces for a self-loop.
+    async def _twice(entity_id: UUID) -> list[tuple[GraphRelation, GraphEntity]]:
+        if entity_id == absorbed.id:
+            return [(loop, absorbed), (loop, absorbed)]
+        return []
+
+    graph.get_neighbourhood = _twice  # type: ignore[method-assign]
+
+    summary = await service.merge_entities(PROJECT, absorbed.id, survivor.id, {})
+
+    assert summary.self_loops_dropped == 1  # not 2 — the duplicate was deduped
+    (op_rows,) = evidence.operations
+    # consolidate + ONE edge row + mention re-point + delete-absorbed (no duplicate edge row)
+    assert [r.op for r in op_rows] == [
+        "merge_consolidate",
+        "discard_self_loop_relation",
+        "repoint_mentions",
+        "delete_absorbed",
+    ]
+
+
+async def test_merge_self_is_rejected_before_any_write() -> None:
+    service, graph, _evidence, _mentions, events = _service()
+    sole = _entity()
+    graph.entities[sole.id] = sole
+    with pytest.raises(SelfMergeError):
+        await service.merge_entities(PROJECT, sole.id, sole.id, {})
+    assert events == []
+
+
+async def test_merge_unresolved_property_conflict_is_rejected() -> None:
+    service, graph, _evidence, _mentions, events = _service()
+    survivor = _entity(properties={"age": 40})
+    absorbed = _entity(canonical_name_pl="Broniek", properties={"age": 41})
+    graph.entities[survivor.id] = survivor
+    graph.entities[absorbed.id] = absorbed
+    with pytest.raises(EntityMergeInvalid):
+        await service.merge_entities(PROJECT, absorbed.id, survivor.id, {})
+    # plan_merge raises before the Neo4j writes — nothing mutated
+    assert ("update_entity", survivor.id) not in events
+    assert ("delete_entity", absorbed.id) not in events
+
+
+async def test_merge_missing_or_cross_project_endpoint_is_not_found() -> None:
+    service, graph, _evidence, _mentions, _events = _service()
+    survivor = _entity()
+    graph.entities[survivor.id] = survivor
+    # absorbed missing
+    with pytest.raises(EntityNotFound):
+        await service.merge_entities(PROJECT, uuid4(), survivor.id, {})
+    # target in another project
+    foreign = _entity(project_id=OTHER_PROJECT)
+    graph.entities[foreign.id] = foreign
+    with pytest.raises(EntityNotFound):
+        await service.merge_entities(PROJECT, survivor.id, foreign.id, {})

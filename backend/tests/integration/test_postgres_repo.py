@@ -6,7 +6,7 @@ teardown — so the assertions below never need to clean up after themselves.
 
 from __future__ import annotations
 
-from uuid import uuid4
+from uuid import UUID, uuid4
 
 import psycopg
 import pytest
@@ -110,6 +110,36 @@ async def test_entity_mention_round_trip(db_conn: psycopg.AsyncConnection) -> No
     )
     await repo.insert_entity_mention(db_conn, mention)
     assert await repo.list_entity_mentions_for_paragraph(db_conn, para.id) == [mention]
+
+
+async def test_repoint_entity_mentions_moves_only_the_absorbed_entitys_rows(
+    db_conn: psycopg.AsyncConnection,
+) -> None:
+    """The merge cross-store re-point (M4.S3b, DM-S3b-4): B's mentions move onto A; an unrelated
+    entity's mention is untouched; the ids of the moved rows are returned; a re-run is a no-op."""
+    para = await _make_paragraph(db_conn)
+    absorbed, survivor, bystander = uuid4(), uuid4(), uuid4()
+    b1 = EntityMention(paragraph_id=para.id, entity_id=absorbed, span_start=0, span_end=6)
+    b2 = EntityMention(paragraph_id=para.id, entity_id=absorbed, span_start=7, span_end=12)
+    other = EntityMention(paragraph_id=para.id, entity_id=bystander, span_start=13, span_end=18)
+    for mention in (b1, b2, other):
+        await repo.insert_entity_mention(db_conn, mention)
+
+    moved = await repo.repoint_entity_mentions(
+        db_conn, from_entity_id=absorbed, to_entity_id=survivor
+    )
+    assert sorted(moved) == sorted([b1.id, b2.id])  # exactly B's rows, by id (for undo)
+
+    by_entity: dict[UUID, int] = {}
+    for mention in await repo.list_entity_mentions_for_paragraph(db_conn, para.id):
+        by_entity[mention.entity_id] = by_entity.get(mention.entity_id, 0) + 1
+    assert by_entity == {survivor: 2, bystander: 1}  # B's two moved to A; bystander untouched
+
+    # Idempotent: a re-run after the move matches no rows.
+    assert (
+        await repo.repoint_entity_mentions(db_conn, from_entity_id=absorbed, to_entity_id=survivor)
+        == []
+    )
 
 
 async def test_entity_mention_nullable_spans_and_confidence(

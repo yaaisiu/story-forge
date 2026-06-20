@@ -256,6 +256,34 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/stories/{story_id}/entities/{entity_id}/merge": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Merge Entity Route
+         * @description Merge entity B (`entity_id`, absorbed) into survivor A (`target_entity_id`) — spec §3.4,
+         *     DM-S3b-1/2/3/4.
+         *
+         *     A human-reached graph write (INV-9 as reworded — ADR 0006/0007): folds B's aliases/properties
+         *     into A (author-resolved conflicts), re-points every edge and mention incident to B onto A, then
+         *     deletes B — recording the whole fan-out as one **grouped, reversible** operation (INV-3,
+         *     DM-S3b-1) so undo can reverse it. Both entities must be accepted in this project (else 404); a
+         *     self-merge is rejected (409); an unresolved property conflict is rejected (400). The side panel
+         *     invalidates + refetches the reader/graph/detail bundle (DM-S3a-4).
+         */
+        post: operations["merge_entity_route_stories__story_id__entities__entity_id__merge_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/stories/{story_id}/candidates": {
         parameters: {
             query?: never;
@@ -813,6 +841,48 @@ export interface components {
             /** By Task Type */
             by_task_type: components["schemas"]["TaskTypeUsage"][];
             last_call: components["schemas"]["LastCall"] | null;
+        };
+        /**
+         * MergeRequest
+         * @description Merge entity B (the path `entity_id`, absorbed) into survivor A (`target_entity_id`),
+         *     M4.S3b (DM-S3b-2/8). `resolved_properties` carries the author's chosen value for every
+         *     property key the two entities set differently — by-hand conflict resolution; a missing one is
+         *     rejected (400). Non-conflicting keys union automatically, so they need not be listed.
+         */
+        MergeRequest: {
+            /**
+             * Target Entity Id
+             * Format: uuid
+             */
+            target_entity_id: string;
+            /**
+             * Resolved Properties
+             * @default {}
+             */
+            resolved_properties: {
+                [key: string]: unknown;
+            };
+        };
+        /**
+         * MergeSummaryResponse
+         * @description Outcome of a merge: the survivor's id + the counts the side panel reports — how many edges
+         *     were re-pointed, how many MERGE-folded (multiplicity lost, surfaced not silent, DM-S3b-3), how
+         *     many self-loops were dropped, and how many mentions moved onto the survivor.
+         */
+        MergeSummaryResponse: {
+            /**
+             * Survivor Entity Id
+             * Format: uuid
+             */
+            survivor_entity_id: string;
+            /** Repointed Count */
+            repointed_count: number;
+            /** Folded Count */
+            folded_count: number;
+            /** Self Loops Dropped */
+            self_loops_dropped: number;
+            /** Mentions Repointed */
+            mentions_repointed: number;
         };
         /**
          * ReaderEntity
@@ -1614,6 +1684,78 @@ export interface operations {
             };
             /** @description Story or relation edge not found. */
             404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+            /** @description A data store is unavailable. */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    merge_entity_route_stories__story_id__entities__entity_id__merge_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                story_id: string;
+                entity_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["MergeRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MergeSummaryResponse"];
+                };
+            };
+            /** @description A property conflict was left unresolved. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Story, the absorbed entity, or the merge target not found. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Self-merge (absorbed == target). */
+            409: {
                 headers: {
                     [name: string]: unknown;
                 };

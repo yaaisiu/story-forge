@@ -264,6 +264,35 @@ async def test_delete_relation_removes_the_edge(graph: tuple[Neo4jRepo, UUID]) -
     assert await repo.get_relations(project_id) == []
 
 
+async def test_delete_entity_removes_node_and_incident_edges(
+    graph: tuple[Neo4jRepo, UUID],
+) -> None:
+    """The merge-of-B / whole-entity delete path (M4.S3b, DM-S3b-5): `DETACH DELETE` drops the node
+    *and* every edge touching it, leaving an unrelated edge intact; a re-delete is idempotent."""
+    repo, project_id = graph
+    janek = GraphEntity(type="Character", canonical_name_pl="Janek", project_id=project_id)
+    maria = GraphEntity(type="Character", canonical_name_pl="Maria", project_id=project_id)
+    garret = GraphEntity(type="Character", canonical_name_pl="Garret", project_id=project_id)
+    for entity in (janek, maria, garret):
+        await repo.create_entity(entity)
+    incident = GraphRelation(type="LOVES", subject_id=janek.id, object_id=maria.id, confidence=0.9)
+    unrelated = GraphRelation(
+        type="KNOWS", subject_id=maria.id, object_id=garret.id, confidence=0.8
+    )
+    await repo.create_relation(incident)
+    await repo.create_relation(unrelated)
+
+    await repo.delete_entity(janek.id)
+
+    assert await repo.get_entity(janek.id) is None
+    # the incident edge is gone with the node; the unrelated edge survives
+    assert [r.id for r in await repo.get_relations(project_id)] == [unrelated.id]
+    assert await repo.count_entities(project_id) == 2
+
+    await repo.delete_entity(janek.id)  # idempotent re-delete (missing node is a no-op)
+    assert await repo.count_entities(project_id) == 2
+
+
 async def test_manual_self_loop_relation_is_written(graph: tuple[Neo4jRepo, UUID]) -> None:
     """A *manual* self-loop (subject == object) is intentional and is written (DM-S3a-3) —
     unlike the extraction path, which drops self-loops as merge artifacts."""

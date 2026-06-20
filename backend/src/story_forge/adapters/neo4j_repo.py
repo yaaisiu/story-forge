@@ -247,6 +247,17 @@ class Neo4jRepo:
             id=str(edge_id),
         )
 
+    async def delete_entity(self, entity_id: UUID) -> None:
+        """Remove a single entity node and its incident edges (the merge-of-B / whole-entity
+        delete path, M4.S3b, DM-S3b-5). `DETACH DELETE` drops the node together with every
+        relationship touching it; a missing node is a no-op, so a retried merge/delete is
+        idempotent (the OQ-1 cross-store retry contract). The caller captures the before-image
+        for undo *before* calling this — once the node is gone it is unreadable."""
+        await self._driver.execute_query(
+            "MATCH (e:Entity {id: $id}) DETACH DELETE e",
+            id=str(entity_id),
+        )
+
     # --- Maintenance -------------------------------------------------------
 
     async def delete_project_graph(self, project_id: UUID) -> None:

@@ -105,6 +105,23 @@ Session 33's live smoke test exposed several related gaps — all rooted in the 
   Elara, Elira, or both; "the sisters" is two entities at once. Such a mention has nowhere to land
   today. A post-PoC model would allow a mention→{entities} mapping (or an explicit "group/plural"
   resolution). Out of PoC scope.
+- **One surface name → different entities by context (homonymy / name collision).** The mirror image
+  of the merge problem: the *same* surface string legitimately denotes *different* entities depending
+  on context, so it must **not** be fused. Examples (owner, 2026-06-20): "**Vance**" → *Elara* Vance
+  or *Elira* Vance (shared surname); "**the Magistrate**" → Garret Locke (his office) *or* the
+  magistracy *as an institution* *or* a different magistrate; "**smuggler**" → Elara Vance (in one
+  passage she is the smuggler) *or* a generic/unnamed smuggler elsewhere. This bites in two places:
+  (1) **matching** must allow a surface form to have *more than one* valid target and disambiguate by
+  context, not collapse to one — the human gate handles it at PoC, but Stage-1/2 will keep proposing a
+  single best target; (2) **the reader's render-time highlight search (DM-IH-1)** is purely
+  name+alias string-matching, so every occurrence of "Vance" highlights as the *same* entity — it
+  has no way to render two same-named entities differently, or to know which "the Magistrate" is the
+  person vs the institution. A real fix needs **per-occurrence disambiguation** (a mention bound to a
+  *specific* entity id, with stored spans — reopening DM-IH-1 span storage, S3c's territory) rather
+  than name-search highlighting, plus context-aware matching. Closely tied to the coreference +
+  context-dependent-identity bullets above and to the "entity-level properties + embeddings" direction.
+  Out of PoC scope; recorded so the baseline graph + reader don't bake in a one-name-one-entity
+  assumption a later disambiguation model has to unpick. (Owner note, 2026-06-20.)
 - **Gate exact-name duplicate creation.** Accepting a candidate as *New* whose canonical_name
   *exactly* matches an existing accepted entity should be **gated** (warn, or auto-offer the merge),
   not silently create a second identical node — especially because M3 has no entity↔entity merge to

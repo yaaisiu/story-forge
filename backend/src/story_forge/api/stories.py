@@ -53,6 +53,7 @@ from story_forge.agents.entity_edit import (
     EntityEditService,
     EntityNotFound,
     RelationEdgeNotFound,
+    SelfMergeError,
 )
 from story_forge.agents.extraction_agent import ExtractionError
 from story_forge.agents.extraction_coordinator import ExtractionCoordinator
@@ -66,6 +67,7 @@ from story_forge.config import settings
 from story_forge.domain.candidates import CandidateProposal, RelationStatus, StagedCandidate
 from story_forge.domain.chunking import outline_to_tree
 from story_forge.domain.entity_edits import EntityEditInvalid, EntityEditPatch
+from story_forge.domain.entity_merge import EntityMergeInvalid
 from story_forge.domain.graph import GraphEntity
 from story_forge.domain.highlights import HighlightTarget, resolve_highlights
 from story_forge.domain.language import detect_language
@@ -898,6 +900,81 @@ async def remove_relation_route(
     except (OperationalError, ServiceUnavailable) as exc:
         raise HTTPException(status_code=503, detail="a data store is unavailable") from exc
     return Response(status_code=204)
+
+
+class MergeRequest(BaseModel):
+    """Merge entity B (the path `entity_id`, absorbed) into survivor A (`target_entity_id`),
+    M4.S3b (DM-S3b-2/8). `resolved_properties` carries the author's chosen value for every
+    property key the two entities set differently — by-hand conflict resolution; a missing one is
+    rejected (400). Non-conflicting keys union automatically, so they need not be listed."""
+
+    target_entity_id: UUID
+    resolved_properties: dict[str, object] = {}
+
+
+class MergeSummaryResponse(BaseModel):
+    """Outcome of a merge: the survivor's id + the counts the side panel reports — how many edges
+    were re-pointed, how many MERGE-folded (multiplicity lost, surfaced not silent, DM-S3b-3), how
+    many self-loops were dropped, and how many mentions moved onto the survivor."""
+
+    survivor_entity_id: UUID
+    repointed_count: int
+    folded_count: int
+    self_loops_dropped: int
+    mentions_repointed: int
+
+
+@router.post(
+    "/{story_id}/entities/{entity_id}/merge",
+    responses={
+        400: {"model": ErrorResponse, "description": "A property conflict was left unresolved."},
+        404: {
+            "model": ErrorResponse,
+            "description": "Story, the absorbed entity, or the merge target not found.",
+        },
+        409: {"model": ErrorResponse, "description": "Self-merge (absorbed == target)."},
+        503: {"model": ErrorResponse, "description": "A data store is unavailable."},
+    },
+)
+async def merge_entity_route(
+    story_id: UUID,
+    entity_id: UUID,
+    body: MergeRequest,
+    conn: Annotated[AsyncConnection, Depends(get_connection)],
+    edit: Annotated[EntityEditService, Depends(get_entity_edit)],
+) -> MergeSummaryResponse:
+    """Merge entity B (`entity_id`, absorbed) into survivor A (`target_entity_id`) — spec §3.4,
+    DM-S3b-1/2/3/4.
+
+    A human-reached graph write (INV-9 as reworded — ADR 0006/0007): folds B's aliases/properties
+    into A (author-resolved conflicts), re-points every edge and mention incident to B onto A, then
+    deletes B — recording the whole fan-out as one **grouped, reversible** operation (INV-3,
+    DM-S3b-1) so undo can reverse it. Both entities must be accepted in this project (else 404); a
+    self-merge is rejected (409); an unresolved property conflict is rejected (400). The side panel
+    invalidates + refetches the reader/graph/detail bundle (DM-S3a-4).
+    """
+    story = await get_story(conn, story_id)
+    if story is None:
+        raise HTTPException(status_code=404, detail="story not found")
+    try:
+        summary = await edit.merge_entities(
+            story.project_id, entity_id, body.target_entity_id, body.resolved_properties
+        )
+    except SelfMergeError as exc:
+        raise HTTPException(status_code=409, detail="cannot merge an entity into itself") from exc
+    except EntityNotFound as exc:
+        raise HTTPException(status_code=404, detail="entity not found") from exc
+    except EntityMergeInvalid as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except (OperationalError, ServiceUnavailable) as exc:
+        raise HTTPException(status_code=503, detail="a data store is unavailable") from exc
+    return MergeSummaryResponse(
+        survivor_entity_id=summary.survivor_entity_id,
+        repointed_count=summary.repointed_count,
+        folded_count=summary.folded_count,
+        self_loops_dropped=summary.self_loops_dropped,
+        mentions_repointed=summary.mentions_repointed,
+    )
 
 
 # --- Review queue (Stage 4): list pending / accept / reject -----------------
