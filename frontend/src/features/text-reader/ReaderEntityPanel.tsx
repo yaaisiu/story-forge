@@ -498,9 +498,12 @@ function RelationsSection({ storyId, entityId, detail, onSelectEntity }: Relatio
             type="button"
             data-testid="reader-relation-orientation"
             onClick={() => setFocalIsSubject((prev) => !prev)}
+            title="Click to flip the relationship direction"
             className="rounded border border-gray-300 px-2 py-0.5 hover:bg-gray-50"
           >
-            {focalIsSubject ? "this → other" : "other → this"}
+            {/* "this" and "other" stay put; only the arrow flips, so the direction is the
+                thing that changes on click (not the labels swapping places). */}
+            this {focalIsSubject ? "→" : "←"} other
           </button>
         </div>
         <input

@@ -384,7 +384,11 @@ describe("ReaderEntityPanel — relation editing (M4.S3a-fe)", () => {
     renderPanel();
     await screen.findByTestId("reader-entity-type");
 
-    fireEvent.click(screen.getByTestId("reader-relation-orientation"));
+    // The toggle keeps "this"/"other" in place and flips only the arrow direction.
+    const orientation = screen.getByTestId("reader-relation-orientation");
+    expect(orientation).toHaveTextContent("this → other");
+    fireEvent.click(orientation);
+    expect(orientation).toHaveTextContent("this ← other");
     fireEvent.click(screen.getByTestId("entity-picker-mock-pick"));
     fireEvent.change(screen.getByTestId("reader-relation-predicate"), {
       target: { value: "employs" },
