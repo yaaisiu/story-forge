@@ -351,3 +351,21 @@ Things to think through post-PoC:
   in a timeless, single-snapshot edge that a later temporal model has to unpick. This is a design
   constraint to keep in mind on **current** relation-modelling decisions, not scheduled work. (Owner
   idea, 2026-06-19.)
+
+---
+
+## Process & tooling (post-PoC)
+
+Refinements to *how we build*, deferred so they don't churn the process mid-PoC. (Process
+changes still follow the human-in-the-loop `/retro` flow — this is just where the *idea* waits.)
+
+- **Sweep skills + `AGENTS.md`/`CLAUDE.md` for soft/optional latitude phrasing.** Session 38
+  surfaced that `/wrap-session` step 2 let the agent *self-assess* "this was routine" and skip the
+  `/retro` prompt instead of asking (now fixed). The **class** of issue — rules worded with
+  "maybe / at your discretion / if it feels routine / a X skipped by choice is fine" that let the
+  agent decide what should be a deterministic step or an explicit user ask — likely recurs in other
+  skills. Do a dedicated pass: grep the skills + the `AGENTS.md` files for that kind of latitude,
+  and propose tightenings **one at a time** (each through `/retro`, human-approved) so a soft rule
+  becomes either deterministic or an explicit "ask the user." Keep simplicity-first — only tighten
+  phrasing that actually invites the agent to skip/guess a step, not every hedge. (Owner nudge,
+  Session 38: "tighten up our rules and skills so they are more predictable/deterministic.")
