@@ -568,6 +568,8 @@ export interface components {
             entity_id: string;
             /** Canonical Name */
             canonical_name: string;
+            /** Language */
+            language: string;
             /** Type */
             type: string;
             /** Aliases */

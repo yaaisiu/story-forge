@@ -14,6 +14,7 @@ function detail(overrides: Partial<EntityDetailResponse> = {}): EntityDetailResp
   return {
     entity_id: "focal",
     canonical_name: "Elara",
+    language: "en",
     type: "character",
     aliases: [],
     properties: {},

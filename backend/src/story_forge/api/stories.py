@@ -690,6 +690,10 @@ class EntityDetailResponse(BaseModel):
 
     entity_id: UUID
     canonical_name: str
+    # The project's working language ("pl"/"en"). The editable side panel (M4.S3a-fe) shows a
+    # single name field and writes it to the matching `canonical_name_{pl,en}` slot — one language
+    # per project at PoC (two languages in one project is out of scope; spec §10 q8, owner).
+    language: str
     type: str
     aliases: list[str]
     properties: dict[str, object]
@@ -728,6 +732,7 @@ async def get_entity_detail(
     return EntityDetailResponse(
         entity_id=entity.id,
         canonical_name=canonical_for_language(entity, language),
+        language=language,
         type=entity.type,
         aliases=entity.aliases,
         properties=entity.properties,

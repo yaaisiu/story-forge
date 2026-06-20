@@ -101,6 +101,9 @@ async def test_entity_detail_returns_details_properties_and_ego_graph(
     body = resp.json()
     assert body["entity_id"] == str(janek.id)
     assert body["canonical_name"] == "Janek"
+    # The project's working language, so the editable side panel (M4.S3a-fe) knows which
+    # canonical-name slot a single-field name edit writes to (one language per project at PoC).
+    assert body["language"] == "pl"
     assert body["type"] == "Character"
     assert body["aliases"] == ["Janek z młyna"]
     assert body["properties"] == {"role": "miller", "age": 23}
