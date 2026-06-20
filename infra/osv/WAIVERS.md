@@ -84,3 +84,24 @@ soak-completion backstops (`ignoreUntil` in the toml).
 |---|---|---|---|---|---|
 | GHSA-82w8-qh3p-5jfq (CVE-2026-54283) | HIGH (CVSS 7.5) | availability / DoS | 1.3.1 | 2026-06-26 | DoS only (no data exposure); not remotely reachable on a 127.0.0.1 single-user app |
 | GHSA-jp82-jpqv-5vv3 (CVE-2026-54282) | LOW (CVSS 3.7) | minor integrity | 1.3.0 | 2026-06-25 | Low severity; same local-only exposure |
+
+### pydantic-settings — `pydantic-settings==2.14.0` (surfaced 2026-06-20)
+
+Scoped file: `infra/osv/osv-scanner.toml` (`[[IgnoredVulns]]`).
+GHSA-4xgf-cpjx-pc3j (MEDIUM, CVSS 5.3): `NestedSecretsSettingsSource` follows a symlink
+inside `secrets_dir` that points **outside** it (when `secrets_nested_subdir=True`), enabling
+an unintended local file read and bypassing `secrets_dir_max_size`. Triggering it requires
+(a) using that settings source with a `secrets_dir`, and (b) an attacker able to plant symlinks
+in that directory (a shared/writable secrets mount).
+**Reachability — code path unused.** Story Forge's only settings source is `env_file=".env"`
+(`backend/src/story_forge/config.py` `SettingsConfigDict`); we never construct
+`NestedSecretsSettingsSource`, set `secrets_dir`, or enable `secrets_nested_subdir`, so the
+vulnerable code is never instantiated. (Local single-user, 127.0.0.1 — there is also no
+lower-privileged component to plant the symlink.) **Fix-first is blocked only by the soak:**
+the fix **2.14.2** was published 2026-06-19, inside the 14-day window.
+**Drop when:** 2.14.2 clears the soak (floor **2026-07-04** = publication + 15 days) — bump
+`pydantic-settings` to 2.14.2 via `/add-dependency`, then delete the toml block + this row.
+
+| CVE / advisory | Severity | Class | Fixed in | Drop when (soaks) | Why safe meanwhile |
+|---|---|---|---|---|---|
+| GHSA-4xgf-cpjx-pc3j | MEDIUM (CVSS 5.3) | local file read via `secrets_dir` symlink | 2.14.2 | 2026-07-04 | the `NestedSecretsSettingsSource` / `secrets_dir` code path is never used (we read `.env` only); no untrusted local component on a single-user host |
