@@ -120,6 +120,14 @@ Produced through a meta-architect dogfood pass — `decompose-requirement` →
   the pair can't be re-merged). be2's undo must therefore either **delete** an undone operation's
   `graph_edits` rows (not just stamp `undone_at`) or fold a generation/nonce into the id derivation.
   Recorded here so the be2 build treats it as a known design point, not a surprise.
+  **✅ Resolved in be2 (M4.S3b-be2, PR #105, 2026-06-20): a generation discriminator.** The build kept
+  the `undone_at` stamp model (so `mark_operation_undone` and the audit row stay) and instead suffixes
+  the `uuid5` seed with a generation = the count of *undone* operations for the same targets
+  (`_op_seed` / `_next_generation`). A *live* op probes False, so a crash-retry of an in-flight op
+  re-derives the same id (still idempotent); only an undone prior op pushes the next generation. It
+  applies symmetrically to re-merge **and** re-delete (the delete operation id is also targets-keyed).
+  The delete-the-rows alternative was rejected: it would discard the audit trail and contradict the
+  stamp model the schema was built for.
 
 ## Alternatives considered
 

@@ -420,7 +420,11 @@ B already gone ⇒ the merge no-ops that step). The **operation group** (DM-S3b-
   machine's guard).
 - **…delete an entity that is the survivor of an earlier merge?** Its aliases include the absorbed B's
   name; deleting it is legal but the earlier merge's undo is now compromised (its survivor is gone).
-  Surface, or block delete while an un-undone merge depends on it — DM-S3b-5 open.
+  **✅ Resolved 2026-06-20 (Session 42, M4.S3b-be2, owner-confirmed): allow the delete + let that
+  merge's undo drift-check refuse** (a 409) — no "is this a survivor?" guard on the delete path; the
+  consistency check is pushed to undo, which already has a drift mechanism. *Considered & rejected:*
+  block delete while an un-undone merge depends on it (adds a survivor-lookup to every delete + a new
+  failure mode, for a window drift-refuse already covers).
 - **…a merge re-points 0 edges and 0 mentions (B was bare)?** Fine — fold aliases/props, delete B,
   record an empty-edge-set operation; undo restores B as a bare node.
 - **…the undo log grows without bound over a long editing session?** Accepted none-at-PoC (Expiry,
