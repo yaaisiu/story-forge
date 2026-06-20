@@ -109,6 +109,29 @@ after V1) → `docs/BACKLOG.md` — and then delete the memory entry (and its in
 is not done while a durable fact lives only in memory. A session that used no memory: nothing to
 do, say so. (Full routing rule: root `CLAUDE.md` "Where knowledge lives" + `docs/BACKLOG.md` header.)
 
+## 5c. Slim PLAN_SHORT — archive a rolled milestone (§7)
+
+`PLAN_SHORT.md` carries the **current milestone only** (`docs/AGENTS.md` §7). Two triggers
+move content out — both **move, not delete** (§4), into **`docs/PLAN_ARCHIVE.md`**:
+
+- **At a milestone roll (the standing ritual step):** when this wrap closes a milestone and the
+  next session opens a new one, **move the just-closed milestone** to the archive — its
+  `## Completed milestone:` task section, its Decided entries, its Done log, and the
+  struck/resolved cross-cutting + Blocked items *that milestone raised* (the §3 re-curation is
+  the moment to sort those). Append them under a new dated `## Archived YYYY-MM-DD (Session N):
+  <milestone>` heading **at the top** of the archive (newest batch first; preserve each section's
+  reverse-chronological order verbatim). Leave the pointers in `PLAN_SHORT.md`: the
+  `> **Earlier milestones — archived.**` blockquote near the top and the `- _Earlier
+  decisions/sessions … see PLAN_ARCHIVE.md_` lines at the foot of Decided/Done.
+- **Mid-milestone, if visibly bloated:** if `PLAN_SHORT.md` is approaching the **256 KB
+  single-read limit** before a roll (a long milestone whose own Done/Decided log alone grew
+  heavy), flag it and offer to slim early — but only the cleanly milestone-keyed content; live
+  cross-cutting/Blocked stay (§7 "what never moves").
+
+Preserve bytes exactly when moving (a scripted line-range split beats re-typing dense entries);
+then verify nothing was lost or duplicated (dated-bullet count before == sum after; no bullet in
+both files). If this session neither closed a milestone nor bloated the file: nothing to do, say so.
+
 ## 6. Check spec / plan consistency
 
 If the work revealed the spec was wrong or incomplete: **stop.** The spec
