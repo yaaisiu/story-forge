@@ -70,9 +70,14 @@ turns up. Folding an explicit instruction is *not* a substitute for the look-bac
 the two is how a recurring foot-gun survives another session (it's how the cwd-invocation
 gotcha did). If the reflection genuinely turns up nothing, say so — but do the pass.
 
-**Once per session:** if `/retro` already ran this session, don't re-prompt — just fold its
-outcomes into the steps below. If the session was routine and nothing felt like friction,
-say so — a retro skipped *by choice* is fine; a forgotten one is not.
+**Always put the prompt to the user — never self-assess "this was routine" and skip the
+ask.** Do the reflective pass, surface what it turned up (including "nothing cleared the
+bar" if that's the honest result), then **explicitly ask the user** whether to run `/retro`
+— or just run it. Skipping is the **user's** call made in answer to that ask, **never the
+agent's**: an unasked retro is a forgotten one, not a skipped-by-choice one. Don't bury the
+ask as an optional aside ("you can run it if you like") — make it a clear question the user
+answers. **Once per session:** if `/retro` already ran this session, don't re-prompt — fold
+its outcomes into the steps below.
 
 ## 3. Update the task lists in docs/PLAN_SHORT.md
 
