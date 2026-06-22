@@ -31,6 +31,16 @@ export function codepointToUtf16(text: string, codepointOffset: number): number 
   return Array.from(text).slice(0, codepointOffset).join("").length;
 }
 
+/**
+ * Convert a UTF-16 code-unit offset into the matching codepoint offset within `text` — the
+ * inverse of `codepointToUtf16`. A selection on the rendered document arrives in UTF-16 units
+ * (what ProseMirror / the DOM count in); the backend's manual-tag routes take codepoint offsets
+ * (Python `str` slicing). `Array.from` over the UTF-16 prefix re-counts it by codepoint.
+ */
+export function utf16ToCodepoint(text: string, utf16Offset: number): number {
+  return Array.from(text.slice(0, utf16Offset)).length;
+}
+
 /** A highlight's span as UTF-16 offsets relative to its paragraph's content start. */
 export interface HighlightRange {
   from: number;
@@ -81,6 +91,14 @@ export function decorationAttrs(
     "data-testid": "highlight",
     "data-entity-id": highlight.entity_id,
     "data-entity-type": highlight.type,
+    // Occurrence identity for the right-click correction menu (M4.S3c-fe2, DM-S3c-6): `source`
+    // tells a search hit (corrected via a suppression) from a manual span (carries a `mention_id`
+    // a change-boundaries edits in place); the handler reads these off the DOM target. The span
+    // is the highlight's **codepoint** offsets (what the suppress/boundary routes take), so a
+    // right-click — which makes no text selection — still knows the exact occurrence's range.
+    "data-source": highlight.source,
+    "data-start": String(highlight.start),
+    "data-end": String(highlight.end),
     // Focusable + button-semantic so a keyboard user can open the side panel on a highlight
     // (parity with the prior <mark role=button tabIndex=0>); ReaderEditor's handleKeyDown
     // activates the focused one on Enter/Space.
@@ -90,6 +108,7 @@ export function decorationAttrs(
     class: flashing ? `${BASE_CLASS} ${FLASH_CLASS}` : BASE_CLASS,
     style: `background-color: ${color}1a; border-bottom: 2px solid ${color}`,
   };
+  if (highlight.mention_id) attrs["data-mention-id"] = highlight.mention_id;
   if (flashing) attrs["data-flash"] = "true";
   return attrs;
 }
