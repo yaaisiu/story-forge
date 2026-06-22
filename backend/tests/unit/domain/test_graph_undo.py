@@ -333,10 +333,14 @@ def test_remove_relation_inverse_tolerates_a_legacy_thin_snapshot() -> None:
 def test_discard_self_loop_inverse_recreates_the_dropped_edge() -> None:
     survivor = _entity()
     loop = _edge(survivor.id, survivor.id)
+    # The forward writer records this row as `f"{step.kind}_relation"` →
+    # "discard_self_loop_relation" (entity_edit._merge_rows); the inverter must match that exact
+    # op, not the bare "discard_self_loop" (the earlier fixture invented a name the writer never
+    # emits, so the bug — UndoNotInvertible on a self-loop-dropping merge's undo — slipped CI).
     row = GraphEdit(
         target_id=loop.id,
         target_kind="relation",
-        op="discard_self_loop",
+        op="discard_self_loop_relation",
         before=loop.model_dump(mode="json"),
         after=None,
     )
