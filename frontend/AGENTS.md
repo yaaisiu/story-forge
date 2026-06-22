@@ -73,6 +73,17 @@ grep `.env` (hard rule), and you don't need to. The two things that actually nee
   and restart the backend (prefer `--reload`) before concluding the UI is at fault. (S35: the
   M4.S2a `/stories/{id}/entities/{eid}` route was merged but the long-running uvicorn predated
   it, so the new side panel's fetch 404'd during a browser check until the backend was restarted.)
+- **Don't `git checkout` away from the branch under test mid-smoke — use a `git worktree` for a
+  parallel fix.** The dev servers serve from the working tree, so switching the tree to another
+  branch silently changes what the user is looking at: a `git checkout` to a fix branch makes the
+  running Vite hot-reload to _that_ branch's UI (a feature's new buttons vanish) and a restarted
+  backend load that branch's code. When a smoke surfaces a bug you must fix on a _separate_ branch
+  (e.g. a backend hotfix while the user smokes a frontend feature branch), create it with
+  `git worktree add ../sf-fix <branch>` and work there, leaving the branch-under-test checked out
+  and serving. After the fix merges, bring it into the feature branch (`git merge origin/main`) so
+  the one tree has both halves. (M4.S3b-fe: checking out a backend hotfix branch mid-smoke flipped
+  the user's reader to `main` — the merge/delete/undo buttons disappeared — a confusing round-trip a
+  worktree would have avoided.)
 
 **Getting data to click:** a feature gated on prior human decisions (the review/relations
 queues) needs seeded state. Either drive the real upstream flow (upload → extract → accept),
