@@ -282,6 +282,18 @@ past PoC ("not the time for UX… we'll iron the wrinkles after PoC"):
 
 These were kept light on purpose — proof-of-concept, not final UI. (Owner browser check + `/code-review`, Session 35.)
 
+## Frontend bundle — code-split the reader route (post-PoC, surfaced M4.S3c-fe1)
+
+Adopting Tiptap for the reader (M4.S3c-fe1, Session 47) pushed the single Vite chunk over
+500 kB (~1.04 MB / ~322 kB gzip), so `npm run build` now emits a chunk-size advisory (a
+warning, not a CI gate). The reader/editor (Tiptap + ProseMirror) and the graph viewer
+(cytoscape) are the two heavy, route-specific subtrees — natural candidates for a
+`React.lazy` + dynamic-`import()` split so the initial load doesn't pay for both. Deferred
+because it's a build-perf refinement with no PoC user impact (single-user, local). When
+picked up: lazy-load the reader and graph routes, confirm the warning clears, and keep an
+eye on the per-route gzip sizes. (Flagged in the PR-#115 review, not folded — out of the
+fe1 parity scope.)
+
 ## Undo / delete robustness — V1 hardening (deferred from M4.S3b-be2, Session 42)
 
 The general undo executor (M4.S3b-be2, PR #105) is **correct and reversible for the single local
