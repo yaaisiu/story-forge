@@ -327,12 +327,26 @@ automated browser-driven or external-API-contract layer. Post-PoC, Playwright dr
 (upload → extract → review → reader / side-panel) and Postman exercises the REST surface, so the manual
 smoke walks this project leans on become regression-guarded. (Owner note, Session 35.)
 
-## World graph from multiple sources — attributable knowledge (post-PoC; basic world-graph is already in-PoC scope)
+## World graph from multiple sources — attributable knowledge (post-PoC)
 
-The spec already plans a **world graph**: §3.6 (mark a story as belonging to world X → its entities
+> **Scope decision — 2026-06-22 (owner): the WORLD-LEVEL / world-graph layer is OUT of PoC → here.**
+> The "world graph" — a story belongs to a shared *world X* whose entities become cross-story merge
+> candidates (spec §3.6; the world-graph-parent M4 slice) — is **dropped from the PoC**. What stays
+> in PoC is the narrower **multi-story-within-one-project** capability: add a new story that **reuses
+> the existing project graph**, with a migration that tracks **which entity appears in which story**
+> (per-story entity membership) so the reader/graph can scope "this story vs the whole project", and
+> so known entities can **leverage extraction** in a new story. That narrowed direction is recorded
+> in `docs/PLAN_SHORT.md` (Decided 2026-06-22) and concretizes the long-deferred **§3.4 story-vs-
+> project scoping** cross-cutting item — it is **not** this backlog entry. The spec (§3.6 + §9 M4
+> feature order) still *describes* the world graph as in-scope; reconciling it to this decision is a
+> pending **stop-and-amend** (propose → owner approves → amend §3.6/§9, then the plans). Until then,
+> everything below (world-merge + the multi-source attribution generalisation) is **post-PoC**.
+
+The spec plans a **world graph**: §3.6 (mark a story as belonging to world X → its entities
 become merge candidates, same cascade with greater caution + always human review) and the M4 feature
-order (multi-story → world-graph parent are V1 slices). So *basic* world-building — merging entities
-across **stories** in one fictional universe — is already in scope and not a backlog item.
+order (multi-story → world-graph parent were V1 slices). Per the 2026-06-22 decision above, *cross-
+story world-merge* — unifying entities across **stories** in one fictional universe — is now **post-
+PoC** and lives here (basic multi-story-in-a-project, without the world layer, stays in PoC).
 
 What the owner flagged (2026-06-19) is a **further dimension** the current model doesn't carry: using
 Story Forge for **non-fiction / research** (the example: historical research) where the inputs are not
@@ -422,3 +436,19 @@ changes still follow the human-in-the-loop `/retro` flow — this is just where 
   becomes either deterministic or an explicit "ask the user." Keep simplicity-first — only tighten
   phrasing that actually invites the agent to skip/guess a step, not every hedge. (Owner nudge,
   Session 38: "tighten up our rules and skills so they are more predictable/deterministic.")
+
+## Code documentation generation — first stone toward living project documentation (post-PoC)
+
+The owner's seed idea (2026-06-22): a tool/agent that **generates documentation from the codebase
+itself** — the first stone toward a **living project-code-documentation** system where the docs are
+derived from (and stay in sync with) the actual source, rather than hand-maintained prose that drifts.
+
+This is deliberately recorded as a **direction**, not a spec'd feature — the design questions are wide
+open and to be thought through before any build: what it documents (module/API surface, the
+`api → agents → domain → adapters` layering, the agent/prompt/schema catalog, the data model), how it
+stays *living* (regenerated in CI on change? a pre-commit step? diff-aware so it only re-derives what
+moved?), how it avoids becoming a second source of truth that drifts (the same trap the architecture
+vault's "reference, don't duplicate" rule guards against — see `architecture/AGENTS.md`), and whether
+it leans on an LLM pass or stays deterministic-first ([[prefer-deterministic]]). It pairs naturally
+with the public-portfolio goal (a stranger can read how the project is built) and with the existing
+`AGENTS.md`-per-directory convention. Revisit at the PoC→V2 roll. (Owner idea, 2026-06-22.)
