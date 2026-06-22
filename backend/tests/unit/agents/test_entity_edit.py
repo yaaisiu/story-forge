@@ -22,6 +22,7 @@ from story_forge.domain.candidates import relation_edge_id
 from story_forge.domain.entity_edits import EntityEditInvalid, EntityEditPatch
 from story_forge.domain.entity_merge import EntityMergeInvalid
 from story_forge.domain.graph import GraphEntity, GraphRelation
+from story_forge.domain.graph_undo import RecreateRelation, invert_operation
 
 PROJECT = uuid4()
 OTHER_PROJECT = uuid4()
@@ -375,6 +376,38 @@ async def test_merge_dedupes_a_self_loop_returned_twice_by_the_neighbourhood() -
         "repoint_mentions",
         "delete_absorbed",
     ]
+
+
+async def test_every_op_a_self_loop_merge_records_is_invertible() -> None:
+    # Writer↔inverter contract: drive `invert_operation` from the REAL rows a merge emits, not a
+    # hand-built fixture. A self-loop-dropping merge records a `discard_self_loop_relation` row; the
+    # inverter must handle every op the writer produces (no UndoNotInvertible) and recreate the
+    # dropped loop. This is the regression for the merge-undo 500 that a fictional fixture masked.
+    service, graph, evidence, _mentions, _events = _service()
+    survivor = _entity(canonical_name_pl="Bronisław")
+    absorbed = _entity(canonical_name_pl="Broniek")
+    graph.entities[survivor.id] = survivor
+    graph.entities[absorbed.id] = absorbed
+    loop = GraphRelation(
+        id=relation_edge_id(absorbed.id, "MUTTERS", absorbed.id),
+        type="MUTTERS",
+        subject_id=absorbed.id,
+        object_id=absorbed.id,
+        confidence=1.0,
+    )
+    graph.relations[loop.id] = loop
+
+    async def _twice(entity_id: UUID) -> list[tuple[GraphRelation, GraphEntity]]:
+        return [(loop, absorbed), (loop, absorbed)] if entity_id == absorbed.id else []
+
+    graph.get_neighbourhood = _twice  # type: ignore[method-assign]
+
+    await service.merge_entities(PROJECT, absorbed.id, survivor.id, {})
+    (op_rows,) = evidence.operations
+
+    plan = invert_operation(op_rows)  # must not raise UndoNotInvertible
+
+    assert RecreateRelation(relation=loop) in plan.actions
 
 
 async def test_merge_self_is_rejected_before_any_write() -> None:

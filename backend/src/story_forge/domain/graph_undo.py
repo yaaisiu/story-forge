@@ -158,8 +158,10 @@ def invert_operation(rows: Sequence[GraphEdit]) -> InversePlan:
             # is A's pre-existing edge — that's what makes it a fold). So the new edge must NOT be
             # removed on undo (it was never created here); undo only recreates B's old edge.
             actions.append(RecreateRelation(relation=GraphRelation(**_require(row.before, row.op))))
-        elif row.op == "discard_self_loop":
-            # forward dropped the old edge (no new edge); undo re-creates it.
+        elif row.op == "discard_self_loop_relation":
+            # forward dropped the old edge (no new edge); undo re-creates it. The op name is
+            # `f"{step.kind}_relation"` from the merge writer — "discard_self_loop_relation",
+            # matching the "repoint_relation"/"fold_relation" siblings above.
             actions.append(RecreateRelation(relation=GraphRelation(**_require(row.before, row.op))))
         elif row.op == "add_relation":
             # forward created the edge at target_id (before is None) — UNLESS it MERGE-folded onto
