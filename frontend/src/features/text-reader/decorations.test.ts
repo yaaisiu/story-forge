@@ -1,6 +1,11 @@
 import { describe, expect, it } from "vitest";
 
-import { codepointToUtf16, decorationAttrs, paragraphHighlightRanges } from "./decorations";
+import {
+  codepointToUtf16,
+  decorationAttrs,
+  paragraphHighlightRanges,
+  utf16ToCodepoint,
+} from "./decorations";
 import type { ReaderEntity, ReaderHighlight } from "../../lib/api/useReader";
 
 // The backend emits highlight `start`/`end` as **codepoint** offsets (Python `re` match
@@ -34,6 +39,37 @@ describe("codepointToUtf16", () => {
     expect(codepointToUtf16(text, 1)).toBe(1); // before the emoji
     expect(codepointToUtf16(text, 2)).toBe(3); // after the emoji (1 + 2 surrogate units)
     expect(codepointToUtf16(text, 3)).toBe(4); // after "b" (full UTF-16 length)
+  });
+});
+
+describe("utf16ToCodepoint", () => {
+  it("is the identity for ASCII / BMP-only text", () => {
+    expect(utf16ToCodepoint("Janek walked", 0)).toBe(0);
+    expect(utf16ToCodepoint("Janek walked", 5)).toBe(5);
+    expect(utf16ToCodepoint("Janek walked", 12)).toBe(12);
+  });
+
+  it("is the identity across Polish diacritics (all BMP, one code unit each)", () => {
+    expect(utf16ToCodepoint("Łódź", 4)).toBe(4);
+    expect(utf16ToCodepoint("Łódź nad rzeką", 5)).toBe(5);
+  });
+
+  it("contracts by one codepoint per preceding astral character (surrogate pair)", () => {
+    // "a😀b": a(u16 0), 😀 U+1F600 = 2 UTF-16 units, b. UTF-16→codepoint:
+    const text = "a😀b";
+    expect(utf16ToCodepoint(text, 0)).toBe(0); // before "a"
+    expect(utf16ToCodepoint(text, 1)).toBe(1); // before the emoji
+    expect(utf16ToCodepoint(text, 3)).toBe(2); // after the emoji (2 surrogate units → 1 codepoint)
+    expect(utf16ToCodepoint(text, 4)).toBe(3); // after "b" (full codepoint length)
+  });
+
+  it("round-trips codepointToUtf16 for every codepoint boundary (incl. astral)", () => {
+    for (const text of ["Janek walked", "Łódź nad rzeką", "a😀b", "😀😀"]) {
+      const codepoints = Array.from(text).length;
+      for (let n = 0; n <= codepoints; n += 1) {
+        expect(utf16ToCodepoint(text, codepointToUtf16(text, n))).toBe(n);
+      }
+    }
   });
 });
 
@@ -89,6 +125,11 @@ describe("decorationAttrs", () => {
     expect(attrs["data-testid"]).toBe("highlight");
     expect(attrs["data-entity-id"]).toBe("e1");
     expect(attrs["data-entity-type"]).toBe("character");
+    // A search hit carries its source + codepoint span but no mention id (it has no stored row).
+    expect(attrs["data-source"]).toBe("search");
+    expect(attrs["data-start"]).toBe("0");
+    expect(attrs["data-end"]).toBe("5");
+    expect(attrs["data-mention-id"]).toBeUndefined();
     // Keyboard-activatable (parity with the prior <mark role=button tabIndex=0>).
     expect(attrs.role).toBe("button");
     expect(attrs.tabindex).toBe("0");
@@ -107,6 +148,20 @@ describe("decorationAttrs", () => {
     const attrs = decorationAttrs(hl(0, 5), entity, true, "Janek");
     expect(attrs["data-flash"]).toBe("true");
     expect(attrs.class).toContain("animate-pulse");
+  });
+
+  it("carries a manual highlight's source + mention id so a correction can address it", () => {
+    const manual: ReaderHighlight = {
+      start: 0,
+      end: 5,
+      entity_id: "e1",
+      type: "character",
+      source: "manual",
+      mention_id: "m-123",
+    };
+    const attrs = decorationAttrs(manual, entity, false, "Janek");
+    expect(attrs["data-source"]).toBe("manual");
+    expect(attrs["data-mention-id"]).toBe("m-123");
   });
 
   it("falls back to the highlighted surface text when the entity is absent from the catalog", () => {
