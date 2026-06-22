@@ -1,7 +1,7 @@
 ---
 type: index
 slug: index
-updated: 2026-06-20
+updated: 2026-06-22
 status: living
 related: []
 ---
@@ -30,14 +30,14 @@ related: []
 | [[learning-log]] | learning-log | append-only |
 | [[changelog]] | changelog | append-only |
 
-## Glossary (26 terms — see [[glossary]])
+## Glossary (27 terms — see [[glossary]])
 [[trust-boundary]] · [[invariant]] · [[state-machine]] · [[fail-closed]] ·
 [[human-in-the-loop]] · [[idempotency]] · [[open-world-ontology]] · [[source-of-truth]] ·
 [[c4-model]] · [[agent]] · [[cascade-matching]] · [[model-tier-routing]] ·
 [[compliance-audit-layer]] · [[prefer-deterministic]] · [[failover]] · [[toctou]] ·
 [[prompt-injection]] · [[poison-message]] · [[software-composition-analysis]] ·
 [[defense-in-depth]] · [[intra-batch-dedup]] · [[referential-integrity]] · [[ego-graph]] ·
-[[backend-for-frontend]] · [[lost-update]] · [[compensating-transaction]]
+[[backend-for-frontend]] · [[lost-update]] · [[compensating-transaction]] · [[materialization]]
 
 ## Proposals & reports
 | Note | Type | What |
@@ -45,6 +45,7 @@ related: []
 | [[backend-dependency-advisory-scan]] | proposal | **Continuous backend SCA gate in CI (✅ built 2026-06-08, PR #44)** — closes the gap where a vuln disclosed *after* pinning was caught only by Dependabot, not CI (the `starlette` 1.0.0 case). Built: osv-scanner step vs `uv.lock`, fail-on-any, **digest-pinned** scanner (the action is a no-`runs:` stub — stronger than the planned SHA-pin), `infra/osv/` waivers, `starlette` 1.0.0→1.0.1 (self-test red→green), §6.7 baseline (no new INV). |
 | [[m2s3-extraction-agent]] | proposal | **M2.S3 nine-layer pass (✅ accepted 2026-06-08, register resolved)** — `ExtractionAgent`, first `LLMRouter` consumer. Decisions: per-paragraph, single-paragraph agent (batch→M2.S4), `candidate_name`, typed `ProviderResponseError`, soft-flag `evidence_quote`. **Built + merged (PR #42).** |
 | [[m3-cascade-matching]] | proposal | **M3 cascade dedupe — step-0 forward pass (✅ register FULLY resolved: DM1–DM6 + DM7 + DM-rej; PLAN_SHORT Decided S23)** — the §3.3 four-stage cascade (RapidFuzz → embedding → JudgeAgent → human queue). Draws the candidate lifecycle; 8-entry register (DM1–DM7 + DM-rej). Central fork **DM6** ✅ intercept-before-write. Retires INV-8 at **M3.S4a** (the re-slice), lands INV-1's enforcer. Stages built proposal-only: M3.S1 RapidFuzz ✅ (PR #56), M3.S2 Stage 2 + pgvector ✅ (PR #58), M3.S3 JudgeAgent ✅ (PR #60). DM7 outcome: **INV-2 consent deferred past M3**. DM-rej: **remember rejections**. |
+| [[m4-s3c-manual-tagging]] | proposal | **M4.S3c step-0 — manual tag / un-tag / change-boundaries (✅ ACCEPTED, register RESOLVED DM-S3c-1..9 / OQ-26 — owner S44; build next session)** — the **final slice** of "manual correction in the reader" (S3a · S3b · **S3c**; spec §3.5 manual tagging + the right-click correction menu). **Centre of gravity = DM-S3c-1 (the span-storage model):** today a rendered highlight is a render-time **search hit with no identity** (DM-IH-1; `entity_mentions` char-offsets NULL/unused), so a manual span (an inflected form, a pronoun, a new entity) can't be re-found by search and un-tagging acts on a highlight with *no row to delete*. Fork: (A) **materialize all** (backfill stored spans, drop search — clean, but a migration + loses DM-IH-1's rename-free/edit-robust win) vs (B) **overlay** (keep search + stored manual spans + a *suppression* record; materialize **incrementally** — my lean) vs (C) **alias-only** (cheapest, but can't do change-boundaries or single-occurrence un-tag — fails the requirement). Introduces [[materialization]]. First reader *write* slice for the **mention** layer (Evidence/Policy/Review stations flip ✅); new-entity-from-tag grows INV-9's human-reached-writer enumeration; tag/un-tag/boundary ride the S3b `graph_edits` undo (DM-S3c-5). Completeness sweep over mention CRUD + entity-from-tag **closes** (no slicing gap; general split + relation qualifiers stay post-PoC). Likely **ADR 0008** + a §3.5/§6.4 amendment at build. Splits be/fe. |
 | [[m4-s3b-graph-mutations]] | proposal | **M4.S3b step-0 — graph mutations that need downstream cleanup: merge · delete · undo (⚠ PROPOSED, register OPEN DM-S3b-1..8 / OQ-25 — owner resolves before code)** — the slice [[m4-entity-editing]] named at its seam, and the **first to re-point already-written graph state**: entity↔entity **merge** (fold B into survivor A; re-point every incident edge — delete-old+create-new since the `uuid5` edge id changes, DM-Rel-5/6 — and re-point B's `entity_mentions`; delete B), whole-entity **delete**, and **undo** (the first *execution* of INV-3, not just S3a's substrate). **Centre of gravity = DM-S3b-1:** a merge is *one action = N writes* but the S3a `graph_edits` log is per-row, ungrouped, write-only — so undo needs a grouped append-only log (a [[compensating-transaction]]), which also resolves spec **§10 q2** (graph versioning) the lightest way. **Spec-silent on merge/delete/undo semantics → likely a §3.4/§3.5 stop-and-amend before code.** Completeness sweep over CRUD-of-{entities,relations,mentions} closes (no slicing gap). Reuses `add_alias`/`get_neighbourhood`/`delete_relation`/`create_relation`/`get_entity` + the `EntityEditService` home. Likely splits be/fe; likely **ADR 0007**. |
 | [[m4-entity-editing]] | proposal | **M4.S3a — entity & relation editing (the first M4 *write* slice) (✅ BUILT + COMPLETE — be #96 / fe #98, ADR 0006; register RESOLVED DM-S3a-1..8 / OQ-23)** — owner-confirmed scope: from the read-only side panel ([[m4-side-panel]]), make the inspected entity **editable** — `canonical_name`/`aliases`/`type`/`properties` + **add/re-predicate/remove** relations between two already-accepted entities. **The first slice that *writes* committed graph state** — most stations flip from the read view's `n/a` to live; the weight is the write path + reversibility, not the UI. **Centre of gravity = DM-S3a-1** (resolved = new named edit handlers, a [[backend-for-frontend]] *write* endpoint, + **reword INV-9** "exactly two writers" → "only human-reached handlers" — the ADR-0005 broaden-don't-mint precedent, ADR drafted at build) **+ DM-S3a-2** (resolved = a before→after edit-evidence record — INV-3 undo's load-bearing call). As-built: `Neo4jRepo` has no committed-object mutators yet; the two graph-writers are the accept (nodes) + decide (edges) gates. Scope **S3b** (merge/delete/undo-merge + DM-Rel-5 re-point) + **S3c** (tag/boundaries/spans) at the seam only. **Next: build M4.S3a-be test-first.** |
 | [[m4-side-panel]] | proposal | **M4.S2 step-0 — entity side panel in the reader (✅ ACCEPTED & BUILT — S2a PR #89 / S2b PR #91; register RESOLVED / OQ-22; DM-SP-4 = cytoscape, S35)** — owner-chosen second M4 slice (side panel over manual-correction-in-reader): click a highlighted entity → side panel with §3.4 details (canonical/aliases/type/**properties**/occurrences/relations/timeline) + a §3.5 **local graph around that entity** (a 1-hop [[ego-graph]]). Still a **read-only projection** (most stations n/a; INV-1/9 untouched; no LLM) — *editing* is the next slice. **Centre of gravity = DM-SP-1 data source:** most data is already on hand (occurrences derive from the reader's highlights; relations/neighbours filter `get_relations`), only `properties` is surfaced by no endpoint and no per-entity *neighbourhood* query exists — so the call is a focused BFF endpoint (`GET …/entities/{eid}`, my lean) vs composing the whole-graph fetch the viewer already does. DM-SP-7 (slice split) is downstream of it. Latent: the M4 entity↔entity merge must re-point edges + mentions or the panel shows ghosts (fail-closed: omit). |
@@ -211,6 +212,23 @@ related: []
     Added the [[compensating-transaction]] glossary term. **Next:** the owner resolves DM-S3b-1..8 (one
     plain-language question at a time) — incl. any spec amendment — **then** build M4.S3b-be test-first
     from the pure merge-consolidation function. Likely **ADR 0007** at build.
+24. **M4.S3c decomposed + register RESOLVED ✅ (2026-06-22, Session 44).** Owner chose **S3c manual tag /
+    un-tag / change-boundaries** (spec §3.5) as the next M4 slice **to build** (over the multi-story work,
+    which was re-scoped — see below). Step-0 → [[m4-s3c-manual-tagging]] (`status: accepted`, register
+    **RESOLVED** DM-S3c-1..9 / OQ-26). **Centre of gravity = DM-S3c-1 (span storage):** a rendered
+    highlight is a render-time *search hit with no identity* (DM-IH-1), so manual spans can't be searched
+    and un-tagging has no row to delete. **Owner resolutions:** DM-S3c-1 = **(B) overlay / save-only-what-
+    you-touch** (keep search + stored manual spans + suppressions; incremental [[materialization]], no
+    backfill); DM-S3c-2 = **both attach-existing + create-new-entity**; DM-S3c-7 = **adopt Tiptap now**
+    (owner override — V2 editing inherits it); tag/un-tag/boundary ride the S3b undo (DM-S3c-5); split
+    be/fe; no §3.5 capability amendment (S3a precedent) — storage model + INV-9 reword in **ADR 0008** at
+    build. Added the [[materialization]] glossary term. Completeness sweep over mention CRUD +
+    entity-from-tag **closes**. **Scope decisions same session (owner):** world-level/world-graph
+    multi-story **OUT of PoC** → `docs/BACKLOG.md`; the narrowed multi-story (new story reuses the project
+    graph + per-story entity membership + extraction leverage) stays in PoC and concretizes the §3.4
+    scoping cross-cutting (pending a §3.6/§9 stop-and-amend); **code-doc-generation** added to backlog.
+    **Next:** build **M4.S3c-be** test-first from the pure reconciling-resolver function (`/add-dependency`
+    for Tiptap at the fe build).
 
 _Run log: see [[changelog]]. Seeded by `initialize-project-architecture`; extended by
 `review-architecture` + `decompose-requirement`, 2026-06-02._

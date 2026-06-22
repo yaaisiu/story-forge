@@ -1,7 +1,7 @@
 ---
 type: open-questions
 slug: open-questions
-updated: 2026-06-20
+updated: 2026-06-22
 status: living
 related: ["[[overview]]", "[[project]]", "[[invariants]]", "[[2026-06-02-architecture-review]]", "[[m2s3-extraction-agent]]", "[[2026-06-09-architecture-review]]", "[[2026-06-11-architecture-review]]"]
 ---
@@ -699,6 +699,62 @@ Register, all **OPEN**:
   `POST …/graph-edits/undo`.
 - **Spec-silence to resolve first (stop-and-amend):** §3.4/§3.5 (merge + delete semantics), §10 q2
   (undo = append-only log). **Lands:** M4.S3b, after the owner resolves the register. Open.
+
+### OQ-26 — M4.S3c manual-tagging decision register (DM-S3c-1..9) — ✅ RESOLVED 2026-06-22 (Session 44, owner)
+**Resolved 2026-06-22 (owner; resolved home = `[[m4-s3c-manual-tagging]]` now `accepted` +
+`docs/PLAN_SHORT.md` Decided S44).** DM-S3c-1 = **(B) overlay / "save only what you touch"** (keep
+render-time search; manual tags = stored spans that overlay+win; rejected highlight = a suppression the
+resolver subtracts; change-boundaries materializes one occurrence — incremental [[materialization]], no
+backfill); DM-S3c-2 = **both attach-existing + create-new-entity** (new human-reached writer, INV-9 grows);
+DM-S3c-3 = occurrence-level (not-an-entity suppresses; not-this-entity suppresses + optional atomic
+re-tag); DM-S3c-4 = materialize-then-edit; DM-S3c-5 = **tag/un-tag/boundary ride the S3b `graph_edits`
+undo** (new op-kinds + inverters, contract-tested from writer output); DM-S3c-6 = add
+`source`+`mention_id` to `ReaderHighlight`; **DM-S3c-7 = ADOPT TIPTAP NOW (owner override of my native-
+selection lean** — pay the editor setup so V2 editing inherits it; `/add-dependency` at fe build);
+DM-S3c-8 = split be/fe; DM-S3c-9 = **no §3.5 capability amendment** (S3a precedent), storage model +
+INV-9 reword in **ADR 0008** at build, a small §6.4 data-model note via stop-and-amend if the migration
+needs it. **Next: build M4.S3c-be test-first from the pure reconciling-resolver function.** Original
+framing kept below for history.
+
+Raised by the M4.S3c step-0 `decompose-requirement` (2026-06-22, `[[m4-s3c-manual-tagging]]`). The
+**final slice** of "manual correction in the reader" (S3a edit-fields+relations · S3b merge/delete/undo ·
+**S3c tag/un-tag/boundaries**; spec §3.5). The completeness sweep over the **mention** CRUD surface +
+entity-create-from-tag **closes** (no slicing gap; general entity split + relation qualifiers stay
+post-PoC). Full Context/Options/Proposal per entry live in the proposal's register; listed here so the
+vault's reader knows they gate the M4.S3c build. **The central one is DM-S3c-1** — the span-storage model:
+today a rendered highlight is a render-time **search hit with no identity** (DM-IH-1; `entity_mentions`
+spans are NULL/unused), so a manual span (an inflected form, a pronoun, a new entity) can't be re-found by
+search and un-tagging acts on a highlight with no row to delete. Register, all **OPEN**:
+- **DM-S3c-1 — span-storage model** (the central call): (A) **materialize all** — backfill stored spans,
+  drop render-time search (clean per-occurrence corrections, but a migration + loses DM-IH-1's rename-free/
+  edit-robust properties); (B) **overlay** — keep search + stored *manual* spans + a *suppression* record
+  the resolver subtracts; **materialize incrementally** only what the author touches (my lean — no
+  backfill, preserves DM-IH-1); (C) **alias-only** — tag = add an alias (cheapest, but *cannot* express
+  change-boundaries or single-occurrence un-tag — fails the requirement). Introduces [[materialization]].
+- **DM-S3c-2 — tag-as-new-entity vs existing**: support both (picker for existing + create-new-entity, a
+  new human-reached graph writer — INV-9 enumeration grows; my lean) vs existing-only this slice.
+- **DM-S3c-3 — un-tag semantics**: "not an entity" (remove/suppress) vs "not this entity" (re-assign/
+  detach, optionally atomic re-tag); shaped by DM-S3c-1.
+- **DM-S3c-4 — change-boundaries**: materialize-then-edit (under B) vs update-row (under A); downstream of
+  DM-S3c-1.
+- **DM-S3c-5 — undo integration**: record tag/un-tag/boundary as new `graph_edits` op-kinds + inverters
+  (my lean — at minimum the node-creating tag must be reversible) vs outside undo at PoC. `verify-at-build`
+  each inverse round-trips, contract-tested from the writer's real output (the PR-#108 producer↔consumer
+  lesson).
+- **DM-S3c-6 — reader response identity**: add `source: search|manual` + nullable `mention_id` to
+  `ReaderHighlight` (my lean) vs address by `(paragraph,start,end,entity)` tuple.
+- **DM-S3c-7 — selection surface**: native `window.getSelection()` + context menu (my lean — reader still
+  doesn't edit prose) vs adopt **Tiptap now** (the call DM-IH-3 deferred *to this slice* — owner blesses
+  the re-deferral or pays the editor setup for V2 to inherit).
+- **DM-S3c-8 — slice split**: be (mutators + reconciling resolver + suppression + endpoints + undo
+  op-kinds) / fe (selection + menu + picker + hooks); my lean split.
+- **DM-S3c-9 — spec amendment**: amend §3.5/§6.4 (manual spans persist offsets; human-authored mentions) +
+  reword INV-9 before code (the S3b stop-and-amend precedent); likely **ADR 0008**. Read §3.5/§6.4 at
+  amend time — don't inherit the section number (the S3b "delete → §3.5 vs §3.4" lesson).
+- **Partially closes** DM-IH-1's granularity mismatch (per-occurrence correction becomes possible).
+  **Carries** (not this slice's fix): a suppression/manual span dangles if its entity is later merged/
+  deleted (S3b) — same re-point/cleanup the merge undo already does for mentions. **Lands:** M4.S3c, after
+  the owner resolves the register. Open.
 
 ## Referenced — owned by spec §10 (not duplicated)
 

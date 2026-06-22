@@ -674,3 +674,37 @@ M2→M3 roll gate 2, part 2: the forward-design pass on M3 — the §3.3 cascade
 - **`INDEX.md`** — regenerated (proposal row added; glossary 25->26 + compensating-transaction;
   next-steps item 23 = M4.S3b decomposed, register open).
 - Register stays **OPEN** — the owner resolves DM-S3b-1..8 (incl. the spec amendments) before any code.
+
+## 2026-06-22 — M4.S3c step-0 decompose (manual tag / un-tag / change-boundaries)
+
+`decompose-requirement` over the **final slice** of "manual correction in the reader" (S3a · S3b · **S3c**;
+spec §3.5). Centre of gravity = the **span-storage model** (DM-S3c-1): today a rendered highlight is a
+render-time *search hit with no identity* (DM-IH-1; `entity_mentions` spans NULL/unused), so manual spans
+can't be re-found by search and un-tagging acts on a highlight with no row to delete.
+- **`proposals/m4-s3c-manual-tagging.md`** — new (`status: proposed`, register **OPEN** DM-S3c-1..9). Nine
+  layers + nine stations (first *write* stations of the reader's **mention** layer; Evidence/Review/Policy
+  flip ✅), the completeness sweep (mention CRUD + entity-from-tag — **closes**, no slicing gap), a
+  three-source reconciliation data-flow (search ∪ manual − suppressions), a 9-entry register, the "but
+  what if" pass, and the gaps-for-PO.
+- **`glossary/materialization.md`** — new term (derived projection → stored addressable record); the idea
+  DM-S3c-1 turns on. Glossary 26 → 27.
+- **`learning-log.md`** — +1 line (materialization: derived vs correctable-stored is a real boundary).
+- **`open-questions.md`** — OQ-26 mirror (DM-S3c-1..9); `updated` → 2026-06-22.
+- **`INDEX.md`** — regenerated (proposal row + glossary 27 + next-steps item 24).
+- Register stays **OPEN** — the owner resolves DM-S3c-1..9 (incl. the §3.5/§6.4 amendment + INV-9 reword)
+  before any code; likely **ADR 0008** at build.
+
+## 2026-06-22 — M4.S3c register RESOLVED (owner, Session 44) + scope decisions
+
+- **`proposals/m4-s3c-manual-tagging.md`** → `accepted`; register **RESOLVED** (resolution banner + each
+  entry reconciled; hand-off + gaps-for-PO brought to resolved). DM-S3c-1 = **(B) overlay / save-only-
+  what-you-touch**; DM-S3c-2 = both attach + create-new; DM-S3c-7 = **Tiptap now (owner override)**;
+  tag/un-tag/boundary ride the S3b undo; split be/fe; no §3.5 capability amendment (ADR 0008 + INV-9
+  reword + a small §6.4 note at build).
+- **`open-questions.md`** — OQ-26 struck ✅ with the per-entry resolutions.
+- **`INDEX.md`** — proposal row + next-steps item 24 flipped to RESOLVED.
+- **Scope decisions (host-repo homes — recorded, not vault):** world-graph multi-story → `docs/BACKLOG.md`
+  (out of PoC; reversed the prior "in-PoC" note); narrowed multi-story-in-a-project stays in PoC
+  (`docs/PLAN_SHORT.md` Decided S44, concretizes §3.4 scoping; §3.6/§9 stop-and-amend pending);
+  code-doc-generation → backlog.
+- **Next:** build M4.S3c-be test-first from the pure reconciling-resolver function.
