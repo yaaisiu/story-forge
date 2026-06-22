@@ -1,16 +1,62 @@
-// Tests for the text-reader page container (Session 33 — M4.S1; extended Session 35 — M4.S2b).
+// Tests for the text-reader page container (Session 33 — M4.S1; extended Session 35 — M4.S2b,
+// M4.S3c-fe1).
 //
 // Real `useReader` hook + a stubbed global fetch (the GraphViewer pattern): pins the
 // container's state branches (loading / error / empty / success), the legend, the
-// rendered highlights, and the graph link. ReaderEntityPanel is mocked to a stub (its own
-// test covers its internals + the cytoscape mount is browser-smoke) so this test can pin
-// the M4.S2b wiring: click-to-open, neighbour re-target, occurrence drill-flash, close.
-// The pure split/colour/occurrence logic is covered by segments/palette/occurrences tests.
+// rendered highlights, and the graph link. Two children are mocked to stubs so this test can
+// pin the *container's* wiring without their runtimes: ReaderEntityPanel (its own test covers
+// its internals; the cytoscape mount is browser-smoke) and ReaderEditor (the ProseMirror/
+// Tiptap mount jsdom can't drive — the same boundary as the cytoscape canvases). The pure
+// document/decoration/colour/occurrence logic is covered by the
+// readerDoc/decorations/palette/occurrences tests; here we pin click-to-open, neighbour
+// re-target, occurrence drill-flash, and close.
 
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+
+import type { ReaderParagraph } from "../../lib/api/useReader";
+import type { ReaderFlash } from "./ReaderEditor";
+
+// Stub the editor: render each paragraph's text (so the success branch shows the prose) plus
+// one clickable `highlight` per highlight that drives `onEntityClick` and reflects `flash` as
+// `data-flash` — enough to pin the container wiring. The real decoration rendering (offsets,
+// tooltip, colour) is unit-tested in decorations.test.ts and verified in the browser smoke.
+vi.mock("./ReaderEditor", () => ({
+  ReaderEditor: ({
+    paragraphs,
+    onEntityClick,
+    flash,
+  }: {
+    paragraphs: readonly ReaderParagraph[];
+    onEntityClick: (id: string) => void;
+    flash: ReaderFlash | null;
+  }) => (
+    <div data-testid="reader-editor-mock">
+      {paragraphs.map((paragraph) => (
+        <p key={paragraph.id} data-paragraph-id={paragraph.id}>
+          <span>{paragraph.text}</span>
+          {paragraph.highlights.map((highlight, index) => (
+            <button
+              key={index}
+              data-testid="highlight"
+              data-entity-id={highlight.entity_id}
+              data-flash={
+                flash?.paragraphId === paragraph.id && flash.entityId === highlight.entity_id
+                  ? "true"
+                  : undefined
+              }
+              onClick={() => onEntityClick(highlight.entity_id)}
+            >
+              {paragraph.text.slice(highlight.start, highlight.end)}
+            </button>
+          ))}
+        </p>
+      ))}
+    </div>
+  ),
+}));
 
 // Stub the side panel: surface the entity id it was given + buttons that drive its
 // callbacks (close / neighbour navigation / occurrence drill-down).
@@ -105,9 +151,9 @@ describe("TextReader", () => {
     expect(text).toHaveTextContent("Janek walked to the mill.");
     expect(text).toHaveTextContent("It was quiet.");
 
-    const mark = screen.getByTestId("highlight");
-    expect(mark).toHaveTextContent("Janek");
-    expect(mark).toHaveAttribute("title", "Janek — character\nAliases: Jan");
+    // The highlight is rendered by ReaderEditor (mocked here); its tooltip/colour/offset
+    // mapping is covered by decorations.test.ts. The container only needs the highlight present.
+    expect(screen.getByTestId("highlight")).toHaveTextContent("Janek");
 
     expect(screen.getByTestId("reader-legend")).toHaveTextContent("character");
     expect(screen.getByTestId("graph-link")).toHaveAttribute("href", `/stories/${STORY_ID}/graph`);

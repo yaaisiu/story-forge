@@ -17,6 +17,12 @@
   },
   "dependencies": {
     "@tanstack/react-query": "5.100.10",
+    "@tiptap/core": "3.26.0",
+    "@tiptap/extension-document": "3.26.0",
+    "@tiptap/extension-paragraph": "3.26.0",
+    "@tiptap/extension-text": "3.26.0",
+    "@tiptap/pm": "3.26.0",
+    "@tiptap/react": "3.26.0",
     "cytoscape": "3.33.4",
     "react": "19.0.5",
     "react-dom": "19.0.5",

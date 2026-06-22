@@ -5,12 +5,18 @@
 // tooltip. M4.S2b adds the entity side panel: clicking a highlight opens it (details +
 // properties + a 1-hop ego-graph + an occurrence timeline); a neighbour tap re-targets
 // it; an occurrence click scrolls back to that paragraph and flashes the highlight.
-// Manual tagging/correction (also in §3.5) is a later M4 slice and out of scope here.
+//
+// M4.S3c-fe1 swapped the per-paragraph `<mark>` renderer for a single read-only Tiptap
+// editor (`ReaderEditor`) that draws the highlights as ProseMirror decorations (DM-S3c-7,
+// owner's call so V2 editing inherits the engine). This container is unchanged in shape —
+// it still owns the data + selection/flash state and dispatches into the editor + panel;
+// only the renderer underneath changed. Manual tagging/correction (the selection menu, also
+// §3.5) lands on top of this editor in M4.S3c-fe2.
 //
 // Components render and dispatch; logic lives in the hooks + pure modules
-// (frontend/src/CLAUDE.md): the span split is `splitParagraph`, occurrences are
-// `entityOccurrences`, the panel's data is `useEntityDetail`. Whole-story render for now
-// (DM-IH-6: measure on a real draft, virtualise only if it stutters).
+// (frontend/src/CLAUDE.md): the document + decoration mapping are `buildReaderDoc` /
+// `decorations`, occurrences are `entityOccurrences`, the panel's data is `useEntityDetail`.
+// Whole-story render for now (DM-IH-6: measure on a real draft, virtualise only if it stutters).
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
@@ -18,7 +24,7 @@ import { Link, useParams } from "react-router-dom";
 
 import { useReader, type ReaderEntity } from "../../lib/api/useReader";
 import { Legend } from "./Legend";
-import { ParagraphText } from "./ParagraphText";
+import { ReaderEditor } from "./ReaderEditor";
 import { ReaderEntityPanel } from "./ReaderEntityPanel";
 import { UndoButton } from "./UndoButton";
 import { legendEntries } from "./palette";
@@ -136,20 +142,13 @@ export function TextReader() {
         {reader.isSuccess && reader.data.paragraphs.length > 0 && (
           <>
             <Legend entries={legend} />
-            <article
-              ref={articleRef}
-              data-testid="reader-text"
-              className="flex flex-col gap-4 text-gray-900"
-            >
-              {paragraphs.map((paragraph) => (
-                <ParagraphText
-                  key={paragraph.id}
-                  paragraph={paragraph}
-                  catalog={catalog}
-                  onEntityClick={handleSelectEntity}
-                  flashEntityId={flash?.paragraphId === paragraph.id ? flash.entityId : null}
-                />
-              ))}
+            <article ref={articleRef} data-testid="reader-text" className="text-gray-900">
+              <ReaderEditor
+                paragraphs={paragraphs}
+                catalog={catalog}
+                onEntityClick={handleSelectEntity}
+                flash={flash}
+              />
             </article>
           </>
         )}
