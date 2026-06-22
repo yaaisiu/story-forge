@@ -68,9 +68,42 @@ class ReassignMentions:
 
 @dataclass(frozen=True)
 class RestoreMentions:
-    """Re-insert deleted mention rows from their full snapshot (undo of a whole-entity delete)."""
+    """Re-insert deleted mention rows from their full snapshot (undo of a whole-entity delete, or
+    of a single manual `delete_mention` — a one-element list)."""
 
     mentions: list[EntityMention]
+
+
+@dataclass(frozen=True)
+class RemoveMention:
+    """Delete one mention by id (undo of a manual `add_mention`, M4.S3c)."""
+
+    mention_id: UUID
+
+
+@dataclass(frozen=True)
+class DeleteEntity:
+    """Delete a node by id (undo of a `create_entity_from_tag` — remove the human-minted entity,
+    M4.S3c). The grouped tag-new op removes its mention first, so this never orphans one."""
+
+    entity_id: UUID
+
+
+@dataclass(frozen=True)
+class RemoveSuppression:
+    """Delete a suppression by id (undo of a `suppress_span` — un-hide the occurrence, M4.S3c)."""
+
+    suppression_id: UUID
+
+
+@dataclass(frozen=True)
+class RestoreMentionSpan:
+    """Write a manual span's old offsets back (undo of an `edit_mention_span` / change-boundaries,
+    M4.S3c)."""
+
+    mention_id: UUID
+    span_start: int
+    span_end: int
 
 
 InverseAction = (
@@ -80,6 +113,10 @@ InverseAction = (
     | RemoveRelation
     | ReassignMentions
     | RestoreMentions
+    | RemoveMention
+    | DeleteEntity
+    | RemoveSuppression
+    | RestoreMentionSpan
 )
 
 
@@ -194,6 +231,33 @@ def invert_operation(rows: Sequence[GraphEdit]) -> InversePlan:
                 ReassignMentions(
                     mention_ids=[UUID(str(mid)) for mid in _list_of(before, "mention_ids")],
                     to_entity_id=UUID(str(before["from_entity_id"])),
+                )
+            )
+        elif row.op == "add_mention":
+            # forward inserted a manual mention at target_id; undo deletes it by id.
+            actions.append(RemoveMention(mention_id=row.target_id))
+        elif row.op == "create_entity_from_tag":
+            # forward minted a node from a tag (before None); undo deletes it. The drift guard
+            # refuses if the node was edited/merged-away since (mirror edit_fields' after-guard) —
+            # deleting an entity someone has since changed would clobber that change.
+            after = _require(row.after, row.op)
+            actions.append(DeleteEntity(entity_id=row.target_id))
+            drift = DriftCheck(
+                entity_id=row.target_id, expect_present=True, expected_fields=dict(after)
+            )
+        elif row.op == "suppress_span":
+            # forward wrote a suppression at target_id; undo removes it (un-hides the occurrence).
+            # Rejection ("not an entity"/"not this entity") is *always* a suppression (DM-S3c-1 B),
+            # so the resolver subtracts it post-overlay even from a manual span — one mechanism.
+            actions.append(RemoveSuppression(suppression_id=row.target_id))
+        elif row.op == "edit_mention_span":
+            # forward moved a manual span's offsets; undo restores the old ones.
+            before = _require(row.before, row.op)
+            actions.append(
+                RestoreMentionSpan(
+                    mention_id=row.target_id,
+                    span_start=int(str(before["span_start"])),
+                    span_end=int(str(before["span_end"])),
                 )
             )
         else:

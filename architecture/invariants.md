@@ -189,15 +189,15 @@ duplicate problem that M3's cascade then solves.
 ### INV-9 — No automated stage writes the graph
 The graph is written **only by human-reached handlers** — the accept handler (creates nodes), the
 relation-decide handler (commits staged edges), and the edit handler (edits committed nodes, adds/
-removes edges, and **merges/deletes** entities). No extraction agent, matching/embedding/judge stage, or coordinator may write a
+removes edges, **merges/deletes** entities, and **tags new entities** in the reader). No extraction agent, matching/embedding/judge stage, or coordinator may write a
 Neo4j node or edge — they may only *stage* a proposal into Postgres. The general, greppable form of
 INV-1's guarantee: where INV-1 is about *who commits* (a human), INV-9 is about *what code may touch
 Neo4j* (only the human-reached handlers). **The guarded property is unchanged from M3's "exactly two
-writers"; M4.S3a only grows the enumeration** — adding a third human-reached writer (the edit path)
-keeps INV-9 honest by making a *visible* writer rather than smuggling edits into the cascade. (The
-"exactly two → only human-reached handlers" rewording is the ADR-0005 broaden-don't-mint precedent:
-ADR 0006, DM-S3a-1.)
-- **Source:** §3.3 (the cascade *proposes*; Stage 4 commits), §3.4/§3.5 (manual correction — edit), §7 steps 6–7; DM6 / ADR 0004; M3.S4e / ADR 0005; M4.S3a / ADR 0006.
+writers"; M4.S3a–S3c only grow the enumeration** — each new human-reached path (edit, merge/delete,
+tag-new-entity) keeps INV-9 honest by making a *visible* writer rather than smuggling edits into the
+cascade. (The "exactly two → only human-reached handlers" rewording is the ADR-0005 broaden-don't-mint
+precedent: ADR 0006, DM-S3a-1.)
+- **Source:** §3.3 (the cascade *proposes*; Stage 4 commits), §3.4/§3.5 (manual correction — edit), §7 steps 6–7; DM6 / ADR 0004; M3.S4e / ADR 0005; M4.S3a / ADR 0006; M4.S3c / ADR 0008.
 - **Enforced at:** *(as-built, M3.S4a for nodes; M3.S4e for edges)* the `ExtractionCoordinator` is
   constructed with **no** graph writer (its collaborators are the extractor, the cascade stager, the
   candidate store, and a read-only accepted-graph reader); the cascade agents are pure proposal logic.
@@ -239,6 +239,17 @@ ADR 0006, DM-S3a-1.)
   enumeration is unchanged — every name the grep guard lists (incl. `create_entity`) is still reached
   only from a human handler; the undo executor adds no new graph-writing symbol, it re-uses them.
   See ADR 0007, [[graph-operation]], [[m4-s3b-graph-mutations]] register.
+- **Sixth witnessed instance (M4.S3c, tag-as-new-entity).** Tagging a span as a *brand-new* entity in
+  the reader (`EntityEditService.tag_new_entity`, reached only from `POST …/paragraphs/{pid}/tags`)
+  mints an accepted Neo4j node directly — no candidate, no cascade — via the *existing* `create_entity`
+  writer. Like the undo executor, it **adds no new graph-writing symbol** (`create_entity` is already
+  in the grep set from the accept path); the enumeration grows by a *path*, not a writer class. The
+  rest of S3c — the manual mention/suppression mutators (`add_mention`, `suppress_span`,
+  `edit_mention_span`) — writes **Postgres only**, the *staging* side of the line INV-9 draws (like
+  on-accept re-match, below), so it never touches the guarded Neo4j boundary. The human directly
+  asserts the entity, so bypassing the cascade is INV-1's strongest form, not a weakening. Every
+  correction records a (possibly grouped) `graph_edits` row (INV-3, DM-S3c-5). See ADR 0008,
+  [[m4-s3c-manual-tagging]] register, [[materialization]].
 - **Why it matters:** it is exactly the property a well-meaning optimisation would silently break, and
   it gives the flip test a name. See [[fail-closed]], [[candidate-lifecycle]].
 - **The line INV-9 draws is *graph vs staging*, not *human vs automated* (clarified M3.S4c).** On-accept

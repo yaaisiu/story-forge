@@ -39,7 +39,9 @@ function renderParagraph(
 describe("ParagraphText", () => {
   it("renders plain text and a highlighted entity span", () => {
     renderParagraph(
-      paragraph("see Janek now", [{ start: 4, end: 9, entity_id: "e1", type: "character" }]),
+      paragraph("see Janek now", [
+        { start: 4, end: 9, entity_id: "e1", type: "character", source: "search" },
+      ]),
       catalogOf(ENTITY),
     );
 
@@ -54,7 +56,9 @@ describe("ParagraphText", () => {
 
   it("tooltips a highlight with canonical_name + type + aliases (DM-IH-8)", () => {
     renderParagraph(
-      paragraph("Janek", [{ start: 0, end: 5, entity_id: "e1", type: "character" }]),
+      paragraph("Janek", [
+        { start: 0, end: 5, entity_id: "e1", type: "character", source: "search" },
+      ]),
       catalogOf(ENTITY),
     );
 
@@ -66,7 +70,7 @@ describe("ParagraphText", () => {
 
   it("omits the aliases line when an entity has none", () => {
     renderParagraph(
-      paragraph("Zosia", [{ start: 0, end: 5, entity_id: "e2", type: "place" }]),
+      paragraph("Zosia", [{ start: 0, end: 5, entity_id: "e2", type: "place", source: "search" }]),
       catalogOf({ entity_id: "e2", canonical_name: "Zosia", type: "place", aliases: [] }),
     );
 
@@ -75,7 +79,9 @@ describe("ParagraphText", () => {
 
   it("colours a highlight by its type via an inline style", () => {
     renderParagraph(
-      paragraph("Janek", [{ start: 0, end: 5, entity_id: "e1", type: "character" }]),
+      paragraph("Janek", [
+        { start: 0, end: 5, entity_id: "e1", type: "character", source: "search" },
+      ]),
       catalogOf(ENTITY),
     );
     // character → fixed blue #2563eb (jsdom normalises hex to rgb); the mark
@@ -85,7 +91,9 @@ describe("ParagraphText", () => {
 
   it("still renders a highlight whose entity is missing from the catalog (graceful)", () => {
     renderParagraph(
-      paragraph("Janek", [{ start: 0, end: 5, entity_id: "gone", type: "character" }]),
+      paragraph("Janek", [
+        { start: 0, end: 5, entity_id: "gone", type: "character", source: "search" },
+      ]),
       catalogOf(),
     );
     const mark = screen.getByTestId("highlight");
@@ -103,7 +111,9 @@ describe("ParagraphText", () => {
   it("fires onEntityClick with the entity id when a highlight is clicked", () => {
     const onEntityClick = vi.fn();
     renderParagraph(
-      paragraph("Janek", [{ start: 0, end: 5, entity_id: "e1", type: "character" }]),
+      paragraph("Janek", [
+        { start: 0, end: 5, entity_id: "e1", type: "character", source: "search" },
+      ]),
       catalogOf(ENTITY),
       { onEntityClick },
     );
@@ -115,7 +125,9 @@ describe("ParagraphText", () => {
   it("fires onEntityClick on Enter for keyboard access", () => {
     const onEntityClick = vi.fn();
     renderParagraph(
-      paragraph("Janek", [{ start: 0, end: 5, entity_id: "e1", type: "character" }]),
+      paragraph("Janek", [
+        { start: 0, end: 5, entity_id: "e1", type: "character", source: "search" },
+      ]),
       catalogOf(ENTITY),
       { onEntityClick },
     );
@@ -127,8 +139,8 @@ describe("ParagraphText", () => {
   it("flashes only the marks of the flashed entity", () => {
     renderParagraph(
       paragraph("Janek met Zosia.", [
-        { start: 0, end: 5, entity_id: "e1", type: "character" },
-        { start: 10, end: 15, entity_id: "e2", type: "character" },
+        { start: 0, end: 5, entity_id: "e1", type: "character", source: "search" },
+        { start: 10, end: 15, entity_id: "e2", type: "character", source: "search" },
       ]),
       catalogOf(ENTITY, {
         entity_id: "e2",

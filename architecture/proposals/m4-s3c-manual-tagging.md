@@ -19,8 +19,9 @@ related:
 
 # M4.S3c — manual tag / un-tag / change-boundaries (step-0 forward design)
 
-> **Status: ACCEPTED — register RESOLVED with the owner (Session 44, 2026-06-22). Build is next session
-> (M4.S3c-be test-first; ADR 0008 drafted at build).** This is the M4.S3c step-0 decompose, the **final
+> **Status: ACCEPTED — register RESOLVED (Session 44). Backend BUILT (M4.S3c-be, 2026-06-22): ADR 0008
+> landed, §6.4 amended; frontend (Tiptap reader + selection + menu, DM-S3c-7) is the next slice.** This
+> is the M4.S3c step-0 decompose, the **final
 > slice** of "manual correction in the reader" (the feature M4.S3a sliced by write-risk: S3a
 > edit-fields+relations · S3b merge/delete/undo · **S3c tag/un-tag/boundaries**). Authority: spec **§3.5**
 > ("Manual tagging" + "Manual correction: right-click → 'not this entity' / 'not an entity' / 'change

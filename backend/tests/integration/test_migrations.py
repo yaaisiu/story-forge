@@ -20,6 +20,7 @@ EXPECTED_TABLES = {
     "scenes",
     "paragraphs",
     "entity_mentions",
+    "mention_suppressions",
 }
 
 
@@ -44,6 +45,38 @@ async def test_ordering_column_is_order_index(db_conn: psycopg.AsyncConnection) 
             (table, "order_index"),
         )
         assert await cur.fetchone() is not None, f"{table}.order_index missing"
+
+
+@pytest.mark.integration
+async def test_entity_mentions_source_column_defaults_to_extraction(
+    db_conn: psycopg.AsyncConnection,
+) -> None:
+    # M4.S3c: a `source` column distinguishes cascade-written ('extraction') from human-tagged
+    # ('manual') mentions; existing/extraction rows default to 'extraction' (no backfill).
+    cur = await db_conn.execute(
+        "SELECT column_default, is_nullable FROM information_schema.columns "
+        "WHERE table_name = 'entity_mentions' AND column_name = 'source'"
+    )
+    row = await cur.fetchone()
+    assert row is not None, "entity_mentions.source missing"
+    default, is_nullable = row
+    assert "extraction" in default
+    assert is_nullable == "NO"
+
+
+@pytest.mark.integration
+async def test_mention_suppressions_schema(db_conn: psycopg.AsyncConnection) -> None:
+    # M4.S3c: the suppression table — paragraph_id NOT NULL (FK), entity_id nullable
+    # (NULL = "not an entity" / all; set = "not this entity" / one), spans NOT NULL.
+    cur = await db_conn.execute(
+        "SELECT column_name, is_nullable FROM information_schema.columns "
+        "WHERE table_name = 'mention_suppressions'"
+    )
+    nullability = dict(await cur.fetchall())
+    assert nullability["paragraph_id"] == "NO"
+    assert nullability["entity_id"] == "YES"
+    assert nullability["span_start"] == "NO"
+    assert nullability["span_end"] == "NO"
 
 
 @pytest.mark.integration

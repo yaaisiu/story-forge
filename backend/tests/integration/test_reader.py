@@ -23,6 +23,7 @@ from story_forge.adapters.db import get_connection
 from story_forge.adapters.postgres_repo import (
     insert_chapter,
     insert_entity_mention,
+    insert_mention_suppression,
     insert_paragraph,
     insert_project,
     insert_scene,
@@ -33,6 +34,7 @@ from story_forge.domain.graph import GraphEntity
 from story_forge.domain.models import (
     Chapter,
     EntityMention,
+    MentionSuppression,
     Paragraph,
     Project,
     Scene,
@@ -126,9 +128,25 @@ async def test_reader_highlights_mentioned_entities(
     assert [p["id"] for p in body["paragraphs"]] == [str(para.id)]
     paragraph = body["paragraphs"][0]
     assert paragraph["text"] == "Janek met Maria."
+    # Each highlight now carries source + occurrence identity (M4.S3c, DM-S3c-6): an auto search
+    # hit is source="search" with no mention_id.
     assert paragraph["highlights"] == [
-        {"start": 0, "end": 5, "entity_id": str(janek.id), "type": "Character"},
-        {"start": 10, "end": 15, "entity_id": str(maria.id), "type": "Character"},
+        {
+            "start": 0,
+            "end": 5,
+            "entity_id": str(janek.id),
+            "type": "Character",
+            "source": "search",
+            "mention_id": None,
+        },
+        {
+            "start": 10,
+            "end": 15,
+            "entity_id": str(maria.id),
+            "type": "Character",
+            "source": "search",
+            "mention_id": None,
+        },
     ]
     # The tooltip catalog carries only entities that actually appeared, with display name + aliases.
     catalog = {e["entity_id"]: e for e in body["entities"]}
@@ -161,7 +179,14 @@ async def test_reader_inflected_mention_matched_via_alias(
     assert resp.status_code == 200, resp.text
     body = resp.json()
     assert body["paragraphs"][0]["highlights"] == [
-        {"start": 4, "end": 11, "entity_id": str(janek.id), "type": "Character"},
+        {
+            "start": 4,
+            "end": 11,
+            "entity_id": str(janek.id),
+            "type": "Character",
+            "source": "search",
+            "mention_id": None,
+        },
     ]
 
 
@@ -194,3 +219,67 @@ async def test_reader_unknown_story_404(make_client: object) -> None:
     resp = await client.get(f"/stories/{uuid4()}/reader")
 
     assert resp.status_code == 404, resp.text
+
+
+# --- M4.S3c: the reader reconciles stored manual spans + suppressions over search ----------
+
+
+async def test_reader_renders_a_manual_span_with_source_and_mention_id(
+    make_client: object, db_conn: psycopg.AsyncConnection
+) -> None:
+    # A manual tag over "her" — a pronoun search can never re-find — is surfaced as a stored span
+    # carrying source="manual" + its mention_id (DM-S3c-1 B / DM-S3c-6), alongside the auto hit.
+    story, (para,) = await _make_paragraphs(db_conn, "Janek met her.")
+    janek = GraphEntity(type="Character", canonical_name_pl="Janek", project_id=story.project_id)
+    maria = GraphEntity(type="Character", canonical_name_pl="Maria", project_id=story.project_id)
+    await _mention(db_conn, para, janek)  # auto search hit for "Janek"
+    manual = EntityMention(
+        paragraph_id=para.id, entity_id=maria.id, span_start=10, span_end=13, source="manual"
+    )
+    await insert_entity_mention(db_conn, manual)
+    client: AsyncClient = make_client(_StubRepo([janek, maria]))  # type: ignore[operator]
+
+    resp = await client.get(f"/stories/{story.id}/reader")
+
+    assert resp.status_code == 200, resp.text
+    highlights = resp.json()["paragraphs"][0]["highlights"]
+    assert highlights == [
+        {
+            "start": 0,
+            "end": 5,
+            "entity_id": str(janek.id),
+            "type": "Character",
+            "source": "search",
+            "mention_id": None,
+        },
+        {
+            "start": 10,
+            "end": 13,
+            "entity_id": str(maria.id),
+            "type": "Character",
+            "source": "manual",
+            "mention_id": str(manual.id),
+        },
+    ]
+
+
+async def test_reader_subtracts_a_suppressed_search_hit(
+    make_client: object, db_conn: psycopg.AsyncConnection
+) -> None:
+    # A "not an entity" suppression at [0,5] (entity None) clears Janek's hit there; Maria's
+    # hit at [10,15] is untouched.
+    story, (para,) = await _make_paragraphs(db_conn, "Janek met Maria.")
+    janek = GraphEntity(type="Character", canonical_name_pl="Janek", project_id=story.project_id)
+    maria = GraphEntity(type="Character", canonical_name_pl="Maria", project_id=story.project_id)
+    await _mention(db_conn, para, janek)
+    await _mention(db_conn, para, maria)
+    await insert_mention_suppression(
+        db_conn, MentionSuppression(paragraph_id=para.id, span_start=0, span_end=5, entity_id=None)
+    )
+    client: AsyncClient = make_client(_StubRepo([janek, maria]))  # type: ignore[operator]
+
+    resp = await client.get(f"/stories/{story.id}/reader")
+
+    assert resp.status_code == 200, resp.text
+    highlights = resp.json()["paragraphs"][0]["highlights"]
+    assert [(h["start"], h["end"], h["entity_id"]) for h in highlights] == [(10, 15, str(maria.id))]

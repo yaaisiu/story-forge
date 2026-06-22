@@ -28,23 +28,32 @@ from typing import Protocol
 from uuid import UUID, uuid5
 
 from story_forge.domain.candidates import relation_edge_id
-from story_forge.domain.entity_edits import EntityEditPatch, apply_entity_edit, diff_entity
+from story_forge.domain.entity_edits import (
+    EntityEditInvalid,
+    EntityEditPatch,
+    apply_entity_edit,
+    diff_entity,
+)
 from story_forge.domain.entity_merge import MergeStep, plan_merge
 from story_forge.domain.graph import GraphEntity, GraphRelation
 from story_forge.domain.graph_edit import GraphEdit
 from story_forge.domain.graph_undo import (
+    DeleteEntity,
     DriftCheck,
     InverseAction,
     ReassignMentions,
     RecreateEntity,
     RecreateRelation,
+    RemoveMention,
     RemoveRelation,
+    RemoveSuppression,
     RestoreEntityFields,
     RestoreMentions,
+    RestoreMentionSpan,
     fields_match,
     invert_operation,
 )
-from story_forge.domain.models import EntityMention
+from story_forge.domain.models import EntityMention, MentionSuppression
 
 # A manually-asserted edge carries full confidence (a human stated it, not a model).
 _MANUAL_CONFIDENCE = 1.0
@@ -61,6 +70,9 @@ _SINGLETON_LABELS = {
     "edit_fields": "an entity edit",
     "add_relation": "a relation add",
     "remove_relation": "a relation removal",
+    "add_mention": "a manual tag",
+    "suppress_span": "a hidden highlight",
+    "edit_mention_span": "a boundary change",
 }
 
 
@@ -91,13 +103,22 @@ class EditEvidenceRepo(Protocol):
 
 class MentionRepo(Protocol):
     """The cross-store mention re-point/snapshot a merge, delete, and undo need (a
-    `PostgresMentionStore`)."""
+    `PostgresMentionStore`), plus the manual tag/un-tag/boundary mutators (M4.S3c)."""
 
     async def repoint_mentions(self, from_entity_id: UUID, to_entity_id: UUID) -> list[UUID]: ...
     async def reassign_mentions(self, mention_ids: list[UUID], to_entity_id: UUID) -> None: ...
     async def mentions_for_entity(self, entity_id: UUID) -> list[EntityMention]: ...
     async def delete_mentions_for_entity(self, entity_id: UUID) -> None: ...
     async def restore_mentions(self, mentions: list[EntityMention]) -> None: ...
+    # M4.S3c manual-correction mutators:
+    async def add_mention(self, mention: EntityMention) -> None: ...
+    async def get_mention(self, mention_id: UUID) -> EntityMention | None: ...
+    async def update_mention_span(
+        self, mention_id: UUID, span_start: int, span_end: int
+    ) -> None: ...
+    async def delete_mention(self, mention_id: UUID) -> None: ...
+    async def add_suppression(self, suppression: MentionSuppression) -> None: ...
+    async def delete_suppression(self, suppression_id: UUID) -> None: ...
 
 
 class EntityNotFound(LookupError):
@@ -112,6 +133,10 @@ class RelationEdgeNotFound(LookupError):
 class SelfMergeError(ValueError):
     """A merge whose absorbed and survivor are the same entity (→409) — a no-op that would delete
     the only node. Guarded before any read."""
+
+
+class MentionNotFound(LookupError):
+    """No such mention (→404) — e.g. a change-boundaries on a manual span removed in another tab."""
 
 
 class NothingToUndo(LookupError):
@@ -179,6 +204,39 @@ def _display_name(entity: GraphEntity) -> str:
     )
 
 
+def _mention_payload(
+    paragraph_id: UUID, entity_id: UUID, span_start: int, span_end: int
+) -> dict[str, object]:
+    """The `after` image of an `add_mention` row (M4.S3c) — for the audit trail / flywheel; the
+    inverse (`RemoveMention`) only needs the row's `target_id`, so this is reference data."""
+    return {
+        "paragraph_id": str(paragraph_id),
+        "entity_id": str(entity_id),
+        "span_start": span_start,
+        "span_end": span_end,
+    }
+
+
+def _suppression_payload(
+    paragraph_id: UUID, entity_id: UUID | None, span_start: int, span_end: int
+) -> dict[str, object]:
+    """The `after` image of a `suppress_span` row (M4.S3c). `entity_id` None = "not an entity"."""
+    return {
+        "paragraph_id": str(paragraph_id),
+        "entity_id": None if entity_id is None else str(entity_id),
+        "span_start": span_start,
+        "span_end": span_end,
+    }
+
+
+def _suppression_id(
+    paragraph_id: UUID, span_start: int, span_end: int, entity_id: UUID | None
+) -> UUID:
+    """Deterministic suppression id so a re-suppress of the same (paragraph, span, entity) is
+    idempotent (`ON CONFLICT (id) DO NOTHING`). `entity_id` None ("not an entity") keys on 'all'."""
+    return uuid5(_OP_NS, f"suppress:{paragraph_id}:{span_start}:{span_end}:{entity_id or 'all'}")
+
+
 def _op_seed(base: str, generation: int) -> str:
     """The `uuid5` seed for a grouped operation id. Generation 0 keeps the base seed (be1's exact
     merge id for the common first-time case); re-doing the *same* operation on the *same* targets
@@ -188,9 +246,12 @@ def _op_seed(base: str, generation: int) -> str:
 
 
 class EntityEditService:
-    """Edits a committed entity's fields, adds/removes relations, and merges entities under the
-    human gate (M4.S3a edit path + M4.S3b merge — INV-9's "edit" handler grows operations, no new
-    writer class)."""
+    """Edits a committed entity's fields, adds/removes relations, merges/deletes entities, and tags/
+    un-tags/re-bounds occurrences in the reader — all under the human gate (M4.S3a edit + S3b
+    merge/delete + S3c manual correction). INV-9's "edit" handler keeps *growing operations* rather
+    than minting writer classes (broaden-don't-mint, ADR 0006): S3c's `tag_new_entity` is a new
+    human-reached *entity* writer and the manual-mention mutators write the mention layer — every
+    one reached only from an explicit human action, so no *automated* stage writes the graph."""
 
     def __init__(
         self,
@@ -416,6 +477,334 @@ class EntityEditService:
             description=description,
         )
 
+    # --- M4.S3c: manual tag / un-tag / change-boundaries in the reader (spec §3.5) -----------
+    #
+    # The reader's first write family beyond entity/edge edits — it writes the **mention** layer.
+    # Each correction is store-mutation-first, evidence-last (the DM-S3a-2/INV-3 order), reversible
+    # via the same `graph_edits` undo (new op-kinds add_mention / create_entity_from_tag /
+    # suppress_span / edit_mention_span; DM-S3c-5). Rejection ("not an entity"/"not this entity") is
+    # *always* a suppression the resolver subtracts (DM-S3c-1 B), never a mention delete — one
+    # rejection mechanism, uniform undo. Spans are validated against the paragraph text at the route
+    # (`domain.highlights.validate_manual_span`); the service trusts in-bounds, scoped spans.
+
+    async def tag_existing(
+        self, project_id: UUID, paragraph_id: UUID, entity_id: UUID, span_start: int, span_end: int
+    ) -> UUID:
+        """Tag a span as an *existing* accepted entity — insert a manual mention with real offsets
+        (DM-S3c-2). 404s if the entity isn't in the project. Idempotent by a deterministic id, so
+        re-tagging the same span is an idempotent no-op. Returns the mention id."""
+        await self._require_entity(project_id, entity_id)
+        mention_id = uuid5(_OP_NS, f"mention:{paragraph_id}:{entity_id}:{span_start}:{span_end}")
+        await self._mentions.add_mention(
+            EntityMention(
+                id=mention_id,
+                paragraph_id=paragraph_id,
+                entity_id=entity_id,
+                span_start=span_start,
+                span_end=span_end,
+                source="manual",
+            )
+        )
+        await self._evidence.record_edit(
+            GraphEdit(
+                target_id=mention_id,
+                target_kind="mention",
+                op="add_mention",
+                after=_mention_payload(paragraph_id, entity_id, span_start, span_end),
+                project_id=project_id,
+            )
+        )
+        return mention_id
+
+    async def tag_new_entity(
+        self,
+        project_id: UUID,
+        paragraph_id: UUID,
+        name: str,
+        type_: str,
+        language: str,
+        span_start: int,
+        span_end: int,
+    ) -> tuple[UUID, UUID]:
+        """Tag a span as a *brand-new* accepted entity (DM-S3c-2) — mint a Neo4j node + its
+        first manual mention as one grouped, reversible op. A **new human-reached entity writer**:
+        INV-9's enumeration grows (broaden-don't-mint, exactly as S3a edit / S3b merge added writers
+        reached only from an explicit human action; ADR 0006). The human *is* the §3.3 Stage-4 gate
+        in person, so bypassing the cascade does not weaken INV-1 — it is its strongest form.
+
+        Write order is **Neo4j-then-Postgres** (graph owns identity, OQ-1): a crash leaves an orphan
+        node that simply doesn't highlight yet — the benign half — and a retry re-derives the same
+        ids and completes. Returns `(entity_id, mention_id)`.
+        """
+        name = name.strip()
+        type_ = type_.strip()
+        if not name or not type_:
+            raise EntityEditInvalid("a manual tag needs a non-empty name and type")
+        entity_id = uuid5(_OP_NS, f"tagentity:{paragraph_id}:{span_start}:{span_end}:{name}")
+        mention_id = uuid5(_OP_NS, f"mention:{paragraph_id}:{entity_id}:{span_start}:{span_end}")
+        # Provisional bilingual naming (the §3.2 / §10 q8 rule reused from the accept path): the
+        # surface form fills the project-language slot, the peer stays null. A manual entity is
+        # embedding-less at PoC (it isn't a candidate; the cascade matches candidates) — name it so
+        # the NULL vector doesn't read as a bug.
+        entity = GraphEntity(
+            id=entity_id,
+            type=type_,
+            canonical_name_pl=name if language == "pl" else None,
+            canonical_name_en=name if language != "pl" else None,
+            first_seen_paragraph_id=paragraph_id,
+            project_id=project_id,
+        )
+        await self._graph.create_entity(entity)
+        await self._mentions.add_mention(
+            EntityMention(
+                id=mention_id,
+                paragraph_id=paragraph_id,
+                entity_id=entity_id,
+                span_start=span_start,
+                span_end=span_end,
+                source="manual",
+            )
+        )
+        generation = await self._next_generation(
+            f"tagnew:{paragraph_id}:{span_start}:{span_end}:{name}"
+        )
+        # seq 0 = create node, seq 1 = add mention; undo replays highest-seq-first → remove the
+        # mention, *then* delete the node (no dangling half).
+        rows = self._grouped(
+            project_id,
+            op_kind="tag_new",
+            description=f"tagged '{name}' as new {type_}",
+            base_seed=f"tagnew:{paragraph_id}:{span_start}:{span_end}:{name}",
+            generation=generation,
+            specs=[
+                {
+                    "target_id": entity_id,
+                    "target_kind": "entity",
+                    "op": "create_entity_from_tag",
+                    "after": entity.model_dump(mode="json"),
+                },
+                {
+                    "target_id": mention_id,
+                    "target_kind": "mention",
+                    "op": "add_mention",
+                    "after": _mention_payload(paragraph_id, entity_id, span_start, span_end),
+                },
+            ],
+        )
+        await self._evidence.record_operation(rows)
+        return entity_id, mention_id
+
+    async def suppress_occurrence(
+        self,
+        project_id: UUID,
+        paragraph_id: UUID,
+        span_start: int,
+        span_end: int,
+        entity_id: UUID | None,
+    ) -> UUID:
+        """Hide a highlight (DM-S3c-3). "not an entity" → `entity_id=None` (the reader clears every
+        claimant at the span); "not this entity" detach → `entity_id` set (clears that one). Writes
+        a suppression the resolver subtracts post-overlay. 404s if a named entity isn't in project.
+        Returns the suppression id."""
+        if entity_id is not None:
+            await self._require_entity(project_id, entity_id)
+        suppression_id = _suppression_id(paragraph_id, span_start, span_end, entity_id)
+        await self._mentions.add_suppression(
+            MentionSuppression(
+                id=suppression_id,
+                paragraph_id=paragraph_id,
+                entity_id=entity_id,
+                span_start=span_start,
+                span_end=span_end,
+            )
+        )
+        await self._evidence.record_edit(
+            GraphEdit(
+                target_id=suppression_id,
+                target_kind="suppression",
+                op="suppress_span",
+                after=_suppression_payload(paragraph_id, entity_id, span_start, span_end),
+                project_id=project_id,
+            )
+        )
+        return suppression_id
+
+    async def retag_occurrence(
+        self,
+        project_id: UUID,
+        paragraph_id: UUID,
+        span_start: int,
+        span_end: int,
+        from_entity_id: UUID,
+        to_entity_id: UUID,
+    ) -> tuple[UUID, UUID]:
+        """ "not this entity" *with* re-assign — atomic (DM-S3c-3): suppress the wrong entity claim
+        at the span AND tag the right entity there, as ONE grouped op so undo restores the original
+        in a single step. 404s if either entity isn't in the project. Returns `(suppression_id,
+        mention_id)`."""
+        await self._require_entity(project_id, from_entity_id)
+        await self._require_entity(project_id, to_entity_id)
+        suppression_id = _suppression_id(paragraph_id, span_start, span_end, from_entity_id)
+        mention_id = uuid5(_OP_NS, f"mention:{paragraph_id}:{to_entity_id}:{span_start}:{span_end}")
+        await self._mentions.add_suppression(
+            MentionSuppression(
+                id=suppression_id,
+                paragraph_id=paragraph_id,
+                entity_id=from_entity_id,
+                span_start=span_start,
+                span_end=span_end,
+            )
+        )
+        await self._mentions.add_mention(
+            EntityMention(
+                id=mention_id,
+                paragraph_id=paragraph_id,
+                entity_id=to_entity_id,
+                span_start=span_start,
+                span_end=span_end,
+                source="manual",
+            )
+        )
+        generation = await self._next_generation(
+            f"retag:{paragraph_id}:{span_start}:{span_end}:{to_entity_id}"
+        )
+        rows = self._grouped(
+            project_id,
+            op_kind="retag",
+            description="re-assigned an occurrence to another entity",
+            base_seed=f"retag:{paragraph_id}:{span_start}:{span_end}:{to_entity_id}",
+            generation=generation,
+            specs=[
+                {
+                    "target_id": suppression_id,
+                    "target_kind": "suppression",
+                    "op": "suppress_span",
+                    "after": _suppression_payload(
+                        paragraph_id, from_entity_id, span_start, span_end
+                    ),
+                },
+                {
+                    "target_id": mention_id,
+                    "target_kind": "mention",
+                    "op": "add_mention",
+                    "after": _mention_payload(paragraph_id, to_entity_id, span_start, span_end),
+                },
+            ],
+        )
+        await self._evidence.record_operation(rows)
+        return suppression_id, mention_id
+
+    async def change_boundaries(
+        self,
+        project_id: UUID,
+        paragraph_id: UUID,
+        entity_id: UUID,
+        mention_id: UUID | None,
+        old_start: int,
+        old_end: int,
+        new_start: int,
+        new_end: int,
+    ) -> UUID:
+        """Change a highlight's boundaries (DM-S3c-4, materialize-then-edit). On a *manual* mention
+        (`mention_id` given) the offsets are edited **in place**. On an *auto* search hit
+        (`mention_id` None) the occurrence is **materialized** — a stored manual span is created at
+        the new offsets AND the original position is suppressed so search doesn't re-surface it as a
+        duplicate, recorded as ONE grouped op. 404s if the entity (or a named mention) is missing.
+        Returns the new/edited mention id."""
+        await self._require_entity(project_id, entity_id)
+
+        if mention_id is not None:
+            existing = await self._mentions.get_mention(mention_id)
+            if existing is None:
+                raise MentionNotFound(str(mention_id))
+            await self._mentions.update_mention_span(mention_id, new_start, new_end)
+            await self._evidence.record_edit(
+                GraphEdit(
+                    target_id=mention_id,
+                    target_kind="mention",
+                    op="edit_mention_span",
+                    before={"span_start": existing.span_start, "span_end": existing.span_end},
+                    after={"span_start": new_start, "span_end": new_end},
+                    project_id=project_id,
+                )
+            )
+            return mention_id
+
+        new_mention_id = uuid5(_OP_NS, f"mention:{paragraph_id}:{entity_id}:{new_start}:{new_end}")
+        suppression_id = _suppression_id(paragraph_id, old_start, old_end, entity_id)
+        await self._mentions.add_mention(
+            EntityMention(
+                id=new_mention_id,
+                paragraph_id=paragraph_id,
+                entity_id=entity_id,
+                span_start=new_start,
+                span_end=new_end,
+                source="manual",
+            )
+        )
+        await self._mentions.add_suppression(
+            MentionSuppression(
+                id=suppression_id,
+                paragraph_id=paragraph_id,
+                entity_id=entity_id,
+                span_start=old_start,
+                span_end=old_end,
+            )
+        )
+        generation = await self._next_generation(
+            f"materialize:{paragraph_id}:{old_start}:{old_end}:{entity_id}"
+        )
+        rows = self._grouped(
+            project_id,
+            op_kind="materialize_boundary",
+            description="changed a highlight's boundaries",
+            base_seed=f"materialize:{paragraph_id}:{old_start}:{old_end}:{entity_id}",
+            generation=generation,
+            specs=[
+                {
+                    "target_id": new_mention_id,
+                    "target_kind": "mention",
+                    "op": "add_mention",
+                    "after": _mention_payload(paragraph_id, entity_id, new_start, new_end),
+                },
+                {
+                    "target_id": suppression_id,
+                    "target_kind": "suppression",
+                    "op": "suppress_span",
+                    "after": _suppression_payload(paragraph_id, entity_id, old_start, old_end),
+                },
+            ],
+        )
+        await self._evidence.record_operation(rows)
+        return new_mention_id
+
+    def _grouped(
+        self,
+        project_id: UUID,
+        *,
+        op_kind: str,
+        description: str,
+        base_seed: str,
+        generation: int,
+        specs: list[dict[str, object]],
+    ) -> list[GraphEdit]:
+        """Build a grouped, reversible operation from per-row `specs` (M4.S3c). `seq` is the spec
+        index; deterministic `uuid5` ids keep a crash-retry idempotent and `generation` separates
+        a redo after an undo (ADR 0007) — the same machinery `_merge_rows`/`_delete_rows` use."""
+        operation_id = uuid5(_OP_NS, _op_seed(base_seed, generation))
+        return [
+            GraphEdit(
+                id=uuid5(_OP_NS, f"{operation_id}:{seq}"),
+                operation_id=operation_id,
+                seq=seq,
+                op_kind=op_kind,
+                description=description,
+                project_id=project_id,
+                **spec,
+            )
+            for seq, spec in enumerate(specs)
+        ]
+
     async def undo_last(self, project_id: UUID, *, preview_only: bool = False) -> UndoResult:
         """Reverse the newest not-yet-undone operation in this project — the general undo executor
         (M4.S3b-be2, DM-S3b-1; resolves spec §10 q2 / §11 / §4.3). Reads the top of the stack,
@@ -476,6 +865,16 @@ class EntityEditService:
             await self._mentions.reassign_mentions(action.mention_ids, action.to_entity_id)
         elif isinstance(action, RestoreMentions):
             await self._mentions.restore_mentions(action.mentions)
+        elif isinstance(action, RemoveMention):
+            await self._mentions.delete_mention(action.mention_id)
+        elif isinstance(action, DeleteEntity):
+            await self._graph.delete_entity(action.entity_id)
+        elif isinstance(action, RemoveSuppression):
+            await self._mentions.delete_suppression(action.suppression_id)
+        elif isinstance(action, RestoreMentionSpan):
+            await self._mentions.update_mention_span(
+                action.mention_id, action.span_start, action.span_end
+            )
 
     @staticmethod
     def _delete_rows(

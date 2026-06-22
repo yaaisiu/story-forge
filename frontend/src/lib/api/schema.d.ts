@@ -153,9 +153,11 @@ export interface paths {
          *     are *story*-scoped; the entity catalog is read *project*-scoped (the §6.4 tenancy key, the
          *     same seam as `/graph` and `/entities`) — correct while one story = one project, and the
          *     natural first home of the §3.4 per-story filter when multi-story lands. Each paragraph's
-         *     mentioned entities are resolved to character ranges by render-time search over their surface
-         *     forms (`resolve_highlights`); an entity whose forms don't occur is omitted (fail-closed), and
-         *     only entities that actually appear are advertised in the tooltip catalog.
+         *     highlights are **reconciled** (M4.S3c, DM-S3c-1 B) from three sources: render-time search over
+         *     extraction mentions' surface forms, author-asserted **stored manual spans** (real offsets that
+         *     overlay + win), minus **suppressions** (rejected highlights). An entity whose forms don't occur
+         *     and was never manually tagged is omitted (fail-closed); only entities that actually appear are
+         *     advertised in the tooltip catalog.
          */
         get: operations["get_story_reader_stories__story_id__reader_get"];
         put?: never;
@@ -315,6 +317,74 @@ export interface paths {
          *     undoing would clobber a newer edit, so it refuses rather than overwrite).
          */
         post: operations["undo_last_route_stories__story_id__graph_edits_undo_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/stories/{story_id}/paragraphs/{paragraph_id}/tags": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Tag Occurrence Route
+         * @description Tag a text span as an entity — existing (`entity_id`) or brand-new (`new_entity`); spec §3.5,
+         *     DM-S3c-2. A human-reached write (INV-9 as reworded, ADR 0006): persists a stored manual mention
+         *     with real offsets that overlays + wins over search, reversible via Undo. The span must be a
+         *     valid range within the paragraph (else 400). The reader invalidates + refetches (DM-S3a-4).
+         */
+        post: operations["tag_occurrence_route_stories__story_id__paragraphs__paragraph_id__tags_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/stories/{story_id}/paragraphs/{paragraph_id}/suppressions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Suppress Occurrence Route
+         * @description Hide ("not an entity") or re-assign ("not this entity") a highlighted occurrence (spec §3.5,
+         *     DM-S3c-3). Writes a suppression the reader subtracts; with `retag_to` it is an atomic re-assign
+         *     (suppress + tag, one reversible op). Reversible via Undo; the reader invalidates + refetches.
+         */
+        post: operations["suppress_occurrence_route_stories__story_id__paragraphs__paragraph_id__suppressions_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/stories/{story_id}/paragraphs/{paragraph_id}/boundaries": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Change Boundaries Route
+         * @description Change a highlight's boundaries (spec §3.5, DM-S3c-4). On a manual span (`mention_id`) the
+         *     offsets are edited in place; on an auto search hit (`mention_id` None) the occurrence is
+         *     materialized at the new offsets and the original position suppressed, as one reversible op. The
+         *     new span must be valid within the paragraph (else 400).
+         */
+        post: operations["change_boundaries_route_stories__story_id__paragraphs__paragraph_id__boundaries_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -492,6 +562,40 @@ export interface components {
         Body_upload_story_stories_upload_post: {
             /** File */
             file: string;
+        };
+        /**
+         * BoundaryRequest
+         * @description Change a highlight's boundaries (spec §3.5, DM-S3c-4). `mention_id` None = an auto search hit
+         *     to **materialize** (needs `entity_id` + the old offsets to suppress the original position);
+         *     set = an existing manual span to edit in place.
+         */
+        BoundaryRequest: {
+            /**
+             * Entity Id
+             * Format: uuid
+             */
+            entity_id: string;
+            /** Mention Id */
+            mention_id?: string | null;
+            /** Old Start */
+            old_start: number;
+            /** Old End */
+            old_end: number;
+            /** New Start */
+            new_start: number;
+            /** New End */
+            new_end: number;
+        };
+        /**
+         * BoundaryResponse
+         * @description The new (materialized) or edited manual mention's id.
+         */
+        BoundaryResponse: {
+            /**
+             * Mention Id
+             * Format: uuid
+             */
+            mention_id: string;
         };
         /**
          * CandidateView
@@ -922,6 +1026,17 @@ export interface components {
             mentions_repointed: number;
         };
         /**
+         * NewEntityTag
+         * @description Create a brand-new accepted entity of type X from a tag (DM-S3c-2). `type` is open-world
+         *     (INV-4) — a free string, never an enum.
+         */
+        NewEntityTag: {
+            /** Name */
+            name: string;
+            /** Type */
+            type: string;
+        };
+        /**
          * ReaderEntity
          * @description Tooltip data for an entity that appears in the reader (DM-IH-8: name + type + aliases).
          */
@@ -941,6 +1056,11 @@ export interface components {
         /**
          * ReaderHighlight
          * @description One resolved highlight range `[start, end)` within a paragraph (spec §3.5).
+         *
+         *     `source` + `mention_id` (M4.S3c, DM-S3c-6) give each highlight occurrence identity so a
+         *     right-click correction can address it unambiguously: a `"search"` hit is derived (no row to
+         *     edit — corrections write a suppression); a `"manual"` hit carries the `entity_mentions` id that
+         *     a change-boundaries edits or a suppression hides.
          */
         ReaderHighlight: {
             /** Start */
@@ -954,6 +1074,14 @@ export interface components {
             entity_id: string;
             /** Type */
             type: string;
+            /**
+             * Source
+             * @default search
+             * @enum {string}
+             */
+            source: "search" | "manual";
+            /** Mention Id */
+            mention_id?: string | null;
         };
         /**
          * ReaderParagraph
@@ -1146,6 +1274,68 @@ export interface components {
             scene_count: number;
             /** Paragraph Count */
             paragraph_count: number;
+        };
+        /**
+         * SuppressRequest
+         * @description Hide or re-assign a highlighted occurrence (spec §3.5). `entity_id` None = "not an entity"
+         *     (clear all claimants at the span); set = "not this entity" (clear that one). `retag_to` makes
+         *     it an atomic re-assign — suppress the wrong entity + tag the right one as one op; it requires
+         *     `entity_id` (the entity being corrected).
+         */
+        SuppressRequest: {
+            /** Span Start */
+            span_start: number;
+            /** Span End */
+            span_end: number;
+            /** Entity Id */
+            entity_id?: string | null;
+            /** Retag To */
+            retag_to?: string | null;
+        };
+        /**
+         * SuppressResponse
+         * @description The suppression id; `mention_id` is set only on an atomic re-assign (the re-tagged entity's
+         *     new manual mention).
+         */
+        SuppressResponse: {
+            /**
+             * Suppression Id
+             * Format: uuid
+             */
+            suppression_id: string;
+            /** Mention Id */
+            mention_id?: string | null;
+        };
+        /**
+         * TagRequest
+         * @description Tag a `[span_start, span_end)` occurrence as an entity (spec §3.5). Exactly one of
+         *     `entity_id` (attach to an existing accepted entity) or `new_entity` (create one) — both or
+         *     neither is a 422 request-shape error.
+         */
+        TagRequest: {
+            /** Span Start */
+            span_start: number;
+            /** Span End */
+            span_end: number;
+            /** Entity Id */
+            entity_id?: string | null;
+            new_entity?: components["schemas"]["NewEntityTag"] | null;
+        };
+        /**
+         * TagResponse
+         * @description The created mention's id + the entity it points at (newly minted, for `new_entity`).
+         */
+        TagResponse: {
+            /**
+             * Mention Id
+             * Format: uuid
+             */
+            mention_id: string;
+            /**
+             * Entity Id
+             * Format: uuid
+             */
+            entity_id: string;
         };
         /**
          * TaskTypeUsage
@@ -1915,6 +2105,195 @@ export interface operations {
             };
             /** @description The graph drifted since; undo refused. */
             409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+            /** @description A data store is unavailable. */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    tag_occurrence_route_stories__story_id__paragraphs__paragraph_id__tags_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                story_id: string;
+                paragraph_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TagRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TagResponse"];
+                };
+            };
+            /** @description The span or new-entity input is invalid. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Story, paragraph, or entity not found. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+            /** @description A data store is unavailable. */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    suppress_occurrence_route_stories__story_id__paragraphs__paragraph_id__suppressions_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                story_id: string;
+                paragraph_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SuppressRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SuppressResponse"];
+                };
+            };
+            /** @description The span is invalid. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Story, paragraph, or entity not found. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+            /** @description A data store is unavailable. */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    change_boundaries_route_stories__story_id__paragraphs__paragraph_id__boundaries_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                story_id: string;
+                paragraph_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["BoundaryRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BoundaryResponse"];
+                };
+            };
+            /** @description The new span is invalid. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Story, paragraph, entity, or mention absent. */
+            404: {
                 headers: {
                     [name: string]: unknown;
                 };

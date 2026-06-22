@@ -14,6 +14,7 @@ layer to reason about.
 from __future__ import annotations
 
 from datetime import UTC, datetime
+from typing import Literal
 from uuid import UUID, uuid4
 
 from pydantic import BaseModel, Field
@@ -91,6 +92,11 @@ class EntityMention(BaseModel):
     `embedding` is the per-mention context vector (pgvector(768), §3.3 Stage 2). It
     stays None under the foundation-only M3.S2 scope — EmbeddingAgent is built but not
     wired into the live extraction path until the cascade lands (M3.S4).
+
+    `source` (M4.S3c) is `'extraction'` for a cascade-written mention (NULL offsets —
+    highlighting is render-time search, DM-IH-1) and `'manual'` for a human tag carrying
+    real `span_start`/`span_end` that overlays and wins over search (DM-S3c-1 B). An
+    explicit flag, not a "non-null span" heuristic, so the two stay distinguishable.
     """
 
     id: UUID = Field(default_factory=uuid4)
@@ -100,3 +106,21 @@ class EntityMention(BaseModel):
     span_end: int | None = None
     confidence: float | None = None
     embedding: list[float] | None = None
+    source: Literal["extraction", "manual"] = "extraction"
+
+
+class MentionSuppression(BaseModel):
+    """A negative highlight record (M4.S3c, spec §6.4 / DM-S3c-1 B): "this `[start, end)`
+    is **not** a highlight", written by the reader's right-click corrections.
+
+    `entity_id` NULL = "not an entity" (the reader clears every claimant at the span);
+    set = "not this entity" (clears that one entity's claim). Same cross-store seam as
+    `EntityMention`: `paragraph_id` is a real Postgres FK, `entity_id` carries none.
+    """
+
+    id: UUID = Field(default_factory=uuid4)
+    paragraph_id: UUID
+    entity_id: UUID | None = None
+    span_start: int
+    span_end: int
+    created_at: datetime = Field(default_factory=lambda: datetime.now(UTC))

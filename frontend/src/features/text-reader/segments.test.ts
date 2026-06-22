@@ -7,7 +7,7 @@ import { type ReaderHighlight, splitParagraph } from "./segments";
 // the highlights it returns are non-overlapping and sorted by `start`, so the
 // splitter is a single linear walk — these tests encode that contract.
 function hl(start: number, end: number, entity_id = "e1", type = "character"): ReaderHighlight {
-  return { start, end, entity_id, type };
+  return { start, end, entity_id, type, source: "search" };
 }
 
 describe("splitParagraph", () => {

@@ -12,12 +12,16 @@ from uuid import uuid4
 from story_forge.domain.graph import GraphEntity, GraphRelation
 from story_forge.domain.graph_edit import GraphEdit
 from story_forge.domain.graph_undo import (
+    DeleteEntity,
     DriftCheck,
     ReassignMentions,
     RecreateEntity,
     RecreateRelation,
+    RemoveMention,
     RemoveRelation,
+    RemoveSuppression,
     RestoreEntityFields,
+    RestoreMentionSpan,
     UndoNotInvertible,
     fields_match,
     invert_operation,
@@ -369,3 +373,78 @@ def test_fields_match_compares_only_expected_keys() -> None:
     assert fields_match(entity, {"type": "Deity"})
     assert not fields_match(entity, {"type": "Character"})
     assert fields_match(entity, {"properties": {"role": "priestess"}})
+
+
+# ── M4.S3c manual-correction op inverters ──────────────────────────────────
+
+
+def test_add_mention_inverse_removes_the_mention() -> None:
+    mention_id = uuid4()
+    row = GraphEdit(target_id=mention_id, target_kind="mention", op="add_mention")
+    plan = invert_operation([row])
+    assert plan.actions == [RemoveMention(mention_id=mention_id)]
+
+
+def test_create_entity_from_tag_inverse_deletes_node_and_guards_present() -> None:
+    entity = _entity(canonical_name_pl="Smok")
+    row = GraphEdit(
+        target_id=entity.id,
+        target_kind="entity",
+        op="create_entity_from_tag",
+        after=entity.model_dump(mode="json"),
+    )
+    plan = invert_operation([row])
+    assert DeleteEntity(entity_id=entity.id) in plan.actions
+    # Undo of a create must refuse if the node was edited/merged away since (expect_present).
+    assert plan.drift is not None and plan.drift.entity_id == entity.id
+    assert plan.drift.expect_present is True
+
+
+def test_suppress_span_inverse_removes_the_suppression() -> None:
+    suppression_id = uuid4()
+    row = GraphEdit(target_id=suppression_id, target_kind="suppression", op="suppress_span")
+    plan = invert_operation([row])
+    assert plan.actions == [RemoveSuppression(suppression_id=suppression_id)]
+
+
+def test_edit_mention_span_inverse_restores_old_offsets() -> None:
+    mention_id = uuid4()
+    row = GraphEdit(
+        target_id=mention_id,
+        target_kind="mention",
+        op="edit_mention_span",
+        before={"span_start": 0, "span_end": 6},
+        after={"span_start": 7, "span_end": 12},
+    )
+    plan = invert_operation([row])
+    assert plan.actions == [RestoreMentionSpan(mention_id=mention_id, span_start=0, span_end=6)]
+
+
+def test_grouped_tag_new_inverse_removes_mention_then_deletes_node() -> None:
+    # tag-new = [create_entity_from_tag (seq 0), add_mention (seq 1)]; undo reverses
+    # highest-seq-first → remove the mention, then delete the node (no dangling).
+    entity = _entity(canonical_name_pl="Smok")
+    mention_id = uuid4()
+    op_id = uuid4()
+    rows = [
+        GraphEdit(
+            target_id=entity.id,
+            target_kind="entity",
+            op="create_entity_from_tag",
+            after=entity.model_dump(mode="json"),
+            operation_id=op_id,
+            seq=0,
+        ),
+        GraphEdit(
+            target_id=mention_id,
+            target_kind="mention",
+            op="add_mention",
+            operation_id=op_id,
+            seq=1,
+        ),
+    ]
+    plan = invert_operation(rows)
+    assert plan.actions == [
+        RemoveMention(mention_id=mention_id),
+        DeleteEntity(entity_id=entity.id),
+    ]
