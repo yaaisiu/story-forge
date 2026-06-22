@@ -229,6 +229,14 @@ def _suppression_payload(
     }
 
 
+def _mention_id(paragraph_id: UUID, entity_id: UUID, span_start: int, span_end: int) -> UUID:
+    """Deterministic manual-mention id so re-tagging the same (paragraph, entity, span) is
+    idempotent (`ON CONFLICT (id) DO NOTHING`). Single source of the formula: every tag path
+    (tag-existing, tag-new, atomic re-assign, materialize-boundary) derives the id here, so the
+    producer (the insert) and any consumer (an undo `RemoveMention` by id) can never drift."""
+    return uuid5(_OP_NS, f"mention:{paragraph_id}:{entity_id}:{span_start}:{span_end}")
+
+
 def _suppression_id(
     paragraph_id: UUID, span_start: int, span_end: int, entity_id: UUID | None
 ) -> UUID:
@@ -494,7 +502,7 @@ class EntityEditService:
         (DM-S3c-2). 404s if the entity isn't in the project. Idempotent by a deterministic id, so
         re-tagging the same span is an idempotent no-op. Returns the mention id."""
         await self._require_entity(project_id, entity_id)
-        mention_id = uuid5(_OP_NS, f"mention:{paragraph_id}:{entity_id}:{span_start}:{span_end}")
+        mention_id = _mention_id(paragraph_id, entity_id, span_start, span_end)
         await self._mentions.add_mention(
             EntityMention(
                 id=mention_id,
@@ -541,7 +549,7 @@ class EntityEditService:
         if not name or not type_:
             raise EntityEditInvalid("a manual tag needs a non-empty name and type")
         entity_id = uuid5(_OP_NS, f"tagentity:{paragraph_id}:{span_start}:{span_end}:{name}")
-        mention_id = uuid5(_OP_NS, f"mention:{paragraph_id}:{entity_id}:{span_start}:{span_end}")
+        mention_id = _mention_id(paragraph_id, entity_id, span_start, span_end)
         # Provisional bilingual naming (the §3.2 / §10 q8 rule reused from the accept path): the
         # surface form fills the project-language slot, the peer stays null. A manual entity is
         # embedding-less at PoC (it isn't a candidate; the cascade matches candidates) — name it so
@@ -645,7 +653,7 @@ class EntityEditService:
         await self._require_entity(project_id, from_entity_id)
         await self._require_entity(project_id, to_entity_id)
         suppression_id = _suppression_id(paragraph_id, span_start, span_end, from_entity_id)
-        mention_id = uuid5(_OP_NS, f"mention:{paragraph_id}:{to_entity_id}:{span_start}:{span_end}")
+        mention_id = _mention_id(paragraph_id, to_entity_id, span_start, span_end)
         await self._mentions.add_suppression(
             MentionSuppression(
                 id=suppression_id,
@@ -730,7 +738,7 @@ class EntityEditService:
             )
             return mention_id
 
-        new_mention_id = uuid5(_OP_NS, f"mention:{paragraph_id}:{entity_id}:{new_start}:{new_end}")
+        new_mention_id = _mention_id(paragraph_id, entity_id, new_start, new_end)
         suppression_id = _suppression_id(paragraph_id, old_start, old_end, entity_id)
         await self._mentions.add_mention(
             EntityMention(
