@@ -284,7 +284,9 @@ export function TextReader() {
                 onEntityClick={handleSelectEntity}
                 flash={flash}
                 onContextMenuRequest={handleContextMenuRequest}
-                onSelectionChange={handleSelectionChange}
+                // Only resolve drag-selections while re-selecting a boundary span — otherwise every
+                // mouseup would walk the paragraph's text nodes for a result nothing consumes.
+                onSelectionChange={phase?.kind === "boundary" ? handleSelectionChange : undefined}
               />
             </article>
           </>
