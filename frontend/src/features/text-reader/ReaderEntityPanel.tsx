@@ -24,10 +24,13 @@ import { EntityPicker } from "../extraction-review/EntityPicker";
 import type { EntitySearchResult } from "../../lib/api/useEntitySearch";
 import type { ReaderParagraph } from "../../lib/api/useReader";
 import { useAddRelation } from "../../lib/api/useAddRelation";
+import { useDeleteEntity } from "../../lib/api/useDeleteEntity";
 import { useEntityDetail, type EntityDetailResponse } from "../../lib/api/useEntityDetail";
 import { useEntityEdit, type EntityEditPatch } from "../../lib/api/useEntityEdit";
 import { useRemoveRelation } from "../../lib/api/useRemoveRelation";
 import { EgoGraphCanvas } from "./EgoGraphCanvas";
+import { formatPropertyValue } from "./formatPropertyValue";
+import { MergeControls } from "./MergeControls";
 import { egoNeighbourLabel } from "./egoElements";
 import { entityOccurrences } from "./occurrences";
 import {
@@ -43,18 +46,12 @@ interface ReaderEntityPanelProps {
   entityId: string;
   paragraphs: readonly ReaderParagraph[];
   onClose: () => void;
+  /** The entity was deleted — close the panel (it no longer exists). */
+  onDeleted: () => void;
   /** Inspect a neighbour entity (tapped in the mini-graph) — re-targets the panel. */
   onSelectEntity: (entityId: string) => void;
   /** Drill an occurrence back to its paragraph in the reader (scroll + flash). */
   onNavigateToOccurrence: (paragraphId: string) => void;
-}
-
-/** Render an open-world property value defensively: strings as-is, anything else stringified. */
-function formatPropertyValue(value: unknown): string {
-  if (typeof value === "string") return value;
-  if (value === null || value === undefined) return "";
-  if (typeof value === "object") return JSON.stringify(value);
-  return String(value);
 }
 
 /** Build the name half of an edit patch: write the single field to the project-language slot. */
@@ -67,6 +64,7 @@ export function ReaderEntityPanel({
   entityId,
   paragraphs,
   onClose,
+  onDeleted,
   onSelectEntity,
   onNavigateToOccurrence,
 }: ReaderEntityPanelProps) {
@@ -187,14 +185,28 @@ export function ReaderEntityPanel({
           </dl>
 
           {storyId && (
-            <button
-              type="button"
-              data-testid="reader-entity-edit"
-              onClick={() => startEditing(detail.data)}
-              className="self-start rounded border border-gray-300 px-2 py-1 text-xs text-gray-700 hover:bg-gray-50"
-            >
-              Edit
-            </button>
+            <div className="flex flex-wrap items-center gap-2">
+              <button
+                type="button"
+                data-testid="reader-entity-edit"
+                onClick={() => startEditing(detail.data)}
+                className="self-start rounded border border-gray-300 px-2 py-1 text-xs text-gray-700 hover:bg-gray-50"
+              >
+                Edit
+              </button>
+              <MergeControls
+                storyId={sid}
+                survivorId={entityId}
+                survivorName={detail.data.canonical_name}
+                survivorProperties={detail.data.properties}
+              />
+              <DeleteControl
+                storyId={sid}
+                entityId={entityId}
+                name={detail.data.canonical_name}
+                onDeleted={onDeleted}
+              />
+            </div>
           )}
 
           <RelationsSection
@@ -420,6 +432,62 @@ function neighbourNames(detail: EntityDetailResponse): Map<string, string> {
     names.set(n.entity_id, egoNeighbourLabel(n));
   }
   return names;
+}
+
+interface DeleteControlProps {
+  storyId: string;
+  entityId: string;
+  name: string;
+  onDeleted: () => void;
+}
+
+/** Delete-with-confirm: destructive but reversible (undo restores the full entity, DM-S3b-1). */
+function DeleteControl({ storyId, entityId, name, onDeleted }: DeleteControlProps) {
+  const [confirming, setConfirming] = useState(false);
+  const deleteEntity = useDeleteEntity(storyId);
+
+  if (!confirming) {
+    return (
+      <button
+        type="button"
+        data-testid="reader-entity-delete"
+        onClick={() => setConfirming(true)}
+        className="self-start rounded border border-red-300 px-2 py-1 text-xs text-red-700 hover:bg-red-50"
+      >
+        Delete
+      </button>
+    );
+  }
+
+  return (
+    <div data-testid="reader-entity-delete-confirm" className="flex flex-col gap-1">
+      <p className="text-xs text-gray-700">Delete {name}? You can undo this.</p>
+      <div className="flex gap-2">
+        <button
+          type="button"
+          data-testid="reader-entity-delete-confirm-btn"
+          disabled={deleteEntity.isPending}
+          onClick={() => deleteEntity.mutate(entityId, { onSuccess: onDeleted })}
+          className="rounded bg-red-700 px-2 py-1 text-xs text-white hover:bg-red-600 disabled:opacity-50"
+        >
+          Delete
+        </button>
+        <button
+          type="button"
+          data-testid="reader-entity-delete-cancel"
+          onClick={() => setConfirming(false)}
+          className="rounded border border-gray-300 px-2 py-1 text-xs text-gray-700 hover:bg-gray-50"
+        >
+          Cancel
+        </button>
+      </div>
+      {deleteEntity.isError && (
+        <p data-testid="reader-entity-delete-error" role="alert" className="text-xs text-red-700">
+          {deleteEntity.error.detail}
+        </p>
+      )}
+    </div>
+  );
 }
 
 interface RelationsSectionProps {

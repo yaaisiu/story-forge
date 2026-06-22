@@ -91,12 +91,15 @@ function jsonResponse(status: number, body: unknown): Response {
 }
 
 function renderPanel(overrides: Partial<Parameters<typeof ReaderEntityPanel>[0]> = {}) {
-  const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  const queryClient = new QueryClient({
+    defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
+  });
   const props = {
     storyId: STORY_ID,
     entityId: ENTITY_ID,
     paragraphs: PARAGRAPHS,
     onClose: vi.fn(),
+    onDeleted: vi.fn(),
     onSelectEntity: vi.fn(),
     onNavigateToOccurrence: vi.fn(),
     ...overrides,
@@ -321,6 +324,42 @@ describe("ReaderEntityPanel — entity editing (M4.S3a-fe)", () => {
       "canonical name",
     );
     expect(screen.getByTestId("reader-entity-edit-form")).toBeInTheDocument();
+  });
+});
+
+describe("ReaderEntityPanel — delete (M4.S3b-fe)", () => {
+  it("deletes the entity after a confirm and calls onDeleted", async () => {
+    const fetchMock = routeFetch(() => new Response(null, { status: 204 }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    const props = renderPanel();
+    await screen.findByTestId("reader-entity-type");
+
+    // First click reveals the confirm; the destructive call only fires on the second.
+    fireEvent.click(screen.getByTestId("reader-entity-delete"));
+    fireEvent.click(screen.getByTestId("reader-entity-delete-confirm-btn"));
+
+    await waitFor(() => expect(props.onDeleted).toHaveBeenCalled());
+    const del = fetchMock.mock.calls.find(
+      (c) => (c[1] as RequestInit | undefined)?.method === "DELETE",
+    ) as [string, RequestInit];
+    expect(del[0]).toMatch(new RegExp(`/stories/${STORY_ID}/entities/${ENTITY_ID}$`));
+  });
+
+  it("does not delete when the confirm is cancelled", async () => {
+    const fetchMock = routeFetch(() => new Response(null, { status: 204 }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    renderPanel();
+    await screen.findByTestId("reader-entity-type");
+
+    fireEvent.click(screen.getByTestId("reader-entity-delete"));
+    fireEvent.click(screen.getByTestId("reader-entity-delete-cancel"));
+
+    expect(screen.queryByTestId("reader-entity-delete-confirm")).toBeNull();
+    expect(
+      fetchMock.mock.calls.some((c) => (c[1] as RequestInit | undefined)?.method === "DELETE"),
+    ).toBe(false);
   });
 });
 
