@@ -407,7 +407,7 @@ stories         (id, project_id, title, raw_text, ingested_at)
 chapters        (id, story_id, order_index, title, summary)
 scenes          (id, chapter_id, order_index, title, summary)
 paragraphs      (id, scene_id, order_index, content, content_normalized, embedding vector(768))
-entity_mentions (id, paragraph_id, entity_id, span_start, span_end, confidence, source)
+entity_mentions (id, paragraph_id, entity_id, span_start, span_end, confidence, embedding vector(768), source)
 mention_suppressions (id, paragraph_id, entity_id, span_start, span_end, created_at)  -- M4.S3c: a rejected highlight ("not an entity"/"not this entity")
 edit_history    (id, scope, scope_id, before, after, intent, source, model, prompt, accepted, context, timestamp)
 worlds          (id, name, description)  -- optional shared graph parent
@@ -421,6 +421,15 @@ and **real character offsets** that overlay and win over search; a rejected high
 **`mention_suppressions`** row the reader subtracts. `source` is `'extraction'` (default) or
 `'manual'`; a suppression with `entity_id` NULL clears the span for all entities ("not an entity"),
 or set for one ("not this entity").
+
+**Per-mention context vector (`embedding vector(768)`).** Each mention carries the embedding of its
+±200-char context, the storage for the §3.3 **Stage-2** cascade: Stage 2 takes the max cosine of a
+candidate's context vector against an existing entity's stored mention vectors. Live and load-bearing
+since M3.S2/S4 (written at accept time from the staged candidate's vector; read back per entity to seed
+matching and on-accept re-match). The column is **nullable** — a mention whose context could not be
+encoded (the embedding model is in the optional `models` dependency group; an encode failure is
+fail-closed and drops Stage 2, not the batch) is stored with a NULL vector and simply skipped by the
+cosine. Dimensionality (768) matches the multilingual `paraphrase-multilingual-mpnet-base-v2` model.
 
 **Neo4j (knowledge graph):**
 
