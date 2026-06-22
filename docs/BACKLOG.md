@@ -282,6 +282,28 @@ past PoC ("not the time for UX… we'll iron the wrinkles after PoC"):
 
 These were kept light on purpose — proof-of-concept, not final UI. (Owner browser check + `/code-review`, Session 35.)
 
+### Manual-correction UX, deferred from M4.S3c-fe2 (Session 48)
+
+The manual tag / correction UI (M4.S3c-fe2, PR #117) shipped **functional** and the owner verified the
+flows in the browser; two refinements surfaced and were deferred past PoC:
+
+- **No type hints/autocomplete on the new-entity `type` field.** Tagging a new entity offers a free-text
+  `type` input (open-world, INV-4 — correct by design). But with no suggestions, the author can fragment
+  one concept across near-duplicate type names (`character` vs `Character` vs `protagonist`) just by
+  forgetting how they named it before. Post-PoC: suggest existing types (the project's distinct
+  `type` set) as autocomplete hints while keeping the field free-text. (Clean V1 polish.)
+- **A manually-tagged surface form is discoverable only as an *occurrence*, not on the entity's
+  "known forms".** By design (DM-S3c-1 / ADR 0008) a manual tag is a stored per-occurrence span, **not**
+  an alias — so tagging an inflected form/pronoun ("terror" → *fear*, "Jankowi" → *Janek*) makes it
+  highlight + appear in the entity panel's **Occurrences** timeline, but it is **not** added to the
+  entity's `aliases`, and nothing feeds it back to the cascade. The owner found this *unclear* in the
+  smoke ("can be a bit unclear what happens when we use this function"). Post-PoC options to weigh:
+  (a) also append the tagged form to the entity's aliases (or a distinct "manual forms" list) so it's
+  discoverable beyond the occurrence snippet and the cascade can learn it (flywheel substrate); and/or
+  (b) make the occurrence-vs-alias distinction visible in the UI so the behaviour isn't surprising.
+  Deliberately beyond DM-S3c-1's storage model — a design extension, not a bug. (Owner browser
+  check, Session 48.)
+
 ## Frontend bundle — code-split the reader route (post-PoC, surfaced M4.S3c-fe1)
 
 Adopting Tiptap for the reader (M4.S3c-fe1, Session 47) pushed the single Vite chunk over
