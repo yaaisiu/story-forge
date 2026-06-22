@@ -10,10 +10,12 @@ reversible operations under the human gate). This is the **mention-layer** count
 ADR 0006/0007's **broaden-don't-mint** move on INV-9 and the grouped append-only `graph_edits` undo
 log ADR 0007 built.
 **Scope note:** landed with **M4.S3c-be (backend)** — the reconciling resolver, the storage model,
-the mutators + endpoints, and the new undo op-kinds. The **frontend** half (Tiptap read-only +
-ProseMirror decorations + selection + context menu + tag picker) is **M4.S3c-fe**; the Tiptap
-adoption itself (DM-S3c-7, owner override of the native-selection lean) is recorded here but built
-there.
+the mutators + endpoints, and the new undo op-kinds. The **frontend** half was built across
+**M4.S3c-fe1** (the read-only Tiptap + ProseMirror-decorations migration, PR #115) and **M4.S3c-fe2**
+(selection → tag, the right-click correction menu, the tag picker / new-entity form, and the three
+mutation hooks, PR #117); the Tiptap adoption itself (DM-S3c-7, owner override of the native-selection
+lean) is recorded here but was carried out there. After fe2, "manual correction in the reader" is
+feature-complete for the PoC (S3a edit · S3b merge/delete/undo · S3c tag/un-tag/boundaries).
 
 ## Context
 
