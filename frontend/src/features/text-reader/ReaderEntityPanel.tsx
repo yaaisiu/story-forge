@@ -29,6 +29,7 @@ import { useEntityDetail, type EntityDetailResponse } from "../../lib/api/useEnt
 import { useEntityEdit, type EntityEditPatch } from "../../lib/api/useEntityEdit";
 import { useRemoveRelation } from "../../lib/api/useRemoveRelation";
 import { EgoGraphCanvas } from "./EgoGraphCanvas";
+import { formatPropertyValue } from "./formatPropertyValue";
 import { MergeControls } from "./MergeControls";
 import { egoNeighbourLabel } from "./egoElements";
 import { entityOccurrences } from "./occurrences";
@@ -51,14 +52,6 @@ interface ReaderEntityPanelProps {
   onSelectEntity: (entityId: string) => void;
   /** Drill an occurrence back to its paragraph in the reader (scroll + flash). */
   onNavigateToOccurrence: (paragraphId: string) => void;
-}
-
-/** Render an open-world property value defensively: strings as-is, anything else stringified. */
-function formatPropertyValue(value: unknown): string {
-  if (typeof value === "string") return value;
-  if (value === null || value === undefined) return "";
-  if (typeof value === "object") return JSON.stringify(value);
-  return String(value);
 }
 
 /** Build the name half of an edit patch: write the single field to the project-language slot. */

@@ -18,6 +18,7 @@ import { EntityPicker } from "../extraction-review/EntityPicker";
 import type { EntitySearchResult } from "../../lib/api/useEntitySearch";
 import { useEntityDetail } from "../../lib/api/useEntityDetail";
 import { useMergeEntities } from "../../lib/api/useMergeEntities";
+import { formatPropertyValue } from "./formatPropertyValue";
 import { buildConflictRows, resolvedPropertiesFrom, type ConflictChoice } from "./mergeConflicts";
 
 interface MergeControlsProps {
@@ -26,14 +27,6 @@ interface MergeControlsProps {
   survivorId: string;
   survivorName: string;
   survivorProperties: Record<string, unknown>;
-}
-
-/** Render a property value defensively for the conflict resolver (mirrors the panel). */
-function formatValue(value: unknown): string {
-  if (typeof value === "string") return value;
-  if (value === null || value === undefined) return "";
-  if (typeof value === "object") return JSON.stringify(value);
-  return String(value);
 }
 
 export function MergeControls({
@@ -80,6 +73,20 @@ export function MergeControls({
     );
   }
 
+  // Picking (or clearing) an entity drops a prior merge's lingering summary, so the
+  // success line never hangs over the setup for the next merge.
+  function pickEntity(result: EntitySearchResult) {
+    merge.reset();
+    setPicks({});
+    setPicked(result);
+  }
+
+  function clearPick() {
+    merge.reset();
+    setPicks({});
+    setPicked(null);
+  }
+
   if (!open) {
     return (
       <button
@@ -98,7 +105,7 @@ export function MergeControls({
   return (
     <section
       data-testid="merge-controls"
-      className="flex flex-col gap-2 rounded border border-gray-100 p-2"
+      className="flex w-full flex-col gap-2 rounded border border-gray-100 p-2"
     >
       <div className="flex items-center justify-between">
         <p className="text-xs font-medium uppercase tracking-wide text-gray-500">
@@ -135,17 +142,14 @@ export function MergeControls({
           <button
             type="button"
             data-testid="merge-clear-pick"
-            onClick={() => {
-              setPicked(null);
-              setPicks({});
-            }}
+            onClick={clearPick}
             className="text-gray-400 hover:underline"
           >
             change
           </button>
         </p>
       ) : (
-        <EntityPicker storyId={storyId} onPick={setPicked} disabled={merge.isPending} />
+        <EntityPicker storyId={storyId} onPick={pickEntity} disabled={merge.isPending} />
       )}
 
       {isSelf && (
@@ -188,7 +192,7 @@ export function MergeControls({
                         : "border-gray-300 text-gray-700 hover:bg-gray-50"
                     }`}
                   >
-                    keep: {formatValue(row.survivorValue)}
+                    keep: {formatPropertyValue(row.survivorValue)}
                   </button>
                   <button
                     type="button"
@@ -201,7 +205,7 @@ export function MergeControls({
                         : "border-gray-300 text-gray-700 hover:bg-gray-50"
                     }`}
                   >
-                    use: {formatValue(row.absorbedValue)}
+                    use: {formatPropertyValue(row.absorbedValue)}
                   </button>
                 </div>
               </div>

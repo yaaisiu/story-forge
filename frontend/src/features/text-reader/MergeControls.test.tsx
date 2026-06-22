@@ -173,6 +173,22 @@ describe("MergeControls", () => {
     expect(JSON.parse(post[1].body as string).resolved_properties).toEqual({});
   });
 
+  it("clears a prior merge's summary when a new entity is picked", async () => {
+    const fetchMock = routeFetch({ home: "Oakhaven" }, () => jsonResponse(200, SUMMARY));
+    vi.stubGlobal("fetch", fetchMock);
+    renderControls({ age: 40 });
+
+    fireEvent.click(screen.getByTestId("reader-entity-merge"));
+    fireEvent.click(screen.getByTestId("pick-absorbed"));
+    await waitFor(() => expect(screen.getByTestId("merge-confirm")).toBeEnabled());
+    fireEvent.click(screen.getByTestId("merge-confirm"));
+    await screen.findByTestId("merge-summary");
+
+    // Picking another entity (the picker reappears after a merge) drops the stale summary.
+    fireEvent.click(screen.getByTestId("pick-absorbed"));
+    await waitFor(() => expect(screen.queryByTestId("merge-summary")).toBeNull());
+  });
+
   it("blocks a self-merge client-side", async () => {
     const fetchMock = routeFetch({}, () => jsonResponse(200, SUMMARY));
     vi.stubGlobal("fetch", fetchMock);
