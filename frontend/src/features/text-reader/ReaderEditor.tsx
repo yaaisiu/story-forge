@@ -87,7 +87,14 @@ function buildDecorations(doc: PmNode, inputs: DecorationInputs): DecorationSet 
         Decoration.inline(
           contentStart + from,
           contentStart + to,
-          decorationAttrs(highlight, inputs.catalog.get(highlight.entity_id), flashing),
+          // `from`/`to` are UTF-16 offsets, so a UTF-16 slice recovers the surface text — the
+          // tooltip fallback when the entity is (defensively) absent from the catalog.
+          decorationAttrs(
+            highlight,
+            inputs.catalog.get(highlight.entity_id),
+            flashing,
+            paragraph.text.slice(from, to),
+          ),
         ),
       );
     }
@@ -125,6 +132,21 @@ export function ReaderEditor({ paragraphs, catalog, onEntityClick, flash }: Read
                   }
                   return false;
                 },
+                // Keyboard parity: Enter/Space on a focused highlight opens its side panel
+                // (the highlights are tabindex=0 role=button — see decorationAttrs).
+                handleKeyDown: (view, event) => {
+                  if (event.key !== "Enter" && event.key !== " ") return false;
+                  const active = view.dom.ownerDocument.activeElement as HTMLElement | null;
+                  const entityId = active
+                    ?.closest?.("[data-entity-id]")
+                    ?.getAttribute("data-entity-id");
+                  if (entityId) {
+                    event.preventDefault();
+                    onEntityClickRef.current(entityId);
+                    return true;
+                  }
+                  return false;
+                },
               },
             }),
           ];
@@ -147,9 +169,13 @@ export function ReaderEditor({ paragraphs, catalog, onEntityClick, flash }: Read
   });
 
   // Reader data changed (a correction/extraction invalidated the query) → reload the document.
-  // setContent dispatches a transaction, so the decorations recompute against the new doc.
+  // setContent dispatches a transaction, so the decorations recompute against the new doc. Guard
+  // against an empty body: the default `doc` schema is `block+`, so an empty doc would throw —
+  // TextReader only mounts this with paragraphs, but the guard keeps a later empty refetch safe.
   useEffect(() => {
-    if (editor) editor.commands.setContent(buildReaderDoc(paragraphs));
+    if (editor && paragraphs.length > 0) {
+      editor.commands.setContent(buildReaderDoc(paragraphs));
+    }
   }, [editor, paragraphs]);
 
   // Flash changed but the document didn't → nudge the view so `decorations` re-runs and the

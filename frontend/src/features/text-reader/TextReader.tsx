@@ -24,7 +24,7 @@ import { Link, useParams } from "react-router-dom";
 
 import { useReader, type ReaderEntity } from "../../lib/api/useReader";
 import { Legend } from "./Legend";
-import { ReaderEditor } from "./ReaderEditor";
+import { ReaderEditor, type ReaderFlash } from "./ReaderEditor";
 import { ReaderEntityPanel } from "./ReaderEntityPanel";
 import { UndoButton } from "./UndoButton";
 import { legendEntries } from "./palette";
@@ -32,17 +32,12 @@ import { legendEntries } from "./palette";
 // How long an occurrence drill-down keeps the target highlight pulsing.
 const FLASH_MS = 1500;
 
-interface Flash {
-  paragraphId: string;
-  entityId: string;
-}
-
 export function TextReader() {
   const { storyId } = useParams<{ storyId: string }>();
   const reader = useReader(storyId);
 
   const [selectedEntityId, setSelectedEntityId] = useState<string | null>(null);
-  const [flash, setFlash] = useState<Flash | null>(null);
+  const [flash, setFlash] = useState<ReaderFlash | null>(null);
   const articleRef = useRef<HTMLDivElement>(null);
   const flashTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 

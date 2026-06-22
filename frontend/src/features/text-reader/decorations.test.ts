@@ -58,6 +58,22 @@ describe("paragraphHighlightRanges", () => {
       [10, 15],
     ]);
   });
+
+  it("keeps adjacent (touching) highlights as separate ranges", () => {
+    // "JanekZosia" — two highlights meeting at offset 5; each maps to its own range (no merge,
+    // no gap — ProseMirror renders the two inline decorations side by side).
+    const ranges = paragraphHighlightRanges("JanekZosia", [hl(0, 5, "e1"), hl(5, 10, "e2")]);
+    expect(ranges.map((r) => [r.from, r.to])).toEqual([
+      [0, 5],
+      [5, 10],
+    ]);
+  });
+
+  it("maps a whole-paragraph highlight to the full range", () => {
+    expect(paragraphHighlightRanges("Janek", [hl(0, 5)])).toEqual([
+      { from: 0, to: 5, highlight: hl(0, 5) },
+    ]);
+  });
 });
 
 describe("decorationAttrs", () => {
@@ -69,10 +85,13 @@ describe("decorationAttrs", () => {
   };
 
   it("carries the highlight identity, type colour, and a name+aliases tooltip", () => {
-    const attrs = decorationAttrs(hl(0, 5, "e1", "character"), entity, false);
+    const attrs = decorationAttrs(hl(0, 5, "e1", "character"), entity, false, "Janek");
     expect(attrs["data-testid"]).toBe("highlight");
     expect(attrs["data-entity-id"]).toBe("e1");
     expect(attrs["data-entity-type"]).toBe("character");
+    // Keyboard-activatable (parity with the prior <mark role=button tabIndex=0>).
+    expect(attrs.role).toBe("button");
+    expect(attrs.tabindex).toBe("0");
     expect(attrs.title).toBe("Janek — character\nAliases: Jan");
     expect(attrs.class).toContain("cursor-pointer");
     expect(attrs.style).toContain("background-color");
@@ -80,18 +99,19 @@ describe("decorationAttrs", () => {
   });
 
   it("drops the aliases line when the entity has no aliases", () => {
-    const attrs = decorationAttrs(hl(0, 5), { ...entity, aliases: [] }, false);
+    const attrs = decorationAttrs(hl(0, 5), { ...entity, aliases: [] }, false, "Janek");
     expect(attrs.title).toBe("Janek — character");
   });
 
   it("adds the flash marker and pulse class when flashing", () => {
-    const attrs = decorationAttrs(hl(0, 5), entity, true);
+    const attrs = decorationAttrs(hl(0, 5), entity, true, "Janek");
     expect(attrs["data-flash"]).toBe("true");
     expect(attrs.class).toContain("animate-pulse");
   });
 
-  it("falls back to the type as the tooltip when the entity is absent from the catalog", () => {
-    const attrs = decorationAttrs(hl(0, 5, "e9", "place"), undefined, false);
-    expect(attrs.title).toBe("place");
+  it("falls back to the highlighted surface text when the entity is absent from the catalog", () => {
+    // Parity with the prior <mark> renderer, which titled a catalog-missing highlight with its text.
+    const attrs = decorationAttrs(hl(0, 5, "e9", "place"), undefined, false, "Janek");
+    expect(attrs.title).toBe("Janek");
   });
 });

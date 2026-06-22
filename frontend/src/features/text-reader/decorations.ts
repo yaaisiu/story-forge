@@ -67,19 +67,26 @@ function tooltipText(entity: ReaderEntity): string {
  * The DOM attributes for a highlight's inline decoration. `colorForType` is open-world-safe
  * (INV-4) and an inline `style` is required because the colour can't map to a Tailwind class.
  * `entity` comes from the reader's catalog (the entities that appear); it is only ever absent
- * defensively, in which case the tooltip falls back to the bare type.
+ * defensively, in which case the tooltip falls back to the highlighted `surfaceText` (parity
+ * with the prior `<mark>` renderer), or the bare type if that is somehow empty.
  */
 export function decorationAttrs(
   highlight: ReaderHighlight,
   entity: ReaderEntity | undefined,
   flashing: boolean,
+  surfaceText: string,
 ): Record<string, string> {
   const color = colorForType(highlight.type);
   const attrs: Record<string, string> = {
     "data-testid": "highlight",
     "data-entity-id": highlight.entity_id,
     "data-entity-type": highlight.type,
-    title: entity ? tooltipText(entity) : highlight.type,
+    // Focusable + button-semantic so a keyboard user can open the side panel on a highlight
+    // (parity with the prior <mark role=button tabIndex=0>); ReaderEditor's handleKeyDown
+    // activates the focused one on Enter/Space.
+    role: "button",
+    tabindex: "0",
+    title: entity ? tooltipText(entity) : surfaceText || highlight.type,
     class: flashing ? `${BASE_CLASS} ${FLASH_CLASS}` : BASE_CLASS,
     style: `background-color: ${color}1a; border-bottom: 2px solid ${color}`,
   };
