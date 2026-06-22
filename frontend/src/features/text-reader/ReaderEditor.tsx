@@ -18,7 +18,7 @@
 // trusting the rendered DOM. Each paragraph node carries its `paragraphId`, rendered as
 // `data-paragraph-id` so scroll-to-paragraph + occurrence-flash keep working.
 
-import { useEffect, useMemo, useRef } from "react";
+import { type KeyboardEvent, useEffect, useMemo, useRef } from "react";
 
 import { Extension } from "@tiptap/core";
 import Document from "@tiptap/extension-document";
@@ -132,21 +132,6 @@ export function ReaderEditor({ paragraphs, catalog, onEntityClick, flash }: Read
                   }
                   return false;
                 },
-                // Keyboard parity: Enter/Space on a focused highlight opens its side panel
-                // (the highlights are tabindex=0 role=button — see decorationAttrs).
-                handleKeyDown: (view, event) => {
-                  if (event.key !== "Enter" && event.key !== " ") return false;
-                  const active = view.dom.ownerDocument.activeElement as HTMLElement | null;
-                  const entityId = active
-                    ?.closest?.("[data-entity-id]")
-                    ?.getAttribute("data-entity-id");
-                  if (entityId) {
-                    event.preventDefault();
-                    onEntityClickRef.current(entityId);
-                    return true;
-                  }
-                  return false;
-                },
               },
             }),
           ];
@@ -154,6 +139,22 @@ export function ReaderEditor({ paragraphs, catalog, onEntityClick, flash }: Read
       }),
     [],
   );
+
+  // Keyboard parity: open a focused highlight's side panel on Enter/Space. This must be a
+  // React/DOM handler, not ProseMirror's `handleKeyDown` — that is an *edit* handler PM only
+  // runs while the view is editable, so on this read-only view it never fires (click works
+  // because `handleClick` is a regular handler). The keydown bubbles from the focused
+  // highlight span (tabindex=0 role=button — see decorationAttrs) to this wrapper.
+  const handleHighlightKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
+    if (event.key !== "Enter" && event.key !== " ") return;
+    const entityId = (event.target as HTMLElement | null)
+      ?.closest?.("[data-entity-id]")
+      ?.getAttribute("data-entity-id");
+    if (entityId) {
+      event.preventDefault();
+      onEntityClick(entityId);
+    }
+  };
 
   const editor = useEditor({
     editable: false,
@@ -184,5 +185,9 @@ export function ReaderEditor({ paragraphs, catalog, onEntityClick, flash }: Read
     if (editor) editor.view.dispatch(editor.state.tr);
   }, [editor, flash]);
 
-  return <EditorContent editor={editor} />;
+  return (
+    <div onKeyDown={handleHighlightKeyDown}>
+      <EditorContent editor={editor} />
+    </div>
+  );
 }
