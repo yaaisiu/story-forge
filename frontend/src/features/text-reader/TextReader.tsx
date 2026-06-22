@@ -20,6 +20,7 @@ import { useReader, type ReaderEntity } from "../../lib/api/useReader";
 import { Legend } from "./Legend";
 import { ParagraphText } from "./ParagraphText";
 import { ReaderEntityPanel } from "./ReaderEntityPanel";
+import { UndoButton } from "./UndoButton";
 import { legendEntries } from "./palette";
 
 // How long an occurrence drill-down keeps the target highlight pulsing.
@@ -103,13 +104,16 @@ export function TextReader() {
             </p>
           </div>
           {storyId && (
-            <Link
-              to={`/stories/${storyId}/graph`}
-              data-testid="graph-link"
-              className="shrink-0 rounded border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
-            >
-              Knowledge graph
-            </Link>
+            <div className="flex shrink-0 items-start gap-2">
+              <UndoButton storyId={storyId} />
+              <Link
+                to={`/stories/${storyId}/graph`}
+                data-testid="graph-link"
+                className="shrink-0 rounded border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
+              >
+                Knowledge graph
+              </Link>
+            </div>
           )}
         </header>
 
@@ -158,6 +162,7 @@ export function TextReader() {
             entityId={selectedEntityId}
             paragraphs={paragraphs}
             onClose={handleClosePanel}
+            onDeleted={handleClosePanel}
             onSelectEntity={handleSelectEntity}
             onNavigateToOccurrence={handleNavigateToOccurrence}
           />

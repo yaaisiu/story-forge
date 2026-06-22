@@ -18,11 +18,13 @@ vi.mock("./ReaderEntityPanel", () => ({
   ReaderEntityPanel: ({
     entityId,
     onClose,
+    onDeleted,
     onSelectEntity,
     onNavigateToOccurrence,
   }: {
     entityId: string;
     onClose: () => void;
+    onDeleted: () => void;
     onSelectEntity: (id: string) => void;
     onNavigateToOccurrence: (paragraphId: string) => void;
   }) => (
@@ -30,6 +32,9 @@ vi.mock("./ReaderEntityPanel", () => ({
       <span data-testid="panel-entity-id">{entityId}</span>
       <button data-testid="panel-close" onClick={onClose}>
         close
+      </button>
+      <button data-testid="panel-deleted" onClick={onDeleted}>
+        deleted
       </button>
       <button data-testid="panel-neighbour" onClick={() => onSelectEntity("e2")}>
         neighbour
@@ -200,6 +205,32 @@ describe("TextReader", () => {
     expect(screen.getByTestId("reader-entity-panel-mock")).toBeInTheDocument();
 
     fireEvent.click(screen.getByTestId("panel-close"));
+    await waitFor(() => expect(screen.queryByTestId("reader-entity-panel-mock")).toBeNull());
+  });
+
+  it("renders the story-scoped undo affordance in the header", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => jsonResponse(200, READER_BODY)),
+    );
+
+    renderReader();
+
+    expect(await screen.findByTestId("undo-button")).toBeInTheDocument();
+  });
+
+  it("closes the panel when the open entity is deleted", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => jsonResponse(200, READER_BODY)),
+    );
+
+    renderReader();
+
+    fireEvent.click(await screen.findByTestId("highlight"));
+    expect(screen.getByTestId("reader-entity-panel-mock")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByTestId("panel-deleted"));
     await waitFor(() => expect(screen.queryByTestId("reader-entity-panel-mock")).toBeNull());
   });
 });
