@@ -126,3 +126,18 @@ Prompts live in `prompts/` as Jinja2 templates (`.j2`). One file per logical pro
 - Don't accept LLM JSON output without Pydantic validation. Always parse, always retry on parse failure.
 - Don't write a "smart" function in `domain/` that has side effects. Side effects belong in adapters.
 - Don't inline a prompt in an agent module. It belongs in `prompts/`.
+- **When two functions are coupled by a string literal, test the consumer from the
+  *producer's real output*, not a hand-built fixture of that string.** A producer that emits a tag
+  and a consumer that branches on it (an op-kind written to a row and matched by an inverter; a
+  discriminator one side sets and the other dispatches on; an event name; a status string) share a
+  contract no type enforces — a typo or rename on one side silently breaks the pair. A unit test
+  that *hand-builds* the consumer's input with the literal validates a fiction: it passes whether or
+  not the producer actually emits that string. So drive at least one consumer test from the
+  producer's genuine output (call the producer, feed its result to the consumer) — that is the only
+  test that fails when the two drift. (M4.S3b-be2: the merge writer recorded
+  `op="discard_self_loop_relation"` (`_merge_rows`) but `graph_undo.invert_operation` matched
+  `"discard_self_loop"`, so a self-loop merge's undo raised `UndoNotInvertible` → 500; the inverter's
+  unit test had hand-built a row with the bare name the writer never emits, so CI stayed green until
+  the browser smoke hit it. Fixed by matching the real op + a contract test driven from `_merge_rows`
+  output. This is the producer/consumer generalisation of the "fabricated fixture validates fiction"
+  lesson `/review-pr` §2 records for HTTP-status and LLM-schema fixtures.)
