@@ -18,7 +18,7 @@ import psycopg
 from story_forge.adapters import postgres_repo
 from story_forge.adapters.db import connect, libpq_kwargs
 from story_forge.config import settings
-from story_forge.domain.models import EntityMention
+from story_forge.domain.models import EntityMention, MentionSuppression
 
 
 class PostgresMentionStore:
@@ -75,6 +75,35 @@ class PostgresMentionStore:
         async with await self._connect() as conn:
             for mention in mentions:
                 await postgres_repo.insert_entity_mention(conn, mention)
+
+    # --- M4.S3c manual-correction mutators (each its own autocommit connection) ---
+
+    async def get_mention(self, mention_id: UUID) -> EntityMention | None:
+        """Fetch one mention by id — a re-bound/un-tag correction reads the occurrence first."""
+        async with await self._connect() as conn:
+            return await postgres_repo.get_entity_mention(conn, mention_id)
+
+    async def update_mention_span(self, mention_id: UUID, span_start: int, span_end: int) -> None:
+        """Edit a stored manual span's offsets in place ("change boundaries", DM-S3c-4)."""
+        async with await self._connect() as conn:
+            await postgres_repo.update_entity_mention_span(
+                conn, mention_id=mention_id, span_start=span_start, span_end=span_end
+            )
+
+    async def delete_mention(self, mention_id: UUID) -> None:
+        """Delete one mention by id — the inverse of a manual `add_mention` (undo of a tag)."""
+        async with await self._connect() as conn:
+            await postgres_repo.delete_entity_mention(conn, mention_id)
+
+    async def add_suppression(self, suppression: MentionSuppression) -> None:
+        """Write a "not an entity"/"not this entity" negative record (DM-S3c-1 B)."""
+        async with await self._connect() as conn:
+            await postgres_repo.insert_mention_suppression(conn, suppression)
+
+    async def delete_suppression(self, suppression_id: UUID) -> None:
+        """Remove a suppression by id — the inverse of a suppress op (undo un-hides)."""
+        async with await self._connect() as conn:
+            await postgres_repo.delete_mention_suppression(conn, suppression_id)
 
     async def paragraphs_with_mentions(self, paragraph_ids: list[UUID]) -> set[UUID]:
         """Which of `paragraph_ids` already carry ≥1 mention — the resume checkpoint."""

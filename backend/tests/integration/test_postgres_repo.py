@@ -16,6 +16,7 @@ from story_forge.adapters import postgres_repo as repo
 from story_forge.domain.models import (
     Chapter,
     EntityMention,
+    MentionSuppression,
     Paragraph,
     Project,
     Scene,
@@ -212,3 +213,96 @@ async def test_entity_mention_cascades_with_paragraph(db_conn: psycopg.AsyncConn
     await repo.delete_project(db_conn, project.id)
 
     assert await repo.list_entity_mentions_for_paragraph(db_conn, para.id) == []
+
+
+# --- M4.S3c: manual mentions + suppressions (the reader's write path) -------
+
+
+async def test_manual_mention_round_trips_with_source_and_offsets(
+    db_conn: psycopg.AsyncConnection,
+) -> None:
+    # A human tag persists a stored span carrying real offsets + source='manual' (DM-S3c-1 B).
+    para = await _make_paragraph(db_conn)
+    mention = EntityMention(
+        paragraph_id=para.id, entity_id=uuid4(), span_start=0, span_end=6, source="manual"
+    )
+    await repo.insert_entity_mention(db_conn, mention)
+    back = await repo.get_entity_mention(db_conn, mention.id)
+    assert back == mention
+    assert back is not None and back.source == "manual"
+
+
+async def test_get_entity_mention_missing_returns_none(db_conn: psycopg.AsyncConnection) -> None:
+    assert await repo.get_entity_mention(db_conn, uuid4()) is None
+
+
+async def test_update_entity_mention_span_edits_offsets_in_place(
+    db_conn: psycopg.AsyncConnection,
+) -> None:
+    # "change boundaries" on an already-manual span (DM-S3c-4): offsets move, identity stays.
+    para = await _make_paragraph(db_conn)
+    mention = EntityMention(
+        paragraph_id=para.id, entity_id=uuid4(), span_start=0, span_end=6, source="manual"
+    )
+    await repo.insert_entity_mention(db_conn, mention)
+    await repo.update_entity_mention_span(db_conn, mention_id=mention.id, span_start=7, span_end=12)
+    back = await repo.get_entity_mention(db_conn, mention.id)
+    assert back is not None and (back.span_start, back.span_end) == (7, 12)
+
+
+async def test_delete_entity_mention_removes_one_row(db_conn: psycopg.AsyncConnection) -> None:
+    para = await _make_paragraph(db_conn)
+    keep = EntityMention(paragraph_id=para.id, entity_id=uuid4(), source="manual")
+    drop = EntityMention(paragraph_id=para.id, entity_id=uuid4(), source="manual")
+    for m in (keep, drop):
+        await repo.insert_entity_mention(db_conn, m)
+    await repo.delete_entity_mention(db_conn, drop.id)
+    assert await repo.get_entity_mention(db_conn, drop.id) is None
+    assert await repo.get_entity_mention(db_conn, keep.id) is not None
+
+
+async def test_suppression_insert_list_for_story_and_delete(
+    db_conn: psycopg.AsyncConnection,
+) -> None:
+    _, story, _, scene = await _make_tree(db_conn)
+    para = Paragraph(scene_id=scene.id, order_index=0, content="Janek met Maria.")
+    await repo.insert_paragraph(db_conn, para)
+    all_entities = MentionSuppression(paragraph_id=para.id, span_start=0, span_end=5)  # entity None
+    one_entity = MentionSuppression(
+        paragraph_id=para.id, entity_id=uuid4(), span_start=10, span_end=15
+    )
+    await repo.insert_mention_suppression(db_conn, all_entities)
+    await repo.insert_mention_suppression(db_conn, one_entity)
+
+    listed = await repo.list_mention_suppressions_for_story(db_conn, story.id)
+    assert {s.id for s in listed} == {all_entities.id, one_entity.id}
+    assert any(s.entity_id is None for s in listed)  # "not an entity"
+
+    await repo.delete_mention_suppression(db_conn, all_entities.id)
+    listed_after = await repo.list_mention_suppressions_for_story(db_conn, story.id)
+    assert {s.id for s in listed_after} == {one_entity.id}
+
+
+async def test_suppression_insert_is_idempotent(db_conn: psycopg.AsyncConnection) -> None:
+    # Deterministic-id re-suppress is a no-op (ON CONFLICT DO NOTHING), like the mention insert.
+    para = await _make_paragraph(db_conn)
+    supp = MentionSuppression(paragraph_id=para.id, span_start=0, span_end=6)
+    await repo.insert_mention_suppression(db_conn, supp)
+    await repo.insert_mention_suppression(db_conn, supp)  # second write must not raise/duplicate
+    cur = await db_conn.execute(
+        "SELECT count(*) FROM mention_suppressions WHERE id = %s", (supp.id,)
+    )
+    row = await cur.fetchone()
+    assert row is not None and row[0] == 1
+
+
+async def test_suppression_cascades_with_paragraph(db_conn: psycopg.AsyncConnection) -> None:
+    # paragraph_id is a real FK (ON DELETE CASCADE) — deleting the tree takes suppressions too.
+    project, story, _, scene = await _make_tree(db_conn)
+    para = Paragraph(scene_id=scene.id, order_index=0, content="leaf")
+    await repo.insert_paragraph(db_conn, para)
+    await repo.insert_mention_suppression(
+        db_conn, MentionSuppression(paragraph_id=para.id, span_start=0, span_end=4)
+    )
+    await repo.delete_project(db_conn, project.id)
+    assert await repo.list_mention_suppressions_for_story(db_conn, story.id) == []

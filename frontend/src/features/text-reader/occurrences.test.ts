@@ -17,7 +17,7 @@ function para(
 }
 
 function hl(start: number, end: number, entity_id: string, type = "character") {
-  return { start, end, entity_id, type };
+  return { start, end, entity_id, type, source: "search" as const };
 }
 
 describe("entityOccurrences", () => {

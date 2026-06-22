@@ -30,6 +30,7 @@ from psycopg.rows import class_row
 from story_forge.domain.models import (
     Chapter,
     EntityMention,
+    MentionSuppression,
     Paragraph,
     Project,
     Scene,
@@ -230,6 +231,24 @@ async def get_paragraph(conn: AsyncConnection, paragraph_id: UUID) -> Paragraph 
         return await cur.fetchone()
 
 
+async def get_story_paragraph(
+    conn: AsyncConnection, story_id: UUID, paragraph_id: UUID
+) -> Paragraph | None:
+    """One paragraph by id, but only if it belongs to `story_id` — the tenancy guard a manual tag
+    needs (M4.S3c): a correction addresses a paragraph the reader showed, so reject (None → 404) a
+    paragraph from another story/project before validating a span against its text."""
+    async with conn.cursor(row_factory=class_row(Paragraph)) as cur:
+        await cur.execute(
+            "SELECT p.id, p.scene_id, p.order_index, p.content, p.content_normalized, p.embedding "
+            "FROM paragraphs p "
+            "JOIN scenes sc ON sc.id = p.scene_id "
+            "JOIN chapters ch ON ch.id = sc.chapter_id "
+            "WHERE p.id = %s AND ch.story_id = %s",
+            (paragraph_id, story_id),
+        )
+        return await cur.fetchone()
+
+
 async def list_paragraphs(conn: AsyncConnection, scene_id: UUID) -> list[Paragraph]:
     async with conn.cursor(row_factory=class_row(Paragraph)) as cur:
         await cur.execute(
@@ -258,8 +277,8 @@ async def insert_entity_mention(conn: AsyncConnection, mention: EntityMention) -
     # deterministically from the candidate.
     await conn.execute(
         "INSERT INTO entity_mentions "
-        "(id, paragraph_id, entity_id, span_start, span_end, confidence, embedding) "
-        "VALUES (%s, %s, %s, %s, %s, %s, %s) ON CONFLICT (id) DO NOTHING",
+        "(id, paragraph_id, entity_id, span_start, span_end, confidence, embedding, source) "
+        "VALUES (%s, %s, %s, %s, %s, %s, %s, %s) ON CONFLICT (id) DO NOTHING",
         (
             mention.id,
             mention.paragraph_id,
@@ -268,6 +287,7 @@ async def insert_entity_mention(conn: AsyncConnection, mention: EntityMention) -
             mention.span_end,
             mention.confidence,
             None if mention.embedding is None else Vector(mention.embedding),
+            mention.source,
         ),
     )
 
@@ -313,8 +333,8 @@ async def list_entity_mentions_for_entity(
     so undo must re-insert the whole row, embedding and all — hence the full select."""
     async with conn.cursor(row_factory=class_row(EntityMention)) as cur:
         await cur.execute(
-            "SELECT id, paragraph_id, entity_id, span_start, span_end, confidence, embedding "
-            "FROM entity_mentions WHERE entity_id = %s",
+            "SELECT id, paragraph_id, entity_id, span_start, span_end, confidence, embedding, "
+            "source FROM entity_mentions WHERE entity_id = %s",
             (entity_id,),
         )
         return await cur.fetchall()
@@ -327,13 +347,88 @@ async def delete_entity_mentions(conn: AsyncConnection, entity_id: UUID) -> None
     await conn.execute("DELETE FROM entity_mentions WHERE entity_id = %s", (entity_id,))
 
 
+# --- Manual mention / suppression mutators (M4.S3c, the reader's write path) ---
+
+
+async def get_entity_mention(conn: AsyncConnection, mention_id: UUID) -> EntityMention | None:
+    """Fetch one mention by id — the read a re-bound/un-tag correction needs to learn the
+    occurrence's current offsets/entity before it edits or removes it (M4.S3c)."""
+    async with conn.cursor(row_factory=class_row(EntityMention)) as cur:
+        await cur.execute(
+            "SELECT id, paragraph_id, entity_id, span_start, span_end, confidence, embedding, "
+            "source FROM entity_mentions WHERE id = %s",
+            (mention_id,),
+        )
+        return await cur.fetchone()
+
+
+async def update_entity_mention_span(
+    conn: AsyncConnection, *, mention_id: UUID, span_start: int, span_end: int
+) -> None:
+    """Edit a stored manual span's offsets in place — "change boundaries" on an
+    already-materialized mention (M4.S3c, DM-S3c-4). Undo restores the old offsets."""
+    await conn.execute(
+        "UPDATE entity_mentions SET span_start = %s, span_end = %s WHERE id = %s",
+        (span_start, span_end, mention_id),
+    )
+
+
+async def delete_entity_mention(conn: AsyncConnection, mention_id: UUID) -> None:
+    """Delete a single mention by id — the inverse of a manual `add_mention` (undo of a tag),
+    distinct from `delete_entity_mentions` which drops *all* of an entity's mentions."""
+    await conn.execute("DELETE FROM entity_mentions WHERE id = %s", (mention_id,))
+
+
+async def insert_mention_suppression(conn: AsyncConnection, supp: MentionSuppression) -> None:
+    """Record a "this `[start, end)` is **not** a highlight" negative (M4.S3c, DM-S3c-1 B). The
+    reader subtracts it from the reconciled set. `ON CONFLICT (id) DO NOTHING` makes a re-suppress
+    idempotent when the id is derived deterministically from (paragraph, span[, entity])."""
+    await conn.execute(
+        "INSERT INTO mention_suppressions "
+        "(id, paragraph_id, entity_id, span_start, span_end, created_at) "
+        "VALUES (%s, %s, %s, %s, %s, %s) ON CONFLICT (id) DO NOTHING",
+        (
+            supp.id,
+            supp.paragraph_id,
+            supp.entity_id,
+            supp.span_start,
+            supp.span_end,
+            supp.created_at,
+        ),
+    )
+
+
+async def delete_mention_suppression(conn: AsyncConnection, suppression_id: UUID) -> None:
+    """Remove a suppression by id — the inverse of a "not an entity"/"not this entity" (undo
+    un-hides the occurrence) (M4.S3c)."""
+    await conn.execute("DELETE FROM mention_suppressions WHERE id = %s", (suppression_id,))
+
+
+async def list_mention_suppressions_for_story(
+    conn: AsyncConnection, story_id: UUID
+) -> list[MentionSuppression]:
+    """Every suppression across a story's paragraphs — the reader's negative-record feed
+    (mirror of `list_entity_mentions_for_story`); the route groups by `paragraph_id`."""
+    async with conn.cursor(row_factory=class_row(MentionSuppression)) as cur:
+        await cur.execute(
+            "SELECT s.id, s.paragraph_id, s.entity_id, s.span_start, s.span_end, s.created_at "
+            "FROM mention_suppressions s "
+            "JOIN paragraphs p ON p.id = s.paragraph_id "
+            "JOIN scenes sc ON sc.id = p.scene_id "
+            "JOIN chapters ch ON ch.id = sc.chapter_id "
+            "WHERE ch.story_id = %s",
+            (story_id,),
+        )
+        return await cur.fetchall()
+
+
 async def list_entity_mentions_for_paragraph(
     conn: AsyncConnection, paragraph_id: UUID
 ) -> list[EntityMention]:
     async with conn.cursor(row_factory=class_row(EntityMention)) as cur:
         await cur.execute(
-            "SELECT id, paragraph_id, entity_id, span_start, span_end, confidence, embedding "
-            "FROM entity_mentions WHERE paragraph_id = %s",
+            "SELECT id, paragraph_id, entity_id, span_start, span_end, confidence, embedding, "
+            "source FROM entity_mentions WHERE paragraph_id = %s",
             (paragraph_id,),
         )
         return await cur.fetchall()
@@ -352,7 +447,7 @@ async def list_entity_mentions_for_story(
     async with conn.cursor(row_factory=class_row(EntityMention)) as cur:
         await cur.execute(
             "SELECT m.id, m.paragraph_id, m.entity_id, m.span_start, m.span_end, "
-            "m.confidence, m.embedding "
+            "m.confidence, m.embedding, m.source "
             "FROM entity_mentions m "
             "JOIN paragraphs p ON p.id = m.paragraph_id "
             "JOIN scenes sc ON sc.id = p.scene_id "

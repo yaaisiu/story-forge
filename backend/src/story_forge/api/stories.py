@@ -17,7 +17,7 @@ import httpx
 from fastapi import APIRouter, Depends, HTTPException, Request, Response, UploadFile
 from neo4j.exceptions import ServiceUnavailable
 from psycopg import AsyncConnection, OperationalError
-from pydantic import BaseModel, field_validator
+from pydantic import BaseModel, field_validator, model_validator
 
 from story_forge.adapters.db import get_connection
 from story_forge.adapters.llm.base import ProviderResponseError
@@ -27,6 +27,7 @@ from story_forge.adapters.postgres_repo import (
     get_project,
     get_story,
     get_story_for_update,
+    get_story_paragraph,
     insert_chapter,
     insert_paragraph,
     insert_project,
@@ -34,6 +35,7 @@ from story_forge.adapters.postgres_repo import (
     insert_story,
     list_chapters,
     list_entity_mentions_for_story,
+    list_mention_suppressions_for_story,
     list_story_paragraphs,
     update_story_raw_text,
 )
@@ -52,6 +54,7 @@ from story_forge.agents.chunking_coordinator import (
 from story_forge.agents.entity_edit import (
     EntityEditService,
     EntityNotFound,
+    MentionNotFound,
     NothingToUndo,
     RelationEdgeNotFound,
     SelfMergeError,
@@ -71,9 +74,16 @@ from story_forge.domain.chunking import outline_to_tree
 from story_forge.domain.entity_edits import EntityEditInvalid, EntityEditPatch
 from story_forge.domain.entity_merge import EntityMergeInvalid
 from story_forge.domain.graph import GraphEntity
-from story_forge.domain.highlights import HighlightTarget, resolve_highlights
+from story_forge.domain.highlights import (
+    HighlightTarget,
+    ManualSpan,
+    SpanInvalid,
+    Suppression,
+    reconcile_highlights,
+    validate_manual_span,
+)
 from story_forge.domain.language import detect_language
-from story_forge.domain.models import Project, Story
+from story_forge.domain.models import Paragraph, Project, Story
 from story_forge.domain.neighbourhood import EgoGraph, build_ego_graph
 from story_forge.domain.parsing import ParseError, parse_document
 
@@ -569,12 +579,19 @@ async def search_entities_route(
 
 
 class ReaderHighlight(BaseModel):
-    """One resolved highlight range `[start, end)` within a paragraph (spec §3.5)."""
+    """One resolved highlight range `[start, end)` within a paragraph (spec §3.5).
+
+    `source` + `mention_id` (M4.S3c, DM-S3c-6) give each highlight occurrence identity so a
+    right-click correction can address it unambiguously: a `"search"` hit is derived (no row to
+    edit — corrections write a suppression); a `"manual"` hit carries the `entity_mentions` id that
+    a change-boundaries edits or a suppression hides."""
 
     start: int
     end: int
     entity_id: UUID
     type: str
+    source: Literal["search", "manual"] = "search"
+    mention_id: UUID | None = None
 
 
 class ReaderParagraph(BaseModel):
@@ -623,9 +640,11 @@ async def get_story_reader(
     are *story*-scoped; the entity catalog is read *project*-scoped (the §6.4 tenancy key, the
     same seam as `/graph` and `/entities`) — correct while one story = one project, and the
     natural first home of the §3.4 per-story filter when multi-story lands. Each paragraph's
-    mentioned entities are resolved to character ranges by render-time search over their surface
-    forms (`resolve_highlights`); an entity whose forms don't occur is omitted (fail-closed), and
-    only entities that actually appear are advertised in the tooltip catalog.
+    highlights are **reconciled** (M4.S3c, DM-S3c-1 B) from three sources: render-time search over
+    extraction mentions' surface forms, author-asserted **stored manual spans** (real offsets that
+    overlay + win), minus **suppressions** (rejected highlights). An entity whose forms don't occur
+    and was never manually tagged is omitted (fail-closed); only entities that actually appear are
+    advertised in the tooltip catalog.
     """
     story = await get_story(conn, story_id)
     if story is None:
@@ -635,32 +654,73 @@ async def get_story_reader(
 
     paragraphs = await list_story_paragraphs(conn, story_id)
     mentions = await list_entity_mentions_for_story(conn, story_id)
+    suppressions = await list_mention_suppressions_for_story(conn, story_id)
     entities = await repo.list_entities(story.project_id)
 
+    type_by_entity = {e.id: e.type for e in entities}
     target_by_id = {
         e.id: HighlightTarget(entity_id=e.id, type=e.type, names=_entity_surface_forms(e))
         for e in entities
     }
-    mentioned_by_paragraph: dict[UUID, set[UUID]] = {}
+    # Split mentions by source: extraction mentions feed render-time *search* (their offsets are
+    # NULL — DM-IH-1); manual mentions are *stored spans* the resolver overlays verbatim (DM-S3c-1).
+    searched_by_paragraph: dict[UUID, set[UUID]] = {}
+    manual_by_paragraph: dict[UUID, list[ManualSpan]] = {}
     for mention in mentions:
-        mentioned_by_paragraph.setdefault(mention.paragraph_id, set()).add(mention.entity_id)
+        if (
+            mention.source == "manual"
+            and mention.span_start is not None
+            and mention.span_end is not None
+        ):
+            if mention.entity_id not in type_by_entity:
+                continue  # a manual tag whose entity was since deleted — skip (dangling, inert)
+            manual_by_paragraph.setdefault(mention.paragraph_id, []).append(
+                ManualSpan(
+                    mention_id=mention.id,
+                    entity_id=mention.entity_id,
+                    type=type_by_entity[mention.entity_id],
+                    span_start=mention.span_start,
+                    span_end=mention.span_end,
+                )
+            )
+        else:
+            searched_by_paragraph.setdefault(mention.paragraph_id, set()).add(mention.entity_id)
+    suppressions_by_paragraph: dict[UUID, list[Suppression]] = {}
+    for supp in suppressions:
+        suppressions_by_paragraph.setdefault(supp.paragraph_id, []).append(
+            Suppression(
+                span_start=supp.span_start, span_end=supp.span_end, entity_id=supp.entity_id
+            )
+        )
 
     reader_paragraphs: list[ReaderParagraph] = []
     appeared: set[UUID] = set()
     for paragraph in paragraphs:
         targets = [
             target_by_id[entity_id]
-            for entity_id in mentioned_by_paragraph.get(paragraph.id, set())
+            for entity_id in searched_by_paragraph.get(paragraph.id, set())
             if entity_id in target_by_id
         ]
-        resolved = resolve_highlights(paragraph.content, targets)
+        resolved = reconcile_highlights(
+            paragraph.content,
+            targets,
+            manual_by_paragraph.get(paragraph.id, []),
+            suppressions_by_paragraph.get(paragraph.id, []),
+        )
         appeared.update(h.entity_id for h in resolved)
         reader_paragraphs.append(
             ReaderParagraph(
                 id=paragraph.id,
                 text=paragraph.content,
                 highlights=[
-                    ReaderHighlight(start=h.start, end=h.end, entity_id=h.entity_id, type=h.type)
+                    ReaderHighlight(
+                        start=h.start,
+                        end=h.end,
+                        entity_id=h.entity_id,
+                        type=h.type,
+                        source=h.source,
+                        mention_id=h.mention_id,
+                    )
                     for h in resolved
                 ],
             )
@@ -1060,6 +1120,249 @@ async def undo_last_route(
     return UndoResponse(
         description=result.description, op_kind=result.op_kind, applied=result.applied
     )
+
+
+# --- Manual correction in the reader (spec §3.5, M4.S3c) ---------------------
+#
+# The reader's write surface: tag a span as an entity (existing or new), hide/re-assign a highlight
+# ("not an entity"/"not this entity"), or change a highlight's boundaries. All are reversible via
+# the story-scoped Undo (`/graph-edits/undo`). Spans are validated against the paragraph's text here
+# (fail-closed → 400); the paragraph itself is story-scoped (tenancy → 404). 422 is left to Pydantic
+# for request-shape errors (the §AGENTS.md 422 trap) — domain "bad span" is remapped to 400.
+
+
+class NewEntityTag(BaseModel):
+    """Create a brand-new accepted entity of type X from a tag (DM-S3c-2). `type` is open-world
+    (INV-4) — a free string, never an enum."""
+
+    name: str
+    type: str
+
+
+class TagRequest(BaseModel):
+    """Tag a `[span_start, span_end)` occurrence as an entity (spec §3.5). Exactly one of
+    `entity_id` (attach to an existing accepted entity) or `new_entity` (create one) — both or
+    neither is a 422 request-shape error."""
+
+    span_start: int
+    span_end: int
+    entity_id: UUID | None = None
+    new_entity: NewEntityTag | None = None
+
+    @model_validator(mode="after")
+    def _exactly_one_target(self) -> TagRequest:
+        if (self.entity_id is None) == (self.new_entity is None):
+            raise ValueError("provide exactly one of entity_id or new_entity")
+        return self
+
+
+class TagResponse(BaseModel):
+    """The created mention's id + the entity it points at (newly minted, for `new_entity`)."""
+
+    mention_id: UUID
+    entity_id: UUID
+
+
+class SuppressRequest(BaseModel):
+    """Hide or re-assign a highlighted occurrence (spec §3.5). `entity_id` None = "not an entity"
+    (clear all claimants at the span); set = "not this entity" (clear that one). `retag_to` makes
+    it an atomic re-assign — suppress the wrong entity + tag the right one as one op; it requires
+    `entity_id` (the entity being corrected)."""
+
+    span_start: int
+    span_end: int
+    entity_id: UUID | None = None
+    retag_to: UUID | None = None
+
+    @model_validator(mode="after")
+    def _retag_needs_from(self) -> SuppressRequest:
+        if self.retag_to is not None and self.entity_id is None:
+            raise ValueError("retag_to requires entity_id (the entity being re-assigned from)")
+        return self
+
+
+class SuppressResponse(BaseModel):
+    """The suppression id; `mention_id` is set only on an atomic re-assign (the re-tagged entity's
+    new manual mention)."""
+
+    suppression_id: UUID
+    mention_id: UUID | None = None
+
+
+class BoundaryRequest(BaseModel):
+    """Change a highlight's boundaries (spec §3.5, DM-S3c-4). `mention_id` None = an auto search hit
+    to **materialize** (needs `entity_id` + the old offsets to suppress the original position);
+    set = an existing manual span to edit in place."""
+
+    entity_id: UUID
+    mention_id: UUID | None = None
+    old_start: int
+    old_end: int
+    new_start: int
+    new_end: int
+
+
+class BoundaryResponse(BaseModel):
+    """The new (materialized) or edited manual mention's id."""
+
+    mention_id: UUID
+
+
+async def _require_story_paragraph(
+    conn: AsyncConnection, story_id: UUID, paragraph_id: UUID
+) -> tuple[Story, Paragraph]:
+    """Load the story + a paragraph proven to belong to it — the manual-correction tenancy guard.
+    404s a missing story, or a paragraph from another story (`get_story_paragraph` scopes)."""
+    story = await get_story(conn, story_id)
+    if story is None:
+        raise HTTPException(status_code=404, detail="story not found")
+    paragraph = await get_story_paragraph(conn, story_id, paragraph_id)
+    if paragraph is None:
+        raise HTTPException(status_code=404, detail="paragraph not found in this story")
+    return story, paragraph
+
+
+async def _project_language(conn: AsyncConnection, project_id: UUID) -> str:
+    project = await get_project(conn, project_id)
+    return project.language if project is not None else "pl"
+
+
+@router.post(
+    "/{story_id}/paragraphs/{paragraph_id}/tags",
+    responses={
+        400: {"model": ErrorResponse, "description": "The span or new-entity input is invalid."},
+        404: {"model": ErrorResponse, "description": "Story, paragraph, or entity not found."},
+        503: {"model": ErrorResponse, "description": "A data store is unavailable."},
+    },
+)
+async def tag_occurrence_route(
+    story_id: UUID,
+    paragraph_id: UUID,
+    body: TagRequest,
+    conn: Annotated[AsyncConnection, Depends(get_connection)],
+    edit: Annotated[EntityEditService, Depends(get_entity_edit)],
+) -> TagResponse:
+    """Tag a text span as an entity — existing (`entity_id`) or brand-new (`new_entity`); spec §3.5,
+    DM-S3c-2. A human-reached write (INV-9 as reworded, ADR 0006): persists a stored manual mention
+    with real offsets that overlays + wins over search, reversible via Undo. The span must be a
+    valid range within the paragraph (else 400). The reader invalidates + refetches (DM-S3a-4)."""
+    story, paragraph = await _require_story_paragraph(conn, story_id, paragraph_id)
+    try:
+        validate_manual_span(paragraph.content, body.span_start, body.span_end)
+        if body.new_entity is not None:
+            language = await _project_language(conn, story.project_id)
+            entity_id, mention_id = await edit.tag_new_entity(
+                story.project_id,
+                paragraph_id,
+                body.new_entity.name,
+                body.new_entity.type,
+                language,
+                body.span_start,
+                body.span_end,
+            )
+        else:
+            assert body.entity_id is not None  # the validator guarantees exactly one target
+            entity_id = body.entity_id
+            mention_id = await edit.tag_existing(
+                story.project_id, paragraph_id, entity_id, body.span_start, body.span_end
+            )
+    except SpanInvalid as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except EntityEditInvalid as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except EntityNotFound as exc:
+        raise HTTPException(status_code=404, detail="entity not found") from exc
+    except (OperationalError, ServiceUnavailable) as exc:
+        raise HTTPException(status_code=503, detail="a data store is unavailable") from exc
+    return TagResponse(mention_id=mention_id, entity_id=entity_id)
+
+
+@router.post(
+    "/{story_id}/paragraphs/{paragraph_id}/suppressions",
+    responses={
+        400: {"model": ErrorResponse, "description": "The span is invalid."},
+        404: {"model": ErrorResponse, "description": "Story, paragraph, or entity not found."},
+        503: {"model": ErrorResponse, "description": "A data store is unavailable."},
+    },
+)
+async def suppress_occurrence_route(
+    story_id: UUID,
+    paragraph_id: UUID,
+    body: SuppressRequest,
+    conn: Annotated[AsyncConnection, Depends(get_connection)],
+    edit: Annotated[EntityEditService, Depends(get_entity_edit)],
+) -> SuppressResponse:
+    """Hide ("not an entity") or re-assign ("not this entity") a highlighted occurrence (spec §3.5,
+    DM-S3c-3). Writes a suppression the reader subtracts; with `retag_to` it is an atomic re-assign
+    (suppress + tag, one reversible op). Reversible via Undo; the reader invalidates + refetches."""
+    story, paragraph = await _require_story_paragraph(conn, story_id, paragraph_id)
+    try:
+        validate_manual_span(paragraph.content, body.span_start, body.span_end)
+        if body.retag_to is not None:
+            assert body.entity_id is not None  # the validator guarantees this
+            suppression_id, mention_id = await edit.retag_occurrence(
+                story.project_id,
+                paragraph_id,
+                body.span_start,
+                body.span_end,
+                body.entity_id,
+                body.retag_to,
+            )
+            return SuppressResponse(suppression_id=suppression_id, mention_id=mention_id)
+        suppression_id = await edit.suppress_occurrence(
+            story.project_id, paragraph_id, body.span_start, body.span_end, body.entity_id
+        )
+    except SpanInvalid as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except EntityNotFound as exc:
+        raise HTTPException(status_code=404, detail="entity not found") from exc
+    except (OperationalError, ServiceUnavailable) as exc:
+        raise HTTPException(status_code=503, detail="a data store is unavailable") from exc
+    return SuppressResponse(suppression_id=suppression_id, mention_id=None)
+
+
+@router.post(
+    "/{story_id}/paragraphs/{paragraph_id}/boundaries",
+    responses={
+        400: {"model": ErrorResponse, "description": "The new span is invalid."},
+        404: {
+            "model": ErrorResponse,
+            "description": "Story, paragraph, entity, or mention absent.",
+        },
+        503: {"model": ErrorResponse, "description": "A data store is unavailable."},
+    },
+)
+async def change_boundaries_route(
+    story_id: UUID,
+    paragraph_id: UUID,
+    body: BoundaryRequest,
+    conn: Annotated[AsyncConnection, Depends(get_connection)],
+    edit: Annotated[EntityEditService, Depends(get_entity_edit)],
+) -> BoundaryResponse:
+    """Change a highlight's boundaries (spec §3.5, DM-S3c-4). On a manual span (`mention_id`) the
+    offsets are edited in place; on an auto search hit (`mention_id` None) the occurrence is
+    materialized at the new offsets and the original position suppressed, as one reversible op. The
+    new span must be valid within the paragraph (else 400)."""
+    story, paragraph = await _require_story_paragraph(conn, story_id, paragraph_id)
+    try:
+        validate_manual_span(paragraph.content, body.new_start, body.new_end)
+        mention_id = await edit.change_boundaries(
+            story.project_id,
+            paragraph_id,
+            body.entity_id,
+            body.mention_id,
+            body.old_start,
+            body.old_end,
+            body.new_start,
+            body.new_end,
+        )
+    except SpanInvalid as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except (EntityNotFound, MentionNotFound) as exc:
+        raise HTTPException(status_code=404, detail="entity or mention not found") from exc
+    except (OperationalError, ServiceUnavailable) as exc:
+        raise HTTPException(status_code=503, detail="a data store is unavailable") from exc
+    return BoundaryResponse(mention_id=mention_id)
 
 
 # --- Review queue (Stage 4): list pending / accept / reject -----------------

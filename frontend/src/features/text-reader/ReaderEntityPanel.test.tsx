@@ -60,13 +60,17 @@ const PARAGRAPHS = [
   {
     id: "p1",
     text: "Elara walked to the mill.",
-    highlights: [{ start: 0, end: 5, entity_id: ENTITY_ID, type: "character" }],
+    highlights: [
+      { start: 0, end: 5, entity_id: ENTITY_ID, type: "character", source: "search" as const },
+    ],
   },
   { id: "p2", text: "It was quiet.", highlights: [] },
   {
     id: "p3",
     text: "Marek met Elara there.",
-    highlights: [{ start: 10, end: 15, entity_id: ENTITY_ID, type: "character" }],
+    highlights: [
+      { start: 10, end: 15, entity_id: ENTITY_ID, type: "character", source: "search" as const },
+    ],
   },
 ];
 

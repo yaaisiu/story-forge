@@ -390,7 +390,7 @@
           "stories"
         ],
         "summary": "Get Story Reader",
-        "description": "The story text with accepted entities highlighted inline (spec \u00a73.5, M4.S1).\n\nA read-only projection of the accepted graph onto the prose. Paragraphs + their mentions\nare *story*-scoped; the entity catalog is read *project*-scoped (the \u00a76.4 tenancy key, the\nsame seam as `/graph` and `/entities`) \u2014 correct while one story = one project, and the\nnatural first home of the \u00a73.4 per-story filter when multi-story lands. Each paragraph's\nmentioned entities are resolved to character ranges by render-time search over their surface\nforms (`resolve_highlights`); an entity whose forms don't occur is omitted (fail-closed), and\nonly entities that actually appear are advertised in the tooltip catalog.",
+        "description": "The story text with accepted entities highlighted inline (spec \u00a73.5, M4.S1).\n\nA read-only projection of the accepted graph onto the prose. Paragraphs + their mentions\nare *story*-scoped; the entity catalog is read *project*-scoped (the \u00a76.4 tenancy key, the\nsame seam as `/graph` and `/entities`) \u2014 correct while one story = one project, and the\nnatural first home of the \u00a73.4 per-story filter when multi-story lands. Each paragraph's\nhighlights are **reconciled** (M4.S3c, DM-S3c-1 B) from three sources: render-time search over\nextraction mentions' surface forms, author-asserted **stored manual spans** (real offsets that\noverlay + win), minus **suppressions** (rejected highlights). An entity whose forms don't occur\nand was never manually tagged is omitted (fail-closed); only entities that actually appear are\nadvertised in the tooltip catalog.",
         "operationId": "get_story_reader_stories__story_id__reader_get",
         "parameters": [
           {
@@ -1050,6 +1050,288 @@
         }
       }
     },
+    "/stories/{story_id}/paragraphs/{paragraph_id}/tags": {
+      "post": {
+        "tags": [
+          "stories"
+        ],
+        "summary": "Tag Occurrence Route",
+        "description": "Tag a text span as an entity \u2014 existing (`entity_id`) or brand-new (`new_entity`); spec \u00a73.5,\nDM-S3c-2. A human-reached write (INV-9 as reworded, ADR 0006): persists a stored manual mention\nwith real offsets that overlays + wins over search, reversible via Undo. The span must be a\nvalid range within the paragraph (else 400). The reader invalidates + refetches (DM-S3a-4).",
+        "operationId": "tag_occurrence_route_stories__story_id__paragraphs__paragraph_id__tags_post",
+        "parameters": [
+          {
+            "name": "story_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Story Id"
+            }
+          },
+          {
+            "name": "paragraph_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Paragraph Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TagRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TagResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The span or new-entity input is invalid.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Story, paragraph, or entity not found.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "A data store is unavailable.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/stories/{story_id}/paragraphs/{paragraph_id}/suppressions": {
+      "post": {
+        "tags": [
+          "stories"
+        ],
+        "summary": "Suppress Occurrence Route",
+        "description": "Hide (\"not an entity\") or re-assign (\"not this entity\") a highlighted occurrence (spec \u00a73.5,\nDM-S3c-3). Writes a suppression the reader subtracts; with `retag_to` it is an atomic re-assign\n(suppress + tag, one reversible op). Reversible via Undo; the reader invalidates + refetches.",
+        "operationId": "suppress_occurrence_route_stories__story_id__paragraphs__paragraph_id__suppressions_post",
+        "parameters": [
+          {
+            "name": "story_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Story Id"
+            }
+          },
+          {
+            "name": "paragraph_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Paragraph Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SuppressRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SuppressResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The span is invalid.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Story, paragraph, or entity not found.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "A data store is unavailable.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/stories/{story_id}/paragraphs/{paragraph_id}/boundaries": {
+      "post": {
+        "tags": [
+          "stories"
+        ],
+        "summary": "Change Boundaries Route",
+        "description": "Change a highlight's boundaries (spec \u00a73.5, DM-S3c-4). On a manual span (`mention_id`) the\noffsets are edited in place; on an auto search hit (`mention_id` None) the occurrence is\nmaterialized at the new offsets and the original position suppressed, as one reversible op. The\nnew span must be valid within the paragraph (else 400).",
+        "operationId": "change_boundaries_route_stories__story_id__paragraphs__paragraph_id__boundaries_post",
+        "parameters": [
+          {
+            "name": "story_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Story Id"
+            }
+          },
+          {
+            "name": "paragraph_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Paragraph Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BoundaryRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BoundaryResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The new span is invalid.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Story, paragraph, entity, or mention absent.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "A data store is unavailable.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/stories/{story_id}/candidates": {
       "get": {
         "tags": [
@@ -1515,6 +1797,68 @@
           "file"
         ],
         "title": "Body_upload_story_stories_upload_post"
+      },
+      "BoundaryRequest": {
+        "properties": {
+          "entity_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Entity Id"
+          },
+          "mention_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Mention Id"
+          },
+          "old_start": {
+            "type": "integer",
+            "title": "Old Start"
+          },
+          "old_end": {
+            "type": "integer",
+            "title": "Old End"
+          },
+          "new_start": {
+            "type": "integer",
+            "title": "New Start"
+          },
+          "new_end": {
+            "type": "integer",
+            "title": "New End"
+          }
+        },
+        "type": "object",
+        "required": [
+          "entity_id",
+          "old_start",
+          "old_end",
+          "new_start",
+          "new_end"
+        ],
+        "title": "BoundaryRequest",
+        "description": "Change a highlight's boundaries (spec \u00a73.5, DM-S3c-4). `mention_id` None = an auto search hit\nto **materialize** (needs `entity_id` + the old offsets to suppress the original position);\nset = an existing manual span to edit in place."
+      },
+      "BoundaryResponse": {
+        "properties": {
+          "mention_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Mention Id"
+          }
+        },
+        "type": "object",
+        "required": [
+          "mention_id"
+        ],
+        "title": "BoundaryResponse",
+        "description": "The new (materialized) or edited manual mention's id."
       },
       "CandidateView": {
         "properties": {
@@ -2368,6 +2712,25 @@
         "title": "MergeSummaryResponse",
         "description": "Outcome of a merge: the survivor's id + the counts the side panel reports \u2014 how many edges\nwere re-pointed, how many MERGE-folded (multiplicity lost, surfaced not silent, DM-S3b-3), how\nmany self-loops were dropped, and how many mentions moved onto the survivor."
       },
+      "NewEntityTag": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "type": {
+            "type": "string",
+            "title": "Type"
+          }
+        },
+        "type": "object",
+        "required": [
+          "name",
+          "type"
+        ],
+        "title": "NewEntityTag",
+        "description": "Create a brand-new accepted entity of type X from a tag (DM-S3c-2). `type` is open-world\n(INV-4) \u2014 a free string, never an enum."
+      },
       "ReaderEntity": {
         "properties": {
           "entity_id": {
@@ -2419,6 +2782,27 @@
           "type": {
             "type": "string",
             "title": "Type"
+          },
+          "source": {
+            "type": "string",
+            "enum": [
+              "search",
+              "manual"
+            ],
+            "title": "Source",
+            "default": "search"
+          },
+          "mention_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Mention Id"
           }
         },
         "type": "object",
@@ -2429,7 +2813,7 @@
           "type"
         ],
         "title": "ReaderHighlight",
-        "description": "One resolved highlight range `[start, end)` within a paragraph (spec \u00a73.5)."
+        "description": "One resolved highlight range `[start, end)` within a paragraph (spec \u00a73.5).\n\n`source` + `mention_id` (M4.S3c, DM-S3c-6) give each highlight occurrence identity so a\nright-click correction can address it unambiguously: a `\"search\"` hit is derived (no row to\nedit \u2014 corrections write a suppression); a `\"manual\"` hit carries the `entity_mentions` id that\na change-boundaries edits or a suppression hides."
       },
       "ReaderParagraph": {
         "properties": {
@@ -2765,6 +3149,138 @@
         ],
         "title": "StructureResponse",
         "description": "What the structure route returns once the outline is persisted."
+      },
+      "SuppressRequest": {
+        "properties": {
+          "span_start": {
+            "type": "integer",
+            "title": "Span Start"
+          },
+          "span_end": {
+            "type": "integer",
+            "title": "Span End"
+          },
+          "entity_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Entity Id"
+          },
+          "retag_to": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Retag To"
+          }
+        },
+        "type": "object",
+        "required": [
+          "span_start",
+          "span_end"
+        ],
+        "title": "SuppressRequest",
+        "description": "Hide or re-assign a highlighted occurrence (spec \u00a73.5). `entity_id` None = \"not an entity\"\n(clear all claimants at the span); set = \"not this entity\" (clear that one). `retag_to` makes\nit an atomic re-assign \u2014 suppress the wrong entity + tag the right one as one op; it requires\n`entity_id` (the entity being corrected)."
+      },
+      "SuppressResponse": {
+        "properties": {
+          "suppression_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Suppression Id"
+          },
+          "mention_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Mention Id"
+          }
+        },
+        "type": "object",
+        "required": [
+          "suppression_id"
+        ],
+        "title": "SuppressResponse",
+        "description": "The suppression id; `mention_id` is set only on an atomic re-assign (the re-tagged entity's\nnew manual mention)."
+      },
+      "TagRequest": {
+        "properties": {
+          "span_start": {
+            "type": "integer",
+            "title": "Span Start"
+          },
+          "span_end": {
+            "type": "integer",
+            "title": "Span End"
+          },
+          "entity_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Entity Id"
+          },
+          "new_entity": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/NewEntityTag"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "type": "object",
+        "required": [
+          "span_start",
+          "span_end"
+        ],
+        "title": "TagRequest",
+        "description": "Tag a `[span_start, span_end)` occurrence as an entity (spec \u00a73.5). Exactly one of\n`entity_id` (attach to an existing accepted entity) or `new_entity` (create one) \u2014 both or\nneither is a 422 request-shape error."
+      },
+      "TagResponse": {
+        "properties": {
+          "mention_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Mention Id"
+          },
+          "entity_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Entity Id"
+          }
+        },
+        "type": "object",
+        "required": [
+          "mention_id",
+          "entity_id"
+        ],
+        "title": "TagResponse",
+        "description": "The created mention's id + the entity it points at (newly minted, for `new_entity`)."
       },
       "TaskTypeUsage": {
         "properties": {

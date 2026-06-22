@@ -407,10 +407,20 @@ stories         (id, project_id, title, raw_text, ingested_at)
 chapters        (id, story_id, order_index, title, summary)
 scenes          (id, chapter_id, order_index, title, summary)
 paragraphs      (id, scene_id, order_index, content, content_normalized, embedding vector(768))
-entity_mentions (id, paragraph_id, entity_id, span_start, span_end, confidence)
+entity_mentions (id, paragraph_id, entity_id, span_start, span_end, confidence, source)
+mention_suppressions (id, paragraph_id, entity_id, span_start, span_end, created_at)  -- M4.S3c: a rejected highlight ("not an entity"/"not this entity")
 edit_history    (id, scope, scope_id, before, after, intent, source, model, prompt, accepted, context, timestamp)
 worlds          (id, name, description)  -- optional shared graph parent
 ```
+
+**Mentions — extraction-authored vs human-authored (M4.S3c).** A mention is normally written by the
+extraction cascade with **NULL** `span_start`/`span_end` — inline highlighting (§3.5) is render-time
+search over the entity's `canonical_name` + aliases, not a stored offset. The reader's manual-tagging
+surface (§3.5) adds two human-authored kinds: a **manual tag** writes a mention with `source='manual'`
+and **real character offsets** that overlay and win over search; a rejected highlight writes a
+**`mention_suppressions`** row the reader subtracts. `source` is `'extraction'` (default) or
+`'manual'`; a suppression with `entity_id` NULL clears the span for all entities ("not an entity"),
+or set for one ("not this entity").
 
 **Neo4j (knowledge graph):**
 

@@ -21,7 +21,7 @@ def _now() -> datetime:
     return datetime.now(UTC)
 
 
-GraphEditKind = Literal["entity", "relation"]
+GraphEditKind = Literal["entity", "relation", "mention", "suppression"]
 
 
 class GraphEdit(BaseModel):

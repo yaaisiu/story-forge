@@ -15,6 +15,7 @@ import pytest
 from story_forge.agents.entity_edit import (
     EntityEditService,
     EntityNotFound,
+    MentionNotFound,
     RelationEdgeNotFound,
     SelfMergeError,
 )
@@ -23,6 +24,7 @@ from story_forge.domain.entity_edits import EntityEditInvalid, EntityEditPatch
 from story_forge.domain.entity_merge import EntityMergeInvalid
 from story_forge.domain.graph import GraphEntity, GraphRelation
 from story_forge.domain.graph_undo import RecreateRelation, invert_operation
+from story_forge.domain.models import EntityMention, MentionSuppression
 
 PROJECT = uuid4()
 OTHER_PROJECT = uuid4()
@@ -113,10 +115,14 @@ class FakeEvidence:
 
 
 class FakeMentions:
-    """An in-memory `MentionRepo`: holds `entity_id → [mention_id]` and re-points on merge."""
+    """An in-memory `MentionRepo`: holds `entity_id → [mention_id]` and re-points on merge, plus
+    the M4.S3c manual-correction state (`mentions` by id, `suppressions` by id) so the tag/un-tag/
+    boundary ops and their undo round-trips can be asserted against real stored state."""
 
     def __init__(self, events: list[tuple[str, object]]) -> None:
         self.by_entity: dict[UUID, list[UUID]] = {}
+        self.mentions: dict[UUID, EntityMention] = {}
+        self.suppressions: dict[UUID, MentionSuppression] = {}
         self._events = events
 
     async def repoint_mentions(self, from_entity_id: UUID, to_entity_id: UUID) -> list[UUID]:
@@ -136,6 +142,33 @@ class FakeMentions:
 
     async def restore_mentions(self, mentions: list[object]) -> None:
         self._events.append(("restore_mentions", len(mentions)))
+
+    # M4.S3c manual-correction mutators (id-keyed; insert is ON CONFLICT DO NOTHING idempotent):
+    async def add_mention(self, mention: EntityMention) -> None:
+        self.mentions.setdefault(mention.id, mention)
+        self._events.append(("add_mention", mention.id))
+
+    async def get_mention(self, mention_id: UUID) -> EntityMention | None:
+        return self.mentions.get(mention_id)
+
+    async def update_mention_span(self, mention_id: UUID, span_start: int, span_end: int) -> None:
+        current = self.mentions[mention_id]
+        self.mentions[mention_id] = current.model_copy(
+            update={"span_start": span_start, "span_end": span_end}
+        )
+        self._events.append(("update_mention_span", mention_id))
+
+    async def delete_mention(self, mention_id: UUID) -> None:
+        self.mentions.pop(mention_id, None)
+        self._events.append(("delete_mention", mention_id))
+
+    async def add_suppression(self, suppression: MentionSuppression) -> None:
+        self.suppressions.setdefault(suppression.id, suppression)
+        self._events.append(("add_suppression", suppression.id))
+
+    async def delete_suppression(self, suppression_id: UUID) -> None:
+        self.suppressions.pop(suppression_id, None)
+        self._events.append(("delete_suppression", suppression_id))
 
 
 def _service() -> tuple[
@@ -444,3 +477,264 @@ async def test_merge_missing_or_cross_project_endpoint_is_not_found() -> None:
     graph.entities[foreign.id] = foreign
     with pytest.raises(EntityNotFound):
         await service.merge_entities(PROJECT, survivor.id, foreign.id, {})
+
+
+# ── M4.S3c: manual tag / un-tag / change-boundaries (the reader write path) ─────────────────
+
+PARAGRAPH = uuid4()
+
+
+async def _undo(service: EntityEditService, rows: list[object]) -> None:
+    """Drive `invert_operation` from the writer's *real* recorded rows and apply each inverse
+    (the PR-#108 producer↔consumer discipline — never a hand-built op-row). Skips the drift read
+    (covered by the S3b drift tests); the focus here is invertibility + the apply wiring."""
+    plan = invert_operation(rows)  # type: ignore[arg-type]
+    for action in plan.actions:
+        await service._apply_inverse(action)
+
+
+# --- Step 6: each op records the right evidence + mutates the store in the right order ---
+
+
+async def test_tag_existing_inserts_mention_then_records_add_mention() -> None:
+    service, graph, evidence, mentions, events = _service()
+    janek = _entity()
+    graph.entities[janek.id] = janek
+
+    mention_id = await service.tag_existing(PROJECT, PARAGRAPH, janek.id, 0, 5)
+
+    # store mutation precedes the evidence row (INV-3/DM-S3a-2 order)
+    assert events == [("add_mention", mention_id), ("record_edit", "add_mention")]
+    stored = mentions.mentions[mention_id]
+    assert stored.source == "manual" and (stored.span_start, stored.span_end) == (0, 5)
+    assert stored.entity_id == janek.id
+
+
+async def test_tag_existing_is_idempotent_by_deterministic_id() -> None:
+    service, graph, _evidence, mentions, _events = _service()
+    janek = _entity()
+    graph.entities[janek.id] = janek
+    first = await service.tag_existing(PROJECT, PARAGRAPH, janek.id, 0, 5)
+    second = await service.tag_existing(PROJECT, PARAGRAPH, janek.id, 0, 5)
+    assert first == second  # same span → same id
+    assert len(mentions.mentions) == 1
+
+
+async def test_tag_existing_unknown_entity_is_not_found() -> None:
+    service, _graph, _evidence, _mentions, events = _service()
+    with pytest.raises(EntityNotFound):
+        await service.tag_existing(PROJECT, PARAGRAPH, uuid4(), 0, 5)
+    assert events == []  # rejected before any write
+
+
+async def test_tag_new_entity_creates_node_then_mention_grouped() -> None:
+    service, graph, evidence, mentions, events = _service()
+
+    entity_id, mention_id = await service.tag_new_entity(
+        PROJECT, PARAGRAPH, "Smaug", "Dragon", "en", 0, 5
+    )
+
+    # Neo4j-then-Postgres (OQ-1), evidence last as one grouped op.
+    assert events == [
+        ("create_entity", entity_id),
+        ("add_mention", mention_id),
+        ("record_operation", 2),
+    ]
+    created = graph.entities[entity_id]
+    assert created.type == "Dragon" and created.canonical_name_en == "Smaug"
+    assert created.canonical_name_pl is None and created.embedding is None  # PoC: no embedding
+    rows = evidence.operations[-1]
+    ops = [r.op for r in rows]  # type: ignore[attr-defined]
+    assert ops == ["create_entity_from_tag", "add_mention"]
+    assert all(r.op_kind == "tag_new" for r in rows)  # type: ignore[attr-defined]
+
+
+async def test_tag_new_entity_fills_pl_slot_for_polish_project() -> None:
+    service, graph, _evidence, _mentions, _events = _service()
+    entity_id, _ = await service.tag_new_entity(PROJECT, PARAGRAPH, "Smok", "Smok-typ", "pl", 0, 4)
+    created = graph.entities[entity_id]
+    assert created.canonical_name_pl == "Smok" and created.canonical_name_en is None
+
+
+async def test_tag_new_entity_blank_name_or_type_rejected() -> None:
+    service, _graph, _evidence, _mentions, events = _service()
+    with pytest.raises(EntityEditInvalid):
+        await service.tag_new_entity(PROJECT, PARAGRAPH, "   ", "Dragon", "en", 0, 5)
+    with pytest.raises(EntityEditInvalid):
+        await service.tag_new_entity(PROJECT, PARAGRAPH, "Smaug", "  ", "en", 0, 5)
+    assert events == []
+
+
+async def test_suppress_occurrence_not_an_entity_keys_all_entities() -> None:
+    service, _graph, evidence, mentions, _events = _service()
+    suppression_id = await service.suppress_occurrence(PROJECT, PARAGRAPH, 0, 5, None)
+    supp = mentions.suppressions[suppression_id]
+    assert supp.entity_id is None and (supp.span_start, supp.span_end) == (0, 5)
+    assert evidence.rows[-1].op == "suppress_span"  # type: ignore[attr-defined]
+    assert evidence.rows[-1].after["entity_id"] is None  # type: ignore[attr-defined,index]
+
+
+async def test_suppress_occurrence_not_this_entity_keys_one() -> None:
+    service, graph, _evidence, mentions, _events = _service()
+    janek = _entity()
+    graph.entities[janek.id] = janek
+    suppression_id = await service.suppress_occurrence(PROJECT, PARAGRAPH, 0, 5, janek.id)
+    assert mentions.suppressions[suppression_id].entity_id == janek.id
+
+
+async def test_retag_occurrence_groups_suppress_then_add_mention() -> None:
+    service, graph, evidence, mentions, _events = _service()
+    wrong = _entity(canonical_name_pl="Janek")
+    right = _entity(canonical_name_pl="Maria")
+    graph.entities[wrong.id] = wrong
+    graph.entities[right.id] = right
+
+    suppression_id, mention_id = await service.retag_occurrence(
+        PROJECT, PARAGRAPH, 0, 5, wrong.id, right.id
+    )
+
+    rows = evidence.operations[-1]
+    assert [r.op for r in rows] == ["suppress_span", "add_mention"]  # type: ignore[attr-defined]
+    assert all(r.op_kind == "retag" for r in rows)  # type: ignore[attr-defined]
+    assert mentions.suppressions[suppression_id].entity_id == wrong.id  # from-entity hidden
+    assert mentions.mentions[mention_id].entity_id == right.id  # to-entity tagged
+
+
+async def test_change_boundaries_in_place_edits_a_manual_span() -> None:
+    service, graph, evidence, mentions, _events = _service()
+    janek = _entity()
+    graph.entities[janek.id] = janek
+    mention_id = await service.tag_existing(PROJECT, PARAGRAPH, janek.id, 0, 5)
+
+    returned = await service.change_boundaries(
+        PROJECT, PARAGRAPH, janek.id, mention_id, 0, 5, 0, 10
+    )
+
+    assert returned == mention_id  # edit-in-place keeps identity
+    assert (mentions.mentions[mention_id].span_start, mentions.mentions[mention_id].span_end) == (
+        0,
+        10,
+    )
+    row = evidence.rows[-1]
+    assert row.op == "edit_mention_span"  # type: ignore[attr-defined]
+    assert row.before == {"span_start": 0, "span_end": 5}  # type: ignore[attr-defined]
+    assert row.after == {"span_start": 0, "span_end": 10}  # type: ignore[attr-defined]
+
+
+async def test_change_boundaries_materializes_an_auto_hit() -> None:
+    service, graph, evidence, mentions, _events = _service()
+    janek = _entity()
+    graph.entities[janek.id] = janek
+
+    new_mention_id = await service.change_boundaries(
+        PROJECT, PARAGRAPH, janek.id, None, 0, 5, 0, 10
+    )
+
+    # a stored manual span at the new offsets + a suppression at the original position, grouped
+    rows = evidence.operations[-1]
+    assert [r.op for r in rows] == ["add_mention", "suppress_span"]  # type: ignore[attr-defined]
+    assert all(r.op_kind == "materialize_boundary" for r in rows)  # type: ignore[attr-defined]
+    assert mentions.mentions[new_mention_id].span_start == 0
+    assert mentions.mentions[new_mention_id].span_end == 10
+    assert any(s.span_start == 0 and s.span_end == 5 for s in mentions.suppressions.values())
+
+
+async def test_change_boundaries_missing_manual_mention_is_not_found() -> None:
+    service, graph, _evidence, _mentions, _events = _service()
+    janek = _entity()
+    graph.entities[janek.id] = janek
+    with pytest.raises(MentionNotFound):
+        await service.change_boundaries(PROJECT, PARAGRAPH, janek.id, uuid4(), 0, 5, 0, 10)
+
+
+# --- Step 7: undo round-trips, driven from the writer's REAL recorded rows (PR #108) ---
+
+
+async def test_undo_tag_existing_removes_the_mention() -> None:
+    service, graph, evidence, mentions, _events = _service()
+    janek = _entity()
+    graph.entities[janek.id] = janek
+    mention_id = await service.tag_existing(PROJECT, PARAGRAPH, janek.id, 0, 5)
+
+    await _undo(service, [evidence.rows[-1]])
+    assert mention_id not in mentions.mentions
+
+
+async def test_undo_tag_new_entity_deletes_both_node_and_mention() -> None:
+    service, graph, evidence, mentions, _events = _service()
+    entity_id, mention_id = await service.tag_new_entity(
+        PROJECT, PARAGRAPH, "Smaug", "Dragon", "en", 0, 5
+    )
+
+    await _undo(service, evidence.operations[-1])
+    assert entity_id not in graph.entities  # node gone
+    assert mention_id not in mentions.mentions  # mention gone — one atomic op
+
+
+async def test_undo_suppress_occurrence_unhides() -> None:
+    service, _graph, evidence, mentions, _events = _service()
+    suppression_id = await service.suppress_occurrence(PROJECT, PARAGRAPH, 0, 5, None)
+
+    await _undo(service, [evidence.rows[-1]])
+    assert suppression_id not in mentions.suppressions
+
+
+async def test_undo_atomic_retag_restores_original_in_one_step() -> None:
+    service, graph, evidence, mentions, _events = _service()
+    wrong = _entity(canonical_name_pl="Janek")
+    right = _entity(canonical_name_pl="Maria")
+    graph.entities[wrong.id] = wrong
+    graph.entities[right.id] = right
+    suppression_id, mention_id = await service.retag_occurrence(
+        PROJECT, PARAGRAPH, 0, 5, wrong.id, right.id
+    )
+
+    await _undo(service, evidence.operations[-1])
+    # both halves reversed → the original `wrong` search hit reconciles back, `right` tag gone
+    assert suppression_id not in mentions.suppressions
+    assert mention_id not in mentions.mentions
+
+
+async def test_undo_materialize_boundary_removes_manual_and_unhides_original() -> None:
+    service, graph, evidence, mentions, _events = _service()
+    janek = _entity()
+    graph.entities[janek.id] = janek
+    new_mention_id = await service.change_boundaries(
+        PROJECT, PARAGRAPH, janek.id, None, 0, 5, 0, 10
+    )
+
+    await _undo(service, evidence.operations[-1])
+    assert new_mention_id not in mentions.mentions  # the materialized span gone
+    assert mentions.suppressions == {}  # original position un-hidden → auto hit returns
+
+
+async def test_undo_edit_in_place_boundary_restores_old_offsets() -> None:
+    service, graph, evidence, mentions, _events = _service()
+    janek = _entity()
+    graph.entities[janek.id] = janek
+    mention_id = await service.tag_existing(PROJECT, PARAGRAPH, janek.id, 0, 5)
+    await service.change_boundaries(PROJECT, PARAGRAPH, janek.id, mention_id, 0, 5, 0, 10)
+
+    await _undo(service, [evidence.rows[-1]])  # undo the boundary edit
+    restored = mentions.mentions[mention_id]
+    assert (restored.span_start, restored.span_end) == (0, 5)
+
+
+async def test_every_manual_op_a_writer_records_is_invertible() -> None:
+    # Enumerate the four S3c op-kinds from their REAL recorded rows; none may raise
+    # UndoNotInvertible (the contract test that fails if a writer/inverter pair drifts).
+    service, graph, evidence, _mentions, _events = _service()
+    a = _entity(canonical_name_pl="Janek")
+    b = _entity(canonical_name_pl="Maria")
+    graph.entities[a.id] = a
+    graph.entities[b.id] = b
+
+    await service.tag_existing(PROJECT, PARAGRAPH, a.id, 0, 5)  # add_mention (singleton)
+    await service.suppress_occurrence(PROJECT, PARAGRAPH, 6, 9, None)  # suppress_span (singleton)
+    await service.tag_new_entity(PROJECT, PARAGRAPH, "Smaug", "Dragon", "en", 10, 15)  # grouped
+    await service.retag_occurrence(PROJECT, PARAGRAPH, 16, 20, a.id, b.id)  # grouped
+    await service.change_boundaries(PROJECT, PARAGRAPH, a.id, None, 21, 25, 21, 30)  # grouped
+
+    singletons = [[r] for r in evidence.rows]
+    for rows in singletons + evidence.operations:
+        invert_operation(rows)  # type: ignore[arg-type]  # must not raise UndoNotInvertible
