@@ -19,7 +19,11 @@ docker run --rm -v /var/run/docker.sock:/var/run/docker.sock \
   --ignorefile /tmp/ignore <IMAGE>:<TAG>
 ```
 
-**Last reviewed:** 2026-06-16.
+**Last reviewed:** 2026-06-23 — added the gosu Go-stdlib **wave 5** (`CVE-2026-27145`,
+crypto/x509 `VerifyHostname`) to pgvector + ollama; then **wave 6** to ollama — 14 HIGHs
+in the compiled-in `golang.org/x/crypto/ssh` + `golang.org/x/net` modules, unmasked when
+wave 5 cleared (sequential scan). Same unreachable-code / outbound-TLS posture as waves 1–4;
+drop-when extended to cover x/crypto ≥0.52.0 / x/net ≥0.55.0 (upstream ollama rebuild).
 
 > **Pattern note (pgvector CVE-rot recurrence) — THRESHOLD TRIPPED 2026-05-27.**
 > Since 2026-05-21 the pgvector image has gone from green → red **three times**
@@ -144,6 +148,7 @@ parsing — all of these sit in unreachable code. Same class as the netty waiver
 | CVE-2026-39825 | HIGH | net/http/httputil (ReverseProxy forwards params past ParseQuery limit) | 1.25.10 / 1.26.3 — added 2026-05-27 (wave 3) |
 | CVE-2026-39826 | HIGH | html/template (XSS via `<script>` with empty/whitespace `type`) | 1.25.10 / 1.26.3 — added 2026-05-27 (wave 3) |
 | CVE-2026-42504 | HIGH | mime (quadratic `WordDecoder.DecodeHeader` on crafted encoded-words → CPU DoS; CWE-407, GO-2026-5038) | 1.25.11 / 1.26.4 — added 2026-06-08 (wave 4) |
+| CVE-2026-27145 | HIGH | crypto/x509 (`VerifyHostname` → `matchHostnames` hostname-match correctness) | 1.25.11 / 1.26.4 — added 2026-06-23 (wave 5); gosu opens no TLS / verifies no certs → `VerifyHostname` never called |
 
 ## ollama — `ollama/ollama:0.24.0` (scanned upstream; consumed via `infra/ollama/` wrapper)
 
@@ -155,10 +160,19 @@ Class: **compiled-in** Go stdlib + `buger/jsonparser` in the ollama server binar
 — no ollama tag fixes them, only an upstream rebuild on a patched Go toolchain
 (plus one Ubuntu-base **OS** openssl CVE added 2026-06-10, fixed by a base rebuild).
 Bumped 0.22.1 → 0.24.0 to minimise residual (dropped the CRITICAL + 6 others).
-12 HIGH, 0 CRITICAL. Reachability: ollama is 127.0.0.1-bound, single trusted
-user, backend is the only client; CVEs are mostly DoS (self-inflicted only) plus
-two outbound-TLS cert-validation issues (need MITM). **Drop when** upstream
-rebuilds ollama on patched Go.
+Reachability: ollama is 127.0.0.1-bound, single trusted user, backend is the only
+client; CVEs are mostly DoS (self-inflicted only) plus a few outbound-TLS
+cert-validation issues (need MITM). **Drop when** upstream rebuilds ollama on
+patched Go **and** on the patched `golang.org/x/crypto` (≥0.52.0) /
+`golang.org/x/net` (≥0.55.0) modules.
+
+**Wave 6 (2026-06-23):** 14 freshly-disclosed HIGHs in the compiled-in
+`golang.org/x/crypto/ssh` (8) and `golang.org/x/net` (6) modules — unmasked once
+`CVE-2026-27145` cleared (sequential scan). All unreachable here: ollama runs no
+SSH server/client (the whole `x/crypto/ssh` set) and renders no HTML (the
+`x/net/html` set); the lone `x/net/idna` Punycode issue is outbound-TLS-hostname
+only and needs an attacker-controlled IDN hostname the trusted local user supplies.
+Rows below; rationale per CVE in `infra/trivy/ollama.trivyignore` wave-6 block.
 
 | CVE | Pkg | Sev | Class | Fixed in | Why not reachable here |
 |---|---|---|---|---|---|
@@ -179,3 +193,18 @@ rebuilds ollama on patched Go.
 | CVE-2026-39825 | net/http/httputil | HIGH | ReverseProxy forwards params past ParseQuery limit (added 2026-05-27 wave 3) | Go 1.25.10 / 1.26.3 | ollama is an HTTP server, not a reverse proxy; ReverseProxy unused |
 | CVE-2026-39826 | html/template | HIGH | XSS via `<script>` with empty/whitespace `type` (added 2026-05-27 wave 3) | Go 1.25.10 / 1.26.3 | ollama returns JSON; renders no HTML templates |
 | CVE-2026-42504 | mime | HIGH | quadratic `WordDecoder.DecodeHeader` on crafted encoded-words → CPU DoS (CWE-407, GO-2026-5038; added 2026-06-08 wave 4) | Go 1.25.11 / 1.26.4 | DoS reachable only via crafted MIME headers; 127.0.0.1, backend is the only trusted client |
+| CVE-2026-27145 | crypto/x509 | HIGH | `VerifyHostname` → `matchHostnames` hostname-match correctness (not RCE; added 2026-06-23) | Go 1.25.11 / 1.26.4 | cert-validation correctness; outbound TLS (to Ollama Cloud) only, needs active MITM |
+| CVE-2026-39827 | x/crypto/ssh | HIGH | authenticated SSH client repeatedly opening channels → DoS (wave 6, added 2026-06-23) | x/crypto 0.52.0 | ollama runs no SSH server / opens no SSH client → unreachable |
+| CVE-2026-39828 | x/crypto/ssh | HIGH | SSH denial of service (wave 6) | x/crypto 0.52.0 | ollama runs no SSH → unreachable |
+| CVE-2026-39829 | x/crypto/ssh | HIGH | SSH denial of service (wave 6) | x/crypto 0.52.0 | ollama runs no SSH → unreachable |
+| CVE-2026-39830 | x/crypto/ssh | HIGH | SSH denial of service (wave 6) | x/crypto 0.52.0 | ollama runs no SSH → unreachable |
+| CVE-2026-39835 | x/crypto/ssh | HIGH | SSH servers using CertChecker as a public-key callback (wave 6) | x/crypto 0.52.0 | ollama runs no SSH server → unreachable |
+| CVE-2026-42508 | x/crypto/ssh/knownhosts | HIGH | revocation bypass (wave 6) | x/crypto 0.52.0 | ollama does no SSH host-key checking → unreachable |
+| CVE-2026-46595 | x/crypto/ssh | HIGH | SSH denial of service (wave 6) | x/crypto 0.52.0 | ollama runs no SSH → unreachable |
+| CVE-2026-46597 | x/crypto/ssh | HIGH | incorrectly-placed bytes→int cast on parse (wave 6) | x/crypto 0.52.0 | ollama runs no SSH → unreachable |
+| CVE-2026-25680 | x/net/html | HIGH | parsing arbitrary HTML → excessive CPU (DoS) (wave 6) | x/net 0.55.0 | ollama returns JSON, renders no HTML → unreachable |
+| CVE-2026-25681 | x/net/html | HIGH | arbitrary HTML via `Render` (wave 6) | x/net 0.55.0 | renders no HTML → unreachable |
+| CVE-2026-27136 | x/net/html | HIGH | arbitrary HTML via `Render` (wave 6) | x/net 0.55.0 | renders no HTML → unreachable |
+| CVE-2026-39821 | x/net/idna | HIGH | privilege escalation via incorrect Punycode label processing (wave 6) | x/net 0.55.0 | outbound TLS hostname only, needs attacker-controlled IDN hostname supplied by the trusted local user |
+| CVE-2026-42502 | x/net/html | HIGH | arbitrary HTML via `Render` (wave 6) | x/net 0.55.0 | renders no HTML → unreachable |
+| CVE-2026-42506 | x/net/html | HIGH | arbitrary HTML via `Render` (wave 6) | x/net 0.55.0 | renders no HTML → unreachable |

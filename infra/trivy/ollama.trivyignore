@@ -111,3 +111,62 @@ CVE-2026-39826
 # bound to 127.0.0.1 with the Story Forge backend as its only (trusted) client,
 # so there is no untrusted peer to inflict the DoS. (GO-2026-5038.)
 CVE-2026-42504
+# CVE-2026-27145 — crypto/x509 (HIGH): `(*x509.Certificate).VerifyHostname` hostname
+# matching could be incorrect. Fixed Go 1.25.11 / 1.26.4. Applies to ollama's
+# *outbound* TLS (to Ollama Cloud) and needs an active MITM of that connection to
+# exploit; cert-validation correctness, not RCE. (Surfaced by the Trivy DB 2026-06-23;
+# pre-empted here — same sub-1.25.11 Go that waved CVE-2026-42504 in this binary.)
+CVE-2026-27145
+
+# ─── Wave 6: golang.org/x/crypto + golang.org/x/net modules (surfaced by the
+#     Trivy DB 2026-06-23; unmasked once the stdlib CVE-2026-27145 above cleared,
+#     since the security job scans sequentially) ───
+#
+# These are NOT Go stdlib — they are the compiled-in `golang.org/x/crypto`
+# (v0.43.0, fixed 0.52.0) and `golang.org/x/net` (v0.46.0, fixed 0.55.0) modules in
+# the ollama server binary. Only an upstream ollama rebuild on the patched modules
+# clears them; no ollama tag we pin fixes a compiled-in dependency.
+#
+# Reachability — ollama is 127.0.0.1-bound, single trusted user, the Story Forge
+# backend is the only client:
+#
+# golang.org/x/crypto/ssh (fixed 0.52.0) — ollama runs no SSH server and opens no
+# SSH client connection in the inference path, so this whole package is compiled-in
+# but unreachable. Each entry is an SSH-only issue:
+# CVE-2026-39827 — ssh: authenticated client repeatedly opening channels → DoS.
+CVE-2026-39827
+# CVE-2026-39828 — ssh: denial of service.
+CVE-2026-39828
+# CVE-2026-39829 — ssh: denial of service.
+CVE-2026-39829
+# CVE-2026-39830 — ssh: denial of service.
+CVE-2026-39830
+# CVE-2026-39835 — ssh: servers using CertChecker as a public-key callback. ollama
+# runs no SSH server.
+CVE-2026-39835
+# CVE-2026-42508 — ssh/knownhosts: revocation bypass. ollama does no SSH host-key
+# checking.
+CVE-2026-42508
+# CVE-2026-46595 — ssh: denial of service.
+CVE-2026-46595
+# CVE-2026-46597 — ssh: an incorrectly placed bytes→int cast (parsing). ollama runs
+# no SSH.
+CVE-2026-46597
+#
+# golang.org/x/net (fixed 0.55.0):
+# CVE-2026-25680 — net/html: parsing arbitrary HTML consumes excessive CPU (DoS).
+# ollama returns JSON and parses/renders no HTML, so the path is unreachable.
+CVE-2026-25680
+# CVE-2026-25681 — net/html: arbitrary HTML rendered via Render. Unreachable (no HTML).
+CVE-2026-25681
+# CVE-2026-27136 — net/html: arbitrary HTML rendered via Render. Unreachable (no HTML).
+CVE-2026-27136
+# CVE-2026-39821 — net/idna: privilege escalation via incorrect Punycode label
+# processing. Reachable only on ollama's *outbound* TLS to a model registry and only
+# with an attacker-controlled internationalized hostname — which the single trusted
+# local user supplies; not reachable by any untrusted peer here.
+CVE-2026-39821
+# CVE-2026-42502 — net/html: arbitrary HTML rendered via Render. Unreachable (no HTML).
+CVE-2026-42502
+# CVE-2026-42506 — net/html: arbitrary HTML rendered via Render. Unreachable (no HTML).
+CVE-2026-42506
