@@ -15,7 +15,7 @@ The user can upload a draft, chunk it, extract entities/relations with the casca
 - [ ] **Milestone 3 — Cascade matching** (5-7 days)
   MatchingAgent (fuzzy + embeddings), JudgeAgent (LLM-as-judge), review queue UI with keyboard navigation.
 - [ ] **Milestone 4 — V1 polish** (5-7 days)
-  Inline highlights, side panel, manual annotation, properties/relations edit, multi-story, world graph parent.
+  Inline highlights, side panel, manual annotation, properties/relations edit, multi-story (one shared graph per project; the cross-story world graph is post-PoC — `docs/BACKLOG.md`).
 
 ### Data flywheel — a custom NER model, later
 
