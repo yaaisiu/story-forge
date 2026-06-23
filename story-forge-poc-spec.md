@@ -22,7 +22,7 @@ The PoC starts with phase 1 (graph + viewer). Phases 2 and 3 are subsequent iter
 - Bilingual (PL/EN) — multilingual NLP and embeddings as first-class concerns
 - **Agent-based ingest pipeline:** chunking, extraction, matching, and judgment are modular agents wired by an orchestrator, each with its own prompt template, output schema, preferred model tier, and tests
 - **Multi-model routing:** one `LLMProvider` Protocol, multiple swappable adapters — local Ollama, Ollama Cloud free tier, and paid cloud providers (OpenRouter preferred, plus Grok, Anthropic, Google, OpenAI) — chosen per task by a small router
-- Neo4j as single source of truth for the world; per-story graph + optional merge into a "world graph"
+- Neo4j as single source of truth for the project's world — one graph per project, shared across the project's stories with per-story entity membership
 - Every edit recorded as a (before, after, intent, accepted) tuple — future training corpus
 - **Security-by-default infra:** every container non-root, localhost-bound, on a private network; every dependency pinned and aged; no telemetry; CORS strict; secrets only in `.env`
 
@@ -209,7 +209,7 @@ Visualization requirements:
   - **Merge entities** — pick another entity as the merge target; you choose which one survives, and for any property the two set differently you pick the value to keep (non-conflicting properties and all aliases combine). The absorbed entity's relations and text occurrences re-point to the survivor. Reversible (§11).
   - **Delete an entity** — remove the entity, its relations, and its text occurrences from the graph. Reversible (§11).
 - **Drill-down to text:** click on an "occurrence" → opens the paragraph in the reader with highlight
-- **"World" mode:** view aggregating multiple stories (if linked to a shared graph)
+- **Story-vs-project scope:** toggle between the current story and the whole project (all the project's stories share one graph; per-story entity membership drives the filter — §3.6)
 
 **Suggested libraries:** `cytoscape.js` or `vis-network` (simple, proven), or `react-force-graph` (aesthetics). Developer's call, but: must handle 500+ nodes smoothly.
 
@@ -223,9 +223,18 @@ Visualization requirements:
 
 ### 3.6 Multi-story workflow
 
-- **Per-story graph**, persisted separately (Neo4j labels or separate databases — see §6)
-- **"World graph"** optional: the user can mark a story as belonging to world X → its entities become candidates for merging with world X's entities
-- Merge between story and world uses the same cascade (§3.3), but with greater caution and always human review
+- **One graph per project, shared across its stories.** A project can hold multiple
+  stories (the `stories` table is already keyed by `project_id`); they all read and
+  write the same project graph rather than each owning a separate graph.
+- **Per-story entity membership** — the graph tracks which entity appears in which
+  story. This drives the §3.4 story-vs-project scope toggle ("this story" vs "the
+  whole project") and lets a new story's extraction **seed the matcher with the
+  project's already-accepted entities** (§3.3 cascade), so known entities are matched,
+  not re-created.
+
+> **Out of PoC scope (owner, 2026-06-22):** the cross-story **world graph** — marking a
+> story as belonging to a shared *world X* whose entities become cross-story merge
+> candidates — is dropped from the PoC. See `docs/BACKLOG.md`.
 
 ---
 
@@ -402,7 +411,7 @@ story-forge/
 **Postgres (document structure + metadata):**
 
 ```sql
-projects        (id, name, language, world_id, style_anchor, created_at)
+projects        (id, name, language, style_anchor, created_at)
 stories         (id, project_id, title, raw_text, ingested_at)
 chapters        (id, story_id, order_index, title, summary)
 scenes          (id, chapter_id, order_index, title, summary)
@@ -410,7 +419,6 @@ paragraphs      (id, scene_id, order_index, content, content_normalized, embeddi
 entity_mentions (id, paragraph_id, entity_id, span_start, span_end, confidence, embedding vector(768), source)
 mention_suppressions (id, paragraph_id, entity_id, span_start, span_end, created_at)  -- M4.S3c: a rejected highlight ("not an entity"/"not this entity")
 edit_history    (id, scope, scope_id, before, after, intent, source, model, prompt, accepted, context, timestamp)
-worlds          (id, name, description)  -- optional shared graph parent
 ```
 
 **Mentions — extraction-authored vs human-authored (M4.S3c).** A mention is normally written by the
@@ -435,19 +443,17 @@ cosine. Dimensionality (768) matches the multilingual `paraphrase-multilingual-m
 
 ```cypher
 // Nodes
-(:Entity {id, type, canonical_name_pl, canonical_name_en, aliases, properties, first_seen_paragraph_id, embedding, project_id, world_id})
+(:Entity {id, type, canonical_name_pl, canonical_name_en, aliases, properties, first_seen_paragraph_id, embedding, project_id})
 
 // Relations (dynamically typed)
 (:Entity)-[:RELATION_TYPE {confidence, source_paragraph_id, attributes}]->(:Entity)
 
-// Project/world markers
+// Project markers
 (:Project {id, name})
-(:World {id, name})
 (:Entity)-[:BELONGS_TO]->(:Project)
-(:Project)-[:PART_OF]->(:World)
 ```
 
-**Multi-tenancy strategy:** simple filter via `project_id` / `world_id` property on every node. Neo4j multi-database (separate DB per project) would be cleaner but requires Enterprise. Property-based is sufficient for PoC.
+**Multi-tenancy strategy:** simple filter via `project_id` property on every node. Neo4j multi-database (separate DB per project) would be cleaner but requires Enterprise. Property-based is sufficient for PoC.
 
 **Naming & ordering conventions:**
 
@@ -694,7 +700,7 @@ This is the most important flow in V1. I'm spelling it out in detail so the deve
 
 ### 8.1 Project list (home)
 - Project cards: title, language, story count, entity count, recent progress
-- "New project" → choose "standalone" vs "part of world X"
+- "New project" → name + language
 
 ### 8.2 Story view (main V1 screen)
 ```
@@ -778,7 +784,6 @@ This is the most important flow in V1. I'm spelling it out in detail so the deve
 - Manual annotation (select text → entity)
 - Edit properties and relations in UI
 - Multi-story in one project
-- Optional world graph parent
 
 **Outcome:** V1 PoC complete. I can actually use it for worldbuilding, and a visitor can read the code + UI and understand the agent/multi-model architecture.
 
@@ -795,7 +800,7 @@ These need a conversation with the developer at the start, or a conscious "decid
 
 1. **LLM extraction granularity:** per-paragraph, per-scene, or per-chapter? Trade-off: accuracy (smaller = better) vs token cost (larger = better).
 2. **Graph versioning strategies:** do we want rollback at the graph level, snapshots per story, or just an append-only log of changes? — **Resolved (PoC, M4.S3b, 2026-06-20):** an **append-only log of graph changes** (the `graph_edits` table), surfaced as **deterministic undo** — newest-first, showing what will be reversed before it happens (§4.3's deterministic undo stack, §11 reversibility, applied to graph edits/merges/deletes). Per-story snapshots / full version history are post-PoC.
-3. **Conflict in shared world graph:** how to resolve when two stories give the same entity contradictory properties? Dialog UI, or soft "both versions coexist"?
+3. **Conflict in shared world graph:** how to resolve when two stories give the same entity contradictory properties? Dialog UI, or soft "both versions coexist"? — **Deferred (post-PoC, 2026-06-22): the world graph is out of PoC scope → `docs/BACKLOG.md`.**
 4. **Export:** which format for the final "world bible"? Markdown, JSON, Obsidian-native format?
 5. **Agent framework:** roll our own minimal Protocol+Router pattern, or adopt a small framework (Pydantic AI, LangGraph, smolagents, OpenAI Agents SDK)? Trade-off: minimal surface vs. familiar abstractions and built-in tracing.
 6. **Backup strategy:** Neo4j and Postgres backups to filesystem, to Obsidian project, to separate git repo?
@@ -836,7 +841,7 @@ These need a conversation with the developer at the start, or a conscious "decid
 - **Agent** — a thin module that owns one logical task (chunking, extraction, judging, ...), with its own prompt template, output schema, and preferred model tier
 - **Cascade matching** — multi-stage decision process whether a candidate is a new entity or an existing one (§3.3)
 - **Edit history** — append-only log of all text changes, serving as a dataset
-- **World graph** — optional shared parent graph for multiple stories in the same universe
+- **World graph** — optional shared parent graph for multiple stories in the same universe (**post-PoC** — out of PoC scope, 2026-06-22; see `docs/BACKLOG.md`)
 - **Style anchor** — project-level stylistic instruction injected into rewriting prompts
 - **Review queue** — queue of decisions for a human, generated by the cascade
 - **Tier** — one of `local_small`, `cloud_free`, `cloud_strong`; agents declare a preferred tier and the router picks a concrete provider
@@ -1115,7 +1120,7 @@ Maximum 8 suggestions. Fewer but well-aimed is better.
 [SYSTEM]
 You rewrite a paragraph per the author's intent, PRESERVING:
 - all facts (characters, places, events)
-- consistency with the world graph
+- consistency with the established world (the project graph)
 - POV and tense of the original (unless intent says otherwise)
 - length ±30% (unless intent says "shorter"/"longer")
 
