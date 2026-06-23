@@ -111,3 +111,9 @@ CVE-2026-39826
 # bound to 127.0.0.1 with the Story Forge backend as its only (trusted) client,
 # so there is no untrusted peer to inflict the DoS. (GO-2026-5038.)
 CVE-2026-42504
+# CVE-2026-27145 — crypto/x509 (HIGH): `(*x509.Certificate).VerifyHostname` hostname
+# matching could be incorrect. Fixed Go 1.25.11 / 1.26.4. Applies to ollama's
+# *outbound* TLS (to Ollama Cloud) and needs an active MITM of that connection to
+# exploit; cert-validation correctness, not RCE. (Surfaced by the Trivy DB 2026-06-23;
+# pre-empted here — same sub-1.25.11 Go that waved CVE-2026-42504 in this binary.)
+CVE-2026-27145

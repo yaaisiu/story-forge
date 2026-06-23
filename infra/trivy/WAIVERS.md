@@ -19,7 +19,9 @@ docker run --rm -v /var/run/docker.sock:/var/run/docker.sock \
   --ignorefile /tmp/ignore <IMAGE>:<TAG>
 ```
 
-**Last reviewed:** 2026-06-16.
+**Last reviewed:** 2026-06-23 — added the gosu Go-stdlib **wave 5** (`CVE-2026-27145`,
+crypto/x509 `VerifyHostname`) to pgvector + ollama; same unreachable-code / outbound-TLS
+class as waves 1–4, drop-when unchanged (upstream rebuild on patched Go ≥1.25.11/1.26.4).
 
 > **Pattern note (pgvector CVE-rot recurrence) — THRESHOLD TRIPPED 2026-05-27.**
 > Since 2026-05-21 the pgvector image has gone from green → red **three times**
@@ -144,6 +146,7 @@ parsing — all of these sit in unreachable code. Same class as the netty waiver
 | CVE-2026-39825 | HIGH | net/http/httputil (ReverseProxy forwards params past ParseQuery limit) | 1.25.10 / 1.26.3 — added 2026-05-27 (wave 3) |
 | CVE-2026-39826 | HIGH | html/template (XSS via `<script>` with empty/whitespace `type`) | 1.25.10 / 1.26.3 — added 2026-05-27 (wave 3) |
 | CVE-2026-42504 | HIGH | mime (quadratic `WordDecoder.DecodeHeader` on crafted encoded-words → CPU DoS; CWE-407, GO-2026-5038) | 1.25.11 / 1.26.4 — added 2026-06-08 (wave 4) |
+| CVE-2026-27145 | HIGH | crypto/x509 (`VerifyHostname` → `matchHostnames` hostname-match correctness) | 1.25.11 / 1.26.4 — added 2026-06-23 (wave 5); gosu opens no TLS / verifies no certs → `VerifyHostname` never called |
 
 ## ollama — `ollama/ollama:0.24.0` (scanned upstream; consumed via `infra/ollama/` wrapper)
 
@@ -179,3 +182,4 @@ rebuilds ollama on patched Go.
 | CVE-2026-39825 | net/http/httputil | HIGH | ReverseProxy forwards params past ParseQuery limit (added 2026-05-27 wave 3) | Go 1.25.10 / 1.26.3 | ollama is an HTTP server, not a reverse proxy; ReverseProxy unused |
 | CVE-2026-39826 | html/template | HIGH | XSS via `<script>` with empty/whitespace `type` (added 2026-05-27 wave 3) | Go 1.25.10 / 1.26.3 | ollama returns JSON; renders no HTML templates |
 | CVE-2026-42504 | mime | HIGH | quadratic `WordDecoder.DecodeHeader` on crafted encoded-words → CPU DoS (CWE-407, GO-2026-5038; added 2026-06-08 wave 4) | Go 1.25.11 / 1.26.4 | DoS reachable only via crafted MIME headers; 127.0.0.1, backend is the only trusted client |
+| CVE-2026-27145 | crypto/x509 | HIGH | `VerifyHostname` → `matchHostnames` hostname-match correctness (not RCE; added 2026-06-23) | Go 1.25.11 / 1.26.4 | cert-validation correctness; outbound TLS (to Ollama Cloud) only, needs active MITM |
