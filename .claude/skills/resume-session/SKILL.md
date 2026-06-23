@@ -123,6 +123,14 @@ main value of the ritual: catching a bad handoff before building on it.
 If a spec change is implied by the planned work, confirm `docs/PLAN_SHORT.md`, `docs/PLAN_LONG.md`,
 and the spec are already consistent; if not, that reconciliation is the first task.
 
+**If this session's task is a cross-repo reconciliation/removal (a spec amendment, a decision
+flip, a rename), treat any "homes to reconcile" list in the handoff as keyword-grep-derived and
+*possibly incomplete* — do your own semantic sweep (synonyms, the data model, the code, UX-flow
+phrasings) before trusting it, exactly as `/review-pr` §2 demands.** A handoff line list of "the
+homes" asserts more completeness than a grep can give; the extra homes hide behind different words.
+(Earned Session 49: the handoff named 6 world-graph spec homes from a keyword grep; the actual
+reconciliation needed 11 — the broad sweep re-found the other 5 before any edit.)
+
 ## 5. Report and confirm direction
 
 Give the user a short brief:
