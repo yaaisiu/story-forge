@@ -198,3 +198,11 @@ CVE-2026-39826
 # excessive CPU (DoS). gosu decodes no MIME headers and takes no untrusted input,
 # so the vulnerable path is never executed. (GO-2026-5038.)
 CVE-2026-42504
+
+# ─── Fifth wave (surfaced by the Trivy DB 2026-06-23, same gosu binary) ───
+# CVE-2026-27145 — crypto/x509 (HIGH): `(*x509.Certificate).VerifyHostname` called
+# `matchHostnames` such that hostname verification could be incorrect. Fixed in Go
+# 1.25.11 / 1.26.4. gosu opens no TLS connections and verifies no certificates, so
+# VerifyHostname is never called — the vulnerable path is unreachable. Only an
+# upstream gosu rebuild on a patched Go toolchain clears it (same as waves 1–4).
+CVE-2026-27145
