@@ -112,6 +112,7 @@ Per feature (and at session close): feature branch → **open a PR so CI actuall
 - After finishing a unit of work: short summary (what was done, what tests pass, what's next, what's blocked).
 - When the spec is wrong or contradictory: flag it before working around it.
 - Long stretches without check-in are a smell. If you've been working for 30+ minutes without confirming direction, stop and confirm.
+- **One unit of work per conversation — pause at unit boundaries.** Prefer to land a single unit (a decompose, a build slice, a merge) and **stop**, surfacing it for me to start the next in a fresh conversation — *even when you're authorized to proceed and could chain straight into the next unit.* Within a unit, "proceed when you have enough info" still holds; the pause is at the *boundary between* units, not mid-task. Chaining several units in one conversation costs clarity; a clean boundary lets me review and re-orient. When a unit is done, surface it and ask before opening the next — don't assume momentum is consent. (Earned Session 50: I nearly ran decompose → build → merge in one conversation; the owner prefers separate conversations for clarity.)
 
 ## Where knowledge lives — document in the repo, not in agent memory
 
