@@ -31,7 +31,7 @@ from story_forge.agents.extraction_coordinator import ExtractionCoordinator
 from story_forge.agents.judge_agent import JudgeAgent
 from story_forge.agents.matching_agent import MatchingAgent
 from story_forge.agents.relation_review import RelationReviewService
-from story_forge.api import llm, stories
+from story_forge.api import llm, projects, stories
 from story_forge.config import settings
 
 
@@ -138,6 +138,7 @@ app.add_middleware(
 
 
 app.include_router(stories.router)
+app.include_router(projects.router)
 app.include_router(llm.router)
 
 

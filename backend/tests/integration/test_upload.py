@@ -14,6 +14,7 @@ from __future__ import annotations
 from collections.abc import AsyncIterator
 from io import BytesIO
 from pathlib import Path
+from uuid import UUID, uuid4
 
 import psycopg
 import pytest
@@ -22,7 +23,11 @@ from docx import Document
 from httpx import ASGITransport, AsyncClient
 
 from story_forge.adapters.db import get_connection
-from story_forge.adapters.postgres_repo import get_project, get_story
+from story_forge.adapters.postgres_repo import (
+    get_project,
+    get_story,
+    list_stories_for_project,
+)
 from story_forge.config import settings
 from story_forge.main import app
 
@@ -168,3 +173,40 @@ async def test_rejects_corrupt_docx(client: AsyncClient) -> None:
         files={"file": ("broken.docx", b"not a real docx", _DOCX_MIME)},
     )
     assert resp.status_code == 400
+
+
+async def test_upload_into_existing_project_reuses_it(
+    client: AsyncClient, db_conn: psycopg.AsyncConnection
+) -> None:
+    # First upload mints a new (English) project, exactly as today.
+    first = await client.post(
+        "/stories/upload",
+        files={"file": ("a.txt", _EN_TEXT.encode("utf-8"), "text/plain")},
+    )
+    assert first.status_code == 201, first.text
+    project_id = first.json()["project_id"]
+
+    # A second upload targeting that project adds a story to it — even Polish text lands under
+    # the project's existing language (multi-story narrows to one shared project, DM-MS-3).
+    second = await client.post(
+        "/stories/upload",
+        params={"project_id": project_id},
+        files={"file": ("b.txt", _PL_TEXT.encode("utf-8"), "text/plain")},
+    )
+    assert second.status_code == 201, second.text
+    body = second.json()
+    assert body["project_id"] == project_id  # same project, not a freshly minted one
+    assert body["language"] == "en"  # the project's language governs, not the upload's
+    assert body["story_id"] != first.json()["story_id"]
+
+    stories = await list_stories_for_project(db_conn, UUID(project_id))
+    assert len(stories) == 2
+
+
+async def test_upload_with_dangling_project_id_404(client: AsyncClient) -> None:
+    resp = await client.post(
+        "/stories/upload",
+        params={"project_id": str(uuid4())},
+        files={"file": ("a.txt", _EN_TEXT.encode("utf-8"), "text/plain")},
+    )
+    assert resp.status_code == 404, resp.text
