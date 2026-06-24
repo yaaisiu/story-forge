@@ -13,7 +13,7 @@ Mapping notes (domain `GraphEntity`/`GraphRelation` ↔ Neo4j):
 - **`properties`** is free-form JSON (§3.2); Neo4j node/relationship properties cannot
   hold a nested map, so it is serialised to a `properties_json` string and parsed back.
 - **`aliases`** is a native Neo4j string list (queryable, and it is flat).
-- **Nullable fields** (`canonical_name_*`, `first_seen_paragraph_id`, `world_id`) are
+- **Nullable fields** (`canonical_name_*`, `first_seen_paragraph_id`) are
   passed as `None`; Neo4j drops a property set to null, and `.get()` restores it on read.
 - **Relationship type** is open-world (INV-4) and cannot be parameterised in Cypher, so
   it is interpolated — backtick-quoted with embedded backticks doubled, so an untrusted
@@ -90,7 +90,6 @@ class Neo4jRepo:
                 "properties_json": json.dumps(entity.properties, ensure_ascii=False),
                 "first_seen_paragraph_id": _opt_str(entity.first_seen_paragraph_id),
                 "project_id": str(entity.project_id),
-                "world_id": _opt_str(entity.world_id),
             },
         )
 
@@ -280,7 +279,6 @@ class Neo4jRepo:
             first_seen_paragraph_id=_opt_uuid(props.get("first_seen_paragraph_id")),
             embedding=props.get("embedding"),
             project_id=UUID(props["project_id"]),
-            world_id=_opt_uuid(props.get("world_id")),
         )
 
     def _to_relation(self, record: Record) -> GraphRelation:
