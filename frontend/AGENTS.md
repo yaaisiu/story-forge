@@ -15,6 +15,16 @@ This directory holds the React + TypeScript frontend, built with Vite.
 - **Server state:** TanStack Query (`@tanstack/react-query`). All API calls go through it. No `useEffect(fetch...)` patterns.
 - **Local UI state:** `useState` / `useReducer` when scoped to a component.
 - **Cross-component client state:** Zustand stores in `src/stores/`. Keep them small and focused.
+- **Context that must survive a reload / deep-link goes in the URL, not router `location.state`.**
+  React Router's `state` (passed via `<Link state={...}>` / `navigate(..., {state})`) is in-memory
+  only — it evaporates on a refresh, a bookmarked/shared URL, or a back/forward across an external
+  navigation. Use it solely for _throwaway_ hand-offs the user can't deep-link to (e.g. pre-seeding
+  an editor with text the prior screen already had in hand). Anything that defines _what the screen
+  is doing_ — a target id, a mode, a filter the user could reasonably reload into — belongs in the
+  query string (read via `useSearchParams`), so a refresh keeps it. (Earned M4 multi-story, Session
+  53: "add a story to project X" rode in `location.state`; a reload dropped it and the upload
+  silently fell back to creating a _new_ project. Caught by the slice's multi-agent `/code-review`,
+  not the self-review.)
 
 ## API client
 

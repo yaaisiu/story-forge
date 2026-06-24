@@ -60,6 +60,24 @@ the backend never sends, so it passed and _masked_ the inversion. The single `/r
 even listed "409 surfaces an error" as checked-clean without opening the route; the
 multi-agent `/code-review` caught it. Review-side mirror: `/review-pr` §2.)
 
+## A mutation invalidates _every_ cache its write dirties — not just the obvious one
+
+When a mutation hook (or a component's `onSuccess`) succeeds, enumerate **every** query whose
+data the write just changed and invalidate **all** of them — not only the list the feature is
+"about". A write usually touches more than one cached view: an upload changes the per-story graph
+_and_ the project list _and_ that project's story list; an accept changes the review queue _and_
+the graph. Missing one leaves that view stale until its `staleTime` lapses — looks like the write
+silently failed. Trace the write's effects across the cache, then invalidate each. Key the
+invalidation off data you reliably have (often the **response body**, e.g. the returned
+`project_id`), so it's correct for every branch (new-project vs add-into-existing). Cross-check:
+for each query hook that could display the mutated entity, is there a matching
+`invalidateQueries` on the write path? (Earned M4 multi-story, Session 53: `useUploadStory`
+invalidated nothing, so the new `/projects` + `/projects/{id}/stories` lists were stale for the
+30 s `staleTime` after an upload — the picker looked broken. Caught by the slice's multi-agent
+`/code-review`, not the self-review. Note the **converse** limit, deferred to `docs/BACKLOG.md`:
+graph invalidation keyed on `["story-graph", <storyId>]` does _not_ reach a _sibling_ story's
+project-scoped view — invalidating the whole `["story-graph"]` family is the V1 fix.)
+
 ## Why `openapi-typescript` runs via `npx`, not as a devDependency
 
 `openapi-typescript@7.13.0` declares a peer of `typescript@^5.x` while this
