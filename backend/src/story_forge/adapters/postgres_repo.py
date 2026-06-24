@@ -508,6 +508,25 @@ async def list_entity_mentions_for_story(
         return await cur.fetchall()
 
 
+async def list_entity_ids_for_story(conn: AsyncConnection, story_id: UUID) -> set[UUID]:
+    """The set of entity ids with an accepted mention rolling up to a story (membership, DM-MS-1).
+
+    Id-only sibling of `list_entity_mentions_for_story` for the story-scope graph filter, which
+    needs only the membership set — selecting `DISTINCT m.entity_id` avoids loading every mention's
+    768-dim embedding vector on a hot read path. Accepted-only by construction (the only writer of
+    `entity_mentions` is the accept path), so this is the read-side echo of INV-1.
+    """
+    cur = await conn.execute(
+        "SELECT DISTINCT m.entity_id FROM entity_mentions m "
+        "JOIN paragraphs p ON p.id = m.paragraph_id "
+        "JOIN scenes sc ON sc.id = p.scene_id "
+        "JOIN chapters ch ON ch.id = sc.chapter_id "
+        "WHERE ch.story_id = %s",
+        (story_id,),
+    )
+    return {row[0] for row in await cur.fetchall()}
+
+
 async def list_mention_vectors_for_entities(
     conn: AsyncConnection, entity_ids: list[UUID]
 ) -> dict[UUID, list[list[float]]]:

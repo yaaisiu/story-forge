@@ -34,6 +34,7 @@ from story_forge.adapters.postgres_repo import (
     insert_scene,
     insert_story,
     list_chapters,
+    list_entity_ids_for_story,
     list_entity_mentions_for_story,
     list_mention_suppressions_for_story,
     list_paragraph_ids_for_story,
@@ -506,9 +507,7 @@ async def get_story_graph(
     entities = await repo.list_entities(story.project_id)
     relations = await repo.get_relations(story.project_id)
     if scope == "story":
-        member_entity_ids = {
-            m.entity_id for m in await list_entity_mentions_for_story(conn, story_id)
-        }
+        member_entity_ids = await list_entity_ids_for_story(conn, story_id)
         story_paragraph_ids = await list_paragraph_ids_for_story(conn, story_id)
         entities, relations = filter_graph_to_story(
             entities, relations, member_entity_ids, story_paragraph_ids
