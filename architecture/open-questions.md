@@ -1,7 +1,7 @@
 ---
 type: open-questions
 slug: open-questions
-updated: 2026-06-22
+updated: 2026-06-23
 status: living
 related: ["[[overview]]", "[[project]]", "[[invariants]]", "[[2026-06-02-architecture-review]]", "[[m2s3-extraction-agent]]", "[[2026-06-09-architecture-review]]", "[[2026-06-11-architecture-review]]"]
 ---
@@ -755,6 +755,58 @@ search and un-tagging acts on a highlight with no row to delete. Register, all *
   **Carries** (not this slice's fix): a suppression/manual span dangles if its entity is later merged/
   deleted (S3b) — same re-point/cleanup the merge undo already does for mentions. **Lands:** M4.S3c, after
   the owner resolves the register. Open.
+
+### OQ-27 — M4 narrowed-multi-story decision register (DM-MS-1..7) — ✅ RESOLVED 2026-06-23 (Session 50, owner)
+**Resolved 2026-06-23 (owner; resolved home = `[[m4-multi-story]]` now `accepted` + `docs/PLAN_SHORT.md`
+Decided S50).** DM-MS-1 = **DERIVE membership** from `entity_mentions` (no new storage); DM-MS-2 =
+**`scope=story|project` param on the existing graph route, DEFAULT `story`** (owner refined my `project`
+default → `story`; edge rule (i) — both endpoints story-members ∧ source paragraph ∈ story); DM-MS-3 =
+**optional `project_id` on `POST /stories/upload`**; DM-MS-4 = **add `GET /projects` + `GET
+/projects/{id}/stories`** (implicit project creation kept); DM-MS-5 = **`world_id` cleanup rides this
+slice** + **amend §8.4/§3.3 "whole world" → "whole project"** (host-loop stop-and-amend); DM-MS-6 =
+**verified already covered by S3b**; DM-MS-7 = **split be/fe, backend one slice, `world_id` cleanup the
+opener**. **No ADR.** **Next: the §8.4/§3.3 spec amendment, then build test-first from the pure
+membership-rollup property.** Original framing kept below for history.
+
+Raised by the M4 multi-story step-0 `decompose-requirement` (2026-06-23, `[[m4-multi-story]]`). The
+narrowed slice (spec §3.6, amended S44): *"add a new story that reuses the existing project graph +
+per-story entity membership"* — the cross-story **world graph** is OUT of PoC (`docs/BACKLOG.md`). The
+decompose's defining finding is **how little is new**: per-story membership is already **derivable** from
+the `entity_mentions → … → stories` FK chain (rollup query exists), and the matcher seed is already
+project-scoped — so a new story in an existing project auto-matches the project's known entities with no
+cascade change. The completeness sweep over {project, story} CRUD + graph-scope **closes** (rename +
+delete-project/story explicitly deferred — post-PoC / the orphaned-sandbox cross-cutting item). Full
+Context/Options/Proposal per entry live in the proposal's register; listed here so the vault's reader
+knows they gate the build.
+- **DM-MS-1 — per-story membership storage model** (the central call): ✅ **RESOLVED 2026-06-23 (owner)
+  = (a) DERIVE from `entity_mentions`** (no new storage; single [[source-of-truth]]; edge membership
+  derives from `source_paragraph_id`'s story). *Rejected:* (b) a Neo4j property/`:APPEARS_IN` edge (a
+  second home to sync — [[materialization]] not worth it here); (c) a membership table (heaviest).
+- **DM-MS-2 — story-scoped graph read shape** (OPEN, spec-silent mechanism): (a) `?scope=story|project`
+  query param on the existing `GET /stories/{id}/graph`, default `project` (my lean — additive, back-compat)
+  vs (b) make the story route story-scoped + add `GET /projects/{id}/graph` (cleaner, but a behaviour
+  change to an existing route). **Sub-question — edge-membership rule** in `scope=story`: (i) both
+  endpoints story-members *and* source paragraph ∈ story (my lean — clean subgraph, no dangling edges)
+  vs (ii) edges asserted in the story with endpoints pulled in.
+- **DM-MS-3 — how create-story-into-existing-project is exposed** (OPEN): (a) optional `project_id` on
+  `POST /stories/upload`, omitted ⇒ new project as today (my lean — one code path) vs (b) a nested
+  `POST /projects/{id}/stories/upload`.
+- **DM-MS-4 — listing surface** (OPEN, completeness gap — no endpoints today): add `GET /projects` +
+  `GET /projects/{id}/stories` (read-only [[backend-for-frontend]]); keep project creation implicit-on-
+  upload (explicit `POST /projects` deferred — no UX demand). My lean.
+- **DM-MS-5 — `world_id` vestigial cleanup** (folded input, confirm-at-build): drop-column migration +
+  5-file/8-edit deletion; re-sweep semantically before removal (grep-derived list). **Carries a tiny
+  stop-and-amend:** the S49 world-graph-out reconcile keyed on *"world graph"* and missed two *"whole
+  world"* phrasings of the §3.4 toggle — **§8.4 line 734** + **§3.3 line 188** — that should read "whole
+  project". Owner sign-off on wording (spec edit, not a quiet fix).
+- **DM-MS-6 — DM-Rel-5 written-edge re-point**: ✅ **VERIFIED already covered** by M4.S3b (merge re-points
+  incident edges, DM-S3b-3). Multi-story adds no new merge trigger → nothing to build; close the carry-forward.
+- **DM-MS-7 — slice split**: be (project_id-on-upload + 2 list endpoints + story-scoped read + world_id
+  cleanup) / fe (picker + §3.4 toggle); backend provisionally one slice (no compound writes, no undo);
+  world_id cleanup optionally a tiny opener PR. My lean.
+- **No ADR anticipated** (resolves no open spec question, crosses no new data boundary — DM-MS-1 *removes*
+  a would-be boundary by deriving); revisit only if DM-MS-2 (b) is chosen. **Lands:** the M4 multi-story
+  build, after the owner resolves DM-MS-2/3/4/7 + the DM-MS-5 amendment wording. Open.
 
 ## Referenced — owned by spec §10 (not duplicated)
 

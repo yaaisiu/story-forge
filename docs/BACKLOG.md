@@ -486,3 +486,25 @@ vault's "reference, don't duplicate" rule guards against — see `architecture/A
 it leans on an LLM pass or stays deterministic-first ([[prefer-deterministic]]). It pairs naturally
 with the public-portfolio goal (a stranger can read how the project is built) and with the existing
 `AGENTS.md`-per-directory convention. Revisit at the PoC→V2 roll. (Owner idea, 2026-06-22.)
+
+## Dual-store data architecture — analyse Postgres + Neo4j split (post-PoC)
+
+The owner's seed idea (2026-06-23): at some point **step back and analyse whether the two-store
+design (PostgreSQL + Neo4j) is still the right call**, or whether there's an optimisation — fewer
+stores, a different split, or a cheaper way to answer the queries that currently fan out across both.
+
+Today the split is deliberate (spec §6.4): **Postgres** owns the document tree + metadata + mention
+spans/vectors (`projects/stories/chapters/scenes/paragraphs/entity_mentions/edit_history`), **Neo4j**
+owns the knowledge graph (`:Entity` nodes + dynamically-typed relations). They are joined *at the
+application layer* with **no cross-store FK** (the OQ-1 two-store-write-consistency seam), so several
+reads already touch both — e.g. the per-entity detail BFF (`GET …/entities/{eid}`), the reader
+(project-scoped entities + story-scoped mentions), and now the **derived per-story membership** the
+M4 multi-story slice adds (Postgres mention→story rollup filtering the Neo4j project graph). Each
+such cross-store join is a place where the split costs us.
+
+Recorded as a **direction, not a spec'd change** — questions to weigh before any move: do we
+actually exercise Neo4j's graph-traversal strengths enough to justify a second store (vs. Postgres
++ `pgvector` + recursive CTEs, or Postgres graph extensions like Apache AGE), what would consolidation
+cost in migration + lost graph-query ergonomics, and what does the cross-store join overhead measure
+at real scale. Pairs with OQ-1 (`architecture/open-questions.md`) and the §6.4 multi-tenancy seam.
+Revisit at the PoC→V2 roll. (Owner idea, 2026-06-23, Session 50.)

@@ -1,7 +1,7 @@
 ---
 type: changelog
 slug: changelog
-updated: 2026-06-19
+updated: 2026-06-23
 status: living
 related: []
 ---
@@ -10,6 +10,51 @@ related: []
 
 Append-only audit trail of writes into the vault. Newest entries at the top. History also lives
 in `updated` fields (freshness) and git (diffs); this is the human-readable "what changed when".
+
+## 2026-06-23 (Session 50) — resolve: M4 multi-story register (DM-MS-1..7) — owner, same session
+
+The owner resolved the register the same session it was framed. **DM-MS-1** = derive membership (set at
+the decompose); **DM-MS-2** = a `scope=story|project` param on the existing `GET /stories/{id}/graph`,
+**default `story`** (owner refined my `project` default → `story`; safe because the two scopes coincide
+for single-story projects), edge rule (i); **DM-MS-3** = optional `project_id` on `POST /stories/upload`;
+**DM-MS-4** = `GET /projects` + `GET /projects/{id}/stories` (implicit project creation kept); **DM-MS-5**
+= the `world_id` cleanup rides this slice + **amend §8.4/§3.3 "whole world" → "whole project"**;
+**DM-MS-6** = verified already covered by S3b; **DM-MS-7** = split be/fe, backend one slice, `world_id`
+cleanup the opener. **No ADR.**
+
+- **`proposals/m4-multi-story.md`** → `accepted`; register **RESOLVED** (top resolution banner + each
+  entry rewritten to a Decision; Mermaid annotated default=story; gaps-for-PO + hand-off brought to
+  resolved). The original forward-design framing kept beneath as history.
+- **`open-questions.md`** — OQ-27 struck ✅ with the per-entry resolutions.
+- **`INDEX.md`** — proposal row + next-steps item 25 flipped to RESOLVED/accepted.
+- **Pending in the main loop (host-repo, not vault):** the §8.4/§3.3 spec stop-and-amend +
+  `schema.d.ts` regen, and `docs/PLAN_SHORT.md` Decided + cross-cutting reconciliation (the
+  `GET /stories/{id}/graph` scoping item + the `world_id` cleanup both close at the build).
+
+## 2026-06-23 (Session 50) — decompose: M4 narrowed multi-story (DM-MS-1..7) — register OPEN
+
+Step-0 `decompose-requirement` on the narrowed multi-story slice (spec §3.6, amended S44): *add a new
+story that reuses the project graph + per-story entity membership*; cross-story world graph OUT of PoC.
+
+- **`proposals/m4-multi-story.md`** (NEW, `proposed`) — nine layers + stations + Mermaid (create-into-
+  project + story-scoped read) + register DM-MS-1..7 + "but what if" + plain-language gaps + hand-off.
+  **Defining finding:** the slice needs almost no new machinery — membership is **derivable** from the
+  `entity_mentions → … → stories` FK chain (rollup `list_entity_mentions_for_story()` exists), the matcher
+  seed is already project-scoped, and the reader is already multi-story-correct.
+- **DM-MS-1 RESOLVED at the decompose (owner, 2026-06-23) = DERIVE membership** from `entity_mentions`
+  (no new storage; single [[source-of-truth]]; edge membership via `source_paragraph_id`'s story).
+  *Rejected:* a Neo4j property/edge (a second home to sync) and a membership table.
+- OPEN for the owner: **DM-MS-2** graph-read route shape (`?scope=` param vs new `/projects/{id}/graph`) +
+  the edge-membership sub-question; **DM-MS-3** create-into-project exposure; **DM-MS-4** list endpoints;
+  **DM-MS-7** slice split. **DM-MS-5** = `world_id` cleanup (folded) + a tiny **§8.4/§3.3 "whole world →
+  whole project" stop-and-amend** (a home the S49 "world graph" grep missed). **DM-MS-6** = DM-Rel-5
+  re-point **verified already covered** by S3b — nothing to build.
+- **`glossary/multi-tenancy.md`** (NEW) — tenancy key (`project_id`, stored) vs per-story membership
+  (derived); + a `learning-log.md` line. **No ADR, no new invariant, no state-machine** (additive slice).
+- **`open-questions.md`** — OQ-27 added (DM-MS register mirror). **`INDEX.md`** — proposal row + next-steps
+  item 25 + glossary 27→28. Dates bumped.
+- **Host-repo (recorded, not vault):** `docs/BACKLOG.md` gained a *dual-store data architecture* analysis
+  item (owner side-note, 2026-06-23 — Postgres+Neo4j split, revisit PoC→V2).
 
 ## 2026-06-19 — resolve: M4.S3a register (DM-S3a-1..8) — owner, same day
 

@@ -1,7 +1,7 @@
 ---
 type: glossary
 slug: glossary
-updated: 2026-06-19
+updated: 2026-06-23
 status: living
 related: []
 ---
@@ -11,7 +11,7 @@ related: []
 The glossary is a **knowledge graph**, not a flat list: each term is its own note (a node) in
 `glossary/`, cross-linked via `related` so concepts form a web you can wander in Obsidian. This
 index is **regenerated** each run; the term notes are the source. Terms are added *organically* —
-only when real work first surfaces them — and deduped by slug. Count today: **25**.
+only when real work first surfaces them — and deduped by slug. Count today: **28**.
 
 | Term (EN / PL) | Answers | Note |
 |---|---|---|
@@ -40,3 +40,6 @@ only when real work first surfaces them — and deduped by slug. Count today: **
 | ego-graph / graf egocentryczny | how much of the graph is "around" this entity? | [[ego-graph]] |
 | backend-for-frontend (BFF) | one endpoint per screen, or stitch in the client? | [[backend-for-frontend]] |
 | lost update / zgubiona aktualizacja | what stops one edit silently erasing another? | [[lost-update]] |
+| compensating transaction (saga undo) / transakcja kompensująca | how to undo across two stores with no shared transaction? | [[compensating-transaction]] |
+| materialization / materializacja | derived-on-read or stored-and-addressable? | [[materialization]] |
+| multi-tenancy / tenancy key / wielodostępność / klucz dzierżawy | which owner's slice does this query see? | [[multi-tenancy]] |

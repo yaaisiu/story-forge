@@ -1,7 +1,7 @@
 ---
 type: index
 slug: index
-updated: 2026-06-22
+updated: 2026-06-23
 status: living
 related: []
 ---
@@ -30,18 +30,20 @@ related: []
 | [[learning-log]] | learning-log | append-only |
 | [[changelog]] | changelog | append-only |
 
-## Glossary (27 terms — see [[glossary]])
+## Glossary (28 terms — see [[glossary]])
 [[trust-boundary]] · [[invariant]] · [[state-machine]] · [[fail-closed]] ·
 [[human-in-the-loop]] · [[idempotency]] · [[open-world-ontology]] · [[source-of-truth]] ·
 [[c4-model]] · [[agent]] · [[cascade-matching]] · [[model-tier-routing]] ·
 [[compliance-audit-layer]] · [[prefer-deterministic]] · [[failover]] · [[toctou]] ·
 [[prompt-injection]] · [[poison-message]] · [[software-composition-analysis]] ·
 [[defense-in-depth]] · [[intra-batch-dedup]] · [[referential-integrity]] · [[ego-graph]] ·
-[[backend-for-frontend]] · [[lost-update]] · [[compensating-transaction]] · [[materialization]]
+[[backend-for-frontend]] · [[lost-update]] · [[compensating-transaction]] · [[materialization]] ·
+[[multi-tenancy]]
 
 ## Proposals & reports
 | Note | Type | What |
 |---|---|---|
+| [[m4-multi-story]] | proposal | **M4 narrowed multi-story — step-0 (✅ ACCEPTED, register RESOLVED DM-MS-1..7 / OQ-27, owner 2026-06-23; no ADR)** — spec §3.6 (amended S44): *add a new story that reuses the existing project graph + per-story entity membership*; the cross-story **world graph** is OUT of PoC. **Defining finding = how little is new:** per-story membership is already **derivable** from the `entity_mentions → … → stories` FK chain (rollup query `list_entity_mentions_for_story()` exists), and the matcher seed is already project-scoped (`load_accepted(project_id)`) — so a new story auto-matches the project's known entities with **no cascade change** (§B.4 incrementality). **DM-MS-1 RESOLVED (owner) = DERIVE membership** (no new storage; single [[source-of-truth]]; introduces [[multi-tenancy]] — `project_id` is the *tenancy key*, a story is a *derived sub-scope*). Genuine gaps only: create-story-**into-existing-project** (today every upload mints a new project), project/story **list** endpoints (none exist), and a **story-scoped graph read** for the §3.4 toggle. Completeness sweep over {project,story} CRUD + graph-scope **closes** (rename + delete-project/story deferred — post-PoC / orphaned-sandbox). **No new invariant/state-machine, no ADR anticipated.** Folds the **`world_id` cleanup** (5 files/8 edits, all deletions) + a tiny **§8.4/§3.3 "whole world → whole project" stop-and-amend** (a home the S49 sweep's "world graph" grep missed). **Resolved (owner):** DM-MS-2 = `scope=` param on the existing route, **default `story`** (owner refined the default; edge rule = both-endpoints-member) · DM-MS-3 = optional `project_id` on upload · DM-MS-4 = `GET /projects` + `GET /projects/{id}/stories` · DM-MS-7 = split be/fe, `world_id` cleanup the opener. **Next: §8.4/§3.3 amendment → build test-first from the membership-rollup property.** |
 | [[backend-dependency-advisory-scan]] | proposal | **Continuous backend SCA gate in CI (✅ built 2026-06-08, PR #44)** — closes the gap where a vuln disclosed *after* pinning was caught only by Dependabot, not CI (the `starlette` 1.0.0 case). Built: osv-scanner step vs `uv.lock`, fail-on-any, **digest-pinned** scanner (the action is a no-`runs:` stub — stronger than the planned SHA-pin), `infra/osv/` waivers, `starlette` 1.0.0→1.0.1 (self-test red→green), §6.7 baseline (no new INV). |
 | [[m2s3-extraction-agent]] | proposal | **M2.S3 nine-layer pass (✅ accepted 2026-06-08, register resolved)** — `ExtractionAgent`, first `LLMRouter` consumer. Decisions: per-paragraph, single-paragraph agent (batch→M2.S4), `candidate_name`, typed `ProviderResponseError`, soft-flag `evidence_quote`. **Built + merged (PR #42).** |
 | [[m3-cascade-matching]] | proposal | **M3 cascade dedupe — step-0 forward pass (✅ register FULLY resolved: DM1–DM6 + DM7 + DM-rej; PLAN_SHORT Decided S23)** — the §3.3 four-stage cascade (RapidFuzz → embedding → JudgeAgent → human queue). Draws the candidate lifecycle; 8-entry register (DM1–DM7 + DM-rej). Central fork **DM6** ✅ intercept-before-write. Retires INV-8 at **M3.S4a** (the re-slice), lands INV-1's enforcer. Stages built proposal-only: M3.S1 RapidFuzz ✅ (PR #56), M3.S2 Stage 2 + pgvector ✅ (PR #58), M3.S3 JudgeAgent ✅ (PR #60). DM7 outcome: **INV-2 consent deferred past M3**. DM-rej: **remember rejections**. |
@@ -229,6 +231,23 @@ related: []
     scoping cross-cutting (pending a §3.6/§9 stop-and-amend); **code-doc-generation** added to backlog.
     **Next:** build **M4.S3c-be** test-first from the pure reconciling-resolver function (`/add-dependency`
     for Tiptap at the fe build).
+25. **M4 narrowed multi-story decomposed + register RESOLVED ✅ (2026-06-23, Session 50).** Step-0 →
+    [[m4-multi-story]] (`status: accepted`, register **RESOLVED** DM-MS-1..7 / OQ-27).
+    "Manual correction in the reader" (S3a/S3b/S3c) is feature-complete; this is the next M4 slice. Spec
+    §3.6 (amended S44): *add a new story that reuses the project graph + per-story membership*; world
+    graph OUT of PoC. **Defining finding = how little is new** — membership is already **derivable** (the
+    `entity_mentions → … → stories` FK chain + the existing `list_entity_mentions_for_story()` rollup), the
+    matcher seed is already project-scoped, and the reader is already multi-story-correct. **DM-MS-1
+    RESOLVED (owner) = DERIVE membership** (no new storage; one [[source-of-truth]]); introduced the
+    [[multi-tenancy]] glossary term (`project_id` = tenancy key; a story = a derived sub-scope). Genuine
+    gaps: create-into-existing-project, project/story list endpoints, story-scoped graph read (§3.4
+    toggle). **No new invariant/state-machine; no ADR.** Folds the `world_id` cleanup + a tiny **§8.4/§3.3
+    "whole world → whole project" stop-and-amend** (the S49 sweep's "world graph" grep missed it).
+    **Owner resolutions (2026-06-23):** DM-MS-2 = `scope=` param on the existing route, **default
+    `story`** (owner refined the default from my `project`); DM-MS-3 = optional `project_id` on upload;
+    DM-MS-4 = two list endpoints; DM-MS-7 = split be/fe, `world_id` cleanup the opener; DM-MS-6 verified
+    already-covered by S3b. **Next:** the §8.4/§3.3 spec amendment (main loop), **then** build test-first
+    from the pure membership-rollup property; the `world_id` cleanup is the low-risk opener.
 
 _Run log: see [[changelog]]. Seeded by `initialize-project-architecture`; extended by
 `review-architecture` + `decompose-requirement`, 2026-06-02._
