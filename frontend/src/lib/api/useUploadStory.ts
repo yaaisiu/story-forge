@@ -12,9 +12,11 @@
 // `useMutation` only (no `useEffect(fetch...)`), schema types imported from the
 // generated `schema.d.ts` (never hand-edited).
 
-import { useMutation, type UseMutationResult } from "@tanstack/react-query";
+import { useMutation, useQueryClient, type UseMutationResult } from "@tanstack/react-query";
 
 import { ApiError, postFormJson } from "./client";
+import { projectsQueryKey } from "./useProjects";
+import { projectStoriesQueryKey } from "./useProjectStories";
 import type { components } from "./schema";
 
 export { ApiError } from "./client";
@@ -23,6 +25,12 @@ export type StoryUploadResponse = components["schemas"]["StoryUploadResponse"];
 
 export interface UploadStoryInput {
   file: File;
+  /**
+   * Optional target project (M4 multi-story): when set, the new story joins this
+   * existing project instead of getting a fresh one. Sent as the `?project_id=`
+   * query param; the route 404s a dangling project.
+   */
+  projectId?: string;
 }
 
 /**
@@ -34,11 +42,24 @@ export function useUploadStory(): UseMutationResult<
   ApiError,
   UploadStoryInput
 > {
+  const queryClient = useQueryClient();
   return useMutation<StoryUploadResponse, ApiError, UploadStoryInput>({
-    mutationFn: async ({ file }) => {
+    mutationFn: async ({ file, projectId }) => {
       const body = new FormData();
       body.append("file", file);
-      return postFormJson<StoryUploadResponse>("/stories/upload", body);
+      const path = projectId
+        ? `/stories/upload?project_id=${encodeURIComponent(projectId)}`
+        : "/stories/upload";
+      return postFormJson<StoryUploadResponse>(path, body);
+    },
+    onSuccess: (data) => {
+      // The upload changes what the picker shows: a new project appears, or an
+      // existing project's story_count and story list grow. Invalidate both lists
+      // (keyed off the response's project_id, which is correct for the new-project
+      // and add-into-existing cases alike) so a return to /projects is fresh, not
+      // stale for the 30 s staleTime window.
+      void queryClient.invalidateQueries({ queryKey: projectsQueryKey() });
+      void queryClient.invalidateQueries({ queryKey: projectStoriesQueryKey(data.project_id) });
     },
   });
 }

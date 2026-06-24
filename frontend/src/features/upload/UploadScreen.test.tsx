@@ -27,7 +27,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { UploadScreen } from "./UploadScreen";
 
-function buildWrapper() {
+function buildWrapper(initialEntry = "/upload") {
   const queryClient = new QueryClient({
     defaultOptions: {
       mutations: { retry: false },
@@ -37,7 +37,7 @@ function buildWrapper() {
   return function Wrapper({ children }: { children: ReactNode }) {
     return (
       <QueryClientProvider client={queryClient}>
-        <MemoryRouter initialEntries={["/upload"]}>{children}</MemoryRouter>
+        <MemoryRouter initialEntries={[initialEntry]}>{children}</MemoryRouter>
       </QueryClientProvider>
     );
   };
@@ -106,6 +106,65 @@ describe("UploadScreen", () => {
     expect(fetchMock).toHaveBeenCalledTimes(1);
     const [url] = fetchMock.mock.calls[0] as [string];
     expect(url).toMatch(/\/stories\/upload$/);
+  });
+
+  it("links to the project picker when not adding to a project", () => {
+    render(<UploadScreen />, { wrapper: buildWrapper() });
+
+    const link = screen.getByTestId("browse-projects-link");
+    expect(link).toHaveAttribute("href", "/projects");
+    expect(screen.queryByTestId("upload-target-project")).not.toBeInTheDocument();
+  });
+
+  it("uploads into the target project when the URL carries project_id (survives reload)", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(jsonResponse(201, SUCCESS_BODY));
+    vi.stubGlobal("fetch", fetchMock);
+
+    const projectId = "00000000-0000-0000-0000-000000000001";
+    // The target lives in the URL — not router state — so a reload/deep-link keeps it.
+    render(<UploadScreen />, {
+      wrapper: buildWrapper(`/?project_id=${projectId}&project_name=Oakhaven`),
+    });
+
+    // The add-to-project context is shown instead of the browse link.
+    expect(screen.getByTestId("upload-target-project")).toHaveTextContent("Oakhaven");
+    expect(screen.queryByTestId("browse-projects-link")).not.toBeInTheDocument();
+
+    const file = new File(["hello"], "draft.txt", { type: "text/plain" });
+    const input = screen.getByTestId("upload-file-input") as HTMLInputElement;
+    await act(async () => {
+      fireEvent.change(input, { target: { files: [file] } });
+    });
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: /upload/i }));
+    });
+
+    await screen.findByTestId("upload-success");
+    const [url] = fetchMock.mock.calls[0] as [string];
+    expect(url).toMatch(new RegExp(`/stories/upload\\?project_id=${projectId}$`));
+    // The add-to-project success keeps a way back to the project list.
+    expect(screen.getByTestId("upload-back-to-project-link")).toHaveAttribute("href", "/projects");
+  });
+
+  it("maps the add-to-project 404 to the 'project no longer exists' message", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(jsonResponse(404, { detail: "project not found" }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    render(<UploadScreen />, {
+      wrapper: buildWrapper("/?project_id=00000000-0000-0000-0000-0000000000ff"),
+    });
+
+    const file = new File(["hello"], "draft.txt", { type: "text/plain" });
+    const input = screen.getByTestId("upload-file-input") as HTMLInputElement;
+    await act(async () => {
+      fireEvent.change(input, { target: { files: [file] } });
+    });
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: /upload/i }));
+    });
+
+    const error = await screen.findByTestId("upload-error");
+    expect(error).toHaveTextContent(/no longer exists/i);
   });
 
   it("on a 413 response, shows the status-specific error", async () => {

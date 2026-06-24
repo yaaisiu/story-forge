@@ -17,7 +17,12 @@ import { Link, useParams } from "react-router-dom";
 
 import { AgentActivityPanel } from "../agent-activity/AgentActivityPanel";
 import { ApiError, useExtractStory } from "../../lib/api/useExtractStory";
-import { storyGraphQueryKey, useStoryGraph, type GraphNode } from "../../lib/api/useStoryGraph";
+import {
+  storyGraphQueryKey,
+  useStoryGraph,
+  type GraphNode,
+  type GraphScope,
+} from "../../lib/api/useStoryGraph";
 import { GraphCanvas } from "./GraphCanvas";
 import { NodeDetailsPanel } from "./NodeDetailsPanel";
 
@@ -32,13 +37,25 @@ function extractMessage(error: unknown): string {
 export function GraphViewer() {
   const { storyId } = useParams<{ storyId: string }>();
   const queryClient = useQueryClient();
-  const graph = useStoryGraph(storyId);
+  // §3.4 story-vs-project scope. `story` (default) narrows the shared project graph
+  // to this story; `project` shows the whole project. Switching only changes the
+  // query key, so useStoryGraph refetches (or repaints from cache) on its own.
+  const [scope, setScope] = useState<GraphScope>("story");
+  const graph = useStoryGraph(storyId, scope);
   const extract = useExtractStory();
 
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
 
   // Stable identity so GraphCanvas's effect doesn't rebuild cytoscape every render.
   const handleSelectNode = useCallback((nodeId: string) => setSelectedNodeId(nodeId), []);
+
+  // Clear the selection when the scope changes: a node picked in the whole-project
+  // view may not exist in the narrower story view, and a stale id would just blank
+  // the details panel with no explanation.
+  function handleScopeChange(next: GraphScope) {
+    setScope(next);
+    setSelectedNodeId(null);
+  }
 
   const selectedNode: GraphNode | null = useMemo(
     () => graph.data?.nodes.find((n) => n.id === selectedNodeId) ?? null,
@@ -75,6 +92,35 @@ export function GraphViewer() {
           </p>
         </div>
         <div className="flex shrink-0 items-center gap-2">
+          {/* §3.4 scope toggle: this story vs the whole (multi-story) project. */}
+          <div
+            data-testid="graph-scope-toggle"
+            role="group"
+            aria-label="Graph scope"
+            className="flex overflow-hidden rounded border border-gray-300 text-sm"
+          >
+            {(
+              [
+                ["story", "This story"],
+                ["project", "Whole project"],
+              ] as const
+            ).map(([value, label]) => (
+              <button
+                key={value}
+                type="button"
+                data-testid={`scope-${value}`}
+                aria-pressed={scope === value}
+                onClick={() => handleScopeChange(value)}
+                className={
+                  scope === value
+                    ? "bg-blue-600 px-3 py-2 font-medium text-white"
+                    : "bg-white px-3 py-2 text-gray-700 hover:bg-gray-50"
+                }
+              >
+                {label}
+              </button>
+            ))}
+          </div>
           {storyId && (
             <Link
               to={`/stories/${storyId}/review`}

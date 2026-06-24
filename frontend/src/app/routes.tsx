@@ -10,6 +10,7 @@ import { Route, Routes } from "react-router-dom";
 
 import { OutlineEditor } from "../features/chunking/OutlineEditor";
 import { ReviewQueue } from "../features/extraction-review/ReviewQueue";
+import { ProjectPicker } from "../features/projects/ProjectPicker";
 import { RelationQueue } from "../features/relation-review/RelationQueue";
 import { TextReader } from "../features/text-reader/TextReader";
 import { UploadScreen } from "../features/upload/UploadScreen";
@@ -29,6 +30,9 @@ export function AppRoutes() {
           so the manual editor opens pre-seeded with the source the user just
           uploaded. */}
       <Route path="/" element={<UploadScreen />} />
+      {/* M4 multi-story: browse projects + their stories; pick one to open its graph/
+          reader, or add another story into the same shared-graph project (spec §3.4). */}
+      <Route path="/projects" element={<ProjectPicker />} />
       <Route path="/stories/:storyId/structure" element={<OutlineEditor />} />
       {/* M2.S5: once structured, run extraction and view the entity graph. */}
       <Route
