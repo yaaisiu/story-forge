@@ -19,7 +19,13 @@ docker run --rm -v /var/run/docker.sock:/var/run/docker.sock \
   --ignorefile /tmp/ignore <IMAGE>:<TAG>
 ```
 
-**Last reviewed:** 2026-06-23 — added the gosu Go-stdlib **wave 5** (`CVE-2026-27145`,
+**Last reviewed:** 2026-06-24 — added the bundled **jackson-databind** pair
+(`CVE-2026-54512` + `CVE-2026-54513`, both fixed in jackson-databind 2.21.4) to neo4j;
+published 2026-06-23, the Trivy DB picked them up overnight and reddened `main` on a
+docs-only merge (pure treadmill). Deserialization-allowlist bypasses, unreachable here
+(no untrusted-JSON path into Neo4j; Bolt not JSON; 127.0.0.1 single trusted user); fix
+needs a Neo4j reship of the vendored jar.
+**Prior (2026-06-23):** added the gosu Go-stdlib **wave 5** (`CVE-2026-27145`,
 crypto/x509 `VerifyHostname`) to pgvector + ollama; then **wave 6** to ollama — 14 HIGHs
 in the compiled-in `golang.org/x/crypto/ssh` + `golang.org/x/net` modules, unmasked when
 wave 5 cleared (sequential scan). Same unreachable-code / outbound-TLS posture as waves 1–4;
@@ -85,6 +91,28 @@ confirm the CVE is gone); checked at each neo4j tag bump.
 | CVE | Pkg | Sev | Class | Fixed in | Why acceptable here |
 |---|---|---|---|---|---|
 | CVE-2026-49268 | org.apache.shiro:shiro-core | HIGH | LDAP injection (unescaped DN in `DefaultLdapRealm`) | Shiro 2.2.1 / 3.0.0-alpha-2 | LDAP realm is Enterprise-only; Community uses native auth, `DefaultLdapRealm` never instantiated; 127.0.0.1, single trusted user |
+
+### Bundled Jackson databind (Neo4j's JSON (de)serialization) — added 2026-06-24
+
+Class: **bundled** Jackson `jackson-databind` jars Neo4j ships (like the netty/shiro jars
+above; no base variant fixes them). A sibling pair (GHSA-j3rv-43j4-c7qm), both HIGH, both
+published 2026-06-23, surfaced on the `main` push the next day (the Trivy DB learned of them
+between PR #125's branch scan and the merge push — pure treadmill, unrelated to that docs PR).
+Trivy finds them in **two** bundled jars: `jackson-databind-2.21.1.jar` (2.21.1) and the copy
+shaded into `parquet-jackson-1.17.0.jar` (2.19.2) — both in the `>= 2.19.0, <= 2.21.3` range.
+**Not reachable here:** both are deserialization-allowlist bypasses that require deserializing
+**untrusted** JSON into a vulnerable type with polymorphic/default typing enabled. Neo4j
+Community here is 127.0.0.1-bound, single trusted user, non-root; the backend is its only
+client, queries ride Bolt (not JSON), and no attacker-controlled JSON reaches Neo4j's Jackson.
+**Fix-first not possible yet:** the fix is `jackson-databind >= 2.21.4`, a jar Neo4j vendors —
+no image bump fixes it until a Neo4j 5.26.x patch reships it. **Drop when:** a soaked (≥ 7-day)
+Neo4j 5.26.x patch bundles jackson-databind ≥ 2.21.4 (re-scan to confirm both CVEs are gone);
+checked at each neo4j tag bump.
+
+| CVE | Pkg | Sev | Class | Fixed in | Why acceptable here |
+|---|---|---|---|---|---|
+| CVE-2026-54512 | com.fasterxml.jackson.core:jackson-databind | HIGH | PolymorphicTypeValidator bypass via generic type params (deserialization gadget) | jackson-databind 2.21.4 / 2.18.8 / 3.1.4 | no untrusted-JSON deserialization path; Bolt not JSON; 127.0.0.1, single trusted user |
+| CVE-2026-54513 | com.fasterxml.jackson.core:jackson-databind | HIGH | array subtype allowlist bypass (deserialization gadget) | jackson-databind 2.21.4 / 2.18.8 / 3.1.4 | same — no untrusted polymorphic deserialization; loopback, trusted client |
 
 ## pgvector — `pgvector/pgvector:0.8.2-pg17-trixie`
 

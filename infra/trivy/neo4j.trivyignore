@@ -8,10 +8,13 @@
 # (including 2 CRITICAL gnutls) — those are NOT waived, they are fixed by the
 # base choice. What remains are 6 HIGH CVEs in the netty jars that Neo4j 5.26.25
 # bundles itself (netty 4.1.132.Final), plus 1 HIGH in the bundled Apache Shiro
-# auth framework (shiro-core 2.1.0). They are identical across every base
-# variant and cannot be fixed without a new Neo4j release that bumps the bundled
-# jars (netty >= 4.1.135.Final; shiro-core >= 2.2.1). The netty waivers are
-# below; the shiro waiver (CVE-2026-49268) is in its own section at the bottom.
+# auth framework (shiro-core 2.1.0), plus 2 HIGH in the bundled Jackson databind
+# (jackson-databind 2.21.1, and the copy shaded into parquet-jackson 1.17.0).
+# They are identical across every base variant and cannot be fixed without a new
+# Neo4j release that bumps the bundled jars (netty >= 4.1.135.Final;
+# shiro-core >= 2.2.1; jackson-databind >= 2.21.4). The netty waivers are below;
+# the shiro waiver (CVE-2026-49268) and the jackson waivers
+# (CVE-2026-54512 / CVE-2026-54513) are in their own sections at the bottom.
 #
 # Why these are acceptable for THIS deployment (spec §6.7 accept-with-justification):
 #   - Story Forge runs Neo4j bound to 127.0.0.1 only, single trusted user,
@@ -94,3 +97,29 @@ CVE-2026-50010
 # Drop when: a soaked (>= 7-day) Neo4j 5.26.x patch bundles shiro-core >= 2.2.1
 # (re-scan to confirm CVE-2026-49268 is gone); checked at each neo4j tag bump.
 CVE-2026-49268
+
+# ── Bundled Jackson databind (Neo4j's JSON (de)serialization) — added 2026-06-24 ──
+# A sibling pair (GHSA-j3rv-43j4-c7qm / GHSA pair), both HIGH, both published
+# 2026-06-23, both fixed in jackson-databind 2.21.4 (also 2.18.8 on the 2.18.x line,
+# 3.1.4 on the 3.x line). Trivy finds them in two bundled jars: jackson-databind-2.21.1.jar
+# (2.21.1) and the jackson-databind copy shaded into parquet-jackson-1.17.0.jar (2.19.2) —
+# both versions fall in the >= 2.19.0, <= 2.21.3 vulnerable range. (Verified vs GitHub
+# Advisory DB: CVE-2026-54512 ranges 2.10.0-2.18.7 / 2.19.0-2.21.3 / 3.0.0-3.1.3.)
+#
+# CVE-2026-54512 — PolymorphicTypeValidator (PTV) bypass via generic type parameters:
+# a crafted generic type can smuggle a subtype past the PTV allowlist, re-enabling unsafe
+# polymorphic deserialization (the classic gadget-chain RCE class).
+# CVE-2026-54513 — array subtype allowlist bypass: an array-typed property bypasses the
+# same subtype allowlist check. Same root cause (deserialization allowlist evasion).
+#
+# NOT REACHABLE here: both require the application to deserialize UNTRUSTED JSON into a
+# vulnerable type with polymorphic / default typing enabled. Neo4j Community here is bound
+# to 127.0.0.1, single trusted user, non-root, and the Story Forge backend is its only
+# client — no untrusted JSON is fed to Neo4j's bundled Jackson, and the Bolt protocol (not
+# JSON) carries queries. There is no attacker-controlled deserialization path.
+# Bundled by Neo4j like the netty/shiro jars above — no image bump fixes it until a Neo4j
+# 5.26.x patch reships jackson-databind >= 2.21.4.
+# Drop when: a soaked (>= 7-day) Neo4j 5.26.x patch bundles jackson-databind >= 2.21.4
+# (re-scan to confirm both CVEs are gone); checked at each neo4j tag bump.
+CVE-2026-54512
+CVE-2026-54513
