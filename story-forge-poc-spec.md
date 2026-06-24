@@ -184,8 +184,8 @@ rule) — and is **monotone** (only `new → merge`, never the reverse), so re-r
 lets the author **search all existing entities in the project and select any one as the merge
 target**, beyond the cascade's top-3 alternatives — the safety net for a true duplicate the
 deterministic matcher misses (a nickname embeddings don't catch, a name scoring just under
-threshold). Scope is the current story's project (the graph's tenancy key); cross-project / world
-search is deferred with the §3.4 "whole world" graph.
+threshold). Scope is the current story's project (the graph's tenancy key); cross-project search is
+deferred post-PoC (it belonged to the cut cross-story world graph — see §3.6 / `docs/BACKLOG.md`).
 
 **Cost optimization:**
 - Stage 1 is free (RapidFuzz locally)
@@ -731,7 +731,7 @@ This is the most important flow in V1. I'm spelling it out in detail so the deve
 - Force-directed, colored by type
 - Sidebar: filters, search by canonical_name
 - Click on node = highlight + details panel
-- Toggle: "this story only" / "whole world"
+- Toggle: "this story only" / "whole project" (per-story entity membership drives the filter — §3.4 / §3.6)
 
 ### 8.5 Agent activity panel (portfolio-visible)
 - Small persistent panel: which agent ran most recently, which model/tier was chosen, latency, cost, quota state
