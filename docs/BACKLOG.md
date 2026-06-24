@@ -316,6 +316,24 @@ picked up: lazy-load the reader and graph routes, confirm the warning clears, an
 eye on the per-route gzip sizes. (Flagged in the PR-#115 review, not folded — out of the
 fe1 parity scope.)
 
+## Graph cache coherence across a project's stories (post-PoC, surfaced M4 multi-story FE, Session 53)
+
+With multiple stories in one project sharing a single knowledge graph, a graph-writing edit is
+invalidated **per story**: every mutation hook invalidates the 2-element prefix
+`["story-graph", <editedStoryId>]`, which refreshes both scopes of the *edited* story but **not**
+a *sibling* story's project-scoped view (`["story-graph", <otherStoryId>, "project"]`). So if story
+B's "Whole project" graph is open and an entity is edited via story A's queue, B's project view
+shows a stale picture until the 30 s `staleTime` lapses (or the view remounts). **Self-healing, no
+data risk** — purely a display-refresh lag, and it needs the contrived A-then-B-within-30s sequence
+to surface at all. Deferred (PoC-acceptable) because the correct fix — invalidate the whole
+`["story-graph"]` family (all stories' graphs) on a graph edit — touches **~11 mutation hooks**
+(`useReviewCandidate`, `useEntityEdit`, `useMergeEntities`, `useDeleteEntity`, `useAddRelation`,
+`useRemoveRelation`, `useDecideRelation`, `useTagOccurrence`, `useSuppressOccurrence`,
+`useChangeBoundaries`, `useUndo`) plus their tests, none of which the M4 FE slice otherwise touched.
+Surfaced by the slice's multi-agent `/code-review` (PR #130) and consciously deferred with the owner.
+When picked up: add an `allStoryGraphsKey()` (or invalidate `["story-graph"]`) at the graph-writing
+hooks and update their invalidation assertions.
+
 ## Undo / delete robustness — V1 hardening (deferred from M4.S3b-be2, Session 42)
 
 The general undo executor (M4.S3b-be2, PR #105) is **correct and reversible for the single local
