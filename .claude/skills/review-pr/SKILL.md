@@ -6,10 +6,10 @@ description: Story Forge PR review — a thorough correctness/bug-finding pass P
 # Review a Story Forge PR
 
 This is the **"your own review"** step the merge flow requires (root `CLAUDE.md` →
-*Merge flow*): feature branch → PR → CI (+ the best-effort GitHub Codex PR review, if it
-posts) → **fold review notes** → squash-merge. That automated reviewer is complementary but
-partial — it spots *some* of what matters, misses much, and may not run at all — so this
-skill is the **primary, deeper** pass, with two things a generic reviewer doesn't have:
+*Merge flow*): feature branch → PR → CI → **fold review notes** → squash-merge. There is no
+automated second reviewer (the GitHub-wired Codex PR review was retired 2026-06-24), so this
+skill is the **primary review gate** — and for *substantive* code, run the heavier multi-agent
+`/code-review` in addition. This pass brings two things a generic reviewer doesn't have:
 (1) a deliberate correctness/bug hunt, and (2) the Story Forge lens — our spec, our layering,
 our security baseline, our test and hygiene rules.
 
@@ -356,12 +356,12 @@ The repo is public; every line is read by a stranger.
 - Are deferred items tracked (a GitHub issue, a `docs/PLAN_SHORT.md` cross-cutting note, or — for
   a post-PoC feature/UX/refinement — a `docs/BACKLOG.md` entry), not silently dropped? Unrelated
   discoveries split out rather than scope-crept in?
-- Have prior review notes (Codex / earlier passes) been folded or explicitly deferred?
-- **Same bug, different fixes — consider folding both.** When `/review-pr` and the other
-  reviewer (Codex) flag the **same bug class** but propose **different mechanisms**, the
+- Have prior review notes (an earlier `/review-pr` or `/code-review` pass) been folded or explicitly deferred?
+- **Same bug, different fixes — consider folding both.** When two review passes (`/review-pr`
+  and `/code-review`) flag the **same bug class** but propose **different mechanisms**, the
   default isn't "pick one and mark the other duplicate" — it's *consider folding both as
   defense-in-depth*, especially when the bug is destructive (data loss, silent overwrite,
-  unrecoverable state). Two independent reviewers converging on a class while diverging on
+  unrecoverable state). Two passes converging on a class while diverging on
   mechanism is the signal the bug deserves belt-and-suspenders. Story Forge example:
   Session 6's empty-`raw_text` overwrite — `/review-pr` proposed a UI-layer disabled-button
   guard; Codex proposed a hook-layer drop-the-override-when-empty. Both landed (PR #18 +
