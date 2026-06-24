@@ -42,13 +42,12 @@ from story_forge.domain.models import (
 
 async def insert_project(conn: AsyncConnection, project: Project) -> None:
     await conn.execute(
-        "INSERT INTO projects (id, name, language, world_id, style_anchor, created_at) "
-        "VALUES (%s, %s, %s, %s, %s, %s)",
+        "INSERT INTO projects (id, name, language, style_anchor, created_at) "
+        "VALUES (%s, %s, %s, %s, %s)",
         (
             project.id,
             project.name,
             project.language,
-            project.world_id,
             project.style_anchor,
             project.created_at,
         ),
@@ -58,8 +57,7 @@ async def insert_project(conn: AsyncConnection, project: Project) -> None:
 async def get_project(conn: AsyncConnection, project_id: UUID) -> Project | None:
     async with conn.cursor(row_factory=class_row(Project)) as cur:
         await cur.execute(
-            "SELECT id, name, language, world_id, style_anchor, created_at "
-            "FROM projects WHERE id = %s",
+            "SELECT id, name, language, style_anchor, created_at FROM projects WHERE id = %s",
             (project_id,),
         )
         return await cur.fetchone()

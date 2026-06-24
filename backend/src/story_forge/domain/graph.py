@@ -39,7 +39,6 @@ class GraphEntity(BaseModel):
     first_seen_paragraph_id: UUID | None = None
     embedding: list[float] | None = None  # M3 fills it
     project_id: UUID
-    world_id: UUID | None = None
 
     @field_validator("type")
     @classmethod

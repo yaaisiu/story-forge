@@ -80,6 +80,18 @@ async def test_mention_suppressions_schema(db_conn: psycopg.AsyncConnection) -> 
 
 
 @pytest.mark.integration
+async def test_projects_world_id_column_dropped(db_conn: psycopg.AsyncConnection) -> None:
+    # M4 multi-story (DM-MS-5): the always-null `projects.world_id` was vestigial dead
+    # weight for a world-graph parent that the PoC cut (§3.6 → backlog). The drop-column
+    # migration removed it; assert it is gone.
+    cur = await db_conn.execute(
+        "SELECT 1 FROM information_schema.columns "
+        "WHERE table_name = 'projects' AND column_name = 'world_id'"
+    )
+    assert await cur.fetchone() is None, "projects.world_id should have been dropped"
+
+
+@pytest.mark.integration
 async def test_pgvector_extension_enabled(db_conn: psycopg.AsyncConnection) -> None:
     cur = await db_conn.execute("SELECT 1 FROM pg_extension WHERE extname = 'vector'")
     assert await cur.fetchone() is not None

@@ -121,8 +121,7 @@ export interface paths {
          *     The reviewer can search **all** accepted entities in the project and pick any one as the
          *     merge target — the safety net for a true duplicate the deterministic cascade missed (a
          *     nickname embeddings don't catch, a name scoring just under threshold). Scope is the
-         *     story's **project** (the §6.4 tenancy key); cross-project / "whole world" search is
-         *     deferred with the §3.4 graph.
+         *     story's **project** (the §6.4 tenancy key); cross-project search is out of PoC scope.
          *
          *     The query `q` is ranked **in Python** with the same RapidFuzz signal the matcher uses
          *     (`search_entities` over `canonical_name` + aliases) — so the human's search ≈ the
@@ -893,7 +892,7 @@ export interface components {
          * GraphNode
          * @description One entity node for the §3.4 viewer — the display subset of `GraphEntity`.
          *
-         *     Persistence-only fields (`properties`, `embedding`, `project_id`, `world_id`)
+         *     Persistence-only fields (`properties`, `embedding`, `project_id`)
          *     are omitted: the read-only M2 viewer colours by `type`, labels by canonical
          *     name/aliases, and links each node to its first occurrence paragraph.
          */

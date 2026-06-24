@@ -30,7 +30,6 @@ class Project(BaseModel):
     id: UUID = Field(default_factory=uuid4)
     name: str
     language: str  # "pl" | "en" — the project's primary language
-    world_id: UUID | None = None  # optional shared-graph parent (worlds table is later)
     style_anchor: str | None = None
     created_at: datetime = Field(default_factory=_now)
 
