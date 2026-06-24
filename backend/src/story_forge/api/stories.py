@@ -36,6 +36,7 @@ from story_forge.adapters.postgres_repo import (
     list_chapters,
     list_entity_mentions_for_story,
     list_mention_suppressions_for_story,
+    list_paragraph_ids_for_story,
     list_story_paragraphs,
     update_story_raw_text,
 )
@@ -68,6 +69,7 @@ from story_forge.agents.relation_review import (
     RelationNotFound,
     RelationReviewService,
 )
+from story_forge.api.responses import ErrorResponse
 from story_forge.config import settings
 from story_forge.domain.candidates import CandidateProposal, RelationStatus, StagedCandidate
 from story_forge.domain.chunking import outline_to_tree
@@ -86,6 +88,7 @@ from story_forge.domain.language import detect_language
 from story_forge.domain.models import Paragraph, Project, Story
 from story_forge.domain.neighbourhood import EgoGraph, build_ego_graph
 from story_forge.domain.parsing import ParseError, parse_document
+from story_forge.domain.story_scope import filter_graph_to_story
 
 router = APIRouter(prefix="/stories", tags=["stories"])
 
@@ -120,22 +123,12 @@ class StoryUploadResponse(BaseModel):
     raw_text: str
 
 
-class ErrorResponse(BaseModel):
-    """Shape FastAPI's ``HTTPException`` produces — declared so the OpenAPI
-    schema names every non-2xx response the routes can return, instead of just
-    success + the auto-added 422 validation error. Without this, the generated
-    TypeScript client (`frontend/src/lib/api/schema.d.ts`) can't model expected
-    outcomes like 404 / 409 / 502 — leaving frontend error handling untyped.
-    """
-
-    detail: str
-
-
 @router.post(
     "/upload",
     status_code=201,
     responses={
         400: {"model": ErrorResponse, "description": "Uploaded file is empty or unparseable."},
+        404: {"model": ErrorResponse, "description": "Target project_id does not exist."},
         413: {"model": ErrorResponse, "description": "File exceeds the maximum upload size."},
         415: {
             "model": ErrorResponse,
@@ -146,6 +139,7 @@ class ErrorResponse(BaseModel):
 async def upload_story(
     file: UploadFile,
     conn: Annotated[AsyncConnection, Depends(get_connection)],
+    project_id: UUID | None = None,
 ) -> StoryUploadResponse:
     suffix = Path(file.filename or "").suffix.lower()
     if suffix not in _ALLOWED_TYPES:
@@ -170,19 +164,29 @@ async def upload_story(
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
     title = Path(file.filename or "").stem or "untitled"
-    project = Project(name=title, language=language)
+    # No project_id ⇒ mint a fresh project (today's behaviour). A project_id ⇒ add the story to
+    # that existing project (multi-story, DM-MS-3); fail-closed with 404 if it doesn't exist, so a
+    # story is never created under a ghost project (referential integrity at the boundary).
+    if project_id is None:
+        project = Project(name=title, language=language)
+    else:
+        existing = await get_project(conn, project_id)
+        if existing is None:
+            raise HTTPException(status_code=404, detail="project not found")
+        project = existing
     story = Story(project_id=project.id, title=title, raw_text=parsed.raw_text)
 
     # Sandbox the original before the DB write so a storage failure aborts the row.
     save_upload(settings.upload_dir, story.id, suffix, data)
-    await insert_project(conn, project)
+    if project_id is None:
+        await insert_project(conn, project)
     await insert_story(conn, story)
 
     return StoryUploadResponse(
         project_id=project.id,
         story_id=story.id,
         title=title,
-        language=language,
+        language=project.language,
         paragraph_count=len(parsed.paragraphs),
         raw_text=parsed.raw_text,
     )
@@ -484,13 +488,16 @@ async def get_story_graph(
     story_id: UUID,
     conn: Annotated[AsyncConnection, Depends(get_connection)],
     repo: Annotated[Neo4jRepo, Depends(get_neo4j_repo)],
+    scope: Literal["story", "project"] = "story",
 ) -> GraphResponse:
-    """The story's entity graph for the read-only viewer (spec §3.4).
+    """The story's entity graph for the read-only viewer + §3.4 scope toggle (multi-story, DM-MS-2).
 
-    The graph is keyed by *project* (entities carry `project_id`, the §6.4
-    multi-tenancy seam), so the route resolves the story to its project and returns
-    that project's nodes/edges. No dedupe through M2 (INV-8) — the viewer renders
-    whatever was written, duplicates and all, which is exactly the problem M3 solves.
+    The graph is keyed by *project* (entities carry `project_id`, the §6.4 multi-tenancy seam) and
+    shared across the project's stories. `scope=project` returns the whole project graph (every
+    accepted entity + relation). `scope=story` (the default) narrows it to *this* story: the
+    entities with an accepted mention rolling up to the story, and the relations among them asserted
+    within it (DM-MS-1 derived membership; the filter is pure — `domain/story_scope`). For a
+    single-story project the two scopes coincide, so the default is a no-op for existing projects.
     """
     story = await get_story(conn, story_id)
     if story is None:
@@ -498,6 +505,14 @@ async def get_story_graph(
 
     entities = await repo.list_entities(story.project_id)
     relations = await repo.get_relations(story.project_id)
+    if scope == "story":
+        member_entity_ids = {
+            m.entity_id for m in await list_entity_mentions_for_story(conn, story_id)
+        }
+        story_paragraph_ids = await list_paragraph_ids_for_story(conn, story_id)
+        entities, relations = filter_graph_to_story(
+            entities, relations, member_entity_ids, story_paragraph_ids
+        )
     return GraphResponse(
         nodes=[
             GraphNode(

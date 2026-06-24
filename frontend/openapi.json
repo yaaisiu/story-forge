@@ -13,15 +13,34 @@
         ],
         "summary": "Upload Story",
         "operationId": "upload_story_stories_upload_post",
+        "parameters": [
+          {
+            "name": "project_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Project Id"
+            }
+          }
+        ],
         "requestBody": {
+          "required": true,
           "content": {
             "multipart/form-data": {
               "schema": {
                 "$ref": "#/components/schemas/Body_upload_story_stories_upload_post"
               }
             }
-          },
-          "required": true
+          }
         },
         "responses": {
           "201": {
@@ -36,6 +55,16 @@
           },
           "400": {
             "description": "Uploaded file is empty or unparseable.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Target project_id does not exist.",
             "content": {
               "application/json": {
                 "schema": {
@@ -272,7 +301,7 @@
           "stories"
         ],
         "summary": "Get Story Graph",
-        "description": "The story's entity graph for the read-only viewer (spec \u00a73.4).\n\nThe graph is keyed by *project* (entities carry `project_id`, the \u00a76.4\nmulti-tenancy seam), so the route resolves the story to its project and returns\nthat project's nodes/edges. No dedupe through M2 (INV-8) \u2014 the viewer renders\nwhatever was written, duplicates and all, which is exactly the problem M3 solves.",
+        "description": "The story's entity graph for the read-only viewer + \u00a73.4 scope toggle (multi-story, DM-MS-2).\n\nThe graph is keyed by *project* (entities carry `project_id`, the \u00a76.4 multi-tenancy seam) and\nshared across the project's stories. `scope=project` returns the whole project graph (every\naccepted entity + relation). `scope=story` (the default) narrows it to *this* story: the\nentities with an accepted mention rolling up to the story, and the relations among them asserted\nwithin it (DM-MS-1 derived membership; the filter is pure \u2014 `domain/story_scope`). For a\nsingle-story project the two scopes coincide, so the default is a no-op for existing projects.",
         "operationId": "get_story_graph_stories__story_id__graph_get",
         "parameters": [
           {
@@ -283,6 +312,20 @@
               "type": "string",
               "format": "uuid",
               "title": "Story Id"
+            }
+          },
+          {
+            "name": "scope",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "enum": [
+                "story",
+                "project"
+              ],
+              "type": "string",
+              "default": "story",
+              "title": "Scope"
             }
           }
         ],
@@ -1665,6 +1708,90 @@
         }
       }
     },
+    "/projects": {
+      "get": {
+        "tags": [
+          "projects"
+        ],
+        "summary": "List Projects Route",
+        "description": "Every project with its story count, newest first (the picker's project list).",
+        "operationId": "list_projects_route_projects_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/ProjectSummary"
+                  },
+                  "type": "array",
+                  "title": "Response List Projects Route Projects Get"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/projects/{project_id}/stories": {
+      "get": {
+        "tags": [
+          "projects"
+        ],
+        "summary": "List Project Stories Route",
+        "description": "A project's stories, newest first. 404s an unknown project (fail-closed) so the picker\ndistinguishes \"no such project\" from \"a project with no stories yet\".",
+        "operationId": "list_project_stories_route_projects__project_id__stories_get",
+        "parameters": [
+          {
+            "name": "project_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Project Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/StorySummary"
+                  },
+                  "title": "Response List Project Stories Route Projects  Project Id  Stories Get"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Project not found.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/llm/status": {
       "get": {
         "tags": [
@@ -2320,8 +2447,7 @@
         "required": [
           "detail"
         ],
-        "title": "ErrorResponse",
-        "description": "Shape FastAPI's ``HTTPException`` produces \u2014 declared so the OpenAPI\nschema names every non-2xx response the routes can return, instead of just\nsuccess + the auto-added 422 validation error. Without this, the generated\nTypeScript client (`frontend/src/lib/api/schema.d.ts`) can't model expected\noutcomes like 404 / 409 / 502 \u2014 leaving frontend error handling untyped."
+        "title": "ErrorResponse"
       },
       "ExtractResponse": {
         "properties": {
@@ -2731,6 +2857,42 @@
         "title": "NewEntityTag",
         "description": "Create a brand-new accepted entity of type X from a tag (DM-S3c-2). `type` is open-world\n(INV-4) \u2014 a free string, never an enum."
       },
+      "ProjectSummary": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Id"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "language": {
+            "type": "string",
+            "title": "Language"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          },
+          "story_count": {
+            "type": "integer",
+            "title": "Story Count"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "name",
+          "language",
+          "created_at",
+          "story_count"
+        ],
+        "title": "ProjectSummary",
+        "description": "A project listing row for the picker (M4 multi-story, DM-MS-4).\n\nA read projection \u2014 `story_count` is the project's number of stories (derived per read),\nnot a stored column. Carries only what a project picker needs; deliberately omits the\n`style_anchor` and any heavy body so listing all projects stays cheap."
+      },
       "ReaderEntity": {
         "properties": {
           "entity_id": {
@@ -3050,6 +3212,32 @@
         ],
         "title": "ReviewResponse",
         "description": "Outcome of an accept/reject: the committed entity (if any) + the terminal status."
+      },
+      "StorySummary": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Id"
+          },
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "ingested_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Ingested At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "title",
+          "ingested_at"
+        ],
+        "title": "StorySummary",
+        "description": "A story listing row within a project (M4 multi-story, DM-MS-4).\n\nOmits `raw_text` (the whole document) so listing a project's stories doesn't load every\nbody \u2014 the picker needs only the title and when it was ingested."
       },
       "StoryUploadResponse": {
         "properties": {

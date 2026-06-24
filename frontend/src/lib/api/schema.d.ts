@@ -91,12 +91,14 @@ export interface paths {
         };
         /**
          * Get Story Graph
-         * @description The story's entity graph for the read-only viewer (spec §3.4).
+         * @description The story's entity graph for the read-only viewer + §3.4 scope toggle (multi-story, DM-MS-2).
          *
-         *     The graph is keyed by *project* (entities carry `project_id`, the §6.4
-         *     multi-tenancy seam), so the route resolves the story to its project and returns
-         *     that project's nodes/edges. No dedupe through M2 (INV-8) — the viewer renders
-         *     whatever was written, duplicates and all, which is exactly the problem M3 solves.
+         *     The graph is keyed by *project* (entities carry `project_id`, the §6.4 multi-tenancy seam) and
+         *     shared across the project's stories. `scope=project` returns the whole project graph (every
+         *     accepted entity + relation). `scope=story` (the default) narrows it to *this* story: the
+         *     entities with an accepted mention rolling up to the story, and the relations among them asserted
+         *     within it (DM-MS-1 derived membership; the filter is pure — `domain/story_scope`). For a
+         *     single-story project the two scopes coincide, so the default is a no-op for existing projects.
          */
         get: operations["get_story_graph_stories__story_id__graph_get"];
         put?: never;
@@ -479,6 +481,47 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/projects": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Projects Route
+         * @description Every project with its story count, newest first (the picker's project list).
+         */
+        get: operations["list_projects_route_projects_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/projects/{project_id}/stories": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Project Stories Route
+         * @description A project's stories, newest first. 404s an unknown project (fail-closed) so the picker
+         *     distinguishes "no such project" from "a project with no stories yet".
+         */
+        get: operations["list_project_stories_route_projects__project_id__stories_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/llm/status": {
         parameters: {
             query?: never;
@@ -824,14 +867,7 @@ export interface components {
             /** Aliases */
             aliases: string[];
         };
-        /**
-         * ErrorResponse
-         * @description Shape FastAPI's ``HTTPException`` produces — declared so the OpenAPI
-         *     schema names every non-2xx response the routes can return, instead of just
-         *     success + the auto-added 422 validation error. Without this, the generated
-         *     TypeScript client (`frontend/src/lib/api/schema.d.ts`) can't model expected
-         *     outcomes like 404 / 409 / 502 — leaving frontend error handling untyped.
-         */
+        /** ErrorResponse */
         ErrorResponse: {
             /** Detail */
             detail: string;
@@ -1036,6 +1072,32 @@ export interface components {
             type: string;
         };
         /**
+         * ProjectSummary
+         * @description A project listing row for the picker (M4 multi-story, DM-MS-4).
+         *
+         *     A read projection — `story_count` is the project's number of stories (derived per read),
+         *     not a stored column. Carries only what a project picker needs; deliberately omits the
+         *     `style_anchor` and any heavy body so listing all projects stays cheap.
+         */
+        ProjectSummary: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Name */
+            name: string;
+            /** Language */
+            language: string;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Story Count */
+            story_count: number;
+        };
+        /**
          * ReaderEntity
          * @description Tooltip data for an entity that appears in the reader (DM-IH-8: name + type + aliases).
          */
@@ -1207,6 +1269,27 @@ export interface components {
             entity_id: string | null;
             /** Already Decided */
             already_decided: boolean;
+        };
+        /**
+         * StorySummary
+         * @description A story listing row within a project (M4 multi-story, DM-MS-4).
+         *
+         *     Omits `raw_text` (the whole document) so listing a project's stories doesn't load every
+         *     body — the picker needs only the title and when it was ingested.
+         */
+        StorySummary: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Title */
+            title: string;
+            /**
+             * Ingested At
+             * Format: date-time
+             */
+            ingested_at: string;
         };
         /**
          * StoryUploadResponse
@@ -1386,7 +1469,9 @@ export type $defs = Record<string, never>;
 export interface operations {
     upload_story_stories_upload_post: {
         parameters: {
-            query?: never;
+            query?: {
+                project_id?: string | null;
+            };
             header?: never;
             path?: never;
             cookie?: never;
@@ -1408,6 +1493,15 @@ export interface operations {
             };
             /** @description Uploaded file is empty or unparseable. */
             400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Target project_id does not exist. */
+            404: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -1577,7 +1671,9 @@ export interface operations {
     };
     get_story_graph_stories__story_id__graph_get: {
         parameters: {
-            query?: never;
+            query?: {
+                scope?: "story" | "project";
+            };
             header?: never;
             path: {
                 story_id: string;
@@ -2541,6 +2637,66 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    list_projects_route_projects_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProjectSummary"][];
+                };
+            };
+        };
+    };
+    list_project_stories_route_projects__project_id__stories_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                project_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StorySummary"][];
+                };
+            };
+            /** @description Project not found. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };

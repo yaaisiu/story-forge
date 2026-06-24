@@ -44,6 +44,33 @@ class Story(BaseModel):
     ingested_at: datetime = Field(default_factory=_now)
 
 
+class ProjectSummary(BaseModel):
+    """A project listing row for the picker (M4 multi-story, DM-MS-4).
+
+    A read projection — `story_count` is the project's number of stories (derived per read),
+    not a stored column. Carries only what a project picker needs; deliberately omits the
+    `style_anchor` and any heavy body so listing all projects stays cheap.
+    """
+
+    id: UUID
+    name: str
+    language: str
+    created_at: datetime
+    story_count: int
+
+
+class StorySummary(BaseModel):
+    """A story listing row within a project (M4 multi-story, DM-MS-4).
+
+    Omits `raw_text` (the whole document) so listing a project's stories doesn't load every
+    body — the picker needs only the title and when it was ingested.
+    """
+
+    id: UUID
+    title: str
+    ingested_at: datetime
+
+
 class Chapter(BaseModel):
     """A top-level division of a story; ordered among its siblings."""
 

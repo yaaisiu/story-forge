@@ -33,8 +33,10 @@ from story_forge.domain.models import (
     MentionSuppression,
     Paragraph,
     Project,
+    ProjectSummary,
     Scene,
     Story,
+    StorySummary,
 )
 
 # --- Project ---------------------------------------------------------------
@@ -66,6 +68,23 @@ async def get_project(conn: AsyncConnection, project_id: UUID) -> Project | None
 async def delete_project(conn: AsyncConnection, project_id: UUID) -> None:
     """Delete a project; stories/chapters/scenes/paragraphs cascade with it."""
     await conn.execute("DELETE FROM projects WHERE id = %s", (project_id,))
+
+
+async def list_projects(conn: AsyncConnection) -> list[ProjectSummary]:
+    """Every project with its story count, newest first (the picker read, DM-MS-4).
+
+    `story_count` is derived per read (a `LEFT JOIN` so a project with no stories counts 0) —
+    no stored column, consistent with the slice's "derive, don't store" stance.
+    """
+    async with conn.cursor(row_factory=class_row(ProjectSummary)) as cur:
+        await cur.execute(
+            "SELECT p.id, p.name, p.language, p.created_at, count(s.id) AS story_count "
+            "FROM projects p "
+            "LEFT JOIN stories s ON s.project_id = p.id "
+            "GROUP BY p.id "
+            "ORDER BY p.created_at DESC"
+        )
+        return await cur.fetchall()
 
 
 # --- Story -----------------------------------------------------------------
@@ -118,6 +137,21 @@ async def update_story_raw_text(conn: AsyncConnection, story_id: UUID, raw_text:
         "UPDATE stories SET raw_text = %s WHERE id = %s",
         (raw_text, story_id),
     )
+
+
+async def list_stories_for_project(conn: AsyncConnection, project_id: UUID) -> list[StorySummary]:
+    """A project's stories, newest first (the picker read, DM-MS-4).
+
+    Selects only the listing columns (no `raw_text`) so the picker stays light. The caller
+    checks the project exists first — an unknown project here simply yields an empty list.
+    """
+    async with conn.cursor(row_factory=class_row(StorySummary)) as cur:
+        await cur.execute(
+            "SELECT id, title, ingested_at FROM stories "
+            "WHERE project_id = %s ORDER BY ingested_at DESC",
+            (project_id,),
+        )
+        return await cur.fetchall()
 
 
 # --- Chapter ---------------------------------------------------------------
@@ -227,6 +261,24 @@ async def get_paragraph(conn: AsyncConnection, paragraph_id: UUID) -> Paragraph 
             (paragraph_id,),
         )
         return await cur.fetchone()
+
+
+async def list_paragraph_ids_for_story(conn: AsyncConnection, story_id: UUID) -> set[UUID]:
+    """The id set of every paragraph in a story (the story-scope graph filter, DM-MS-2).
+
+    Used to decide whether a relation's `source_paragraph_id` was asserted *within* this story.
+    Id-only (no content/embedding) because the scope filter only needs membership; an
+    extraction edge's source paragraph need not carry an accepted mention, so the set is rolled
+    up from the document tree directly, not derived from `entity_mentions`.
+    """
+    cur = await conn.execute(
+        "SELECT p.id FROM paragraphs p "
+        "JOIN scenes sc ON sc.id = p.scene_id "
+        "JOIN chapters ch ON ch.id = sc.chapter_id "
+        "WHERE ch.story_id = %s",
+        (story_id,),
+    )
+    return {row[0] for row in await cur.fetchall()}
 
 
 async def get_story_paragraph(
