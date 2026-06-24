@@ -2,7 +2,7 @@
 //
 // Pins the navigation contract: list projects, select one to load its stories,
 // and surface the graph/reader links + the add-a-story affordance (which carries
-// the project id back to the upload screen via router state). The fetch stub routes
+// the project id back to the upload screen via the URL). The fetch stub routes
 // by URL so the projects list and the per-project stories list are answered
 // independently. Same per-test QueryClient + MemoryRouter harness as the others.
 
@@ -93,14 +93,16 @@ describe("ProjectPicker", () => {
     );
   });
 
-  it("offers an add-a-story link back to the upload screen for the selected project", async () => {
+  it("offers an add-a-story link carrying the project context in the URL (survives reload)", async () => {
     stubFetch();
     render(<ProjectPicker />, { wrapper: buildWrapper() });
 
     fireEvent.click(await screen.findByTestId(`project-row-${PROJECT_ID}`));
 
     const addLink = await screen.findByTestId("add-story-link");
-    expect(addLink).toHaveAttribute("href", "/");
+    // project_id + project_name are in the URL, not router state, so the upload
+    // screen keeps the target across a reload.
+    expect(addLink).toHaveAttribute("href", `/?project_id=${PROJECT_ID}&project_name=Oakhaven`);
   });
 
   it("surfaces an empty state when there are no projects", async () => {
@@ -110,5 +112,46 @@ describe("ProjectPicker", () => {
     render(<ProjectPicker />, { wrapper: buildWrapper() });
 
     expect(await screen.findByTestId("projects-empty")).toBeInTheDocument();
+  });
+
+  it("shows an error state when the projects list fails to load", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(jsonResponse(503, { detail: "store unavailable" }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    render(<ProjectPicker />, { wrapper: buildWrapper() });
+
+    expect(await screen.findByTestId("projects-error")).toBeInTheDocument();
+  });
+
+  it("shows a per-project error when that project's stories fail to load", async () => {
+    const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
+      const url = String(input);
+      if (url.match(/\/projects\/[^/]+\/stories$/)) {
+        return jsonResponse(404, { detail: "project not found" });
+      }
+      if (url.endsWith("/projects")) return jsonResponse(200, PROJECTS_BODY);
+      throw new Error(`unexpected url ${url}`);
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    render(<ProjectPicker />, { wrapper: buildWrapper() });
+    fireEvent.click(await screen.findByTestId(`project-row-${PROJECT_ID}`));
+
+    expect(await screen.findByTestId("stories-error")).toBeInTheDocument();
+  });
+
+  it("shows an empty state when the selected project has no stories", async () => {
+    const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
+      const url = String(input);
+      if (url.match(/\/projects\/[^/]+\/stories$/)) return jsonResponse(200, []);
+      if (url.endsWith("/projects")) return jsonResponse(200, PROJECTS_BODY);
+      throw new Error(`unexpected url ${url}`);
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    render(<ProjectPicker />, { wrapper: buildWrapper() });
+    fireEvent.click(await screen.findByTestId(`project-row-${PROJECT_ID}`));
+
+    expect(await screen.findByTestId("stories-empty")).toBeInTheDocument();
   });
 });

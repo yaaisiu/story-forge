@@ -12,9 +12,11 @@
 // `useMutation` only (no `useEffect(fetch...)`), schema types imported from the
 // generated `schema.d.ts` (never hand-edited).
 
-import { useMutation, type UseMutationResult } from "@tanstack/react-query";
+import { useMutation, useQueryClient, type UseMutationResult } from "@tanstack/react-query";
 
 import { ApiError, postFormJson } from "./client";
+import { projectsQueryKey } from "./useProjects";
+import { projectStoriesQueryKey } from "./useProjectStories";
 import type { components } from "./schema";
 
 export { ApiError } from "./client";
@@ -40,6 +42,7 @@ export function useUploadStory(): UseMutationResult<
   ApiError,
   UploadStoryInput
 > {
+  const queryClient = useQueryClient();
   return useMutation<StoryUploadResponse, ApiError, UploadStoryInput>({
     mutationFn: async ({ file, projectId }) => {
       const body = new FormData();
@@ -48,6 +51,15 @@ export function useUploadStory(): UseMutationResult<
         ? `/stories/upload?project_id=${encodeURIComponent(projectId)}`
         : "/stories/upload";
       return postFormJson<StoryUploadResponse>(path, body);
+    },
+    onSuccess: (data) => {
+      // The upload changes what the picker shows: a new project appears, or an
+      // existing project's story_count and story list grow. Invalidate both lists
+      // (keyed off the response's project_id, which is correct for the new-project
+      // and add-into-existing cases alike) so a return to /projects is fresh, not
+      // stale for the 30 s staleTime window.
+      void queryClient.invalidateQueries({ queryKey: projectsQueryKey() });
+      void queryClient.invalidateQueries({ queryKey: projectStoriesQueryKey(data.project_id) });
     },
   });
 }

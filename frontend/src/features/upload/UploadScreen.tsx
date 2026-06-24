@@ -13,18 +13,12 @@
 
 import { useState, type ChangeEvent, type DragEvent } from "react";
 
-import { Link, useLocation } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 
 import { ApiError, useUploadStory } from "../../lib/api/useUploadStory";
 import { cn } from "../../lib/utils";
 
 const ACCEPTED_EXTENSIONS = ".txt,.md,.docx";
-
-/** Router state the project picker passes when adding a story to an existing project. */
-interface UploadLocationState {
-  projectId?: string;
-  projectName?: string;
-}
 
 /** Map a backend `ApiError` to a user-facing message keyed by status code. The 404
  * is reachable only in the add-to-project flow — the route returns it when the target
@@ -48,9 +42,12 @@ function messageForError(error: unknown): string {
 }
 
 export function UploadScreen() {
-  const { state } = useLocation() as { state: UploadLocationState | null };
-  const targetProjectId = state?.projectId;
-  const targetProjectName = state?.projectName;
+  // The add-to-project target lives in the URL (not router state) so a reload or a
+  // deep-link keeps the context — otherwise the flow would silently fall back to
+  // creating a brand-new project. The picker links here with ?project_id=&project_name=.
+  const [searchParams] = useSearchParams();
+  const targetProjectId = searchParams.get("project_id") ?? undefined;
+  const targetProjectName = searchParams.get("project_name") ?? undefined;
   const [file, setFile] = useState<File | null>(null);
   const [isDragging, setIsDragging] = useState(false);
   const upload = useUploadStory();
@@ -158,17 +155,30 @@ export function UploadScreen() {
             {upload.data.paragraph_count} paragraph
             {upload.data.paragraph_count === 1 ? "" : "s"}.
           </p>
-          {/* Carry the parsed raw_text into the outline editor via router
-              state so the manual editor opens pre-seeded — avoids a separate
-              GET /stories/{id} round-trip that doesn't exist yet. */}
-          <Link
-            data-testid="upload-continue-link"
-            to={`/stories/${upload.data.story_id}/structure`}
-            state={{ rawText: upload.data.raw_text }}
-            className="self-start rounded bg-blue-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-blue-700"
-          >
-            Continue to outline →
-          </Link>
+          <div className="flex items-center gap-3">
+            {/* Carry the parsed raw_text into the outline editor via router
+                state so the manual editor opens pre-seeded — avoids a separate
+                GET /stories/{id} round-trip that doesn't exist yet. */}
+            <Link
+              data-testid="upload-continue-link"
+              to={`/stories/${upload.data.story_id}/structure`}
+              state={{ rawText: upload.data.raw_text }}
+              className="rounded bg-blue-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-blue-700"
+            >
+              Continue to outline →
+            </Link>
+            {/* When a story was added into a project, keep a way back to its
+                story list so the multi-story grouping stays reachable. */}
+            {targetProjectId && (
+              <Link
+                data-testid="upload-back-to-project-link"
+                to="/projects"
+                className="text-sm font-medium text-green-800 hover:underline"
+              >
+                Back to projects
+              </Link>
+            )}
+          </div>
         </section>
       )}
 

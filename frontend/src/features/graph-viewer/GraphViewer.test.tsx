@@ -214,6 +214,27 @@ describe("GraphViewer", () => {
     expect(screen.getByTestId("scope-project")).toHaveAttribute("aria-pressed", "true");
   });
 
+  it("clears the open node-details panel when the scope is toggled", async () => {
+    const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
+      const url = String(input);
+      if (url.includes("/graph")) return jsonResponse(200, POPULATED_GRAPH);
+      if (url.includes("/llm/status")) return jsonResponse(200, STATUS_BODY);
+      throw new Error(`unexpected url ${url}`);
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    renderViewer();
+
+    fireEvent.click(await screen.findByTestId(`cy-node-${NODE_ID}`));
+    expect(await screen.findByTestId("node-details")).toBeInTheDocument();
+
+    // A node picked in one scope may not exist in the other — toggling resets the
+    // selection rather than leaving a stale, blank panel.
+    fireEvent.click(screen.getByTestId("scope-project"));
+
+    await waitFor(() => expect(screen.queryByTestId("node-details")).not.toBeInTheDocument());
+  });
+
   it("opens the node-details panel when a node is tapped", async () => {
     const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
       const url = String(input);

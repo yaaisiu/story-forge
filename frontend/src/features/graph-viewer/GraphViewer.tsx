@@ -49,6 +49,14 @@ export function GraphViewer() {
   // Stable identity so GraphCanvas's effect doesn't rebuild cytoscape every render.
   const handleSelectNode = useCallback((nodeId: string) => setSelectedNodeId(nodeId), []);
 
+  // Clear the selection when the scope changes: a node picked in the whole-project
+  // view may not exist in the narrower story view, and a stale id would just blank
+  // the details panel with no explanation.
+  function handleScopeChange(next: GraphScope) {
+    setScope(next);
+    setSelectedNodeId(null);
+  }
+
   const selectedNode: GraphNode | null = useMemo(
     () => graph.data?.nodes.find((n) => n.id === selectedNodeId) ?? null,
     [graph.data, selectedNodeId],
@@ -102,7 +110,7 @@ export function GraphViewer() {
                 type="button"
                 data-testid={`scope-${value}`}
                 aria-pressed={scope === value}
-                onClick={() => setScope(value)}
+                onClick={() => handleScopeChange(value)}
                 className={
                   scope === value
                     ? "bg-blue-600 px-3 py-2 font-medium text-white"

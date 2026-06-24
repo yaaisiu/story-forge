@@ -24,6 +24,8 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { renderHook, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import { projectsQueryKey } from "./useProjects";
+import { projectStoriesQueryKey } from "./useProjectStories";
 import { ApiError, useUploadStory } from "./useUploadStory";
 
 function buildWrapper() {
@@ -36,6 +38,17 @@ function buildWrapper() {
   return function Wrapper({ children }: { children: ReactNode }) {
     return <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>;
   };
+}
+
+function buildHarness() {
+  const queryClient = new QueryClient({
+    defaultOptions: { mutations: { retry: false }, queries: { retry: false } },
+  });
+  const invalidateSpy = vi.spyOn(queryClient, "invalidateQueries");
+  const wrapper = function Wrapper({ children }: { children: ReactNode }) {
+    return <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>;
+  };
+  return { wrapper, invalidateSpy };
 }
 
 const SAMPLE_RESPONSE = {
@@ -102,6 +115,25 @@ describe("useUploadStory", () => {
 
     const [url] = fetchMock.mock.calls[0] as [string, RequestInit];
     expect(url).toMatch(new RegExp(`/stories/upload\\?project_id=${projectId}$`));
+  });
+
+  it("invalidates the project list + the target project's stories on success", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(jsonResponse(201, SAMPLE_RESPONSE));
+    vi.stubGlobal("fetch", fetchMock);
+    const { wrapper, invalidateSpy } = buildHarness();
+
+    const { result } = renderHook(() => useUploadStory(), { wrapper });
+    const file = new File(["hello world"], "draft.txt", { type: "text/plain" });
+    result.current.mutate({ file });
+
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+
+    // Keyed off the response's project_id — correct for the new-project and the
+    // add-into-existing cases alike, so a return to /projects is fresh.
+    expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: projectsQueryKey() });
+    expect(invalidateSpy).toHaveBeenCalledWith({
+      queryKey: projectStoriesQueryKey(SAMPLE_RESPONSE.project_id),
+    });
   });
 
   it("surfaces the route's 404 (target project does not exist) as a typed ApiError", async () => {
