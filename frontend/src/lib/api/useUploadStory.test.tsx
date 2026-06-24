@@ -84,6 +84,38 @@ describe("useUploadStory", () => {
     const sentFile = (init.body as FormData).get("file");
     expect(sentFile).toBeInstanceOf(File);
     expect((sentFile as File).name).toBe("draft.txt");
+    // No projectId given → no project_id query param (the backend creates a new project).
+    expect(url).not.toContain("project_id");
+  });
+
+  it("targets an existing project via the project_id query param when projectId is given", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(jsonResponse(201, SAMPLE_RESPONSE));
+    vi.stubGlobal("fetch", fetchMock);
+
+    const { result } = renderHook(() => useUploadStory(), { wrapper: buildWrapper() });
+
+    const projectId = "00000000-0000-0000-0000-000000000001";
+    const file = new File(["hello world"], "draft.txt", { type: "text/plain" });
+    result.current.mutate({ file, projectId });
+
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+
+    const [url] = fetchMock.mock.calls[0] as [string, RequestInit];
+    expect(url).toMatch(new RegExp(`/stories/upload\\?project_id=${projectId}$`));
+  });
+
+  it("surfaces the route's 404 (target project does not exist) as a typed ApiError", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(jsonResponse(404, { detail: "project not found" }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    const { result } = renderHook(() => useUploadStory(), { wrapper: buildWrapper() });
+
+    const file = new File(["x"], "draft.txt", { type: "text/plain" });
+    result.current.mutate({ file, projectId: "00000000-0000-0000-0000-0000000000ff" });
+
+    await waitFor(() => expect(result.current.isError).toBe(true));
+    expect(result.current.error).toBeInstanceOf(ApiError);
+    expect((result.current.error as ApiError).status).toBe(404);
   });
 
   it.each([

@@ -23,6 +23,12 @@ export type StoryUploadResponse = components["schemas"]["StoryUploadResponse"];
 
 export interface UploadStoryInput {
   file: File;
+  /**
+   * Optional target project (M4 multi-story): when set, the new story joins this
+   * existing project instead of getting a fresh one. Sent as the `?project_id=`
+   * query param; the route 404s a dangling project.
+   */
+  projectId?: string;
 }
 
 /**
@@ -35,10 +41,13 @@ export function useUploadStory(): UseMutationResult<
   UploadStoryInput
 > {
   return useMutation<StoryUploadResponse, ApiError, UploadStoryInput>({
-    mutationFn: async ({ file }) => {
+    mutationFn: async ({ file, projectId }) => {
       const body = new FormData();
       body.append("file", file);
-      return postFormJson<StoryUploadResponse>("/stories/upload", body);
+      const path = projectId
+        ? `/stories/upload?project_id=${encodeURIComponent(projectId)}`
+        : "/stories/upload";
+      return postFormJson<StoryUploadResponse>(path, body);
     },
   });
 }

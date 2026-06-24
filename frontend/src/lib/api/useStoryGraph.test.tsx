@@ -52,7 +52,7 @@ afterEach(() => {
 });
 
 describe("useStoryGraph", () => {
-  it("GETs /stories/{id}/graph and resolves the typed GraphResponse", async () => {
+  it("GETs /stories/{id}/graph with the default story scope", async () => {
     const fetchMock = vi.fn().mockResolvedValue(jsonResponse(200, GRAPH_BODY));
     vi.stubGlobal("fetch", fetchMock);
 
@@ -62,8 +62,22 @@ describe("useStoryGraph", () => {
     expect(result.current.data).toEqual(GRAPH_BODY);
 
     const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
-    expect(url).toMatch(new RegExp(`/stories/${STORY_ID}/graph$`));
+    expect(url).toMatch(new RegExp(`/stories/${STORY_ID}/graph\\?scope=story$`));
     expect(init.method).toBe("GET");
+  });
+
+  it("passes scope=project when asked for the whole-project graph", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(jsonResponse(200, GRAPH_BODY));
+    vi.stubGlobal("fetch", fetchMock);
+
+    const { result } = renderHook(() => useStoryGraph(STORY_ID, "project"), {
+      wrapper: buildWrapper(),
+    });
+
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+
+    const [url] = fetchMock.mock.calls[0] as [string, RequestInit];
+    expect(url).toMatch(new RegExp(`/stories/${STORY_ID}/graph\\?scope=project$`));
   });
 
   it("does not fetch while the storyId is undefined", () => {

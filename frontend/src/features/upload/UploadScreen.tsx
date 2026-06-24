@@ -13,14 +13,22 @@
 
 import { useState, type ChangeEvent, type DragEvent } from "react";
 
-import { Link } from "react-router-dom";
+import { Link, useLocation } from "react-router-dom";
 
 import { ApiError, useUploadStory } from "../../lib/api/useUploadStory";
 import { cn } from "../../lib/utils";
 
 const ACCEPTED_EXTENSIONS = ".txt,.md,.docx";
 
-/** Map a backend `ApiError` to a user-facing message keyed by status code. */
+/** Router state the project picker passes when adding a story to an existing project. */
+interface UploadLocationState {
+  projectId?: string;
+  projectName?: string;
+}
+
+/** Map a backend `ApiError` to a user-facing message keyed by status code. The 404
+ * is reachable only in the add-to-project flow — the route returns it when the target
+ * `project_id` no longer exists (backend/src/story_forge/api/stories.py:upload_story). */
 function messageForError(error: unknown): string {
   if (!(error instanceof ApiError)) {
     return "Upload failed. Please try again.";
@@ -30,6 +38,8 @@ function messageForError(error: unknown): string {
       return "That file is too large — maximum size is 10 MiB.";
     case 415:
       return "Unsupported file type. Please upload a .txt, .md, or .docx file.";
+    case 404:
+      return "That project no longer exists. Go back and pick a project, or upload a new one.";
     case 400:
       return `That file couldn't be parsed: ${error.detail}`;
     default:
@@ -38,6 +48,9 @@ function messageForError(error: unknown): string {
 }
 
 export function UploadScreen() {
+  const { state } = useLocation() as { state: UploadLocationState | null };
+  const targetProjectId = state?.projectId;
+  const targetProjectName = state?.projectName;
   const [file, setFile] = useState<File | null>(null);
   const [isDragging, setIsDragging] = useState(false);
   const upload = useUploadStory();
@@ -62,17 +75,34 @@ export function UploadScreen() {
 
   function handleSubmit() {
     if (!file) return;
-    upload.mutate({ file });
+    upload.mutate({ file, projectId: targetProjectId });
   }
 
   return (
     <main className="mx-auto flex max-w-2xl flex-col gap-6 p-8">
-      <header>
-        <h1 className="text-2xl font-semibold">Upload a story</h1>
+      <header className="flex flex-col gap-2">
+        <h1 className="text-2xl font-semibold">
+          {targetProjectId ? "Add a story to a project" : "Upload a story"}
+        </h1>
         <p className="text-sm text-gray-600">
           Accepts <code>.txt</code>, <code>.md</code>, and <code>.docx</code> files up to
           10&nbsp;MiB. The language is detected automatically.
         </p>
+        {targetProjectId ? (
+          <p data-testid="upload-target-project" className="text-sm text-gray-700">
+            Adding to project{" "}
+            <span className="font-medium">{targetProjectName ?? targetProjectId}</span>. The new
+            story joins this project&rsquo;s shared graph.
+          </p>
+        ) : (
+          <Link
+            data-testid="browse-projects-link"
+            to="/projects"
+            className="self-start text-sm font-medium text-blue-600 hover:underline"
+          >
+            Browse existing projects →
+          </Link>
+        )}
       </header>
 
       <div

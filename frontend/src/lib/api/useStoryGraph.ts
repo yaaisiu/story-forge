@@ -24,22 +24,33 @@ export type GraphResponse = components["schemas"]["GraphResponse"];
 export type GraphNode = components["schemas"]["GraphNode"];
 export type GraphEdge = components["schemas"]["GraphEdge"];
 
-/** TanStack Query key for a story's graph — shared so `useReviewCandidate` can
- * invalidate the exact same key, making the graph refetch as the author commits. */
+/** The §3.4 story-vs-project scope toggle, matching the route's `scope` query param. */
+export type GraphScope = "story" | "project";
+
+/** TanStack Query key *prefix* for a story's graph — shared so the mutation hooks
+ * (`useReviewCandidate`, edits, undo …) can invalidate by this prefix and refetch
+ * *both* scopes at once. The per-scope query (below) appends the scope as a third
+ * key element; TanStack's partial prefix match means this 2-element key still
+ * invalidates the story- and project-scoped caches together. */
 export function storyGraphQueryKey(storyId: string | undefined): [string, string | undefined] {
   return ["story-graph", storyId];
 }
 
 /**
- * Fetch a story's entity graph. Disabled until a `storyId` is known (so it never
- * fires with `undefined` in the path during an initial render or a deep-link race).
+ * Fetch a story's entity graph at the given scope (§3.4). `scope=story` (the default)
+ * narrows the project graph to this story's accepted entities; `scope=project` returns
+ * the whole project graph. Disabled until a `storyId` is known (so it never fires with
+ * `undefined` in the path during an initial render or a deep-link race). The scope is
+ * part of the query key, so switching it selects/fetches a distinct cache entry — no
+ * manual invalidation needed, and a flip back inside `staleTime` repaints instantly.
  */
 export function useStoryGraph(
   storyId: string | undefined,
+  scope: GraphScope = "story",
 ): UseQueryResult<GraphResponse, ApiError> {
   return useQuery<GraphResponse, ApiError>({
-    queryKey: storyGraphQueryKey(storyId),
-    queryFn: () => getJson<GraphResponse>(`/stories/${storyId}/graph`),
+    queryKey: [...storyGraphQueryKey(storyId), scope],
+    queryFn: () => getJson<GraphResponse>(`/stories/${storyId}/graph?scope=${scope}`),
     enabled: Boolean(storyId),
     staleTime: 30_000,
   });

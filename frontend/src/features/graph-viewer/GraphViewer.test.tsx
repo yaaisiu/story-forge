@@ -187,6 +187,33 @@ describe("GraphViewer", () => {
     expect(link).toHaveAttribute("href", `/stories/${STORY_ID}/reader`);
   });
 
+  it("defaults to the story scope and refetches scope=project when toggled", async () => {
+    const graphUrls: string[] = [];
+    const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
+      const url = String(input);
+      if (url.includes("/graph")) {
+        graphUrls.push(url);
+        return jsonResponse(200, POPULATED_GRAPH);
+      }
+      if (url.includes("/llm/status")) return jsonResponse(200, STATUS_BODY);
+      throw new Error(`unexpected url ${url}`);
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    renderViewer();
+
+    // First load uses the default story scope.
+    await waitFor(() => expect(graphUrls.length).toBeGreaterThan(0));
+    expect(graphUrls[0]).toContain("scope=story");
+    expect(screen.getByTestId("scope-story")).toHaveAttribute("aria-pressed", "true");
+
+    // Toggling to the whole project refetches at scope=project.
+    fireEvent.click(screen.getByTestId("scope-project"));
+
+    await waitFor(() => expect(graphUrls.some((u) => u.includes("scope=project"))).toBe(true));
+    expect(screen.getByTestId("scope-project")).toHaveAttribute("aria-pressed", "true");
+  });
+
   it("opens the node-details panel when a node is tapped", async () => {
     const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
       const url = String(input);
