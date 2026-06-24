@@ -49,6 +49,33 @@ heading), how does hybrid merge human + LLM boundaries, and what does each run c
 The point is a *comparable* benchmark — "how do different models cope with this task" — not a
 one-off eyeball. Pairs with the data-flywheel section in `PLAN_LONG.md`.
 
+**Robustness gaps surfaced in the auto path (Session 54 smoke) — TWO facets, the second more serious.**
+
+*(1) A plausible LLM off-by-one hard-fails structure with no retry (the loud failure).* Auto-structuring
+the `oakhaven-2` sample 500'd on the first call with `paragraph_range (23, 27) exceeds paragraph count 27`
+— the model proposed an inclusive end-index one past the last paragraph. The validation itself is *correct*
+(`proposal_to_outline` in `chunking_coordinator.py` refuses to silently drop/duplicate text —
+`OutlineRangeError` when `end >= count`), but it is raised **after** schema validation, so the agent's
+`validate_with_retry` loop (which only retries on Pydantic `ValidationError`) doesn't catch it: one
+nondeterministic LLM range error fails the whole request. A manual retry succeeded. Fix: fold the range
+check into the agent's retried-validation step (re-prompt on overflow the same way as on a schema error).
+
+*(2) The auto-chunker can SILENTLY DROP trailing content and report success (the dangerous failure).* On
+the retry that "succeeded," the LLM returned an outline whose scene ranges **stopped early** — it kept the
+`## Chapter Six` heading paragraph but omitted all six of that chapter's content paragraphs. Structure
+returned `chapter_count: 3, scene_count: 6` with **no error**, and because **paragraphs are persisted from
+the outline** (`outline_to_tree` → `insert_paragraph`, not from the upload's raw split), the dropped
+paragraphs **never entered the system** — the reader rendered 19 paragraphs ending at a bare "Chapter Six"
+header, and extraction/accept ran only over what survived. The author caught it only by *reading* the
+rendered story. Root cause: `proposal_to_outline` validates range **overflow** (`end >= count`) but never
+**coverage** — an outline whose scene ranges don't cover every paragraph passes silently. **Fix: add a
+completeness check** — after `proposal_to_outline`, assert the union of scene ranges covers all `[0, count)`
+paragraphs (no gaps, no unassigned trailing paragraphs), and on a gap either re-prompt (retry budget) or
+fail loudly (a 502/422) rather than persist a lossy outline. Belongs with the auto/hybrid eval baseline
+above — silent content loss is the single most important thing that eval must catch. **Until fixed, treat
+`manual` mode as the only trustworthy structuring path for content integrity** (deterministic `##`/`###`
+parse, no LLM, no dropping); auto/hybrid can silently truncate a story.
+
 ### Extraction + cascade (entities, relations, matching, judge)
 
 Same shape, one layer down: a set of drafts each paired with a hand-authored *reference* set
@@ -63,6 +90,19 @@ substrate. **One dimension to score explicitly: surface fidelity** — are extra
 staged "broken table" where the source says "the overturned table.") This matters twice — it's an
 extraction-precision signal, *and* a paraphrased name **won't highlight in the reader**, whose
 render-time search (DM-IH-1) needs the canonical_name/aliases to actually occur in the prose.
+
+**The spaCy PreNER baseline *without* the LLM — the intended sequencing (owner, Session 54).** The
+deliberate plan is: establish the **LLM + human-in-the-loop** extraction as the accepted-baseline
+"ground truth" first, *then* measure how the deterministic **spaCy PreNER baseline copes on its own
+(no LLM)** against it — stock `pl/en_core_news_lg` first, the finetuned model later (`PLAN_LONG.md`
+"Data flywheel"). This is a distinct eval axis from the model-vs-model comparison above (which scores
+*LLM* tiers): the question here is "how much of the accepted graph can a no-LLM, CPU-only path recover
+— recall/precision against the LLM+human reference — and at what token saving." Confirmed dormant at
+M4 (Session 54 smoke): the live `/extract` path is **LLM-only** — `PreNERAgent` is built but **wired
+into nothing** in the extraction coordinator (the `known_entities`/PreNER-hint param exists but is
+passed empty), so PreNER injection (proposal D3) stays "deferred until a real eval exists." That eval
+is this item. (See also the spec-drift reconciliation in `PLAN_SHORT.md` cross-cutting: §6 step 3 /
+§3 step 4 still describe PreNER as an *active* pipeline stage.)
 
 ## Entity-resolution limitations surfaced in testing (context, coreference, re-match ordering)
 
@@ -121,7 +161,19 @@ Session 33's live smoke test exposed several related gaps — all rooted in the 
   than name-search highlighting, plus context-aware matching. Closely tied to the coreference +
   context-dependent-identity bullets above and to the "entity-level properties + embeddings" direction.
   Out of PoC scope; recorded so the baseline graph + reader don't bake in a one-name-one-entity
-  assumption a later disambiguation model has to unpick. (Owner note, 2026-06-20.)
+  assumption a later disambiguation model has to unpick. (Owner note, 2026-06-20.) **Sharpened by a
+  concrete Session-54 case — recurring common-noun *groups*, and the score-100 false-merge trap.** The
+  Chapter-Six review staged **`crew` (Group)** with a **`Merge → crew` proposal at score 100** — but that
+  paragraph's "crew" is the **Iron Wake**'s (Locke's warship), a *different* group from the **Gilded
+  Gull**'s `crew` already in the graph. A **perfect string score is not proof of same-entity** for generic
+  recurring groups/roles ("crew", "guard", "the captain", "harbor") — each container/scene can have its
+  own instance, so the *right* action is often **New**, not the offered merge. Two compounding needs: (1)
+  *matching* shouldn't present an exact-name match as self-evidently correct for common-noun types; (2)
+  **the reviewer must be able to verify *which* entity a merge targets before committing** — which is
+  exactly the "**Merge candidates show only a name + score — no quote/context**" UX item under *Ingest &
+  review UX feedback*. Without a target-disambiguating quote, the high-confidence card actively steers the
+  author into fusing two distinct crews. The §3.3 human gate is the only thing catching it today, and it
+  can only catch it if the UI shows enough to tell the two apart. (Owner observation, Session 54 smoke.)
 - **Gate exact-name duplicate creation.** Accepting a candidate as *New* whose canonical_name
   *exactly* matches an existing accepted entity should be **gated** (warn, or auto-offer the merge),
   not silently create a second identical node — especially because M3 has no entity↔entity merge to
@@ -181,6 +233,40 @@ V1-polish-adjacent; could become M4 slices if they bother the author enough.
   Session-33 run, accepting generously, made a hairball). Spec §3.4 already calls for **filters**
   (entity type, story/chapter, connection density) — the intended navigation aid; not yet built into
   the M2.S5 viewer. (Session 33.)
+- **A "New entity" card with an *armed* (amber) merge target reads as if Accept will merge (Session 54).**
+  On a `proposal === "new"` card (`CandidateCard.tsx`), the green "New entity" badge is correct and
+  **Accept (A) creates a new entity** — but the card *also* shows the "MERGE WITH INSTEAD" list, and if
+  an alternative is armed (the user clicked it, or pressed `M`/Tab, → amber `border-amber-400 bg-amber-50`),
+  plus a "Why:" line that name-drops the existing entity ("…while the existing entity is a body of black
+  water…"), the whole card reads as if Accept might merge into that highlighted entity. The behaviour is
+  right (the armed target only affects the **Merge (M)** button; Accept always follows the badge) — the
+  gap is *visual*: the armed-target state isn't subordinate to the proposal badge. Fix is presentational —
+  make the armed highlight clearly secondary on a new-proposal card (or don't let an alternative read as
+  "selected" until the reviewer is actually choosing Merge), so Accept's outcome is unambiguous. (Owner
+  observation, Session 54 smoke.)
+- **Merge candidates show only a name + score — no quote/context to verify identity (Session 54).** When
+  choosing a merge target, the "MERGE WITH INSTEAD" alternatives (and the "OR SEARCH ALL ENTITIES" handpick
+  results) display just `canonical_name (score)` — e.g. *political treason (73.3)* offered against a "royal
+  treason" candidate. The reviewer can't tell whether *political treason* is **the same** treason without
+  leaving the queue to inspect that entity. A short **provenance snippet per merge option** — the existing
+  entity's own first-mention sentence / a representative quote (and ideally its type + a few aliases) shown
+  inline or on hover — would let the author confirm "yes, same thing" before merging. Needs the backend to
+  surface each candidate target's context (the existing entity's mentions are stored; the alternatives/search
+  payload would carry a quote alongside the name). Pairs with the "accepted-entities reference during review"
+  orientation item above. (Owner idea, Session 54 smoke.)
+- **The relation review card shows no source context — you can't commit a relation blindly (Session 54).**
+  The *entity* review card carries the ±200-char source quote (`candidate.context`), but the **relation**
+  card (`features/relation-review/RelationCard.tsx`) renders **only the surface triple + confidence** —
+  `Locke —RECLAIMS→ stolen artifacts (0.96)` with Commit/Reject and nothing else. So the author decides
+  whether a relation is real without seeing **how it was stated in the prose** — and as the modality/arity
+  observations above show, the predicate often distorts the source ("would reclaim" → `RECLAIMS`, a ternary
+  "store X in Y" → a binary edge), so the sentence is *exactly* what you need to judge it. The data is
+  already there to fix it cheaply: the staged relation carries a **`paragraph_id`** (`staged_relations`
+  keeps the per-paragraph source — ADR 0005), so the card can render the source paragraph/sentence as a
+  quote blockquote, **mirroring the entity card**. This is a hard requirement for trustworthy relation
+  review, not a nicety — committing relations blind is how a distorted edge slips into the "clean baseline
+  graph." Sibling of the "edge evidence on click (graph viewer)" item above (same provenance, different
+  surface: the *review queue* vs the *graph*). (Owner observation, Session 54 smoke.)
 
 ## Graph curation & detail-level
 
@@ -199,6 +285,33 @@ The Session-33 reader run made the curation gap concrete. Three threads:
   ARTIFACT, FURNITURE, …) — INV-4 working as designed, but it crowds the reader legend and strains
   colour distinctness (DM-IH-5's hash fallback). Post-PoC: optional type consolidation/normalisation
   toward a coarser working taxonomy (without losing the open-world freedom). (Owner observations, Session 33.)
+- **Predicate proliferation — semantically-equivalent relations should be mergeable (Session 54).** The
+  relation-side twin of open-world *type* proliferation: extraction coins predicates free-form, so one real
+  relationship shows up under near-synonyms on the same entity pair — in oakhaven-2's Elara/Jonas relations,
+  **`ON_SHIP` and `PASSENGER_ON`** (Elara is aboard the ship) and **`CAPTAINS` and `COMMANDS`** (Jonas runs
+  the ship) are duplicate edges meaning one thing each. This is **distinct from the exact-triple dedup we
+  already have** — ADR 0005's deterministic `uuid5(subject, predicate, object)` only collapses *identical*
+  triples, so two *different* predicate strings stay as two edges. Post-PoC: a way to **consolidate/normalise
+  equivalent predicates** — a canonical-predicate vocabulary, or human-gated "these two predicates mean the
+  same, merge them" (the relation analogue of entity merge), or a similarity hint at extraction/review time —
+  without losing the open-world freedom. Pairs with the type-consolidation bullet above and the
+  graph-as-editing-surface item below (merging predicates is one of the curation actions the graph surface
+  would expose). (Owner observation, Session 54 smoke.)
+- **The graph view itself as a direct editing/curation surface (Session 54).** Seeing the multi-story
+  graph whole made the gap concrete: it's a good *read-only projection*, but the author can't **act on it
+  where they see the problem** — to fine-tune an entity's details, merge two nodes that are obviously the
+  same, or add / re-target / delete a relationship, they have to leave the graph for the reader panel or
+  the review queues. **Some of the operations already exist in code** — the reader entity panel (M4.S3a-fe)
+  edits name/type/aliases/properties and adds/removes relations, and the backend has the write paths
+  (`PATCH …/entities/{eid}`, `POST`/`DELETE …/relations`, entity↔entity `merge`) — so this is **largely a
+  UX-surfacing job, not net-new write plumbing**: bring those operations onto the graph canvas (click a
+  node → inline edit/merge; drag between nodes → propose a relation; click an edge → edit/delete predicate),
+  with the human gate intact (INV-1/INV-9 — every change is still an explicit human action). The owner's
+  emphasis: **accessibility + ease are the crux** — a dense hairball (see also "Graph navigation at density"
+  + the §3.4 filters) is only curatable if editing is fluid and in-place. Larger than one slice; think of it
+  as the **graph-side twin of "the reader as the working surface"** (next section) — the two together are how
+  the PoC graph becomes genuinely editable by the author. Needs its own design pass / decompose before any
+  build. (Owner direction, Session 54 smoke.)
 
 ## Reader as the paragraph-by-paragraph working surface (post-PoC)
 
@@ -470,6 +583,47 @@ Things to think through post-PoC:
   in a timeless, single-snapshot edge that a later temporal model has to unpick. This is a design
   constraint to keep in mind on **current** relation-modelling decisions, not scheduled work. (Owner
   idea, 2026-06-19.)
+- **Modality / irrealis — the relation is asserted as fact when the prose frames it as intent or future
+  (Session 54).** Sibling problem to temporal qualification, surfaced in the oakhaven-2 relation queue:
+  the source reads *"Locke **would reclaim** the stolen artifacts **and deliver** justice"* (intention /
+  conditional future — he has **not** done it), but the extractor staged flat present-tense edges
+  `Locke —RECLAIMS→ stolen artifacts` (0.96) and `Locke —DELIVERS→ justice` (0.94), reading as established
+  fact. Same class: *"the magistrate **intended to** corner the criminals."* The flat predicate model drops
+  the **modal/aspectual** qualifier (irrealis vs realis — wants/intends/would/plans vs did/does), so desire,
+  intention, hypotheticals, negation, and future all collapse into asserted truth. A polished graph needs a
+  **modality/polarity qualifier on the edge** (realis vs irrealis, and the irrealis flavour — intention,
+  desire, future, counterfactual, negated) so "plans to kill the king" isn't stored identically to "killed
+  the king." Ties to the same forward-compat constraint above: an edge addressable enough to later carry a
+  validity interval should also be able to carry a modality flag, rather than baking in a bare asserted
+  triple. Design-constraint-now, feature-later. (Owner observation, Session 54 smoke.)
+- **Relation arity — n-ary relations flatten to a binary edge and drop an argument (Session 54).** Another
+  sibling to modality/time, surfaced in oakhaven-2: the source says *"hid the **letter** and the **cipher**
+  back inside her **satchel**"*, so the real facts are `Black Wax Letter —in→ satchel` and `Obsidian Cipher
+  —in→ satchel`. The extractor instead staged a binary **`Person —STORES_IN→ leather satchel`** edge — "we
+  lack information **what** is stored." "Store X in Y" is **ternary** (agent / theme / container); the flat
+  subject→predicate→object edge can hold only two endpoints, so any relation with more than two arguments
+  loses one — and the extractor may root it on the wrong pair (here the *agent*+*container*, dropping the
+  *theme*, which is the salient fact). Post-PoC modelling options are the same lever as time/modality:
+  **reify the relation** (edge → node) so it can carry extra typed roles (theme, instrument, beneficiary…)
+  alongside time + provenance, or decompose an n-ary statement into linked binary edges through an
+  intermediate node. Until then, n-ary statements are silently lossy — an extraction-quality signal an eval
+  should score (ties to the extraction-eval section) *and* a modelling constraint on how addressable an edge
+  is. (Owner observation, Session 54 smoke.)
+- **Eventive vs stative relations — classify them, and order the eventive ones on the narrative timeline
+  (Session 54).** The single strongest motivation for this whole section, made concrete by oakhaven-2's full
+  relation list: relations split into two kinds that the flat model treats identically — **eventive** (a
+  point-in-time action: `TOSSED heavy pouch of gold coins`, `BROKE_SEAL`, `INSPECTS`/`READS`/`UNFOLDS` Black
+  Wax Letter, `GRABBED Elira`, `GAZES_AT`) versus **stative** (an enduring fact about living things/state:
+  `SIBLING_OF Elira`, `WEARS heavy woolen cloak`, `KNOWS gold`, `INVOLVED_IN political treason`). A flat,
+  unordered list drops a momentary "tossed the coins" next to a permanent "sibling of Elira" with no way to
+  tell which is a fleeting event and which is always-true — and the **eventive** ones cry out for
+  **ordering along the narrative timeline** (the reading-order seed already shipped as the M4.S2b occurrence
+  list). Two needs fall out: (1) a **relation aspect classification** (eventive/stative — possibly a derived
+  or extracted flag) so the UI/graph can render and filter them differently; (2) **timeline ordering** of the
+  eventive relations so the author can read the sequence of what happened. This is exactly the "time is
+  important in every aspect" thesis above, with a concrete handle: aspect is *what kind* of relation, the
+  timeline is *when* the eventive ones fire. (Owner observation, Session 54 smoke — the call to "ground and
+  pound" the graph quality later.)
 
 ---
 
