@@ -25,7 +25,7 @@ Two habits earned their place then and are worth keeping regardless of how many 
 ### 1. Karpathy rules — apply on every change
 
 - **Don't assume. Don't hide confusion. Surface tradeoffs.** State assumptions explicitly. If uncertain, ask. If multiple interpretations exist, present them — don't pick silently.
-- **Simplicity first.** Minimum code that solves the problem. No speculative features, no abstractions for single-use code, no configurability that wasn't asked for. If you wrote 200 lines and it could be 50, rewrite.
+- **Simplicity first.** Minimum code that solves the problem. No speculative features, no abstractions for single-use code, no configurability that wasn't asked for. If you wrote 200 lines and it could be 50, rewrite. **Reuse before building — especially tooling:** when a change adds a *skill or agent*, first survey what already exists (the built-in subagents `Explore` / `general-purpose` / …, the project skills in `.claude/skills/`, the `meta-architect` plugin) and reuse it; mint a new agent/skill only for the capability none of them provides — a doctrine the executor *adopts* is often the only genuinely-new piece. (Earned Session 61: a code-docs toolset was designed with a bespoke agent until the owner pushed twice to check the built-ins; `Explore` + `general-purpose` covered both the survey and apply phases, so the only new piece was a doctrine file.)
 - **Surgical changes.** Touch only what you must. Don't "improve" adjacent code. Don't refactor things that aren't broken. Every changed line must trace to my request.
 - **Goal-driven execution.** Transform tasks into verifiable goals. Write the test first. Loop until the test passes. "Make it work" is not a success criterion.
 
