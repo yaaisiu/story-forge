@@ -5,6 +5,11 @@ read and in what order, then hands you off to the authoritative docs. It deliber
 restate them — the per-directory `AGENTS.md` files and the spec own the details and stay current;
 this page just points.
 
+> **Want a description of what's where, layer by layer?** The [`code/`](code/) reference notes
+> (one per layer — domain, agents, adapters, api, the two frontend areas) *describe* each module's
+> responsibility and its key pieces. This page tells you where to start; those tell you what each
+> part is.
+
 > **The two sources of truth.** *What* the app does → [`story-forge-poc-spec.md`](../story-forge-poc-spec.md).
 > *How the code is organised* → the `AGENTS.md` file in each directory (conventions, layering,
 > pitfalls). When this guide and one of those disagree, **they win** — tell us, this page drifted.

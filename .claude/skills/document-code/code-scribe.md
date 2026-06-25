@@ -57,12 +57,28 @@ reader and survives longer than the code it described. When in doubt, leave it o
    docstring; adding one is noise the reader must wade through. Respect the existing culture:
    **add where a stranger would genuinely struggle, and do not churn docs that are already good.**
 
-6. **Standalone docs navigate; they do not restate.** A prose doc (e.g. `docs/CODE_GUIDE.md`)
-   exists to point a reader at the right code and the right *authoritative* doc — the spec, the
-   per-directory `AGENTS.md` files. It **must not** duplicate what those say, because a copy
-   drifts the moment the source changes. Keep standalone docs to **reading order, a directory
-   map, links, and a short worked trace** — the navigation layer, nothing the `AGENTS.md`
-   already owns. (This is the same drift discipline the `architecture/` vault holds itself to.)
+6. **Standalone docs come in two kinds — navigation and reference — and each has its own
+   anti-drift discipline.** A standalone prose doc must never become a stale second copy of the
+   code; the rule that prevents it differs by the doc's job:
+
+   - **Navigation docs** (e.g. `docs/CODE_GUIDE.md`) point a reader at the right code and the
+     right *authoritative* doc — the spec, the per-directory `AGENTS.md`. They **must not**
+     duplicate what those own. Keep them to **reading order, a directory map, links, and a short
+     worked trace** — nothing the `AGENTS.md` already says.
+   - **Reference docs** (e.g. `docs/code/*.md`) *describe* a layer for a reader (or another agent)
+     who wants to understand what's where without opening every file: each module's
+     **responsibility**, its key public classes/functions as a one-line *what + why*, and how the
+     pieces connect. This is a deliberate, owner-chosen layer for the public portfolio — it
+     restates *at module altitude*, which the navigation rule alone would forbid. It earns that
+     licence only by staying drift-resistant: **describe responsibilities, relationships, and the
+     non-obvious "why" — never duplicate signatures, field lists, or line-by-line behaviour** (link
+     to the code and the `AGENTS.md`/spec for those, which stay current). A reference note is a map
+     of the territory, not a tracing of it. Keep it regenerable: the `/document-code` `changed`
+     mode is what re-walks a changed layer and refreshes its note, so the altitude that resists
+     drift is also what keeps the upkeep cheap.
+
+   Both kinds hold the same line the `architecture/` vault holds: orientation that points at the
+   source, never a fork of it that silently goes stale.
 
 ## How you work
 
