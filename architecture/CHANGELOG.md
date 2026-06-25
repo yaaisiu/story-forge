@@ -1,7 +1,7 @@
 ---
 type: changelog
 slug: changelog
-updated: 2026-06-23
+updated: 2026-06-25
 status: living
 related: []
 ---
@@ -10,6 +10,29 @@ related: []
 
 Append-only audit trail of writes into the vault. Newest entries at the top. History also lives
 in `updated` fields (freshness) and git (diffs); this is the human-readable "what changed when".
+
+## 2026-06-25 (Public-readiness Session 2) — review: V1-complete → Public-readiness re-sync sweep
+
+- **`reports/2026-06-25-architecture-review.md`** — new dated snapshot (now the current health
+  snapshot). No blockers; two `risk`s (PreNER-as-live-stage; `overview.md` M4 stale — both fixed on
+  sight), three `watch` (stale invariants date, build-pending multi-story banner, INDEX regen — folded).
+- **`overview.md`** — reconciled the **PreNER framing** (M2.S1 bullet + the "So today" paragraph) to
+  spec §7 Step 3 deferred/dormant (code-verified `extraction_agent.py` passes empty hints); refreshed
+  the **M4 as-built block** (S3b/S3c/multi-story shipped; V1 feature-complete) and the **"Next"** block
+  (V1-complete → Public-readiness → Graph-quality → V2; world graph reframed post-PoC); `updated` →
+  2026-06-25.
+- **`PROJECT.md`** — replaced the M2.S3-era as-built parenthetical with the V1-complete picture;
+  reworded the §7 pipeline classification to mark PreNER built-but-dormant; `updated` → 2026-06-25.
+- **`invariants.md`** — frontmatter `updated` → 2026-06-25 (body code-verified honest — INV-9's six
+  writer-paths confirmed against `neo4j_repo.py`/`entity_edit.py`, coordinator has no writer; INV-3
+  executed — **body unchanged**).
+- **`proposals/m4-multi-story.md`** — **BUILT banner** (be #128 / fe #130 / smoke #133; V1 done).
+- **`INDEX.md`** — regenerated: multi-story row → BUILT/V1-complete; 2026-06-20 row → superseded; new
+  2026-06-25 snapshot row; Next-steps items 26–27; glossary unchanged (28); `updated` → 2026-06-25.
+- **`open-questions.md`** — **OQ-28** added (Graph-quality forward "what if" — auto-chunker silent
+  content-loss; membership-derivation under delete); `updated` → 2026-06-25.
+- **`learning-log.md`** — +1 line (doc-freshness as a state machine, 4th occurrence).
+- Report-only: no code/config touched.
 
 ## 2026-06-23 (Session 50) — resolve: M4 multi-story register (DM-MS-1..7) — owner, same session
 

@@ -1,7 +1,7 @@
 ---
 type: project
 slug: project
-updated: 2026-06-09
+updated: 2026-06-25
 status: living
 related: ["[[overview]]", "[[invariants]]", "[[open-questions]]"]
 ---
@@ -17,9 +17,12 @@ entities and relations in Neo4j. **As specified for V1** (the target capability 
 built today vs. planned, see [[overview]] "as-built"), the author uploads a raw draft; the
 system splits it into chapters → scenes → paragraphs, extracts entities (characters, places,
 objects, concepts) and their relations, and lets the author confirm every graph decision by
-hand. *Today the upload/split/structure step works and LLM entity/relation extraction is built
-(M2.S3); the graph write is M2.S4.* It runs entirely on the author's machine and is **public from day one** — it
-doubles as a portfolio
+hand. *V1 is **feature-complete** (M0–M4): upload → structure → LLM extraction → the §3.3 human-gated
+cascade → graph write → an inline-highlight reader with an editable entity side panel (edit, merge,
+delete, undo, manual tagging) → narrowed multi-story (a new story reuses the project graph). The
+multi-story live smoke passed (Session 54). The project is now in a **Public-readiness** milestone —
+portfolio/spec/doc polish before the next build milestone (Graph-quality, then V2 Editing).* It runs
+entirely on the author's machine and is **public from day one** — it doubles as a portfolio
 piece demonstrating clean modular architecture, agent-based LLM orchestration, multi-model
 routing, and secure-by-default infrastructure.
 
@@ -32,9 +35,11 @@ the *stable architectural inputs* the vault reasons from. It does not restate th
 agent-based ingest/enrichment pipeline*. Justification, grounded in the repo scan: a FastAPI
 API layer (`backend/src/story_forge/api/`) and a React + Vite SPA (`frontend/src/`) served to
 a browser on localhost, backed by Postgres + pgvector, Neo4j, and Ollama in docker-compose.
-The architectural centre of gravity, though, is the §7 **ingest pipeline** (chunking → PreNER
-→ extraction → cascade matching → graph write) — that is where the hardest "but what if"
-questions concentrate, so much of the vault's later analysis will live at that altitude.
+The architectural centre of gravity, though, is the §7 **ingest pipeline** (chunking → extraction
+→ cascade matching → human review → graph write) — that is where the hardest "but what if"
+questions concentrate, so much of the vault's later analysis will live at that altitude. (A spaCy
+**PreNER** baseline is *built but dormant* — §7 Step 3 deferred 2026-06-25; the live extraction is
+LLM-only, so PreNER is not a stage in the pipeline as it runs today.)
 
 ## Personas & trust (Layer 1)
 

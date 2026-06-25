@@ -22,6 +22,16 @@ related:
 
 # M4 — narrowed multi-story (a new story reuses the project graph + per-story membership)
 
+> **✅ BUILT & SHIPPED (2026-06-23/24, Sessions 52–54).** Backend **#128** (`scope=story|project`
+> on the graph route default `story` · `project_id`-on-upload · `GET /projects` + `GET
+> /projects/{id}/stories` · the `world_id` cleanup opener #124) + frontend **#130** (project/story
+> picker · §3.4 scope toggle · add-story-into-project). The **§8.4/§3.3 "whole world → whole
+> project" stop-and-amend** landed in the host spec (Session 49, #119). The **multi-story live smoke
+> PASSED (Session 54, #133)** — **V1 is feature-complete.** As resolved, no new invariant, no
+> state-machine, no ADR (per-story membership stayed *derived*). `accepted` is a proposal's terminal
+> status — this banner carries the as-built note. **Next:** the Public-readiness milestone, then
+> Graph-quality polish (`docs/PLAN_SHORT.md` / `docs/PLAN_LONG.md`).
+
 > **✅ Status: ACCEPTED — register RESOLVED with the owner (2026-06-23, Session 50).** Authoritative
 > resolution home: `docs/PLAN_SHORT.md` Decided + this note. **No ADR** (resolves no open spec
 > question, crosses no new data boundary — DM-MS-1 *removes* a would-be boundary by deriving). The
