@@ -50,6 +50,32 @@ decision.** Get today's date with `date +%F`.
 ## 6. Fresh "but what if"
 - Run a new edge-case pass over the recently-changed components in scope.
 
+## 6b. Self-check — don't leave the staleness you came to fix
+This sweep **re-syncs derived/strategic notes on sight** (the `update-in-place`/`regenerated` notes —
+`overview.md`, `PROJECT.md`, `INDEX.md`, a proposal's BUILT/resolved banner). A freshness-fixing pass
+that *itself* leaks freshness debt defeats its own purpose — so before writing the report (step 7),
+run the same `/review-pr` §2-style discipline over **your own edits**:
+
+- **Bump `updated:` on every note you edited this run** — including a proposal you only touched to add
+  a **BUILT/resolved banner** (a banner is an edit; an `accepted` proposal still bumps its date and
+  gets a `CHANGELOG` line). Grep the notes you changed and confirm none has a body dated newer than its
+  frontmatter `updated:`. (The `update-in-place` mode already requires this; this is the closing
+  *verification* that it actually happened.)
+- **Grep your regenerated/edited notes for stale framing the sweep is supposed to clear** — residual
+  `Next: <shipped-milestone>`, `proposed` / `register OPEN` / `awaiting owner` on a now-resolved item,
+  a `build-pending` hand-off on shipped work. **`INDEX.md` is the usual culprit:** it is *regenerated*,
+  but in practice the "Next steps" list grows by **append**, so a prior session's `Next: …` breadcrumb
+  reads as live unless the current next is unambiguous (the list carries a run-log framing note; the
+  *current* next is the last item). If the handoff that triggered this sweep named a specific stale
+  anchor (e.g. `INDEX.md:NNN "Next: M4"`), confirm *that line* is cleared or reframed — adding new
+  items below it is not the same as clearing it.
+
+Why this step exists: doc-freshness drift is a recurring failure (a `learning-log` motif), and the
+sweep is its forcing function — but only if the sweep holds itself to the standard it enforces on the
+rest of the vault. (Earned 2026-06-25: the sweep added a proposal BUILT banner without a date bump and
+left a handoff-flagged `INDEX` "Next:" line un-cleared; only the follow-on `/review-pr` §2 grep caught
+both.)
+
 ## 7. Write the report — `reports/<YYYY-MM-DD>-architecture-review.md` (type `review`)
 - Findings **grouped by category**, each tagged with a severity: **blocker · risk · watch**.
 - **Write findings to be *triaged*, not just read.** A report has no forcing function of its own (a
