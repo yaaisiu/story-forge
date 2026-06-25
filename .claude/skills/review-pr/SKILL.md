@@ -156,6 +156,15 @@ unsure it's real, say so and how to confirm — don't drop it, don't overstate i
   the generated `number | null` were all nullable; `/review-pr` noted the None-on-refusal behaviour
   and `/code-review` flagged the clock wording, but **neither connected the "always" claim to the
   nullable exception** — external review caught it. The fix was the wording, not the code.)
+- **Prose that *describes a mechanism* must be checked for completeness, not just non-falsity.**
+  When the diff explains *how something works* (vs stating a single fact or captioning an
+  artifact), verify the description against the spec's *full* account of that mechanism — an
+  **over-narrowed** description that is true of the shown case but false as a general claim is a
+  fidelity gap, not a clean pass. A claim-by-claim "is each statement true?" check passes it; the
+  test is "is this the *whole* truth of the mechanism?" (Session 60 PR #144: the README Demo framed
+  merge-into-existing as a *cross-story* behaviour, but spec §3.3's on-accept re-match makes it
+  intra-story too — the single `/review-pr` verified each claim against the screenshots + spec and
+  reported §2 clean; the owner caught the over-narrowing.)
 
 ### Decision reconciliation — the whole-repo, every-home sweep (the six-pass lesson)
 
