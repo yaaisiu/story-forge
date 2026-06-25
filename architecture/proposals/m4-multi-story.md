@@ -1,7 +1,7 @@
 ---
 type: proposal
 slug: m4-multi-story
-updated: 2026-06-23
+updated: 2026-06-25
 status: accepted
 related:
   - "[[overview]]"

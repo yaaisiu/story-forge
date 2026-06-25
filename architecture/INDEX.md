@@ -83,6 +83,12 @@ related: []
   the latter).
 
 ## Next steps
+
+> **Chronological run-log — newest at the bottom.** Each numbered entry records the next step *as of
+> that session*; the **current** next is the **last item**. Earlier `Next: …` phrases (e.g. item 16's
+> "Next: M4") are **historical breadcrumbs**, not live — read them in their dated context. (Regenerated
+> note: this list grows by append each sweep.)
+
 1. ~~Validation/drift sweep over M0→M2.S1 + ADRs 0001–0002~~ ✅ done — [[2026-06-02-architecture-review]].
 2. ~~Forward strategy pass on M2.S2 (LLM router + budget)~~ ✅ done — [[m2s2-llm-router-budget-cap]].
 3. ~~Operator decides D1–D6~~ ✅ resolved 2026-06-02 ([[open-questions]] OQ-8 struck; `docs/decisions/0003`).

@@ -32,6 +32,13 @@ in `updated` fields (freshness) and git (diffs); this is the human-readable "wha
 - **`open-questions.md`** — **OQ-28** added (Graph-quality forward "what if" — auto-chunker silent
   content-loss; membership-derivation under delete); `updated` → 2026-06-25.
 - **`learning-log.md`** — +1 line (doc-freshness as a state machine, 4th occurrence).
+- **`/review-pr` fold (same session, PR #140):** (1) `INDEX.md` — a run-log framing note under "Next
+  steps" so the historical `Next: M4` breadcrumbs (the handoff-flagged item 16) can't read as live;
+  (2) `proposals/m4-multi-story.md` — `updated` → 2026-06-25 (the BUILT-banner edit had left the date
+  stale, the same class this sweep fixes — matching the m4-entity-editing precedent); (3)
+  `proposals/m2s3-extraction-agent.md` — a one-line as-built banner pointing the historical "chunk →
+  PreNER → extract" framing at the now-permanent §7 Step 3 deferral (history kept intact); `updated`
+  → 2026-06-25.
 - Report-only: no code/config touched.
 
 ## 2026-06-23 (Session 50) — resolve: M4 multi-story register (DM-MS-1..7) — owner, same session
