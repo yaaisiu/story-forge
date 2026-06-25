@@ -9,8 +9,10 @@ Story Forge pins **every** image in `docker-compose.yml` to an exact tag that is
 **≥7 days old** at time of pin and **Trivy HIGH/CRITICAL-clean** (spec §6.7). The image
 soak is 7 days, not the 14 used for packages, because base images come from known signed
 official publishers and the dominant risk is *known CVEs* — for which a fresher rebuild is
-*safer*. The `security` CI job re-scans on every push. Follow these steps so the first
-push passes instead of iterating against CI.
+*safer*. The `security` CI job re-scans on every code-bearing push/PR and on a daily
+schedule (spec §6.7 "CI scan cadence"; a compose/image change is code-bearing, so a pin
+PR always triggers it). Follow these steps so the first push passes instead of iterating
+against CI.
 
 Two failure modes a pin can hit even when the version looks right (both seen in this repo):
 a **nonexistent tag** (a valid version string + dropped OS variant → `MANIFEST_UNKNOWN`),

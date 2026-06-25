@@ -4,9 +4,87 @@ on:
   push:
     branches: [main]
   pull_request:
+  # Daily full dependency/image scan, independent of PR cadence. Because the heavy jobs
+  # below are path-scoped to code-bearing changes (see the `changes` job), a stretch of
+  # docs-only PRs would otherwise leave newly-disclosed advisories against unchanged
+  # dependencies (the CVE-treadmill) uncaught until the next code PR. The schedule closes
+  # that gap — the `security` job force-runs here. (Spec §6.7 "CI scan cadence".)
+  schedule:
+    - cron: "17 4 * * *" # 04:17 UTC, off the top-of-hour congestion GitHub warns about
+  # Manual "run everything now" button (treated as a full run, like a code change).
+  workflow_dispatch:
+
+# Cancel a superseded run when a PR branch is pushed again; never cancel a main/schedule
+# run (each commit on main is verified to completion).
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
+  # ───────────────────────────────────────────────────────────────────────────
+  # Decide whether this push/PR touches CODE. The heavy jobs (service-container
+  # test suites, the frontend build, the dependency/image scans) only need to run
+  # when something outside the docs surface changed. A docs-only change (docs/**,
+  # architecture/**, or any *.md) touches no dependency, image, or code, so those
+  # scans have nothing to catch. The always-on `secret-scan` job below still runs
+  # on every push/PR regardless. Native git-diff — no third-party action to pin.
+  # (Spec §6.7 "CI scan cadence".)
+  # ───────────────────────────────────────────────────────────────────────────
+  changes:
+    runs-on: ubuntu-latest
+    outputs:
+      code: ${{ steps.filter.outputs.code }}
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0 # full history so the base..head diff is computable
+      - id: filter
+        env:
+          EVENT: ${{ github.event_name }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          BEFORE_SHA: ${{ github.event.before }}
+          HEAD_SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          # schedule → scans only (security forces itself on via its own `if`);
+          # workflow_dispatch → a full manual run.
+          if [ "$EVENT" = "schedule" ]; then echo "code=false" >> "$GITHUB_OUTPUT"; exit 0; fi
+          if [ "$EVENT" = "workflow_dispatch" ]; then echo "code=true" >> "$GITHUB_OUTPUT"; exit 0; fi
+          if [ "$EVENT" = "pull_request" ]; then base="$BASE_SHA"; else base="$BEFORE_SHA"; fi
+          # New branch / unknown base (all-zero SHA) → can't diff, run everything (safe default).
+          if [ -z "$base" ] || [ "$base" = "0000000000000000000000000000000000000000" ]; then
+            echo "code=true" >> "$GITHUB_OUTPUT"; exit 0
+          fi
+          # Three-dot: changes on HEAD since it diverged from base (the PR's own files).
+          changed="$(git diff --name-only "$base...$HEAD_SHA")"
+          # "Docs" = anything under docs/ or architecture/, or any *.md anywhere. Everything
+          # else (backend/, frontend/, pyproject.toml, package.json, docker-compose.yml,
+          # infra/, .github/, lockfiles, scripts/, …) is code-bearing.
+          code_changed="$(printf '%s\n' "$changed" | grep -vE '(^|/)[^/]*\.md$|^docs/|^architecture/' || true)"
+          if [ -n "$code_changed" ]; then
+            echo "code=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "code=false" >> "$GITHUB_OUTPUT"
+          fi
+
+  # Always-on, on every push/PR (docs included) and on the schedule. Cheap, and the one
+  # security gate a docs-only change can still trip (a secret pasted into a markdown file).
+  # Split out of the heavier `security` job so it is never path-skipped. (Spec §6.7.)
+  secret-scan:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - name: Install detect-secrets
+        run: pip install detect-secrets==1.5.0
+      - name: Secret scan against baseline
+        run: detect-secrets scan --baseline .secrets.baseline
+
   backend:
+    needs: changes
+    if: needs.changes.outputs.code == 'true'
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -55,6 +133,7 @@ jobs:
         uses: astral-sh/setup-uv@v7
         with:
           python-version: "3.12"
+          enable-cache: true # cache the uv download + resolved wheels (keyed on uv.lock)
       - name: Install dependencies
         run: uv sync --frozen
       - name: Ruff (lint)
@@ -75,6 +154,8 @@ jobs:
         run: uv run pytest -q
 
   frontend:
+    needs: changes
+    if: needs.changes.outputs.code == 'true'
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -84,6 +165,8 @@ jobs:
       - uses: actions/setup-node@v5
         with:
           node-version: "20"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
       - name: Install dependencies
         run: npm ci
       - name: ESLint
@@ -102,17 +185,19 @@ jobs:
         # user, so it shouldn't red main on un-shipped code (spec §6.7, 2026-06-18).
         run: npm audit --omit=dev --audit-level=high
 
+  # Dependency-age + advisory (OSV) + image (Trivy) scans. Path-scoped to code-bearing
+  # changes (a docs-only PR changes no deps/images), and force-run on the daily schedule
+  # so the CVE-treadmill is caught regardless of PR cadence. The detect-secrets step that
+  # used to live here is now the always-on `secret-scan` job above. (Spec §6.7.)
   security:
+    needs: changes
+    if: needs.changes.outputs.code == 'true' || github.event_name == 'schedule'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
       - uses: actions/setup-python@v6
         with:
           python-version: "3.12"
-      - name: Install detect-secrets
-        run: pip install detect-secrets==1.5.0
-      - name: Secret scan against baseline
-        run: detect-secrets scan --baseline .secrets.baseline
       - name: Dependency-age + non-exact-pin sweep
         # GITHUB_TOKEN lifts the GitHub API rate limit for the GitHub-release-wheel
         # age checks (spaCy models, spec §6.7) so the sweep doesn't flake on shared
@@ -122,11 +207,12 @@ jobs:
         run: python3 scripts/check_dependency_age.py
       - name: OSV-Scanner — backend lockfile SCA (fail on any advisory)
         # Continuous SCA: scans backend/uv.lock against the OSV advisory DB on
-        # every PR — the PyPI analogue of the frontend's `npm audit` step, and
-        # the continuous complement to /add-dependency's one-shot pin-time OSV
-        # check. It catches an advisory disclosed *after* a version was pinned
-        # (the gap that let the starlette 1.0.0 alert reach `main` unseen — the
-        # Trivy steps below scan only Docker images, nothing scanned uv.lock).
+        # every code-bearing PR + daily — the PyPI analogue of the frontend's
+        # `npm audit` step, and the continuous complement to /add-dependency's
+        # one-shot pin-time OSV check. It catches an advisory disclosed *after* a
+        # version was pinned (the gap that let the starlette 1.0.0 alert reach
+        # `main` unseen — the Trivy steps below scan only Docker images, nothing
+        # scanned uv.lock).
         # FAIL-ON-ANY: osv-scanner exits 1 on any unwaived advisory (spec §6.7).
         # Waivers are scoped to infra/osv/osv-scanner.toml (register: WAIVERS.md);
         # prefer a fix (bump via /add-dependency) over a waiver.
@@ -187,6 +273,8 @@ jobs:
           trivyignores: infra/trivy/ollama.trivyignore
 
   ollama-cloud-smoke:
+    needs: changes
+    if: needs.changes.outputs.code == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
