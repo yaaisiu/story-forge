@@ -20,8 +20,8 @@ this page just points.
 3. **The backend, by layer.** Start at
    [`backend/src/story_forge/AGENTS.md`](../backend/src/story_forge/AGENTS.md) — it states the
    strict layering (`api → agents → domain → adapters`) and the agent pattern. Then read the code
-   in that dependency order: `domain/` (the shapes) → `agents/` (the pipeline) → `api/` (the HTTP
-   surface) → `adapters/` (the I/O bridges to Postgres, Neo4j, the LLM providers). Module
+   dependencies-first (bottom-up): `domain/` (the shapes) → `agents/` (the pipeline) → `api/` (the
+   HTTP surface) → `adapters/` (the I/O bridges to Postgres, Neo4j, the LLM providers). Module
    docstrings carry the per-file rationale and spec cross-references.
 4. **The frontend.** [`frontend/src/AGENTS.md`](../frontend/src/AGENTS.md) for the
    feature-folder structure and component rules;
@@ -38,13 +38,15 @@ A chapter is ingested and becomes graph (authoritative step-by-step: spec
 [`§7`](../story-forge-poc-spec.md)):
 
 **upload** (`api/stories.py` `upload_story`) **→ chunk** into chapters/scenes (`agents/chunking_*`)
-**→ extract** entity & relation candidates per chunk (`agents/extraction_*`) **→ review**: stage,
-match against existing entities via the cascade, and let a judge weigh in before the human accepts
-or rejects (`agents/candidate_staging.py`, `agents/matching_agent.py`, `agents/judge_agent.py`,
-`agents/candidate_review.py`) **→ graph**: accepted entities/relations are written to Neo4j
+**→ extract** entity & relation candidates per chunk (`agents/extraction_*`) **→ embed & match**:
+each candidate is embedded and matched against existing entities via the cascade, with a judge
+weighing in (`agents/embedding_agent.py`, `agents/candidate_staging.py`, `agents/matching_agent.py`,
+`agents/judge_agent.py`) **→ human review**: the human accepts or rejects each candidate
+(`agents/candidate_review.py`) **→ graph**: accepted entities/relations are written to Neo4j
 (`adapters/neo4j_repo.py`) and surfaced in the viewer. Every LLM call is routed across the model
 tiers by `adapters/llm/router.py` (spec [`§6.5`](../story-forge-poc-spec.md), ADR
-[`0003`](decisions/0003-llm-router-provider-order-and-budget.md)).
+[`0003`](decisions/0003-llm-router-provider-order-and-budget.md)). This is the coarse shape; spec
+[`§7`](../story-forge-poc-spec.md) is the authoritative step-by-step.
 
 ## Directory map
 

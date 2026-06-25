@@ -689,6 +689,14 @@ it leans on an LLM pass or stays deterministic-first ([[prefer-deterministic]]).
 with the public-portfolio goal (a stranger can read how the project is built) and with the existing
 `AGENTS.md`-per-directory convention. Revisit at the PoC→V2 roll. (Owner idea, 2026-06-22.)
 
+**First lightweight stone landed (2026-06-25, PR #146):** the `/document-code` skill +
+`code-scribe` doctrine (`.claude/skills/document-code/`) — a *manual-assisted, conservative*
+toolset (reuses the built-in Explore + general-purpose agents; documents only what the code
+verifiably shows; diff-driven `changed` update mode) plus `docs/CODE_GUIDE.md` as its first
+output. This is **not** the *generated/CI-derived living-docs* system this item envisions — it's
+the human-in-the-loop precursor. The full direction (auto-derivation, drift-free regeneration)
+remains open for the PoC→V2 roll.
+
 ## Consolidated agentic-system architecture note (post-PoC)
 
 The owner's question (2026-06-25): is there a single architecture doc for the **agentic system**
