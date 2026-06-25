@@ -689,6 +689,36 @@ it leans on an LLM pass or stays deterministic-first ([[prefer-deterministic]]).
 with the public-portfolio goal (a stranger can read how the project is built) and with the existing
 `AGENTS.md`-per-directory convention. Revisit at the PoC→V2 roll. (Owner idea, 2026-06-22.)
 
+**First lightweight stone landed (2026-06-25, PR #146):** the `/document-code` skill +
+`code-scribe` doctrine (`.claude/skills/document-code/`) — a *manual-assisted, conservative*
+toolset (reuses the built-in Explore + general-purpose agents; documents only what the code
+verifiably shows; diff-driven `changed` update mode) plus `docs/CODE_GUIDE.md` as its first
+output. This is **not** the *generated/CI-derived living-docs* system this item envisions — it's
+the human-in-the-loop precursor. The full direction (auto-derivation, drift-free regeneration)
+remains open for the PoC→V2 roll.
+
+## Consolidated agentic-system architecture note (post-PoC)
+
+The owner's question (2026-06-25): is there a single architecture doc for the **agentic system**
+(the chunking → extraction → matching → judging pipeline, multi-model tier routing, the cascade,
+the human gate)? **Today it's real but distributed** — spec §6.5 (agent orchestration, *CRITICAL*)
++ §7 (pipeline) + §6.4 (data model); the `architecture/` vault (glossary `agent`/`cascade-matching`/
+`model-tier-routing`, the per-feature `proposals/`, `state-machines/`, `overview.md` nine-layer,
+`invariants.md` INV-6/INV-7); ADRs 0001 + 0003; the README Architecture section; and
+`backend/src/story_forge/AGENTS.md` + the ~98%-documented `agents/` module docstrings. There is **no
+single consolidated note** — the vault's `architecture/components/` dir is empty, which is the
+natural home.
+
+Worth creating for the portfolio (the agent orchestration is the project's most interesting part,
+and a reader currently has to assemble it from many places), but **not urgent** and easy to get
+wrong: it must **reference, not duplicate** the distributed sources (the vault's own
+"orientation, not a source of truth" rule — `architecture/AGENTS.md`) or it becomes another drift
+surface. Natural shape: a vault **component note** (+ a Mermaid agent-orchestration diagram)
+authored by `meta-architect:decompose-requirement`/`review-architecture` (the authorized vault
+writer — ADR 0002), linked from `architecture/INDEX.md` and the new `docs/CODE_GUIDE.md`. Revisit
+when the agentic system is next worked (the Graph-quality milestone) or at the PoC→V2 roll. Pairs
+with the "Code documentation generation" item above. (Owner question, 2026-06-25.)
+
 ## Dual-store data architecture — analyse Postgres + Neo4j split (post-PoC)
 
 The owner's seed idea (2026-06-23): at some point **step back and analyse whether the two-store
