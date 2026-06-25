@@ -11,7 +11,7 @@ The user can upload a draft, chunk it, extract entities/relations with the casca
 - [x] **Milestone 1 — Upload & structure** (3-5 days) — completed 2026-05-26
   Upload endpoint, language detection, docx/md/txt parsing, ChunkingAgent (local Ollama + Ollama Cloud), manual chunking UI, outline view.
 - [x] **Milestone 2 — Basic extraction** (5-7 days) — completed 2026-06-11
-  Three-tier LLM abstraction (local Ollama, Ollama Cloud, paid cloud via OpenRouter — the preferred paid route; see `docs/decisions/0003`), ExtractionAgent with JSON-schema validation, PreNERAgent (spaCy), Neo4j writes without dedupe, cytoscape graph viewer, budget tracking, agent activity panel. _(Note: the PreNERAgent ships but is **not wired into the live extraction path** — extraction is LLM-only; reconciling the spec, which describes PreNER as an active pipeline step, is a Public-readiness task. The spaCy-without-LLM eval is in `docs/BACKLOG.md`.)_
+  Three-tier LLM abstraction (local Ollama, Ollama Cloud, paid cloud via OpenRouter — the preferred paid route; see `docs/decisions/0003`), ExtractionAgent with JSON-schema validation, PreNERAgent (spaCy), Neo4j writes without dedupe, cytoscape graph viewer, budget tracking, agent activity panel. _(Note: the PreNERAgent ships but is **not wired into the live extraction path** — extraction is LLM-only. The spec was reconciled in Public-readiness Session 1, 2026-06-25 — §7 Step 3 now marks PreNER deferred for the PoC. The spaCy-without-LLM eval that would wire it is in `docs/BACKLOG.md`.)_
 - [x] **Milestone 3 — Cascade matching** (5-7 days) — completed 2026-06-17
   MatchingAgent (fuzzy + embeddings), JudgeAgent (LLM-as-judge), review queue UI with keyboard navigation.
 - [x] **Milestone 4 — V1 polish** (5-7 days) — completed 2026-06-24
@@ -39,9 +39,11 @@ features — to make the public repo read cleanly to an outside visitor:
   smoke).
 - **Code documentation** — seeds the existing `docs/BACKLOG.md` item *"Code documentation
   generation — first stone toward living project documentation."*
-- **Spec ↔ reality reconciliation (stop-and-amend flow)** — the spec still describes features that
-  aren't real: **PreNER as an active pipeline step** (it's dormant; extraction is LLM-only) and the
-  **world graph** (cut from PoC). Reconcile both so the public spec doesn't mislead.
+- **Spec ↔ reality reconciliation (stop-and-amend flow)** — ✅ done. The spec described two
+  features that aren't real: **PreNER as an active pipeline step** (dormant; extraction is LLM-only —
+  reconciled Public-readiness Session 1, 2026-06-25; §7 Step 3 now marks it deferred) and the
+  **world graph** (cut from PoC — reconciled Session 49, PR #119). The public spec no longer misleads
+  on either.
 - **Doc hygiene** — the `PLAN_LONG` boxes are now ticked; confirm the ADR/AGENTS map is navigable;
   consider a `CONTRIBUTING.md` (none exists today).
 
