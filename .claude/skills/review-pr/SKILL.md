@@ -189,6 +189,19 @@ repo, not the diff's touched files**:
   `schema.d.ts` were regenerated *and* committed together (one without the other is drift). (M3.S4a
   PR #63: `ExtractResponse` field rename left three frontend test fixtures on the old names — green
   locally, red in CI; authoring-side mirror: `frontend/src/lib/api/AGENTS.md`.)
+- **A structural code change has a `docs/code/` reference home that silently drifts.** The
+  `docs/code/*.md` narrative reference notes (and `docs/CODE_GUIDE.md`) describe each layer's
+  modules, key classes/Protocols, routes, and how they connect. Unlike `schema.d.ts`, nothing
+  *compiles* them against the code, so a **structural** change — a module added/removed/renamed, a
+  public class/Protocol/route added or gone, a path a note links **moved** — can leave a note
+  describing code that no longer exists, with no red CI to catch it. When the diff changes a layer's
+  structural surface, confirm the matching `docs/code/*.md` note + `CODE_GUIDE` were refreshed
+  (`/document-code changed`), **or** flag the staleness as a tracked deferral. A *cosmetic* change
+  (a body edit, a docstring, a renamed local) does **not** touch the reference layer — its module
+  altitude is exactly what keeps this cheap; only structural moves bite. (Earned Session 62: the
+  `docs/code/` reference layer landed with no forcing function, so this lens — plus a `/wrap-session`
+  backstop — is what keeps it from rotting. Authoring-side mirror: the `/document-code` skill's
+  `changed` mode, §5.)
 - **A frontend status-code branch carries an *assumed contract* — verify each status against the
   backend route, don't trust a sibling feature's mapping.** When the PR adds/changes a hook or
   component that branches on an HTTP **status code** (an error-message mapper, a retry decision, a

@@ -103,6 +103,14 @@ linked from `docs/CODE_GUIDE.md` and the README Project map.
 - **Bulk-spawn one general-purpose agent per note** (§4 bulk pattern): each first reads and adopts
   `code-scribe.md` (esp. rule-6 *reference* discipline), reads its layer's `AGENTS.md` + the code,
   then writes its note. Survey first (§2) so the agents target the real modules.
+- **Give each agent the full *planned* set of sibling filenames up front** so its "how it connects"
+  section links siblings directly. The fan-out is parallel, so a sibling note doesn't exist *on
+  disk* when an agent runs — but the set is known *before* the fan-out, and a verify-before-cite
+  agent that hasn't been told the plan will (correctly) refuse to link a file it can't see and leave
+  a "link as they land" placeholder, forcing a manual cross-link cleanup pass afterward. Hand it the
+  planned names (`./backend-domain.md`, `./backend-agents.md`, …) and that pass disappears. (Earned
+  Session 62: the first `reference` run cost a six-edit cleanup because each writer was blind to its
+  siblings.)
 - **Each note's shape:** a 1-paragraph statement of the layer's responsibility → a module-by-module
   walk (each module's job + its key public classes/functions as a one-line *what + why*) → how it
   connects to the neighbouring layers. **Describe, don't trace:** no copied signatures, no field

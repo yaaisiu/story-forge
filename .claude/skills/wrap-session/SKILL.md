@@ -86,6 +86,19 @@ its outcomes into the steps below.
 - Add any tasks that emerged. Keep them in the right session block.
 - If a whole session finished, mark its `[ ]` heading `[x]`.
 
+### 3a. Code-docs freshness backstop — did this session move code structure?
+
+The `docs/code/*.md` reference layer and `docs/CODE_GUIDE.md` describe each layer's modules,
+classes, and routes; nothing compiles them against the code, so a **structural** change rots them
+silently. The primary guard is the `/review-pr` lens (a structural change should refresh the notes
+via `/document-code changed`); this is the per-session **backstop** for work that skipped that
+review. If this session **added/removed/renamed a module, public class/Protocol, or route, or moved
+a path a reference note links**, confirm the matching `docs/code` note + `CODE_GUIDE` were refreshed
+— or record the debt (a cross-cutting note / `docs/BACKLOG.md`), don't let it pass silently. A
+session that only edited bodies/docstrings/tests (no structural move): nothing to do, say so.
+(Earned Session 62, with the `/review-pr` lens — the reference layer landed without a forcing
+function.)
+
 ## 4. Refresh Decided / Blocked / questions
 
 - Move any decision made this session into **Decided** with the date and a one-line rationale.
