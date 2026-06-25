@@ -43,7 +43,16 @@ features — to make the public repo read cleanly to an outside visitor:
   features that aren't real: **PreNER as an active pipeline step** (dormant; extraction is LLM-only —
   reconciled Public-readiness Session 1, 2026-06-25; §7 Step 3 now marks it deferred) and the
   **world graph** (cut from PoC — reconciled Session 49, PR #119). The public spec no longer misleads
-  on either.
+  on either. A third correction followed during the README work (2026-06-25): §2.1's *use-case*
+  framing read as a "genuine personal tool" for an author actively writing "Wody Święte", but the
+  PoC's sample content is LLM-generated (no real manuscript) and personal authoring/research use is
+  aspirational — §2.1 now says so (immediate driver: exploring the architecture + build process), and
+  the vault's `PROJECT.md`/`overview.md` business-driver framing was reconciled to match.
+- **Security & CI posture writeup** — make the supply-chain + CI story legible to a visitor
+  (owner-added 2026-06-25). The CVE approach (OSV/Trivy gates, the soak rule, the time-boxed-waiver
+  lifecycle, the daily scan) and the CI approach (path-scoped jobs, always-on secret scan, branch
+  protection) are real but live only in internal records (§6.7, `SECURITY.md`, `infra/*/WAIVERS.md`,
+  the skills); surface them for an outsider rather than as an implied "secure-by-default" line.
 - **Doc hygiene** — the `PLAN_LONG` boxes are now ticked; confirm the ADR/AGENTS map is navigable;
   consider a `CONTRIBUTING.md` (none exists today).
 

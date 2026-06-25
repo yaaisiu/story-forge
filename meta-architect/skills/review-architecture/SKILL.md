@@ -30,6 +30,20 @@ decision.** Get today's date with `date +%F`.
 - Compare what the vault **claims** against what the code/config actually **does**. A component
   note that describes a behaviour the code no longer has is drift. Flag each mismatch.
 
+## 1b. Foundational inputs the sweep *can't* verify — flag, don't validate
+- The drift check (§1) compares the vault against the code, the spec, and itself — it catches a
+  claim that **disagrees** with reality. It **cannot** catch a wrong *shared premise*. The Layer-1/2
+  **foundational inputs** in `PROJECT.md` (persona, trust boundary, business drivers) are
+  **owner-asserted** from the original `initialize` interview; the spec, the vault, and the code all
+  faithfully echo them — so an input that has gone *wrong at the source* reads as perfectly
+  consistent everywhere. These are **not machine-verifiable**: only the owner knows if they're still
+  true. So **flag the foundational inputs for owner re-confirmation** (especially when a public-facing
+  milestone is active, or they haven't been revisited in a while) — surface them as a question, never
+  assert them as verified. (Cautionary case: the "genuine personal tool / the author writes *Wody
+  Święte*" framing survived a full vault honesty sweep one session before it was corrected — the
+  samples were LLM-generated, there was no manuscript; no consistency check could catch it, only the
+  owner reading the public README cold. Session 59.)
+
 ## 2. Source-of-truth conflicts
 - Two notes (or a note and a host doc) claiming authority over the same fact → a conflict.
   Name both and which should win.
