@@ -329,7 +329,7 @@ Critical constraint: the entity graph is the **factual anchor**. Rewriting MUST 
 | LLM (medium, free) | Ollama Cloud (`gpt-oss:20b-cloud` for chunking, larger variants for heavier tasks) | Free tier with 5h session / 7-day weekly limits, identical API to local Ollama, no local GPU needed |
 | Cloud LLM (strong, paid) | Provider-agnostic (see §6.5) | **OpenRouter preferred** (one endpoint → many models); direct Grok / Anthropic / Google / OpenAI adapters built only as needed. Order: Ollama → OpenRouter → Grok → Anthropic → Google → OpenAI (§6.5, `docs/decisions/0003`) |
 | Embeddings | sentence-transformers (local) | Multilingual PL/EN, no API costs |
-| NER baseline | spaCy `pl_core_news_lg` + `en_core_web_lg` | Pre-LLM filter, token savings |
+| NER baseline | spaCy `pl_core_news_lg` + `en_core_web_lg` | Pre-LLM filter, token savings (built; pre-NER injection deferred in the PoC — §7 Step 3) |
 
 ### 6.2 Deployment
 
@@ -576,7 +576,7 @@ The agent catalog for V1:
 | Agent | Input | Output | Preferred tier |
 |-------|-------|--------|----------------|
 | `ChunkingAgent` | raw story text | hierarchical outline (chapters/scenes/paragraph ranges) | local_small (cloud_free when no local GPU) |
-| `PreNERAgent` | paragraph text | candidate spans (no LLM; spaCy) | n/a |
+| `PreNERAgent` | paragraph text | candidate spans (no LLM; spaCy) | n/a — built, **not wired into the PoC pipeline** (extraction is LLM-only; see §7 Step 3) |
 | `ExtractionAgent` | paragraph + known entities + custom types | candidate entities + relations | cloud_free |
 | `MatchingAgent` | candidate + graph | Stage 1+2 decision (fuzzy + embedding; no LLM) | n/a |
 | `JudgeAgent` | candidate + best existing match | identity verdict + confidence + reasoning | cloud_free |
@@ -648,10 +648,15 @@ This is the most important flow in V1. I'm spelling it out in detail so the deve
 └──────────────────────────────────────────────────────────────────┘
           ↓
 ┌──────────────────────────────────────────────────────────────────┐
-│ Step 3: Pre-NER baseline (per paragraph)                         │
-│ - PreNERAgent (spaCy) extracts simple entities                    │
-│ - These are low-confidence entity candidates                     │
-│ - Cheap operation, done for whole text offline                   │
+│ Step 3: Pre-NER baseline (per paragraph) — DEFERRED in the PoC   │
+│ - PreNERAgent (spaCy) is BUILT but wired into nothing; the live  │
+│   PoC extraction path is LLM-only (goes straight to Step 4).     │
+│ - Intended (when active): extract low-confidence candidate spans │
+│   offline, cheaply, to hint Step 4.                              │
+│ - Deferred until a real eval exists — the "spaCy PreNER without  │
+│   the LLM" eval (docs/BACKLOG.md); corrections feed the data     │
+│   flywheel (docs/PLAN_LONG.md "Data flywheel"). [deferred        │
+│   2026-06-25]                                                    │
 └──────────────────────────────────────────────────────────────────┘
           ↓
 ┌──────────────────────────────────────────────────────────────────┐
@@ -692,7 +697,7 @@ This is the most important flow in V1. I'm spelling it out in detail so the deve
 
 **Optimizations:**
 - Step 4 can be batched (several paragraphs in one LLM call for context) — trade-off cost vs quality
-- Step 4 can be "cheaper" if pre-NER (Step 3) already produced good candidates (LLM only classifies types and detects relations)
+- Step 4 *could* be cheaper once pre-NER (Step 3) feeds it candidates (LLM then only classifies types + detects relations) — **not active in the PoC**: Step 3 is deferred (above), so Step 4 currently runs LLM-only on raw paragraph text
 - User can pause the pipeline after any step and resume
 
 ---
@@ -764,7 +769,7 @@ This is the most important flow in V1. I'm spelling it out in detail so the deve
 - LLM provider abstraction with three tiers (local_small via Ollama, cloud_free via Ollama Cloud, cloud_strong via **OpenRouter** — the preferred paid route, reaching Grok/Anthropic/Google/OpenAI through one endpoint; direct vendor adapters built as needed, see §6.5 / `docs/decisions/0003`)
 - `OpenRouterProvider` is the paid adapter built in M2.S2 (not merely scaffolded); direct vendor adapters + integration polish are the optional M2.S6 work
 - ExtractionAgent: prompt engineering, JSON schema, Pydantic validation with retry
-- PreNERAgent: spaCy baseline
+- PreNERAgent: spaCy baseline (built; not wired into the live extraction path — see §7 Step 3)
 - Save entities to Neo4j without cascade (everything = new entity for now)
 - Basic graph viewer (cytoscape)
 - Token/GPU-time budget tracking visible in UI

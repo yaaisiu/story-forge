@@ -101,8 +101,8 @@ deliberate plan is: establish the **LLM + human-in-the-loop** extraction as the 
 M4 (Session 54 smoke): the live `/extract` path is **LLM-only** — `PreNERAgent` is built but **wired
 into nothing** in the extraction coordinator (the `known_entities`/PreNER-hint param exists but is
 passed empty), so PreNER injection (proposal D3) stays "deferred until a real eval exists." That eval
-is this item. (See also the spec-drift reconciliation in `PLAN_SHORT.md` cross-cutting: §6 step 3 /
-§3 step 4 still describe PreNER as an *active* pipeline stage.)
+is this item. (The spec-drift was reconciled in Public-readiness Session 1, 2026-06-25 — §7 Step 3
+now marks PreNER deferred for the PoC; this eval is what would wire it.)
 
 ## Entity-resolution limitations surfaced in testing (context, coreference, re-match ordering)
 
