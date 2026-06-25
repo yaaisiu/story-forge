@@ -1,14 +1,156 @@
 # Story Forge
 
-A local web application for analyzing, annotating, and editing long-form narrative text — building a Neo4j knowledge graph of entities and relations along the way. Single-user, runs locally on a Linux/macOS dev machine.
+A local, single-user web application that helps a solo author analyze, annotate, and edit
+long-form narrative text — building a **Neo4j knowledge graph** of the story's entities and
+their relations along the way. Runs entirely on your own machine.
 
-This repo is **also a public portfolio piece**: a working demonstration of clean modular architecture, agent-based LLM orchestration, multi-model routing, and secure-by-default container infrastructure. See "What is this" below if you arrived here looking for that angle.
+It is **also a public portfolio piece**: a working demonstration of agent-based LLM
+orchestration, multi-model routing across local and cloud providers, a cleanly layered
+backend, and secure-by-default container infrastructure. Everything — the spec, the
+architecture decisions, the per-layer conventions, the plans — is in the open.
+
+> **Status.** V1 — the ingest → graph → viewer PoC — is **feature-complete**. The repo is
+> currently in a **public-readiness** documentation pass; the next build milestones are
+> graph-quality polish, then editing (V2). See [`docs/PLAN_LONG.md`](docs/PLAN_LONG.md).
 
 ---
 
-## Prerequisites
+## What is this
 
-The dev environment expects a Linux-family shell (this README is bash-only; we develop on WSL2 Debian). Tooling required:
+Story Forge supports an author through three editorial phases (spec §1):
+
+1. **Ingest & knowledge graph** — upload a raw draft, hierarchically split it
+   (chapters → scenes → paragraphs), extract entities and relations into a Neo4j graph,
+   **with the human deciding every new-entity and relation question.**
+2. **Editing & polishing** *(planned, V2)* — paragraph-by-paragraph work with an LLM in
+   inline / dialog / diff modes, with a full edit history that doubles as a training dataset.
+3. **Style rewriting** *(planned, V3)* — coherence-preserving rewriting in a target style,
+   with the graph as the factual anchor.
+
+**This PoC delivers phase 1.** It exists for two reasons of equal weight (spec §2): it is a
+genuine personal tool for an author writing in a coherent fictional universe ("Wody Święte" /
+Holy Waters), *and* it is a public demonstration where the architecture is meant to be read,
+not just run.
+
+**What it is _not_** (spec §2.3): not a content generator (the LLM assists analysis and
+editing, it does not write the story); not multi-user (solo, local); not a productionable
+product as-is.
+
+---
+
+## Demo
+
+The repo ships a sample project under [`docs/samples/`](docs/samples/) — two short stories
+in the "Oakhaven" world (`oakhaven.md`, `oakhaven-2.md`) — so you can exercise the full
+pipeline end to end without supplying your own text:
+
+1. **Upload** `oakhaven.md` and let the chunker build the chapter/scene/paragraph outline.
+2. **Extract** — the extraction agent proposes entity and relation candidates per paragraph.
+3. **Review** — the cascade stages each candidate as *new* or *merge-into-existing*; you
+   accept, merge, re-target, or reject each one from the keyboard-driven review queue. The
+   graph stays empty until you accept.
+4. **Explore** — read the story with accepted entities highlighted inline, open an entity's
+   side panel and its 1-hop neighbourhood, or browse the whole graph in the viewer.
+5. **Add a second story** — upload `oakhaven-2.md` into the same project; it auto-matches the
+   entities you already accepted, so the project graph grows across stories.
+
+*(Annotated screenshots of the graph viewer and the agent-activity panel are added in the
+screenshot-capture pass of this milestone.)*
+
+---
+
+## Architecture
+
+The portfolio core. Authoritative detail lives in the spec (§6) and the architecture vault
+([`architecture/overview.md`](architecture/overview.md)); this is the orientation.
+
+### The ingest pipeline
+
+```mermaid
+flowchart LR
+  U[Upload draft] --> C["Chunk<br/>chapters → scenes → paragraphs"]
+  C --> E["Extract<br/>entities + relations (LLM)"]
+  E --> M["Cascade match<br/>fuzzy → embedding → LLM judge"]
+  M --> R{"Human review<br/>accept / merge / reject"}
+  R -->|accepted| G[("Neo4j graph")]
+  R -->|rejected| X[discarded]
+  G --> V["Inline-highlight reader<br/>+ graph viewer"]
+```
+
+The pipeline is **fail-closed at the human gate**: the automated cascade only ever *proposes*.
+Anything it cannot resolve with high confidence falls through to the reviewer, and **no graph
+node or edge is written until the author accepts it** (spec §3.3).
+
+### Agent-based orchestration
+
+Each logical task in the pipeline is a small, individually-testable agent under
+[`backend/src/story_forge/agents/`](backend/src/story_forge/agents/) — chunking, extraction,
+matching, LLM-as-judge, embedding, candidate staging / re-match / review, relation review,
+and entity editing. Each agent owns **one task, one Jinja2 prompt template, one Pydantic
+output schema, and a preferred model tier**, and is unit-tested against a mocked provider.
+LLM output is always validated against its schema and retried on a schema violation.
+
+### Multi-model routing
+
+One `LLMProvider` Protocol with swappable, hand-rolled adapters (no vendor SDKs) over three
+tiers:
+
+- **local** — Ollama (Qwen3.5 9B) on your own GPU,
+- **cloud-free** — Ollama Cloud's free tier,
+- **cloud-paid** — **OpenRouter** (the preferred paid route, reaching Grok / Anthropic /
+  Google / OpenAI through one endpoint; it is the only paid adapter built so far — direct
+  vendor adapters are added as needed).
+
+A small router picks a tier per task weight, **fails over within a tier** on a network error /
+rate limit / malformed response envelope (swap logged), and is **budget-gated and fail-closed**
+— it pauses and asks rather than silently escalating to paid. Every call is recorded in a cost
+ledger (model, tier, tokens, cost, latency), surfaced live in the agent-activity panel.
+Provider order and budget rationale: [`docs/decisions/0003`](docs/decisions/0003-llm-router-provider-order-and-budget.md).
+
+### Layered backend
+
+A strict package layering (`backend/src/story_forge/`), enforced by convention and review:
+
+```
+api/       ← thin HTTP routes, no business logic
+agents/    ← orchestration: one logical task per module
+domain/    ← pure business logic — no I/O, no HTTP, imports nothing
+adapters/  ← all I/O: Neo4j, Postgres + pgvector, LLM providers, embeddings, file storage
+```
+
+`domain/` defines the `typing.Protocol`s it needs; `adapters/` implements them; everything is
+wired in `main.py`. The payoff: domain logic is testable without a database, and agents are
+testable without a real LLM. Each major directory carries its own `AGENTS.md` documenting its
+conventions. Two stores split by shape — **Neo4j** holds the knowledge graph (entities +
+relations); **Postgres + pgvector** holds the document tree, entity occurrences, embeddings,
+the edit/undo history, and the cost ledger.
+
+### Secure-by-default infrastructure
+
+Every container runs **non-root, bound to `127.0.0.1` only, on a private bridge network**.
+Every dependency is pinned to an exact version ≥ 14 days old; every image tag is pinned ≥ 7
+days old and CVE-scanned in CI. No telemetry libraries of any kind. CORS is strict (loopback
+origins only). Secrets live only in `.env` (gitignored) — the spec's §6.7 baseline, enforced
+by CI and pre-commit hooks. *(The full CVE-handling and CI story is written up separately —
+see [`SECURITY.md`](SECURITY.md) and spec §6.7.)*
+
+### Spec ↔ reality, stated honestly
+
+A public repo should not overclaim. Two designed-but-not-active pieces:
+
+- A **spaCy pre-NER baseline** is built but **dormant** — the live extraction path is
+  LLM-only (spec §7 Step 3, deferred for the PoC).
+- The **cross-story world graph** is **post-PoC** — V1 shares one graph per *project*; the
+  larger world graph is on the backlog ([`docs/BACKLOG.md`](docs/BACKLOG.md)).
+
+---
+
+## Quickstart
+
+### Prerequisites
+
+The dev environment expects a Linux-family shell (this README is bash-only; we develop on WSL2
+Debian). Tooling required:
 
 - `docker` (Compose v2)
 - `git`
@@ -21,9 +163,7 @@ The dev environment expects a Linux-family shell (this README is bash-only; we d
 Optional but recommended for the security CI step locally:
 - `trivy` ([install](https://aquasecurity.github.io/trivy/))
 
----
-
-## First-time setup
+### First-time setup
 
 ```bash
 git clone <this-repo-url> story-forge
@@ -59,13 +199,14 @@ docker compose up -d
 (cd backend && uv run uvicorn story_forge.main:app --reload --port 8000)
 ```
 
-Open <http://localhost:5173>. The page fetches `http://localhost:8000/health` and renders ok / loading / error.
+Open <http://localhost:5173>. The page fetches `http://localhost:8000/health` and renders
+ok / loading / error.
 
 ---
 
-## Day-to-day dev workflow
+## Development
 
-Three terminals:
+Day-to-day, three terminals:
 
 ```bash
 # infra
@@ -132,9 +273,7 @@ done
 pre-commit run --all-files
 ```
 
----
-
-## Branch + commit conventions
+### Branch & commit conventions
 
 - Work happens on feature branches; **squash-merge** to `main` with a single curated commit per feature.
 - Dirty WIP commits never reach `main`'s history. The linear `main` log should read like an intentional record of how the project was built.
@@ -142,28 +281,31 @@ pre-commit run --all-files
 
 ---
 
-## What is this (portfolio framing)
+## Project map
 
-Story Forge is built in the open as a public PoC and doubles as a portfolio piece. Specifically, it demonstrates:
+A stranger's reading order:
 
-- **Agent-based LLM pipeline.** Chunking, extraction, matching, and judgment live in `backend/src/story_forge/agents/` as modular agents — each owns one task, one prompt template (Jinja2), one Pydantic output schema, and a preferred model tier.
-- **Multi-model routing.** One `LLMProvider` Protocol; swappable adapters for local Ollama, Ollama Cloud free tier, and paid cloud via OpenRouter (the preferred paid route, reaching Grok/Anthropic/Google/OpenAI through one endpoint; direct vendor adapters added as needed). A small router picks a tier per call and fails over within a tier (network error, rate limit, malformed response envelope → next configured provider, swap logged); a schema-invalid body is retried against the prompt by the agent instead.
-- **Clean three-layer backend.** `api/` → `agents/` → `domain/` → `adapters/`. The domain is pure (no I/O); adapters implement protocols; agents compose. Every layer has its own `CLAUDE.md` with conventions.
-- **Security-by-default infra.** Every container non-root, localhost-bound, on a private network. Every dependency pinned to an exact version ≥ 14 days old. Container images CVE-scanned in CI. No telemetry libraries. CORS strict. Secrets only in `.env`.
-- **Spec-and-test-driven workflow.** `story-forge-poc-spec.md` is the source of truth; `docs/PLAN_LONG.md` / `docs/PLAN_SHORT.md` are living plans (conventions in `docs/CLAUDE.md`); ADRs in `docs/decisions/`. The commit history records the discipline.
-
-For the full picture, read `story-forge-poc-spec.md` (the PoC spec), then the LLM ADRs `docs/decisions/0001-three-tier-llm-strategy.md` (three-tier strategy, superseded-in-part) and `docs/decisions/0003-llm-router-provider-order-and-budget.md` (router, provider order, budget), then `CLAUDE.md` files at the root and inside each major directory.
+- **[`story-forge-poc-spec.md`](story-forge-poc-spec.md)** — the full PoC specification, and
+  the **source of truth** for what we build.
+- **[`docs/PLAN_LONG.md`](docs/PLAN_LONG.md)** / **[`docs/PLAN_SHORT.md`](docs/PLAN_SHORT.md)**
+  — the strategic and tactical plans (a living record of *how* the project was built;
+  conventions in [`docs/AGENTS.md`](docs/AGENTS.md)).
+- **[`docs/decisions/`](docs/decisions/)** — the Architecture Decision Records (the three-tier
+  LLM strategy, the router/provider-order/budget design, the human-gated graph writes, the
+  merge/delete/undo model, and more).
+- **[`architecture/`](architecture/)** — the meta-architect vault: named invariants, state
+  machines, and per-feature decompositions. **Orientation, not a source of truth** — start at
+  [`architecture/INDEX.md`](architecture/INDEX.md).
+- **`AGENTS.md` / `CLAUDE.md` files** — root plus one per major directory, documenting the
+  conventions for that area. (`CLAUDE.md` is a symlink to its sibling `AGENTS.md`.)
 
 ---
 
 ## License
 
-MIT — see `LICENSE`.
+MIT — see [`LICENSE`](LICENSE).
 
 ## Security
 
-See `SECURITY.md` for the vulnerability-reporting channel.
-
-## Status
-
-Active development. **M1 (Upload & structure) complete** as of 2026-05-26; entering **M2 (Basic extraction)** next — see `docs/PLAN_SHORT.md`.
+See [`SECURITY.md`](SECURITY.md) for the vulnerability-reporting channel and the security
+baseline (spec §6.7).
