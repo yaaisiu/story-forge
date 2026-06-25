@@ -58,6 +58,19 @@ features — to make the public repo read cleanly to an outside visitor:
 
 **Goal:** a stranger can land on the repo, understand what it is and how it's built, and run it.
 
+## Preparation gate — before the next *build* milestone (owner, 2026-06-25, Session 60)
+
+Before committing to the next build work (i.e. before the Graph-quality milestone below), run a
+deliberate **cleaning / preparation pass** — the PoC's spec and plans were written for the PoC and
+need a refresh for what comes after it. Concretely: **review the PoC spec and author a spec for the
+new part of the work** (the PoC `story-forge-poc-spec.md` is PoC-scoped — the next phase likely needs
+its own spec doc); **review this `PLAN_LONG.md`**; **adjust the `AGENTS.md`/`CLAUDE.md` set** to the
+new shape of work; and **consider whether new skills or agents** earn their place. This is a
+documentation/preparation/process gate, not a build milestone — its job is to make sure we *decide
+what to do next* on a clean, current foundation rather than drifting into the next build on PoC-era
+docs. Sequence it after the Public-readiness pass completes; slice it when picked up. (Recorded so
+the next planning conversation can't miss it; the public-readiness pass stays the current focus.)
+
 ## Graph quality & cleanliness — backlog-driven (before V2)
 
 Then make the graph *trustworthy* before building writing features on top of it (owner: "a sprint
