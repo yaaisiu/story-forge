@@ -10,12 +10,12 @@ The user can upload a draft, chunk it, extract entities/relations with the casca
   Docker Compose, FastAPI + React skeleton, CI with security checks, plan files, root and directory-level CLAUDE.md.
 - [x] **Milestone 1 — Upload & structure** (3-5 days) — completed 2026-05-26
   Upload endpoint, language detection, docx/md/txt parsing, ChunkingAgent (local Ollama + Ollama Cloud), manual chunking UI, outline view.
-- [ ] **Milestone 2 — Basic extraction** (5-7 days)
-  Three-tier LLM abstraction (local Ollama, Ollama Cloud, paid cloud via OpenRouter — the preferred paid route; see `docs/decisions/0003`), ExtractionAgent with JSON-schema validation, PreNERAgent (spaCy), Neo4j writes without dedupe, cytoscape graph viewer, budget tracking, agent activity panel.
-- [ ] **Milestone 3 — Cascade matching** (5-7 days)
+- [x] **Milestone 2 — Basic extraction** (5-7 days) — completed 2026-06-11
+  Three-tier LLM abstraction (local Ollama, Ollama Cloud, paid cloud via OpenRouter — the preferred paid route; see `docs/decisions/0003`), ExtractionAgent with JSON-schema validation, PreNERAgent (spaCy), Neo4j writes without dedupe, cytoscape graph viewer, budget tracking, agent activity panel. _(Note: the PreNERAgent ships but is **not wired into the live extraction path** — extraction is LLM-only; reconciling the spec, which describes PreNER as an active pipeline step, is a Public-readiness task. The spaCy-without-LLM eval is in `docs/BACKLOG.md`.)_
+- [x] **Milestone 3 — Cascade matching** (5-7 days) — completed 2026-06-17
   MatchingAgent (fuzzy + embeddings), JudgeAgent (LLM-as-judge), review queue UI with keyboard navigation.
-- [ ] **Milestone 4 — V1 polish** (5-7 days)
-  Inline highlights, side panel, manual annotation, properties/relations edit, multi-story (one shared graph per project; the cross-story world graph is post-PoC — `docs/BACKLOG.md`).
+- [x] **Milestone 4 — V1 polish** (5-7 days) — completed 2026-06-24
+  Inline highlights, side panel, manual annotation, properties/relations edit, multi-story (one shared graph per project; the cross-story world graph is post-PoC — `docs/BACKLOG.md`). All slices shipped and the multi-story feature was live-smoke-verified (Session 54). **V1 PoC complete** (spec §9 M4 outcome).
 
 ### Data flywheel — a custom NER model, later
 
@@ -27,9 +27,41 @@ swap it in behind the same agent — at which point a `NerPipeline` Protocol ear
 place (see `backend/src/story_forge/CLAUDE.md`). Not scheduled; a direction the
 architecture is kept ready for.
 
+## Public readiness — docs, demo, spec reconciliation (NEXT, before V2)
+
+The moment V1 is complete, lock the portfolio presentation before opening the next big build
+(owner decision, 2026-06-24 / Session 54). This is a **light, finite** pass — no new product
+features — to make the public repo read cleanly to an outside visitor:
+
+- **README overhaul** — the portfolio hook (the agent + multi-model architecture story), an
+  architecture overview/diagram, a real quickstart, and **demo artifacts** in `docs/` (the
+  Oakhaven multi-story graph + agent-activity-panel screenshots generated during the Session-54
+  smoke).
+- **Code documentation** — seeds the existing `docs/BACKLOG.md` item *"Code documentation
+  generation — first stone toward living project documentation."*
+- **Spec ↔ reality reconciliation (stop-and-amend flow)** — the spec still describes features that
+  aren't real: **PreNER as an active pipeline step** (it's dormant; extraction is LLM-only) and the
+  **world graph** (cut from PoC). Reconcile both so the public spec doesn't mislead.
+- **Doc hygiene** — the `PLAN_LONG` boxes are now ticked; confirm the ADR/AGENTS map is navigable;
+  consider a `CONTRIBUTING.md` (none exists today).
+
+**Goal:** a stranger can land on the repo, understand what it is and how it's built, and run it.
+
+## Graph quality & cleanliness — backlog-driven (before V2)
+
+Then make the graph *trustworthy* before building writing features on top of it (owner: "a sprint
+or two for graph clarity"). **Opens with a backlog-triage conversation** — prioritise the findings,
+don't straight-build. The Session-54 smoke surfaced the bulk of these (`docs/BACKLOG.md`): the
+auto-chunker's **silent content loss** (the most serious — `manual` is the only trustworthy
+structuring mode until fixed), relation/entity **review-time context** (can't judge a merge or a
+relation without the source quote), **homonymy** (two different crews), relation-modelling gaps
+(**modality / arity / eventive-vs-stative + timeline ordering**), **predicate consolidation**, and
+the **graph as a direct editing/curation surface**. Also the deferred app capabilities this exposed:
+**re-structure / delete-story**.
+
 ## V2 — Editing
 
-Three modes (inline / dialog / diff), full edit_history pipeline. New agents: `InlineEditAgent`, `DialogAgent`, `DiffRewriteAgent`. Spec §4. Timeline after V1.
+Three modes (inline / dialog / diff), full edit_history pipeline. New agents: `InlineEditAgent`, `DialogAgent`, `DiffRewriteAgent`. Spec §4. Timeline after V1 (and after the two readiness/quality passes above).
 
 ## V3 — Style rewriting
 
