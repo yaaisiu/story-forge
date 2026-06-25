@@ -66,9 +66,12 @@ phenomenon "fog"):
 
 ![Cascade judge declining a merge with reasoning](docs/screenshots/review-queue-judge.png)
 
-When a new story reuses an entity from an earlier one, the cascade proposes the **cross-story
-merge** — here Chapter Seven's "imperial warship" folding into the *Iron Wake* already in the
-project graph from story two:
+A candidate that matches an entity already in the graph is proposed as a **merge**, not a new
+node — and matching runs *as you go*: each accept re-runs the matcher over the still-pending
+queue, so a later mention can fold into an entity you just accepted, **within a single story** as
+well as **across stories** when a new one reuses earlier entities. The shot below is a cross-story
+case — Chapter Seven's "imperial warship" folding into the *Iron Wake* already in the project graph
+from story two:
 
 ![Cross-story merge proposal](docs/screenshots/review-queue-merge.png)
 
