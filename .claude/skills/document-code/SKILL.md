@@ -8,7 +8,7 @@ description: >-
   and supports a diff-driven update mode so the same system refreshes docs as the code changes.
   Run when documenting a slice of the codebase, writing the code guide, or refreshing docs after
   a change.
-argument-hint: "[scope: a path/glob | guide | changed [<git-range>]]"
+argument-hint: "[scope: a path/glob | guide | reference [<area>] | changed [<git-range>]]"
 ---
 
 # Document Story Forge code
@@ -41,7 +41,14 @@ get the date: `date +%F`.
 
 - **a path or glob** (e.g. `frontend/src/components`, `backend/src/story_forge/api`) — document
   the in-code docs (docstrings/comments) for that area.
-- **`guide`** — author/refresh `docs/CODE_GUIDE.md`, the newcomer navigation doc.
+- **`guide`** — author/refresh `docs/CODE_GUIDE.md`, the newcomer *navigation* doc (reading
+  order + directory map + links; points, doesn't describe).
+- **`reference [<area>]`** — author/refresh the `docs/code/*.md` *reference* layer: per-layer
+  narrative notes that **describe** each module's responsibility and its key classes/functions
+  (the "what's where" a reader/agent needs), one note per layer, indexed by `docs/code/README.md`.
+  This is the descriptive sibling of `guide` — held to the code-scribe rule-6 *reference* discipline
+  (module altitude, never a copy of signatures/behaviour). With no `<area>`, do the whole set; with
+  one (e.g. `backend-agents`), refresh that note. See §4a.
 - **`changed [<git-range>]`** — *update mode*: re-document only what moved (default range
   `main...HEAD`). See §5.
 
@@ -85,6 +92,25 @@ one short real request-trace — and **link it from README's Project map**. Neve
 > Before you write a link, confirm its target exists (`ls docs/decisions/`, `ls` the dir). This is
 > the verify-before-claim guardrail applied to *paths*, done at write time, not deferred to §6.
 
+## 4a. Reference mode — `reference [<area>]`
+
+The descriptive layer the navigation `guide` deliberately omits — the `docs/code/*.md` notes that
+let a reader (or another agent) learn *what's where* without opening every file. **One note per
+layer**, matched to how the code is organised — backend `domain`/`agents`/`adapters`/`api`,
+frontend `features`/`data-layer` — plus a `docs/code/README.md` index that links them and is itself
+linked from `docs/CODE_GUIDE.md` and the README Project map.
+
+- **Bulk-spawn one general-purpose agent per note** (§4 bulk pattern): each first reads and adopts
+  `code-scribe.md` (esp. rule-6 *reference* discipline), reads its layer's `AGENTS.md` + the code,
+  then writes its note. Survey first (§2) so the agents target the real modules.
+- **Each note's shape:** a 1-paragraph statement of the layer's responsibility → a module-by-module
+  walk (each module's job + its key public classes/functions as a one-line *what + why*) → how it
+  connects to the neighbouring layers. **Describe, don't trace:** no copied signatures, no field
+  lists, no line-by-line behaviour — link to the code and the `AGENTS.md`/spec for those.
+- **Links GitHub-friendly:** relative Markdown links (`../../backend/...`), not `[[wikilinks]]` —
+  the public repo renders on GitHub, where wiki-links don't resolve (Obsidian still opens relative
+  links fine). Cite every path by checking it exists (the verify-before-claim box below).
+
 ## 5. Update mode — `changed [<git-range>]`
 
 The reason this is a *system*, not a one-off pass: re-run it to keep docs honest as code moves.
@@ -93,6 +119,10 @@ The reason this is a *system*, not a one-off pass: re-run it to keep docs honest
   still matches the new behaviour — refresh the stale ones, add docs to genuinely-new public
   surface (Karpathy-minimal), and **flag** any `docs/CODE_GUIDE.md` pointer the change invalidated
   (a moved/renamed/removed path). Don't re-document untouched code.
+- **Also refresh the reference layer:** if a changed file's layer has a `docs/code/*.md` note,
+  re-walk that note (`reference <area>`) — a changed responsibility, a new/removed key class, or a
+  moved path is exactly what makes a reference note drift. The note's module altitude keeps this
+  cheap: most symbol-level changes don't touch it, but a structural one does.
 
 ## 6. Verify
 

@@ -327,6 +327,8 @@ A stranger's reading order:
 
 - **[`docs/CODE_GUIDE.md`](docs/CODE_GUIDE.md)** — where to start reading the **code**: the
   layer-by-layer reading order, a request traced from upload to graph, and a directory map.
+- **[`docs/code/`](docs/code/)** — the **code reference**: one note per layer (domain, agents,
+  adapters, api, the two frontend areas) describing what each module is and what it's for.
 - **[`story-forge-poc-spec.md`](story-forge-poc-spec.md)** — the full PoC specification, and
   the **source of truth** for what we build.
 - **[`docs/PLAN_LONG.md`](docs/PLAN_LONG.md)** / **[`docs/PLAN_SHORT.md`](docs/PLAN_SHORT.md)**

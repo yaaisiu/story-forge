@@ -142,6 +142,20 @@ async def upload_story(
     conn: Annotated[AsyncConnection, Depends(get_connection)],
     project_id: UUID | None = None,
 ) -> StoryUploadResponse:
+    """Ingest an uploaded document as a new story (spec §7 step 1, multi-story DM-MS-3).
+
+    Accepts `.txt`/`.md`/`.docx` (the `_ALLOWED_TYPES` allowlist), validating the declared
+    `content_type` against the extension — a positively-wrong type is rejected (415), but a
+    generic/absent one passes to the parser, which is the real content check. Oversized files
+    (over `MAX_UPLOAD_BYTES`) 413, empty or unparseable bytes 400. `parse_document` extracts the
+    text and `detect_language` tags it.
+
+    `project_id` selects between two modes: omitted ⇒ mint a fresh project named after the file,
+    carrying the detected language; given ⇒ add the story to that existing project, failing closed
+    with 404 if it doesn't exist so a story is never created under a ghost project. The original
+    bytes are sandboxed to disk *before* the DB write, so a storage failure aborts the row rather
+    than leaving a story with no backing file. Echoes `raw_text` back for the manual-mode editor.
+    """
     suffix = Path(file.filename or "").suffix.lower()
     if suffix not in _ALLOWED_TYPES:
         raise HTTPException(status_code=415, detail=f"unsupported file type: {suffix or 'none'!r}")
