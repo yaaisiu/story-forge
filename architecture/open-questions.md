@@ -1,7 +1,7 @@
 ---
 type: open-questions
 slug: open-questions
-updated: 2026-06-23
+updated: 2026-06-25
 status: living
 related: ["[[overview]]", "[[project]]", "[[invariants]]", "[[2026-06-02-architecture-review]]", "[[m2s3-extraction-agent]]", "[[2026-06-09-architecture-review]]", "[[2026-06-11-architecture-review]]"]
 ---
@@ -807,6 +807,25 @@ knows they gate the build.
 - **No ADR anticipated** (resolves no open spec question, crosses no new data boundary — DM-MS-1 *removes*
   a would-be boundary by deriving); revisit only if DM-MS-2 (b) is chosen. **Lands:** the M4 multi-story
   build, after the owner resolves DM-MS-2/3/4/7 + the DM-MS-5 amendment wording. Open.
+
+### OQ-28 — Graph-quality milestone forward "what if" (inputs to the coming backlog triage, not yet a register)
+Raised by the 2026-06-25 V1-complete re-sync sweep (`[[2026-06-25-architecture-review]]` §6). V1 is
+feature-complete; the next *build* milestone is **Graph-quality polish**, which opens with a triage over
+the 10 Session-54 findings in `docs/BACKLOG.md` (the authoritative home — these are *referenced* here,
+not duplicated). Tracked so `/resume-session` step 3c finds the report's forward findings homed; the
+milestone owns *resolving* them:
+- **Auto-chunker silent content-loss (most serious — `docs/BACKLOG.md`).** A structuring pass that drops
+  input text **without a signal** is *silent* data loss (the worst failure class). The Session-54 smoke
+  surfaced it with **no clean recovery** because neither **delete-and-replace** nor **delete-story**
+  exists (the graduated-urgency `docs/PLAN_SHORT.md` cross-cutting item). The fail-closed shape to design:
+  structure must *account for every input paragraph* (a conservation check / surfaced diff), so a drop is
+  loud, not invisible.
+- **Membership-derivation under *delete* (the cross-store read seam).** Narrowed multi-story **derives**
+  per-story membership from `entity_mentions`; a *merge* re-points them (S3b), but a whole-entity
+  **delete** removes them — confirm a deleted entity vanishes cleanly from every story's `scope=story`
+  view (no ghost in the §3.4 toggle). The OQ-1 two-store seam on the *membership-read* side; check when
+  delete-story lands.
+- **Lands:** the Graph-quality milestone's opening backlog triage. Open.
 
 ## Referenced — owned by spec §10 (not duplicated)
 

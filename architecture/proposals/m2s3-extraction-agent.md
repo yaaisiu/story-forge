@@ -1,12 +1,18 @@
 ---
 type: proposal
 slug: m2s3-extraction-agent
-updated: 2026-06-08
+updated: 2026-06-25
 status: accepted
 related: ["[[overview]]", "[[invariants]]", "[[open-questions]]", "[[m2s2-llm-router-budget-cap]]", "[[agent]]", "[[open-world-ontology]]", "[[prompt-injection]]", "[[poison-message]]", "[[failover]]", "[[fail-closed]]", "[[human-in-the-loop]]", "[[idempotency]]"]
 ---
 
 # Proposal — M2.S3: `ExtractionAgent` (first `LLMRouter` consumer)
+
+> **As-built note (2026-06-25):** the body below frames the ingest as *"chunk → PreNER → extract"*
+> (its M2.S3 point-in-time view; D3 already deferred the PreNER-hint injection). The PreNER deferral
+> is now **permanent for the PoC** — spec **§7 Step 3 marks PreNER deferred/dormant** (PR #138); the
+> live extraction is **LLM-only on raw paragraph text**. The historical framing is kept intact (the
+> deferral is recorded in D3); read [[overview]] / [[project]] for the current pipeline.
 
 > **✅ Resolved 2026-06-08.** The owner walked the register: **D4** per-paragraph granularity
 > (agent fragment-agnostic), **D5** single-paragraph agent — resumable batch driver → M2.S4

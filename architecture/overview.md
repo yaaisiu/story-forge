@@ -1,7 +1,7 @@
 ---
 type: overview
 slug: overview
-updated: 2026-06-20
+updated: 2026-06-25
 status: living
 related: ["[[project]]", "[[invariants]]", "[[open-questions]]", "[[cascade-matching]]", "[[model-tier-routing]]", "[[m3-cascade-matching]]"]
 ---
@@ -36,7 +36,11 @@ code.)
   Postgres persistence of the document tree (`adapters/postgres_repo.py`), and a React
   frontend (upload screen + outline editor) wired through a typed API client.
 - **M2.S1** — `PreNERAgent`: a deterministic, **no-LLM** spaCy baseline that returns candidate
-  spans per paragraph (`agents/prener_agent.py`).
+  spans per paragraph (`agents/prener_agent.py`). **Built but dormant** — it is wired into nothing;
+  the live `/extract` path is **LLM-only** (the PreNER-hint param is passed empty, "deferred until a
+  real eval exists" — `extraction_agent.py`). Spec **§7 Step 3** marks it *deferred/dormant for the
+  PoC* (amended 2026-06-25). The eval that would activate it (the "spaCy PreNER without the LLM"
+  comparison) is in `docs/BACKLOG.md`; corrections feed the data flywheel (`docs/PLAN_LONG.md`).
 - **M2.S2** — the paid LLM tier + routing (PR #36): `OpenRouterProvider` (the only paid adapter
   built), the `LLMRouter` (tier selection + error-discriminated within-tier failover + fail-closed
   budget cap), the `llm_calls` cost ledger (`PostgresCostStore`, independent-commit), and the
@@ -91,14 +95,16 @@ code.)
 - **M3.S4f — relation-review UI (#78).** The S4a→S4b shape for edges: `features/relation-review/`
   (A=commit / R=reject, J/K nav) consuming `GET …/relations` + `POST …/relations/{rid}/decide`.
 
-So today Story Forge ingests and structures text, produces deterministic candidate spans, **extracts
-entity/relation candidates with an LLM** (routed, budgeted, recorded), runs the §3.3 cascade and
-**stages** each candidate with a NEW-vs-MERGE proposal — and writes **both** graph nodes **and edges**
-**only when the author accepts** at the review queues (INV-1/INV-9, entities + relations). On-accept
-re-match and manual handpick keep a single ingest's graph clean. The graph is empty until reviewed;
-the §3.3 dedupe — for nodes *and* relations — is the human's gated decision, not an automatic write.
+So today Story Forge ingests and structures text, **extracts entity/relation candidates with an LLM**
+(routed, budgeted, recorded — directly on the raw paragraph text, **not** via PreNER, which stays
+dormant — §7 Step 3), runs the §3.3 cascade and **stages** each candidate with a NEW-vs-MERGE proposal
+— and writes **both** graph nodes **and edges** **only when the author accepts** at the review queues
+(INV-1/INV-9, entities + relations). On-accept re-match and manual handpick keep a single ingest's
+graph clean. The graph is empty until reviewed; the §3.3 dedupe — for nodes *and* relations — is the
+human's gated decision, not an automatic write.
 
-**M4 ("V1 polish") — in progress (PRs #81/#86, #89/#91, #96/#98):**
+**M4 ("V1 polish") — FEATURE-COMPLETE; V1 done (the multi-story live smoke PASSED, Session 54). PRs
+#81/#86, #89/#91, #96/#98, #102/#105/#107, #111/#115/#117, #128/#130:**
 - **M4.S1 — inline highlights** (#81 backend / #86 frontend). A **read-only projection** of the
   accepted graph: render the story text, highlight accepted entities inline (colour-by-type), hover →
   tooltip. **DM-IH-1** resolved render-time string search over name+aliases (`entity_mentions` carry
@@ -113,17 +119,40 @@ the §3.3 dedupe — for nodes *and* relations — is the human's gated decision
   relations between accepted entities, under a new human-reached `EntityEditService`. **INV-9 reworded**
   "exactly two writers" → "only human-reached handlers — accept, decide, **edit**" (broaden-don't-mint,
   the ADR-0005 precedent); every edit records a before→after `graph_edits` row (INV-3 undo substrate).
-  The graph-writer set grew to **two node-writers** (accept + edit) and **two edge-writers** (decide +
-  edit). See [[m4-entity-editing]], [[invariants]] INV-9, and the edit-path extensions in
+  See [[m4-entity-editing]], [[invariants]] INV-9, and the edit-path extensions in
   [[candidate-lifecycle]] / [[relation-lifecycle]].
+- **M4.S3b — merge · delete · undo: the first slice that *re-points* committed graph state** (#102
+  merge / #105 delete+undo-executor / #107 frontend, **ADR 0007**). Entity↔entity **merge** (fold B
+  into A, re-point every incident edge — delete-old+create-new since the `uuid5` edge id changes — and
+  re-point B's `entity_mentions`, then `delete_entity` B), whole-entity **delete** (`DETACH DELETE` +
+  full snapshot), and the general **undo executor** that *executes* INV-3: a merge/delete's whole
+  fan-out is one grouped, reversible `graph_edits` operation (`operation_id`+`seq`, a
+  [[compensating-transaction]]; a drift check refuses an undo over since-changed state — a [[lost-update]]
+  in reverse). Resolves spec **§10 q2** (graph versioning) the lightest way. See [[m4-s3b-graph-mutations]],
+  [[graph-operation]].
+- **M4.S3c — manual tag / un-tag / change-boundaries in the reader** (#111 backend / #115 Tiptap
+  migration / #117 correction UI, **ADR 0008**). The final "manual correction in the reader" slice:
+  a manual tag persists a stored span (`source='manual'`, real offsets) that overlays render-time
+  search and wins; rejection writes a `mention_suppressions` row the resolver subtracts; tag-as-new-entity
+  mints a node directly (INV-9's sixth witnessed writer-path). Introduces [[materialization]] (the derived
+  highlight layer becomes incrementally addressable). The reader migrated to **Tiptap** read-only.
+  See [[m4-s3c-manual-tagging]].
+- **M4 narrowed multi-story** (#128 backend / #130 frontend). *Add a new story that reuses the existing
+  project graph + per-story entity membership* (the cross-story **world graph** is **OUT of PoC** →
+  `docs/BACKLOG.md`). Defining finding: how *little* is new — per-story membership is **derived** from
+  the `entity_mentions → … → stories` FK chain (no new storage; one [[source-of-truth]]; introduces
+  [[multi-tenancy]] — `project_id` is the tenancy key, a story a derived sub-scope), the matcher seed is
+  already project-scoped, so a new story auto-matches the project's known entities with no cascade change.
+  Adds `scope=story|project` on the graph route (default `story`), `project_id`-on-upload, and project/
+  story list endpoints; folds the vestigial `world_id` cleanup. No new invariant, no ADR. See [[m4-multi-story]].
 
-**Next — M4.S3b → the rest of "V1 polish":** entity↔entity **merge** (the **DM-Rel-5** written-edge
-re-point + `entity_mentions.entity_id` re-point + **DM-Rel-6** idempotency), whole-entity **delete**, and
-**undo** (consuming the S3a `graph_edits` before-image log — no undo execution is wired yet); then S3c
-manual tag/un-tag/boundaries (reopens DM-IH-1 span storage), **multi-story** + the §3.4 graph
-**story-vs-project scoping** (multi-story breaks the one-story-per-project assumption the graph route
-rests on), and the world graph (`docs/PLAN_LONG.md`). INV-2 consent gate stays **deferred past M3**
-(persona-justified, 2026-06-15).
+**Next — V1 is feature-complete; the project is in the *Public-readiness* milestone** (docs / spec /
+portfolio polish, little-to-no production code — `docs/PLAN_SHORT.md`). The roadmap after it
+(owner-DECIDED, Session 54, `docs/PLAN_LONG.md`): **Public-readiness → Graph-quality polish → V2
+Editing**. The **Graph-quality** milestone opens with a backlog triage over the 10 Session-54 findings
+(`docs/BACKLOG.md`) — the most serious is **auto-chunker silent content-loss** (a structuring pass that
+drops input text without a signal). The **world graph** (cross-story) is **post-PoC** (`docs/BACKLOG.md`),
+not upcoming PoC work. INV-2 consent gate stays **deferred past M3** (persona-justified, 2026-06-15).
 
 ---
 
