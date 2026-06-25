@@ -325,6 +325,8 @@ pre-commit run --all-files
 
 A stranger's reading order:
 
+- **[`docs/CODE_GUIDE.md`](docs/CODE_GUIDE.md)** — where to start reading the **code**: the
+  layer-by-layer reading order, a request traced from upload to graph, and a directory map.
 - **[`story-forge-poc-spec.md`](story-forge-poc-spec.md)** — the full PoC specification, and
   the **source of truth** for what we build.
 - **[`docs/PLAN_LONG.md`](docs/PLAN_LONG.md)** / **[`docs/PLAN_SHORT.md`](docs/PLAN_SHORT.md)**
