@@ -697,6 +697,17 @@ output. This is **not** the *generated/CI-derived living-docs* system this item 
 the human-in-the-loop precursor. The full direction (auto-derivation, drift-free regeneration)
 remains open for the PoC→V2 roll.
 
+**Second stone landed (2026-06-25, PR #148, Session 62):** the agent-authored **`docs/code/`
+reference layer** — one narrative note per layer (backend `domain`/`agents`/`adapters`/`api`;
+frontend `features`/`data-layer`) + an index, describing each module's responsibility and key
+pieces at module altitude, cross-linked into the code; authored by one `general-purpose` agent per
+layer under the `code-scribe` doctrine. `/document-code` gained a `reference` mode for it, and — the
+piece this item flags as the hard part (*staying living, not drifting*) — a **forcing function** so
+the notes don't rot: a `/review-pr` §2 lens + `/wrap-session` §3a backstop flag a structural code
+change that should trigger `/document-code changed`. Still human-in-the-loop, **not** CI-derived
+auto-generation — but it now has the *keep-it-fresh* discipline this item's "how it stays living"
+question was about. Auto-derivation remains the open V2 direction.
+
 ## Consolidated agentic-system architecture note (post-PoC)
 
 The owner's question (2026-06-25): is there a single architecture doc for the **agentic system**
