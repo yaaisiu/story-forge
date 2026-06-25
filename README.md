@@ -27,10 +27,12 @@ Story Forge supports an author through three editorial phases (spec §1):
 3. **Style rewriting** *(planned, V3)* — coherence-preserving rewriting in a target style,
    with the graph as the factual anchor.
 
-**This PoC delivers phase 1.** It exists for two reasons of equal weight (spec §2): it is a
-genuine personal tool for an author writing in a coherent fictional universe ("Wody Święte" /
-Holy Waters), *and* it is a public demonstration where the architecture is meant to be read,
-not just run.
+**This PoC delivers phase 1.** It's built first as an exploration — of the agent-based,
+spec-driven architecture and the process of building it — and as a public demonstration meant
+to be read, not just run. The bundled sample stories are **LLM-generated** for the PoC; there's
+no real manuscript behind it. The tool is *designed* for a solo author working in a coherent
+fictional world, and the longer-term hope is to point it at real use — research, maybe some
+writing of my own — but for now the point is the process itself.
 
 **What it is _not_** (spec §2.3): not a content generator (the LLM assists analysis and
 editing, it does not write the story); not multi-user (solo, local); not a productionable
