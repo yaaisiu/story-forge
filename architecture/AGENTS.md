@@ -61,7 +61,13 @@ Start at **`INDEX.md`** — the regenerated map of the whole vault. From there:
   `review-architecture`). They write **only Markdown, only into this vault, never production code.**
 - **Humans and other agents read it as orienting context** and may correct it like any repo doc —
   but the architect re-syncs derived notes (`INDEX.md`, the glossary index) on its next run, so
-  prefer fixing the *source* note over the generated map.
+  prefer fixing the *source* note over the generated map. **Targeted correction vs re-derivation:**
+  a small, *known* fix to a source note (a stale fact, a corrected framing) is a fine **hand-edit** —
+  the next `review-architecture` sweep re-syncs the derived map and any per-feature `proposals/`
+  that echo it. Reserve **routing the fix to a `review-architecture` sweep** for *broad* drift or a
+  re-derivation across many notes, where the skill's systematic pass is the point. (Session 57
+  routed a multi-note reconciliation to the sweep; Session 59 hand-fixed two source notes and
+  tracked the residual `proposals/` / `INDEX` for the next sweep — both correct.)
 - **This `AGENTS.md` is a host-repo convention file, not a vault note** — the architect skills treat
   it as read-only (it has no `type:` frontmatter and isn't one of the note kinds they manage).
 - **When the vault drifts from reality, that's a bug to file, not a fact to trust** — the
