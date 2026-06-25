@@ -32,7 +32,7 @@ The PoC starts with phase 1 (graph + viewer). Phases 2 and 3 are subsequent iter
 
 ### 2.1 Use case
 
-The author writes stories set in a coherent universe (potentially part of a larger world, e.g. "Wody Święte" / "Holy Waters" — a mythic reinterpretation of Polish fishing traditions). The problem to solve: a raw draft is chaos. After writing, the author wants to:
+Story Forge is built for a solo author working in a coherent fictional universe — for example "Wody Święte" / "Holy Waters" (a mythic reinterpretation of Polish fishing traditions), which serves as the project's recurring **test fixture** (Appendix B). For the PoC itself there is no real manuscript behind it: the sample content is **LLM-generated**, and the immediate driver is exploring the architecture and the spec-driven build process, with genuine authoring or research use as a longer-term aim. The problem the tool addresses: a raw draft is chaos. Working from a draft, an author wants to:
 
 - see which entities (characters, places, objects, concepts) actually appeared in the text
 - build a graph of their relations that becomes a living document of the world
