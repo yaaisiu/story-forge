@@ -164,7 +164,9 @@ retrospective produced (skill / `CLAUDE.md` changes). Story Forge keeps `main` c
 (squash-merge, curated messages — see root `CLAUDE.md`), so land these on a short
 governance branch and squash-merge as a **`docs: close Session N`** commit (bundling the
 retro changes is fine — see how `#7` closed the prior session). A docs/governance-only
-change still goes via PR so CI runs. **Commit only when the user asks** — do not
+change still goes via PR — branch protection requires a PR to merge `main`, and the CI
+path-skip means a docs-only PR runs just the `secret-scan` (not the full suite; spec §6.7
+"CI scan cadence"). **Commit only when the user asks** — do not
 auto-commit — and **the squash-merge of that PR waits for the owner's explicit OK**, like
 any merge to `main` (root `AGENTS.md` Merge flow). Offer the `commit` / `commit-push-pr`
 skills if useful.
