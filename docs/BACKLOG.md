@@ -281,6 +281,36 @@ The Session-33 reader run made the curation gap concrete. Three threads:
   other times the author wants a lean graph of just the principals. Post-PoC: a way to *curate* — bulk
   prune/keep, filter by importance, or per-view detail levels — using the displayed text for the
   context the graph alone lacks.
+- **Entity-span granularity — stable identity vs transient modifier vs role-alias (Session 60).** The
+  extractor folds **transient descriptive modifiers** into the entity surface form. Public-readiness
+  Slice B staged **`desperate smuggler` (Person) → Merge → Elara Vance** (with `Elara Vance (100)`,
+  `Smuggler (53.8)`, `Elira Vance (50)` as alternatives), but the stable identity is the role-noun
+  **"smuggler"** — which is really an **alias of Elara**, not a separate node — while **"desperate"** is
+  a **momentary state** of hers in that passage, better modelled as a (time-qualified) property/state
+  than baked into the entity *name*. Generalises the owner principle that **the right level of entity
+  granularity is case-/purpose-dependent** — *not* a fixed "coarser is always better": sometimes a
+  fine-grained span carries signal (the state), sometimes it's noise (a modifier glued to a name). Two
+  needs: (1) extraction/normalisation should separate the **stable identity** (head noun / known alias)
+  from **transient qualifiers**, promoting role-nouns like "smuggler" to **aliases** of the named entity
+  rather than standalone entities; (2) the transient state ("desperate") wants a home as a **property or
+  a time-qualified state**, not an entity name — ties to the modality / eventive-vs-stative threads in
+  *Timeline / temporal qualification* and the coreference/alias bullets under *Entity-resolution
+  limitations*. Pairs with "Detail level is purpose-dependent" above and the deliberately oversaturated
+  PoC graph (over-extraction left for post-PoC). (Owner observation, Session 60 / Public-readiness Slice
+  B smoke — "we'll think about it.")
+- **The author's own knowledge of the text is load-bearing for merges today — and one pass isn't enough
+  (Session 60).** Until extraction/matching improve, producing a good graph leans on the **human knowing
+  the source and referencing it during the merge decision** — the matcher offers a name + score but not
+  the context to judge whether two surface forms are truly the same (is *this* "smuggler" / "crew" /
+  "the magistrate" the one already in the graph?), so the author's familiarity with the text fills the
+  gap the UI doesn't. This is the human-side mirror of **"Merge candidates show only a name + score — no
+  quote/context"** (under *Ingest & review UX feedback*): surfacing the source quote per merge option is
+  what would let someone *without* the whole text in their head decide correctly. Second facet: **a single
+  initial run is not enough** — a good graph needs **iteration** (re-review, re-extract, correct in the
+  reader, re-match) after the first pass; the PoC's one-shot extract → review → graph is a starting point,
+  not a finished graph. Pairs with the granularity note above, the reader-as-correction-surface /
+  paragraph-by-paragraph working-surface threads, and the extraction-eval baseline. (Owner observation,
+  Session 60 / Public-readiness Slice B smoke.)
 - **Open-world type proliferation.** Extraction invented ~23 fine-grained types (TAVERN, SHIP,
   ARTIFACT, FURNITURE, …) — INV-4 working as designed, but it crowds the reader legend and strains
   colour distinctness (DM-IH-5's hash fallback). Post-PoC: optional type consolidation/normalisation

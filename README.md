@@ -42,22 +42,57 @@ product as-is.
 
 ## Demo
 
-The repo ships a sample project under [`docs/samples/`](docs/samples/) — two short stories
-in the "Oakhaven" world (`oakhaven.md`, `oakhaven-2.md`) — so you can exercise the full
-pipeline end to end without supplying your own text:
+The repo ships a sample project under [`docs/samples/`](docs/samples/) — three short stories
+in the "Oakhaven" world (`oakhaven.md`, `oakhaven-2.md`, `oakhaven-3.md`) — so you can exercise
+the full pipeline end to end without supplying your own text. The screenshots below walk one
+real run over those samples.
 
-1. **Upload** `oakhaven.md` and let the chunker build the chapter/scene/paragraph outline.
-2. **Extract** — the extraction agent proposes entity and relation candidates per paragraph.
-3. **Review** — the cascade stages each candidate as *new* or *merge-into-existing*; you
-   accept, merge, re-target, or reject each one from the keyboard-driven review queue. The
-   graph stays empty until you accept.
-4. **Explore** — read the story with accepted entities highlighted inline, open an entity's
-   side panel and its 1-hop neighbourhood, or browse the whole graph in the viewer.
-5. **Add a second story** — upload `oakhaven-2.md` into the same project; it auto-matches the
-   entities you already accepted, so the project graph grows across stories.
+**1 — Chunk.** Upload a draft; the editor splits it into a chapter / scene / paragraph outline
+— deterministic `##` / `###` markers (manual), or an LLM pass (auto / hybrid).
 
-*(Annotated screenshots of the graph viewer and the agent-activity panel are added in the
-screenshot-capture pass of this milestone.)*
+![Build outline from a draft](docs/screenshots/chunking.png)
+
+**2 — Extract & route.** The extraction agent proposes entity and relation candidates per
+paragraph. The agent-activity panel shows which agent ran, the tier / model the router chose,
+and that call's latency and cost — here a free Ollama Cloud call on `gpt-oss:120b-cloud`.
+
+![Agent-activity panel during extraction](docs/screenshots/agent-activity.png)
+
+**3 — Review (the human gate).** The four-stage cascade (fuzzy → embedding → LLM judge) stages
+each candidate as *new* or *merge-into-existing*; you accept, merge, re-target, or reject from a
+keyboard-driven queue, and **nothing enters the graph until you accept.** The judge explains
+itself — and correctly *declines* a bad merge (a "heavy boarding axe" is not the weather
+phenomenon "fog"):
+
+![Cascade judge declining a merge with reasoning](docs/screenshots/review-queue-judge.png)
+
+When a new story reuses an entity from an earlier one, the cascade proposes the **cross-story
+merge** — here Chapter Seven's "imperial warship" folding into the *Iron Wake* already in the
+project graph from story two:
+
+![Cross-story merge proposal](docs/screenshots/review-queue-merge.png)
+
+**4 — Explore the graph.** Accepted entities and relations render in the viewer, scoped either
+to a single story or to the whole multi-story project. Chapter Seven on its own:
+
+![Single-story knowledge graph](docs/screenshots/graph-this-story.png)
+
+…and the full three-story project graph, where the cross-story merges have stitched the shared
+characters, ships, and objects together:
+
+![Whole-project knowledge graph](docs/screenshots/graph-whole-project.png)
+
+> **Honest about graph quality.** These graphs are dense on purpose. At PoC stage the
+> extractor proposes *generously* and curation lives at the human gate, not in the extractor —
+> and these runs accepted broadly to show the unfiltered result. Some of that density is real
+> signal (the boarding axe is a genuine object; "harbor" is a shared destination for both
+> ships); some is over-eager; and the *right* level of entity granularity is case-dependent,
+> not a flat "less is better." Tightening extraction precision and entity de-duplication is the
+> **next milestone** (graph-quality polish) — the open items are tracked in
+> [`docs/BACKLOG.md`](docs/BACKLOG.md).
+
+You can also read the story with accepted entities highlighted inline and open an entity's side
+panel with its 1-hop neighbourhood (spec §3.4–§3.5).
 
 ---
 
