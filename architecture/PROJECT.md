@@ -58,12 +58,18 @@ Security and Compliance/Audit layers do their work (see [[invariants]] #2, [[tru
 
 ## Business (Layer 2)
 
-Two drivers, equal weight (confirmed in interview — "both readers, equally"):
+Two drivers — today weighted toward the portfolio / architecture-exploration side, with the
+authoring use aspirational (the documentation still serves *both* readers — the future
+author-user and the outside visitor — equally):
 
-1. **A genuine personal tool.** The author writes in a coherent universe ("Wody Święte" /
-   Holy Waters) and needs to turn a chaotic raw draft into a living, queryable world model —
-   entities, relations, and eventually editorial + style-rewriting support, with the graph as
-   the coherence anchor (§2.1).
+1. **An authoring tool — designed-for, currently aspirational.** Story Forge is *built for* a
+   solo author working in a coherent fictional universe ("Wody Święte" / Holy Waters — the
+   project's recurring **test fixture**, App. B): turning a chaotic raw draft into a living,
+   queryable world model of entities and relations, with editorial + style-rewriting support
+   later and the graph as the coherence anchor (§2.1). For the PoC there is **no real
+   manuscript** — the sample content is LLM-generated — so today this driver is *aspirational*:
+   genuine authoring or research use is a longer-term aim, while the immediate motivation is
+   exploring the architecture and the spec-driven build process itself.
 2. **A public portfolio piece.** The repo is built in the open to *demonstrate* — not merely
    make — clean three-layer architecture, agent-based LLM orchestration, multi-tier model
    routing, and secure-by-default infra. "Architecture choices are demonstrated, not just

@@ -168,7 +168,9 @@ inter-user authn/authz, no tenancy, no per-user limits. The only real **trust bo
 a cloud model.
 
 ### 2. Business
-Personal tool **and** public portfolio, equal weight (see [[project]] Layer 2). The portfolio
+Public portfolio + architecture-exploration (currently primary) **and** an authoring tool
+(designed-for, currently aspirational — the PoC content is LLM-generated, no real manuscript)
+— see [[project]] Layer 2. The portfolio
 driver imposes an unusual constraint: *the architecture must be legible from outside*. That is
 itself an architectural force — it pushes toward small, named, individually-testable agents and
 visible decision records rather than clever density.
