@@ -58,7 +58,7 @@ and that call's latency and cost — here a free Ollama Cloud call on `gpt-oss:1
 
 ![Agent-activity panel during extraction](docs/screenshots/agent-activity.png)
 
-**3 — Review (the human gate).** The four-stage cascade (fuzzy → embedding → LLM judge) stages
+**3 — Review (the human gate).** The four-stage cascade (fuzzy → embedding → LLM judge → you) stages
 each candidate as *new* or *merge-into-existing*; you accept, merge, re-target, or reject from a
 keyboard-driven queue, and **nothing enters the graph until you accept.** The judge explains
 itself — and correctly *declines* a bad merge (a "heavy boarding axe" is not the weather
