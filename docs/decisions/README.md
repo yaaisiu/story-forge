@@ -15,3 +15,4 @@ stays, so the record shows how the design evolved.
 | [0006](0006-edit-committed-graph-under-human-gate.md) | Committed graph state is edited under explicit human-reached handlers (INV-9 broadened) | Accepted |
 | [0007](0007-graph-mutations-and-grouped-undo-log.md) | Entity merge/delete/undo are grouped, reversible operations under the human gate | Accepted |
 | [0008](0008-manual-correction-overlay-storage.md) | Manual correction in the reader: an overlay storage model + reconciled highlights | Accepted |
+| [0009](0009-branch-protection-ruleset.md) | Branch protection on `main` via a repository ruleset | Accepted |
