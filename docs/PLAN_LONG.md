@@ -60,6 +60,13 @@ features — to make the public repo read cleanly to an outside visitor:
 
 ## Preparation gate — before the next *build* milestone (owner, 2026-06-25, Session 60)
 
+> **✅ Executed Session 66 (2026-06-26).** The prep gate ran: the PoC spec + backlog were reviewed,
+> the Graph-quality milestone was scoped into its own spec doc ([`docs/specs/graph-quality.md`](specs/graph-quality.md)),
+> this `PLAN_LONG.md` stub was refined (below), and the `AGENTS.md`/skills set was assessed (no new
+> skill earns its place — the milestone is frontend-curation-heavy; `meta-architect:decompose-requirement`
+> covers its branchy S0). The original framing is kept below for the record. **Still pending:** the
+> milestone **roll** (opens it in `PLAN_SHORT.md`) and the **S61 plan-trim prep** — separate units.
+
 Before committing to the next build work (i.e. before the Graph-quality milestone below), run a
 deliberate **cleaning / preparation pass** — the PoC's spec and plans were written for the PoC and
 need a refresh for what comes after it. Concretely: **review the PoC spec and author a spec for the
