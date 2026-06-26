@@ -340,7 +340,7 @@ A stranger's reading order:
 - **[`docs/decisions/`](docs/decisions/README.md)** — the Architecture Decision Records (the
   three-tier LLM strategy, the router/provider-order/budget design, the human-gated graph
   writes, the merge/delete/undo model, and more); the [index](docs/decisions/README.md) lists
-  all eight.
+  them all.
 - **[`docs/SECURITY_POSTURE.md`](docs/SECURITY_POSTURE.md)** — the security & CI story: the
   threat model, supply-chain pinning/ageing/scanning, the waiver lifecycle, and the CI gates
   that enforce the spec §6.7 baseline.
