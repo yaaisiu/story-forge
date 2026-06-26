@@ -76,14 +76,18 @@ Start at **`INDEX.md`** — the regenerated map of the whole vault. From there:
 
 ## Status of the workflow integration (read this before assuming a ritual runs the architect)
 
-The architect skills are **deliberately NOT wired into** `/resume-session`, `/wrap-session`, or
-`/review-pr` yet — that integration is deferred until we've lived with the vault (ADR 0002 §4). So
-nothing runs them automatically; invoke them by hand when the work calls for it (a milestone-boundary
-drift sweep, or a "step 0" decomposition of a genuinely branchy feature). The evidence for whether/
-how to wire them is being gathered run-by-run — see the `reports/` and `proposals/` history.
+Integration is **evidence-based** (ADR 0002 §4): wire a skill into a ritual only once living with it
+shows the wiring earns its place. As of **Session 68** the first such wiring has landed —
+**`review-architecture` runs at every milestone roll** (`/wrap-session §5c`), paired with the existing
+`/resume-session §3c` triage of its report. The evidence: the Public-readiness milestone-roll retro
+showed an architecture sweep that only runs when a human remembers it rots like any un-triggered
+artifact, and real vault drift (PreNER-as-live-stage) reached the roll uncaught. The other two skills —
+`decompose-requirement` and `initialize-project-architecture` — stay **event-triggered** (a "step 0"
+decomposition of a genuinely branchy feature; first-contact bootstrap), **not** ritual-wired; no
+evidence yet calls for that. Invoke those by hand when the work calls for it.
 
-**`/resume-session` step 3c is not a counter-example.** It triages a report that *already exists* (walks
-its blocker/risk findings, checks each is tracked) — it never *runs* the architect. Reading an artifact
-the architect left behind is the consumer side of a producer/consumer pairing; auto-*running* a
-`meta-architect:*` skill from a ritual is the wiring that stays deferred (ADR 0002 §4). Likewise
-`/resume-session` step 1 reads the handoff a human-invoked sweep may have seeded — same distinction.
+**`/resume-session` step 3c is the consumer half, not the producer.** It triages a report that
+*already exists* (walks its blocker/risk findings, checks each is tracked) — it never *runs* the
+architect. The producer (running `review-architecture`) is now wired at the milestone roll;
+step 3c reads what that run — or any hand-invoked sweep — left behind. Likewise `/resume-session`
+step 1 reads the handoff a sweep may have seeded — same producer/consumer distinction.

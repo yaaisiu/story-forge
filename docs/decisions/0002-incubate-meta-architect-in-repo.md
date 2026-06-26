@@ -61,3 +61,25 @@ don't duplicate" promise.
   Increment three, later: evidence-based workflow integration.
 - When the plugin is eventually extracted, this ADR remains the record of why the folder lived
   here and how it graduated.
+
+## Update — 2026-06-26 (Session 68): evidence-based integration begins (Decision §4 condition met)
+
+§4 deferred ritual integration until "after learning from that first run." That condition is now
+met. `review-architecture` ran once (Session 58, `architecture/reports/2026-06-25-architecture-review.md`)
+and the **Public-readiness milestone-roll retro** (Session 68, the first run of `/retro`'s
+milestone-roll mode) surfaced the evidence: an architecture sweep that only runs when a human
+remembers it is an un-triggered artifact that rots — the same failure class the vault's own
+report-triage (`/resume-session` 3c) and the `docs/code/` freshness backstop were built to close,
+and the milestone showed real vault drift (PreNER-as-live-stage) reaching the roll uncaught.
+
+**Decision (owner, Session 68):** wire **`review-architecture` into the milestone-roll ritual** as a
+standing step — `/wrap-session §5c` runs it at each roll (producer), paired with the existing
+`/resume-session §3c` triage (consumer). This is the §4 "integrate on evidence" path, not a reversal.
+The other two skills (`initialize-project-architecture`, `decompose-requirement`) stay
+**event-triggered** (bootstrap / branchy-feature step-0), not ritual-wired — no evidence yet calls for
+that. First execution of the wired step is the **next** roll (this roll encoded the wiring only;
+owner's call, to keep the roll unit bounded). Reconciled homes: `docs/AGENTS.md §7`,
+`.claude/skills/wrap-session/SKILL.md §5c`, `.claude/skills/resume-session/SKILL.md §3c`, root
+`CLAUDE.md`, `architecture/AGENTS.md` "Status of the workflow integration". The vault *notes* that
+still frame the integration as fully deferred (`open-questions.md`, `INDEX.md`, `PROJECT.md`,
+`learning-log.md`) are writer-restricted and get reconciled at that next sweep.

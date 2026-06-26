@@ -142,7 +142,9 @@ original reverse-chronological order is preserved verbatim.
   skill). **Before that move, the roll first *mines* the departing batch** — `/wrap-session §5c`
   runs `/retro` in milestone-roll mode over the milestone's record (Done lines, decisions, lessons)
   to turn its accumulated experience into process improvements, not just relocate it (owner
-  directive, Session 61). A *current* milestone can't be archived (it stays in full), so a single milestone
+  directive, Session 61). **The roll also runs `meta-architect:review-architecture`** (`/wrap-session §5c`)
+  to catch vault/code drift accumulated over the closing milestone — wired into the roll on evidence
+  (ADR 0002 §4, Session 68), the producer paired with `/resume-session §3c`'s report triage. A *current* milestone can't be archived (it stays in full), so a single milestone
   whose own Done/Decided log alone threatens the 256 KB limit is primarily a **sizing** signal —
   slice milestones small enough to stay readable; the fallback is to archive that milestone's own
   earliest sessions (keep recent + a pointer). `/resume-session` flags bloat as a backstop. Don't

@@ -138,6 +138,14 @@ move content out — both **move, not delete** (§4), into **`docs/PLAN_ARCHIVE.
     retro in §2 — different lens, same human-in-the-loop proposal flow; at a roll both run, and §2's
     is usually light because the roll work itself is mechanical. "Nothing cleared the bar" is a valid
     result — but the pass is not skippable (reference it here so it's never silently forgotten).
+  - **Then — run the architecture sweep (`meta-architect:review-architecture`).** Wired into the roll
+    on evidence (ADR 0002 §4, Session 68): a sweep that only runs when a human remembers it rots like
+    any un-triggered artifact, and real vault drift (PreNER-as-live-stage) once reached a roll uncaught.
+    Run it at the roll to catch drift between the vault and the current code/config accumulated over the
+    closing milestone; **resolve or track** each blocker/risk finding (it's the *producer*; the existing
+    `/resume-session §3c` is the *consumer* that triages the report next session). This is the moment to
+    reconcile vault-note drift the roll surfaces, while the meta-architect skill is the writer (vault
+    notes are writer-restricted). Report-only on code; it never edits production code.
   - **Then — move the just-closed milestone** to the archive — its
     `## Completed milestone:` task section, its Decided entries, its Done log, and the
     struck/resolved cross-cutting + Blocked items *that milestone raised* (the §3 re-curation is

@@ -83,8 +83,10 @@ and linked in INDEX, but nothing *forces* a look, so a real `risk` can sit filed
 step is that forcing function (the consumer half of the pairing the report's own skill writes — see
 `meta-architect/skills/review-architecture/SKILL.md` step 7).
 
-This is **not** wiring the architect into the ritual (that stays deferred — ADR 0002 / `architecture/AGENTS.md`):
-it only triages a report that *already exists*. Find the newest report:
+This step is the **consumer** half — it only triages a report that *already exists*, it never *runs* the
+sweep. (Running `review-architecture` is now wired into the milestone-roll ritual — `/wrap-session §5c`,
+ADR 0002 §4 — so after a roll there will be a fresh report here to triage; this per-session step is its
+consumer half, and also catches any hand-invoked sweep's report.) Find the newest report:
 
 ```bash
 ls -t architecture/reports/*.md 2>/dev/null | head -1

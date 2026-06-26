@@ -102,6 +102,7 @@ Per feature (and at session close): feature branch → **open a PR so CI actuall
 
 - **Green-main bar.** Don't merge on red CI. The one exception: a failure that is *pre-existing, unrelated to the PR, and diagnosed* — merge is allowed if that's stated explicitly and tracked.
 - **Split unrelated bugs out.** A pre-existing infra/bug discovery that isn't this PR's concern gets its own GitHub issue, not scope-creep. Small *incidental* fixes the PR already touches can ride along, disclosed in the commit body.
+- **Verify CI gating/skip changes on a scratch PR — don't reason about the skipped path.** A change to how CI gates merges (a path filter, a required status check, a job-level `if:`) has non-obvious skip semantics — a job-level `if:` skip counts as *success*, but a workflow-level path-filter skip leaves a required check *pending* and silently wedges `main`. Confirm the actual behaviour on a throwaway PR before relying on it; it's cheap certainty. (Earned twice this milestone — Sessions 56 and 65.)
 
 ## How to communicate with me
 
@@ -164,7 +165,7 @@ of *how* and *why* we build must be in the open, version-controlled, and reviewa
 - `docs/BACKLOG.md` — post-PoC backlog (features / UX nits / bugs / refinements surfaced during PoC work, revisited after V1; its header carries the routing rule for where a follow-up goes)
 - `docs/AGENTS.md` — plan conventions (handoff-block contract, Decided/Blocked/Done structure, cross-cutting curation rule)
 - `docs/decisions/` — Architecture Decision Records (ADRs)
-- `architecture/` — the **meta-architect vault**: the architectural *projection* layer (named invariants, state machines, decision register, per-feature decompositions, dated review sweeps, teaching glossary). **Orienting context, not a source of truth** — it references the spec/plans/code and never overrides them; on disagreement the source wins and the vault is what drifted. Navigate from `architecture/INDEX.md`; conventions + the source-of-truth boundary are in `architecture/AGENTS.md`. The `meta-architect:*` skills (deferred from the rituals per `docs/decisions/0002`) are its only writers; everyone else reads it for orientation. Consult it when planning a milestone, decomposing a branchy feature, or checking which invariant guards a change.
+- `architecture/` — the **meta-architect vault**: the architectural *projection* layer (named invariants, state machines, decision register, per-feature decompositions, dated review sweeps, teaching glossary). **Orienting context, not a source of truth** — it references the spec/plans/code and never overrides them; on disagreement the source wins and the vault is what drifted. Navigate from `architecture/INDEX.md`; conventions + the source-of-truth boundary are in `architecture/AGENTS.md`. The `meta-architect:*` skills are its only writers; everyone else reads it for orientation. **Ritual integration (ADR 0002 §4, evidence-based):** `review-architecture` is now wired into the **milestone-roll ritual** (`/wrap-session §5c` runs it at each roll; `/resume-session §3c` triages its report) as of Session 68; `decompose-requirement` and `initialize-project-architecture` stay event-triggered (branchy-feature step-0 / bootstrap), not ritual-wired. Consult it when planning a milestone, decomposing a branchy feature, or checking which invariant guards a change.
 
 ---
 
