@@ -64,8 +64,10 @@ features — to make the public repo read cleanly to an outside visitor:
 > the Graph-quality milestone was scoped into its own spec doc ([`docs/specs/graph-quality.md`](specs/graph-quality.md)),
 > this `PLAN_LONG.md` stub was refined (below), and the `AGENTS.md`/skills set was assessed (no new
 > skill earns its place — the milestone is frontend-curation-heavy; `meta-architect:decompose-requirement`
-> covers its branchy S0). The original framing is kept below for the record. **Still pending:** the
-> milestone **roll** (opens it in `PLAN_SHORT.md`) and the **S61 plan-trim prep** — separate units.
+> covers its branchy S0). The original framing is kept below for the record. ~~**Still pending:** the
+> milestone **roll** (opens it in `PLAN_SHORT.md`) and the **S61 plan-trim prep** — separate units.~~
+> ✅ Both done: the S61 plan-trim prep landed Session 67; the milestone **roll** landed Session 68
+> (Graph-quality is now the current milestone in `PLAN_SHORT.md`).
 
 Before committing to the next build work (i.e. before the Graph-quality milestone below), run a
 deliberate **cleaning / preparation pass** — the PoC's spec and plans were written for the PoC and
