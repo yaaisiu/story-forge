@@ -174,24 +174,30 @@ and scheduled runs always run to completion.
 
 ## Branch protection & the merge gate
 
-Stated honestly, because a portfolio repo should not imply enforcement it does not have:
+`main` is governed by a single **repository ruleset** (`main-protection`); see
+[ADR 0009](decisions/0009-branch-protection-ruleset.md) for the rationale and the alternatives
+weighed. Stated honestly, because a portfolio repo should not imply enforcement it does not have:
 
-- **What GitHub enforces on `main`:** force-pushes and branch deletion are blocked. History is
-  append-only and `main` cannot be rewritten or removed.
-- **What GitHub does *not* enforce:** there are no required status checks and no required
-  review count configured on `main` (this is a single-maintainer repo).
-- **What the *workflow* enforces instead:** CI-green-before-merge and review-before-merge are
-  upheld by an explicit, documented discipline rather than a server-side rule — the
-  **green-main bar** (never merge on red CI unless a failure is pre-existing, unrelated, and
-  diagnosed), a self-review pass (`/review-pr`) plus a heavier multi-agent review
-  (`/code-review`) for substantive code, and the maintainer personally taking every
-  squash-merge to `main` (the "owner holds the merge button" rule). Features land via
-  squash-merge so `main`'s history reads as an intentional record.
+- **What GitHub enforces on `main`:** every change must arrive through a **pull request**
+  (squash-merge only; linear history required); **force-pushes and branch deletion are blocked**;
+  and four **required status checks** must pass — `secret-scan`, `backend`, `frontend`, `security`.
+  On a docs-only PR the three code jobs skip via job-level `if:` conditions, which GitHub reports as
+  success, so a docs PR is gated by `secret-scan` while a code PR must pass all four.
+- **What is deliberately *not* required:** no minimum review count — a single maintainer cannot
+  approve their own PR, so a non-zero count would deadlock every merge (review is upheld by the
+  `/review-pr` discipline below) — and the `ollama-cloud-smoke` job is informational, not required,
+  because it depends on the external Ollama Cloud free tier and gating merges on it would let an
+  outage wedge the repo.
+- **The maintainer is an audited bypass actor.** As the sole admin, the maintainer can bypass the
+  ruleset for emergencies — a deliberate escape hatch so a misconfigured check can never lock the
+  only committer out of `main`. It is the exception, not the default path.
+- **What the *workflow* enforces on top:** beyond the server-side rule, CI-green-before-merge and
+  review-before-merge remain disciplines — the **green-main bar** (never merge on red CI unless a
+  failure is pre-existing, unrelated, and diagnosed), a self-review pass (`/review-pr`) plus a
+  heavier multi-agent review (`/code-review`) for substantive code, and the maintainer personally
+  taking every squash-merge to `main` (the "owner holds the merge button" rule).
 
-The full merge flow lives in the root [`CLAUDE.md`](../CLAUDE.md) → *Merge flow*. For a repo
-with more than one committer, the natural next step is to promote the green-main bar into
-GitHub-required status checks; for a solo maintainer it is currently a deliberate workflow
-convention.
+The full merge flow lives in the root [`CLAUDE.md`](../CLAUDE.md) → *Merge flow*.
 
 ---
 
