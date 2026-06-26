@@ -154,14 +154,15 @@ step-0 as its own first slice):**
    eight" ADR count → softened to "lists them all"), folded. **This was the last public-readiness
    session — the milestone is feature-complete.**
 
-**Public readiness is COMPLETE (all 6 sessions done, 2026-06-26).** _Next: the **PoC→next-phase
-preparation gate** (review the PoC spec, author the Graph-quality milestone spec, review
-`PLAN_LONG`, adjust the `AGENTS.md`/`CLAUDE.md` set), which feeds the **Public-readiness →
-Graph-quality milestone ROLL** — the roll is gated behind the owner's S61 directive to upgrade the
-§7 plan-trim into a learning-loop **before** the next trim (so it mines the archived material, not
-just relocates it). The standalone **branch-protection-tighten** task is **done** (Session 65, ADR
-0009). The Graph-quality milestone itself opens with a backlog-triage over the 10 Session-54
-findings (auto-chunker silent content-loss is the most serious), then **V2 Editing**._
+**Public readiness is COMPLETE (all 6 sessions done, 2026-06-26).** _The **PoC→next-phase
+preparation gate** ran (Session 66, PR #157) — the **Graph-quality milestone spec** is
+`docs/specs/graph-quality.md`. Next: the **Public-readiness → Graph-quality milestone ROLL**, gated
+behind the owner's S61 directive to upgrade the §7 plan-trim into a learning-loop **before** the
+next trim (so it mines the archived material, not just relocates it). The standalone
+**branch-protection-tighten** task is **done** (Session 65, ADR 0009). The Graph-quality milestone
+opens with **S0 — decompose the curation surface** (the prep gate already did the backlog triage
+over the Session-54 findings; the milestone curates the *existing* graph, chunker silent-loss fix
+included), then **V2 Editing**._
 
 ---
 
