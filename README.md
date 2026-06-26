@@ -13,6 +13,8 @@ architecture decisions, the per-layer conventions, the plans — is in the open.
 > currently in a **public-readiness** documentation pass; the next build milestones are
 > graph-quality polish, then editing (V2). See [`docs/PLAN_LONG.md`](docs/PLAN_LONG.md).
 
+**Contents:** [What is this](#what-is-this) · [Demo](#demo) · [Architecture](#architecture) · [Quickstart](#quickstart) · [Development](#development) · [Project map](#project-map) · [License](#license) · [Security](#security)
+
 ---
 
 ## What is this
@@ -335,17 +337,21 @@ A stranger's reading order:
 - **[`docs/PLAN_LONG.md`](docs/PLAN_LONG.md)** / **[`docs/PLAN_SHORT.md`](docs/PLAN_SHORT.md)**
   — the strategic and tactical plans (a living record of *how* the project was built;
   conventions in [`docs/AGENTS.md`](docs/AGENTS.md)).
-- **[`docs/decisions/`](docs/decisions/)** — the Architecture Decision Records (the three-tier
-  LLM strategy, the router/provider-order/budget design, the human-gated graph writes, the
-  merge/delete/undo model, and more).
+- **[`docs/decisions/`](docs/decisions/README.md)** — the Architecture Decision Records (the
+  three-tier LLM strategy, the router/provider-order/budget design, the human-gated graph
+  writes, the merge/delete/undo model, and more); the [index](docs/decisions/README.md) lists
+  all eight.
 - **[`docs/SECURITY_POSTURE.md`](docs/SECURITY_POSTURE.md)** — the security & CI story: the
   threat model, supply-chain pinning/ageing/scanning, the waiver lifecycle, and the CI gates
   that enforce the spec §6.7 baseline.
 - **[`architecture/`](architecture/)** — the meta-architect vault: named invariants, state
   machines, and per-feature decompositions. **Orientation, not a source of truth** — start at
-  [`architecture/INDEX.md`](architecture/INDEX.md).
+  [`architecture/INDEX.md`](architecture/INDEX.md). Its notes are linked with `[[wikilinks]]`,
+  so it is **Obsidian-compatible** if you want to wander it as a graph.
 - **`AGENTS.md` / `CLAUDE.md` files** — root plus one per major directory, documenting the
   conventions for that area. (`CLAUDE.md` is a symlink to its sibling `AGENTS.md`.)
+- **[`CONTRIBUTING.md`](CONTRIBUTING.md)** — what this repo is here for (read it, learn from it)
+  and how it's built — for a stranger deciding how to engage.
 
 ---
 
