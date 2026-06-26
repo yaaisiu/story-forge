@@ -9,9 +9,10 @@ orchestration, multi-model routing across local and cloud providers, a cleanly l
 backend, and secure-by-default container infrastructure. Everything — the spec, the
 architecture decisions, the per-layer conventions, the plans — is in the open.
 
-> **Status.** V1 — the ingest → graph → viewer PoC — is **feature-complete**. The repo is
-> currently in a **public-readiness** documentation pass; the next build milestones are
-> graph-quality polish, then editing (V2). See [`docs/PLAN_LONG.md`](docs/PLAN_LONG.md).
+> **Status.** V1 — the ingest → graph → viewer PoC — is **feature-complete**. The
+> public-readiness documentation pass is done; the repo is now in a **graph-quality**
+> milestone (curate the existing graph in place), then editing (V2). See
+> [`docs/PLAN_LONG.md`](docs/PLAN_LONG.md).
 
 **Contents:** [What is this](#what-is-this) · [Demo](#demo) · [Architecture](#architecture) · [Quickstart](#quickstart) · [Development](#development) · [Project map](#project-map) · [License](#license) · [Security](#security)
 
@@ -92,9 +93,9 @@ characters, ships, and objects together:
 > and these runs accepted broadly to show the unfiltered result. Some of that density is real
 > signal (the boarding axe is a genuine object; "harbor" is a shared destination for both
 > ships); some is over-eager; and the *right* level of entity granularity is case-dependent,
-> not a flat "less is better." Tightening extraction precision and entity de-duplication is the
-> **next milestone** (graph-quality polish) — the open items are tracked in
-> [`docs/BACKLOG.md`](docs/BACKLOG.md).
+> not a flat "less is better." Curating that density in place — verifiable merges, edge evidence,
+> entity de-duplication — is the **current milestone** (graph-quality); tightening *extraction*
+> precision is a later pass. The open items are tracked in [`docs/BACKLOG.md`](docs/BACKLOG.md).
 
 You can also read the story with accepted entities highlighted inline and open an entity's side
 panel with its 1-hop neighbourhood (spec §3.4–§3.5).

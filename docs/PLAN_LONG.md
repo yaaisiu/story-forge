@@ -27,7 +27,7 @@ swap it in behind the same agent — at which point a `NerPipeline` Protocol ear
 place (see `backend/src/story_forge/CLAUDE.md`). Not scheduled; a direction the
 architecture is kept ready for.
 
-## Public readiness — docs, demo, spec reconciliation (NEXT, before V2)
+## Public readiness — docs, demo, spec reconciliation (✅ COMPLETE — last build session 64; rolled to archive Session 68)
 
 The moment V1 is complete, lock the portfolio presentation before opening the next big build
 (owner decision, 2026-06-24 / Session 54). This is a **light, finite** pass — no new product
@@ -64,8 +64,10 @@ features — to make the public repo read cleanly to an outside visitor:
 > the Graph-quality milestone was scoped into its own spec doc ([`docs/specs/graph-quality.md`](specs/graph-quality.md)),
 > this `PLAN_LONG.md` stub was refined (below), and the `AGENTS.md`/skills set was assessed (no new
 > skill earns its place — the milestone is frontend-curation-heavy; `meta-architect:decompose-requirement`
-> covers its branchy S0). The original framing is kept below for the record. **Still pending:** the
-> milestone **roll** (opens it in `PLAN_SHORT.md`) and the **S61 plan-trim prep** — separate units.
+> covers its branchy S0). The original framing is kept below for the record. ~~**Still pending:** the
+> milestone **roll** (opens it in `PLAN_SHORT.md`) and the **S61 plan-trim prep** — separate units.~~
+> ✅ Both done: the S61 plan-trim prep landed Session 67; the milestone **roll** landed Session 68
+> (Graph-quality is now the current milestone in `PLAN_SHORT.md`).
 
 Before committing to the next build work (i.e. before the Graph-quality milestone below), run a
 deliberate **cleaning / preparation pass** — the PoC's spec and plans were written for the PoC and
@@ -78,7 +80,7 @@ what to do next* on a clean, current foundation rather than drifting into the ne
 docs. Sequence it after the Public-readiness pass completes; slice it when picked up. (Recorded so
 the next planning conversation can't miss it; the public-readiness pass stays the current focus.)
 
-## Graph quality & cleanliness — curate the graph you have (before V2)
+## Graph quality & cleanliness — curate the graph you have (◀ CURRENT MILESTONE — opened Session 68; before V2)
 
 Then make the graph *trustworthy* before building writing features on top of it (owner: "a sprint
 or two for graph clarity"). **Scoped at the Session-66 preparation gate** into a focused milestone —
