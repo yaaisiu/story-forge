@@ -39,8 +39,10 @@ docker run --rm -v "$PWD/backend:/src:ro" \
   scan source -L /src/uv.lock --config=/cfg/osv.toml
 ```
 
-**Last reviewed:** 2026-06-18 — dropped the python-multipart waiver: 0.0.31 cleared
-its 14-day soak, bumped via `/add-dependency`, advisory GHSA-v9pg-7xvm-68hf gone.
+**Last reviewed:** 2026-06-26 — corrected the starlette waiver floors (were pub+14, now
+pub+15 per the rule above) and extended the LOW `ignoreUntil` 2026-06-26 → 2026-06-27 so
+both starlette CVEs drop in a single 1.3.1 bump on 2026-06-27. Prior (2026-06-18): dropped
+the python-multipart waiver — 0.0.31 cleared its soak, advisory GHSA-v9pg-7xvm-68hf gone.
 
 ---
 
@@ -70,20 +72,29 @@ Scoped file: `infra/osv/osv-scanner.toml` (`[[IgnoredVulns]]`).
 On 2026-06-16 four new advisories landed against the pinned `starlette==1.0.1`. The
 bump to **1.2.0** (newest soaked version) cleared two of them — CVE-2026-48818 (HIGH,
 info-disclosure) and CVE-2026-48817 (low), both fixed in 1.1.0. The two below are fixed
-only in **1.3.0 / 1.3.1**, which are still inside the 14-day soak, so they are waived
-**fix-first, time-boxed** — not because they're unfixable, but because the fix can't be
-pinned yet under §6.7.
+only in **1.3.0 / 1.3.1**, waived **fix-first, time-boxed** — not because they're
+unfixable, but because the fix can't be pinned yet under §6.7.
 **Reachability:** Story Forge runs **locally, single-user, bound to 127.0.0.1** (spec
 §6.7) — the only HTTP client is the author's own browser, so a remote denial-of-service
 has no untrusted caller to trigger it.
-**Drop when:** the fixed version clears the 14-day soak — bump `starlette` toward 1.3.1
-via `/add-dependency`, then delete the toml blocks + these rows. Dates below are the
-soak-completion backstops (`ignoreUntil` in the toml).
+**Drop when:** both fixes clear the 14-day soak on **2026-06-27** (1.3.1's floor) — then a
+**single** `/add-dependency` bump `starlette` 1.2.0 → 1.3.1 clears both CVEs at once; delete
+the toml blocks + these rows. The `ignoreUntil` dates in the toml are the soak-completion
+backstops.
+
+**Dates corrected 2026-06-26 (off-by-one + LOW batched).** The floors below were originally
+recorded as publication **+14** (intra-day optimistic); the register's own rule is
+publication **+15** (lines 18–21), so they're now: 1.3.1 (pub 2026-06-12) → **2026-06-27**;
+1.3.0 (pub 2026-06-11) → **2026-06-26**. 1.3.0 (the LOW fix) is in fact already soaked, but
+its drop is **batched** with the 1.3.1 HIGH fix into one bump on 2026-06-27 — so the LOW's
+`ignoreUntil` was extended 2026-06-26 → **2026-06-27** to keep `main` green meanwhile (a
+documented one-day extension of a LOW, local-only, unreachable advisory; no churn from a
+throwaway 1.3.0 hop).
 
 | CVE / advisory | Severity | Class | Fixed in | Drop when (soaks) | Why safe meanwhile |
 |---|---|---|---|---|---|
-| GHSA-82w8-qh3p-5jfq (CVE-2026-54283) | HIGH (CVSS 7.5) | availability / DoS | 1.3.1 | 2026-06-26 | DoS only (no data exposure); not remotely reachable on a 127.0.0.1 single-user app |
-| GHSA-jp82-jpqv-5vv3 (CVE-2026-54282) | LOW (CVSS 3.7) | minor integrity | 1.3.0 | 2026-06-25 | Low severity; same local-only exposure |
+| GHSA-82w8-qh3p-5jfq (CVE-2026-54283) | HIGH (CVSS 7.5) | availability / DoS | 1.3.1 | 2026-06-27 | DoS only (no data exposure); not remotely reachable on a 127.0.0.1 single-user app |
+| GHSA-jp82-jpqv-5vv3 (CVE-2026-54282) | LOW (CVSS 3.7) | minor integrity | 1.3.0 | 2026-06-26 (soaked; drop batched 2026-06-27) | Low severity; same local-only exposure |
 
 ### pydantic-settings — `pydantic-settings==2.14.0` (surfaced 2026-06-20)
 

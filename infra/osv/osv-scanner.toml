@@ -33,14 +33,14 @@ reason = "torch.jit.script memory corruption; unreachable (inference-only encode
 # single-user, 127.0.0.1-bound app — a remote DoS is not reachable. Full reachability
 # + drop-when dates in WAIVERS.md.
 [[IgnoredVulns]]
-id = "GHSA-82w8-qh3p-5jfq"   # CVE-2026-54283 (HIGH, CVSS 7.5 — availability/DoS); fixed 1.3.1 (soaks 2026-06-26)
+id = "GHSA-82w8-qh3p-5jfq"   # CVE-2026-54283 (HIGH, CVSS 7.5 — availability/DoS); fixed 1.3.1 (soaks 2026-06-27)
 ignoreUntil = 2026-06-27
-reason = "starlette DoS; not remotely reachable (local single-user, 127.0.0.1); fix 1.3.1 still in 14-day soak — see infra/osv/WAIVERS.md"
+reason = "starlette DoS; not remotely reachable (local single-user, 127.0.0.1); fix 1.3.1 in 14-day soak until 2026-06-27 — see infra/osv/WAIVERS.md"
 
 [[IgnoredVulns]]
-id = "GHSA-jp82-jpqv-5vv3"   # CVE-2026-54282 (LOW, CVSS 3.7); fixed 1.3.0 (soaks 2026-06-25)
-ignoreUntil = 2026-06-26
-reason = "starlette low-severity; fix 1.3.0 still in 14-day soak — see infra/osv/WAIVERS.md"
+id = "GHSA-jp82-jpqv-5vv3"   # CVE-2026-54282 (LOW, CVSS 3.7); fixed 1.3.0 (soaks 2026-06-26)
+ignoreUntil = 2026-06-27
+reason = "starlette low-severity; fix 1.3.0 soaked, drop batched with the 1.3.1 HIGH fix on 2026-06-27 — see infra/osv/WAIVERS.md"
 
 # pydantic-settings symlink-traversal in NestedSecretsSettingsSource (surfaced 2026-06-20).
 # We never use that source — config reads `.env` only (env_file in config.py), so the
