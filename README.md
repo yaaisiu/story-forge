@@ -171,8 +171,9 @@ Every container runs **non-root, bound to `127.0.0.1` only, on a private bridge 
 Every dependency is pinned to an exact version ≥ 14 days old; every image tag is pinned ≥ 7
 days old and CVE-scanned in CI. No telemetry libraries of any kind. CORS is strict (loopback
 origins only). Secrets live only in `.env` (gitignored) — the spec's §6.7 baseline, enforced
-by CI and pre-commit hooks. *(The full CVE-handling and CI story is written up separately —
-see [`SECURITY.md`](SECURITY.md) and spec §6.7.)*
+by CI and pre-commit hooks. *(The full supply-chain, waiver-lifecycle, and CI story is written
+up separately in [`docs/SECURITY_POSTURE.md`](docs/SECURITY_POSTURE.md); the baseline checklist
+is spec §6.7.)*
 
 ### Spec ↔ reality, stated honestly
 
@@ -337,6 +338,9 @@ A stranger's reading order:
 - **[`docs/decisions/`](docs/decisions/)** — the Architecture Decision Records (the three-tier
   LLM strategy, the router/provider-order/budget design, the human-gated graph writes, the
   merge/delete/undo model, and more).
+- **[`docs/SECURITY_POSTURE.md`](docs/SECURITY_POSTURE.md)** — the security & CI story: the
+  threat model, supply-chain pinning/ageing/scanning, the waiver lifecycle, and the CI gates
+  that enforce the spec §6.7 baseline.
 - **[`architecture/`](architecture/)** — the meta-architect vault: named invariants, state
   machines, and per-feature decompositions. **Orientation, not a source of truth** — start at
   [`architecture/INDEX.md`](architecture/INDEX.md).
@@ -351,5 +355,6 @@ MIT — see [`LICENSE`](LICENSE).
 
 ## Security
 
-See [`SECURITY.md`](SECURITY.md) for the vulnerability-reporting channel and the security
-baseline (spec §6.7).
+See [`SECURITY.md`](SECURITY.md) for the vulnerability-reporting channel, and
+[`docs/SECURITY_POSTURE.md`](docs/SECURITY_POSTURE.md) for the supply-chain + CI posture
+narrative (the *how and why* behind the spec §6.7 baseline).

@@ -1,6 +1,6 @@
 # Security Policy
 
-Story Forge is a solo public proof-of-concept. It is not production software, but the project still takes security posture seriously — see `story-forge-poc-spec.md` §6.7 for the security baseline (localhost-only services, non-root containers, pinned and aged dependencies, no secrets in code, no telemetry).
+Story Forge is a solo public proof-of-concept. It is not production software, but the project still takes security posture seriously — see `story-forge-poc-spec.md` §6.7 for the security baseline (localhost-only services, non-root containers, pinned and aged dependencies, no secrets in code, no telemetry), and [`docs/SECURITY_POSTURE.md`](docs/SECURITY_POSTURE.md) for the *how and why* behind it (the supply-chain discipline, the waiver lifecycle, and the CI gates that enforce all of the above).
 
 ## Reporting a vulnerability
 
