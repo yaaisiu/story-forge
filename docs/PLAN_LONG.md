@@ -60,6 +60,13 @@ features — to make the public repo read cleanly to an outside visitor:
 
 ## Preparation gate — before the next *build* milestone (owner, 2026-06-25, Session 60)
 
+> **✅ Executed Session 66 (2026-06-26).** The prep gate ran: the PoC spec + backlog were reviewed,
+> the Graph-quality milestone was scoped into its own spec doc ([`docs/specs/graph-quality.md`](specs/graph-quality.md)),
+> this `PLAN_LONG.md` stub was refined (below), and the `AGENTS.md`/skills set was assessed (no new
+> skill earns its place — the milestone is frontend-curation-heavy; `meta-architect:decompose-requirement`
+> covers its branchy S0). The original framing is kept below for the record. **Still pending:** the
+> milestone **roll** (opens it in `PLAN_SHORT.md`) and the **S61 plan-trim prep** — separate units.
+
 Before committing to the next build work (i.e. before the Graph-quality milestone below), run a
 deliberate **cleaning / preparation pass** — the PoC's spec and plans were written for the PoC and
 need a refresh for what comes after it. Concretely: **review the PoC spec and author a spec for the
@@ -71,16 +78,29 @@ what to do next* on a clean, current foundation rather than drifting into the ne
 docs. Sequence it after the Public-readiness pass completes; slice it when picked up. (Recorded so
 the next planning conversation can't miss it; the public-readiness pass stays the current focus.)
 
-## Graph quality & cleanliness — backlog-driven (before V2)
+## Graph quality & cleanliness — curate the graph you have (before V2)
 
 Then make the graph *trustworthy* before building writing features on top of it (owner: "a sprint
-or two for graph clarity"). **Opens with a backlog-triage conversation** — prioritise the findings,
-don't straight-build. The Session-54 smoke surfaced the bulk of these (`docs/BACKLOG.md`): the
-auto-chunker's **silent content loss** (the most serious — `manual` is the only trustworthy
-structuring mode until fixed), relation/entity **review-time context** (can't judge a merge or a
-relation without the source quote), **homonymy** (two different crews), relation-modelling gaps
-(**modality / arity / eventive-vs-stative + timeline ordering**), **predicate consolidation**, and
-the **graph as a direct editing/curation surface**. Also the deferred app capabilities this exposed:
+or two for graph clarity"). **Scoped at the Session-66 preparation gate** into a focused milestone —
+full definition in [`docs/specs/graph-quality.md`](specs/graph-quality.md). The owner's steer
+(Session 66): **focus this sprint on polishing the tools that work on the *existing* graph — curate,
+fix, clean what's already there — rather than re-running or improving extraction; improving
+extraction is a later, separate pass.** The write plumbing already exists (edit / merge / delete /
+re-target, behind the human gate with undo, ADR 0006/0007), so this is largely a **UX-surfacing**
+job, organised around the insight that the human gate is only as good as the *source context* it
+shows at each decision.
+
+Sliced (detail in the spec): **S0** decompose the graph-curation surface; **S1** stop the
+auto-chunker's **silent content loss** (the one extraction-side item kept in — a data-integrity fix);
+**S2** edge evidence + verifiable merges (the source quote at every decision) + cheap safeguards;
+**S3** the **graph as a direct in-place editing/curation surface** (the spine — incl. **predicate
+consolidation**); **S4** density filters + node search; **S5** the reader as a correction surface for
+existing entities.
+
+**Deferred to the later extraction pass** (the post-sprint fork — go deeper vs. move to V2): the
+extraction/cascade **eval baseline** + spaCy-PreNER eval, and relation deep-modelling
+(**modality / arity / eventive-vs-stative + timeline ordering**) beyond a forward-compat
+edge-addressability call. Also tracked: the deferred app capabilities this exposed —
 **re-structure / delete-story**.
 
 ## V2 — Editing
