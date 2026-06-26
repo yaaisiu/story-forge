@@ -128,14 +128,24 @@ do, say so. (Full routing rule: root `CLAUDE.md` "Where knowledge lives" + `docs
 move content out — both **move, not delete** (§4), into **`docs/PLAN_ARCHIVE.md`**:
 
 - **At a milestone roll (the standing ritual step):** when this wrap closes a milestone and the
-  next session opens a new one, **move the just-closed milestone** to the archive — its
-  `## Completed milestone:` task section, its Decided entries, its Done log, and the
-  struck/resolved cross-cutting + Blocked items *that milestone raised* (the §3 re-curation is
-  the moment to sort those). Append them under a new dated `## Archived YYYY-MM-DD (Session N):
-  <milestone>` heading **at the top** of the archive (newest batch first; preserve each section's
-  reverse-chronological order verbatim). Leave the pointers in `PLAN_SHORT.md`: the
-  `> **Earlier milestones — archived.**` blockquote near the top and the `- _Earlier
-  decisions/sessions … see PLAN_ARCHIVE.md_` lines at the foot of Decided/Done.
+  next session opens a new one:
+  - **First — mine, don't just relocate (the learning loop, owner directive S61).** *Before* moving
+    anything, run **`/retro` in milestone-roll mode** over the departing batch **while it is still
+    here in `PLAN_SHORT.md`** — the analysis needs the material in context, before it's relocated.
+    The move below is mechanical; *this* is where a whole milestone's accumulated lessons turn into
+    process improvements (a recurring friction hardened into a rule, a hand-done survey handed to an
+    agent, a missing feedback loop closed). It is the milestone-scale counterpart to the per-session
+    retro in §2 — different lens, same human-in-the-loop proposal flow; at a roll both run, and §2's
+    is usually light because the roll work itself is mechanical. "Nothing cleared the bar" is a valid
+    result — but the pass is not skippable (reference it here so it's never silently forgotten).
+  - **Then — move the just-closed milestone** to the archive — its
+    `## Completed milestone:` task section, its Decided entries, its Done log, and the
+    struck/resolved cross-cutting + Blocked items *that milestone raised* (the §3 re-curation is
+    the moment to sort those). Append them under a new dated `## Archived YYYY-MM-DD (Session N):
+    <milestone>` heading **at the top** of the archive (newest batch first; preserve each section's
+    reverse-chronological order verbatim). Leave the pointers in `PLAN_SHORT.md`: the
+    `> **Earlier milestones — archived.**` blockquote near the top and the `- _Earlier
+    decisions/sessions … see PLAN_ARCHIVE.md_` lines at the foot of Decided/Done.
 - **Mid-milestone, if visibly bloated:** a *current* milestone can't be archived — it stays in
   full — so there is no rolled milestone to move mid-cycle. A single milestone whose own
   Done/Decided log alone threatens the **256 KB single-read limit** is therefore primarily a

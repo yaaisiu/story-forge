@@ -139,7 +139,10 @@ original reverse-chronological order is preserved verbatim.
 
 - **When (part of the milestone-roll ritual):** the roll is the moment the *just-closed*
   milestone moves to the archive — `/wrap-session` does/offers it as a roll step (see that
-  skill). A *current* milestone can't be archived (it stays in full), so a single milestone
+  skill). **Before that move, the roll first *mines* the departing batch** — `/wrap-session §5c`
+  runs `/retro` in milestone-roll mode over the milestone's record (Done lines, decisions, lessons)
+  to turn its accumulated experience into process improvements, not just relocate it (owner
+  directive, Session 61). A *current* milestone can't be archived (it stays in full), so a single milestone
   whose own Done/Decided log alone threatens the 256 KB limit is primarily a **sizing** signal —
   slice milestones small enough to stay readable; the fallback is to archive that milestone's own
   earliest sessions (keep recent + a pointer). `/resume-session` flags bloat as a backstop. Don't
