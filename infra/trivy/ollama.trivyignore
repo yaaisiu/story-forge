@@ -141,6 +141,9 @@ CVE-2026-39828
 CVE-2026-39829
 # CVE-2026-39830 — ssh: denial of service.
 CVE-2026-39830
+# CVE-2026-39832 — ssh/agent: security bypass via improper handling of key
+# restrictions. ollama opens no SSH agent client, so the agent package is unreachable.
+CVE-2026-39832
 # CVE-2026-39835 — ssh: servers using CertChecker as a public-key callback. ollama
 # runs no SSH server.
 CVE-2026-39835
