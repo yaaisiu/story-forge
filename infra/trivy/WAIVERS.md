@@ -19,7 +19,13 @@ docker run --rm -v /var/run/docker.sock:/var/run/docker.sock \
   --ignorefile /tmp/ignore <IMAGE>:<TAG>
 ```
 
-**Last reviewed:** 2026-06-24 — added the bundled **jackson-databind** pair
+**Last reviewed:** 2026-06-27 — added **`CVE-2026-39832`** (`golang.org/x/crypto/ssh/agent`,
+HIGH — security bypass via improper key-restriction handling) to the ollama wave-6 block;
+freshly disclosed against the unchanged `ollama/ollama:0.24.0` pin (pure treadmill, reddened
+the `security` gate on an unrelated PR). Same `ssh/agent`-unreachable posture as its 8 sibling
+`x/crypto/ssh` waivers (ollama opens no SSH agent client); same fix (upstream rebuild on
+x/crypto ≥0.52.0). Owner-approved HIGH waiver (§6.7).
+**Prior (2026-06-24):** added the bundled **jackson-databind** pair
 (`CVE-2026-54512` + `CVE-2026-54513`, both fixed in jackson-databind 2.21.4) to neo4j;
 published 2026-06-23, the Trivy DB picked them up overnight and reddened `main` on a
 docs-only merge (pure treadmill). Deserialization-allowlist bypasses, unreachable here
@@ -194,9 +200,10 @@ cert-validation issues (need MITM). **Drop when** upstream rebuilds ollama on
 patched Go **and** on the patched `golang.org/x/crypto` (≥0.52.0) /
 `golang.org/x/net` (≥0.55.0) modules.
 
-**Wave 6 (2026-06-23):** 14 freshly-disclosed HIGHs in the compiled-in
-`golang.org/x/crypto/ssh` (8) and `golang.org/x/net` (6) modules — unmasked once
-`CVE-2026-27145` cleared (sequential scan). All unreachable here: ollama runs no
+**Wave 6 (2026-06-23; +1 on 2026-06-27):** 15 freshly-disclosed HIGHs in the compiled-in
+`golang.org/x/crypto/ssh` (9, incl. `ssh/agent` CVE-2026-39832 surfaced 2026-06-27) and
+`golang.org/x/net` (6) modules — unmasked once `CVE-2026-27145` cleared (sequential scan).
+All unreachable here: ollama runs no
 SSH server/client (the whole `x/crypto/ssh` set) and renders no HTML (the
 `x/net/html` set); the lone `x/net/idna` Punycode issue is outbound-TLS-hostname
 only and needs an attacker-controlled IDN hostname the trusted local user supplies.
@@ -226,6 +233,7 @@ Rows below; rationale per CVE in `infra/trivy/ollama.trivyignore` wave-6 block.
 | CVE-2026-39828 | x/crypto/ssh | HIGH | SSH denial of service (wave 6) | x/crypto 0.52.0 | ollama runs no SSH → unreachable |
 | CVE-2026-39829 | x/crypto/ssh | HIGH | SSH denial of service (wave 6) | x/crypto 0.52.0 | ollama runs no SSH → unreachable |
 | CVE-2026-39830 | x/crypto/ssh | HIGH | SSH denial of service (wave 6) | x/crypto 0.52.0 | ollama runs no SSH → unreachable |
+| CVE-2026-39832 | x/crypto/ssh/agent | HIGH | security bypass via improper key-restriction handling (added 2026-06-27) | x/crypto 0.52.0 | ollama opens no SSH agent client → unreachable |
 | CVE-2026-39835 | x/crypto/ssh | HIGH | SSH servers using CertChecker as a public-key callback (wave 6) | x/crypto 0.52.0 | ollama runs no SSH server → unreachable |
 | CVE-2026-42508 | x/crypto/ssh/knownhosts | HIGH | revocation bypass (wave 6) | x/crypto 0.52.0 | ollama does no SSH host-key checking → unreachable |
 | CVE-2026-46595 | x/crypto/ssh | HIGH | SSH denial of service (wave 6) | x/crypto 0.52.0 | ollama runs no SSH → unreachable |
