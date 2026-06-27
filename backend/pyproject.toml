@@ -19,11 +19,11 @@ dependencies = [
   "fastapi==0.136.1",
   # starlette is a fastapi transitive; pinned explicitly to force the security bumps
   # the SCA gate exists to catch (first off 1.0.0 — GHSA-86qp-5c8j-p5mr; then off 1.0.1
-  # — CVE-2026-48817/48818, fixed in 1.1.0). 1.2.0 is the newest soaked version; the
-  # two newer advisories (CVE-2026-54282/54283) are fixed only in 1.3.0/1.3.1, which
-  # are still inside the 14-day soak — waived time-boxed in infra/osv/WAIVERS.md until
-  # they bake. Drop this pin (and bump toward 1.3.1) once fastapi requires it on its own.
-  "starlette==1.2.0",
+  # — CVE-2026-48817/48818, fixed in 1.1.0; then off 1.2.0 — CVE-2026-54282/54283, fixed
+  # in 1.3.0/1.3.1). 1.3.1 (published 2026-06-12) is the newest soaked version and clears
+  # both 54282 (LOW) and 54283 (HIGH DoS); the time-boxed waivers it carried are dropped.
+  # Drop this explicit pin once fastapi requires ≥1.3.1 on its own.
+  "starlette==1.3.1",
   "uvicorn[standard]==0.46.0",
   "pydantic==2.13.3",
   "pydantic-settings==2.14.0",
