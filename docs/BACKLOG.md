@@ -139,7 +139,11 @@ Session 33's live smoke test exposed several related gaps — all rooted in the 
   could *suggest* such links: traverse it for entities that are subjects of the same actions, share
   relations, or co-occur, and surface likely-same-entity / coreference candidates the lexical
   matcher missed — still human-confirmed. Turns the graph into an aid for *discovering* connections,
-  not just storing them. (Owner idea, Session 33.)
+  not just storing them. (Owner idea, Session 33.) **✅ PROMOTED (the same-entity / dedup subset) into
+  Graph-quality scope as S4 — "suggest duplicate clusters over the accepted graph" (re-point the cascade
+  matcher at committed entities; the human commits each merge), owner Session 69,
+  `docs/specs/graph-quality.md` §3. The broader coreference / non-duplicate connection-discovery (the
+  "smuggler"→Elara semantic link) stays backlog.**
 - **One mention may refer to more than one entity.** The whole pipeline assumes *one mention → one
   entity*, but some references are plural or ambiguous: "his newest passenger" (Session 33) could be
   Elara, Elira, or both; "the sisters" is two entities at once. Such a mention has nowhere to land
@@ -326,7 +330,10 @@ The Session-33 reader run made the curation gap concrete. Three threads:
   same, merge them" (the relation analogue of entity merge), or a similarity hint at extraction/review time —
   without losing the open-world freedom. Pairs with the type-consolidation bullet above and the
   graph-as-editing-surface item below (merging predicates is one of the curation actions the graph surface
-  would expose). (Owner observation, Session 54 smoke.)
+  would expose). (Owner observation, Session 54 smoke.) **✅ PROMOTED into Graph-quality scope as S6 —
+  "predicate-name normalisation + NLP synonym suggestion" (reframed by the owner Session 69 as *naming
+  consistency*, not edge-joining: rename graph-wide, an embedding layer suggests synonymous names, collapses
+  reported not silent), `docs/specs/graph-quality.md` §3.**
 - **The graph view itself as a direct editing/curation surface (Session 54).** Seeing the multi-story
   graph whole made the gap concrete: it's a good *read-only projection*, but the author can't **act on it
   where they see the problem** — to fine-tune an entity's details, merge two nodes that are obviously the

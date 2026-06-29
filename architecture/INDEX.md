@@ -1,7 +1,7 @@
 ---
 type: index
 slug: index
-updated: 2026-06-25
+updated: 2026-06-26
 status: living
 related: []
 ---
@@ -30,7 +30,7 @@ related: []
 | [[learning-log]] | learning-log | append-only |
 | [[changelog]] | changelog | append-only |
 
-## Glossary (28 terms — see [[glossary]])
+## Glossary (30 terms — see [[glossary]])
 [[trust-boundary]] · [[invariant]] · [[state-machine]] · [[fail-closed]] ·
 [[human-in-the-loop]] · [[idempotency]] · [[open-world-ontology]] · [[source-of-truth]] ·
 [[c4-model]] · [[agent]] · [[cascade-matching]] · [[model-tier-routing]] ·
@@ -38,11 +38,12 @@ related: []
 [[prompt-injection]] · [[poison-message]] · [[software-composition-analysis]] ·
 [[defense-in-depth]] · [[intra-batch-dedup]] · [[referential-integrity]] · [[ego-graph]] ·
 [[backend-for-frontend]] · [[lost-update]] · [[compensating-transaction]] · [[materialization]] ·
-[[multi-tenancy]]
+[[multi-tenancy]] · [[surrogate-key]] · [[reification]]
 
 ## Proposals & reports
 | Note | Type | What |
 |---|---|---|
+| [[graph-curation-surface]] | proposal | **Graph-quality S0 — the graph view as a direct in-place curation surface (✅ ACCEPTED, register RESOLVED DM-GQ-1..7 / OQ-29, owner Session 69; milestone RESHAPED)** — the milestone opener (`docs/specs/graph-quality.md` §3 S0). **Defining finding: the write plumbing already exists** (`EntityEditService` edit/merge/delete/undo + relation ops, M4.S3a/S3b) but only on the *reader's* panel — the graph viewer (`features/graph-viewer/`) is still the read-only M2.S5 projection (node-tap only, no edge-tap, read-only panel). So S3 is **a UX-surfacing job onto the canvas**, with exactly **one** net-new write — **predicate consolidation** (the relation analogue of entity merge, graph-wide P→Q fold) — and exactly **one** modelling call to make first: **DM-GQ-1, the §4 edge-addressability decision** — an edge's id is content-addressed `uuid5(subject,predicate,object)` so curation *changes* it, orphaning any future qualifier ([[reification]]); the call is whether to reserve a stable [[surrogate-key]] handle now (my lean (b): cheapest moment, makes the future additive, **builds no feature**). **Resolved (owner Session 69) → milestone RESHAPED:** **§4 = reserve a stable `edge_uid` handle now** (DM-GQ-1; content id stays the dedup key, the surrogate is the addressable hook for future [[reification]]; build no feature; ADR at build). **DM-GQ-2 reframed → predicate-*name normalisation* + an NLP suggest layer** (slice **S6**). **Two owner additions:** a proactive **entity dedup-suggest** pass over the accepted graph (slice **S4**) + **navigation pulled early with a layout algorithm** (slice **S2**) — both promoted from `docs/BACKLOG.md`. Final order: S1 chunker → S2 navigate → S3 edge evidence → S4 dedup-suggest → S5 in-place editing (S5a/S5b) → S6 predicate normalise+suggest → S7 reader. Invariants (§8): INV-1/9 (the suggest passes propose, the human commits), INV-3 (grouped [[graph-operation]] undo), INV-4 (name normalisation stays open-world). DM-GQ-7 bulk → backlog. Reconciled across `graph-quality.md` (§3/4/5/6/8), `PLAN_SHORT` Decided S69, OQ-29, BACKLOG. ADR for §4 drafts at build. |
 | [[m4-multi-story]] | proposal | **M4 narrowed multi-story — step-0 (✅ ACCEPTED, register RESOLVED DM-MS-1..7 / OQ-27, owner 2026-06-23; no ADR)** — spec §3.6 (amended S44): *add a new story that reuses the existing project graph + per-story entity membership*; the cross-story **world graph** is OUT of PoC. **Defining finding = how little is new:** per-story membership is already **derivable** from the `entity_mentions → … → stories` FK chain (rollup query `list_entity_mentions_for_story()` exists), and the matcher seed is already project-scoped (`load_accepted(project_id)`) — so a new story auto-matches the project's known entities with **no cascade change** (§B.4 incrementality). **DM-MS-1 RESOLVED (owner) = DERIVE membership** (no new storage; single [[source-of-truth]]; introduces [[multi-tenancy]] — `project_id` is the *tenancy key*, a story is a *derived sub-scope*). Genuine gaps only: create-story-**into-existing-project** (today every upload mints a new project), project/story **list** endpoints (none exist), and a **story-scoped graph read** for the §3.4 toggle. Completeness sweep over {project,story} CRUD + graph-scope **closes** (rename + delete-project/story deferred — post-PoC / orphaned-sandbox). **No new invariant/state-machine, no ADR anticipated.** Folds the **`world_id` cleanup** (5 files/8 edits, all deletions) + a tiny **§8.4/§3.3 "whole world → whole project" stop-and-amend** (a home the S49 sweep's "world graph" grep missed). **Resolved (owner):** DM-MS-2 = `scope=` param on the existing route, **default `story`** (owner refined the default; edge rule = both-endpoints-member) · DM-MS-3 = optional `project_id` on upload · DM-MS-4 = `GET /projects` + `GET /projects/{id}/stories` · DM-MS-7 = split be/fe, `world_id` cleanup the opener. **✅ BUILT & SHIPPED (be #128 / fe #130; §8.4/§3.3 amend #119; `world_id` cleanup #124) → the multi-story live smoke PASSED (Session 54, #133) → V1 FEATURE-COMPLETE.** No new invariant/ADR (membership stayed derived). |
 | [[backend-dependency-advisory-scan]] | proposal | **Continuous backend SCA gate in CI (✅ built 2026-06-08, PR #44)** — closes the gap where a vuln disclosed *after* pinning was caught only by Dependabot, not CI (the `starlette` 1.0.0 case). Built: osv-scanner step vs `uv.lock`, fail-on-any, **digest-pinned** scanner (the action is a no-`runs:` stub — stronger than the planned SHA-pin), `infra/osv/` waivers, `starlette` 1.0.0→1.0.1 (self-test red→green), §6.7 baseline (no new INV). |
 | [[m2s3-extraction-agent]] | proposal | **M2.S3 nine-layer pass (✅ accepted 2026-06-08, register resolved)** — `ExtractionAgent`, first `LLMRouter` consumer. Decisions: per-paragraph, single-paragraph agent (batch→M2.S4), `candidate_name`, typed `ProviderResponseError`, soft-flag `evidence_quote`. **Built + merged (PR #42).** |
@@ -267,6 +268,20 @@ related: []
     code-verified honest), added the `m4-multi-story` BUILT banner. No blockers. Forward "what if" → OQ-28
     (Graph-quality inputs). **Next:** the Public-readiness build sessions (README overhaul + demo artifacts,
     code documentation, doc hygiene).
+28. **Graph-quality S0 decompose ✅ + register RESOLVED + milestone RESHAPED (2026-06-26, Session 69).**
+    Step-0 → [[graph-curation-surface]] (`status: accepted`, register **RESOLVED** DM-GQ-1..7 / OQ-29,
+    owner same session). **Defining finding:** the edit/merge/delete/undo write plumbing already ships
+    (`EntityEditService`, M4.S3a/S3b) but only on the *reader's* panel, so the editing slices are
+    UX-surfacing onto the canvas; net-new code is the **§4 edge handle**, **predicate-name normalisation**,
+    and a **dedup-suggest** pass. **Owner resolutions:** §4 = reserve a stable [[surrogate-key]] handle now
+    (future [[reification]] additive, build no feature, ADR at build); DM-GQ-2 reframed → predicate-*name
+    normalisation* + NLP suggest (S6); + two owner additions promoted from BACKLOG — an **entity dedup-suggest**
+    pass (S4) and **navigation pulled early + a layout algorithm** (S2). **Milestone reshaped:** S1 chunker →
+    S2 navigate → S3 edge evidence → S4 dedup-suggest → S5 in-place editing (S5a/S5b) → S6 predicate
+    normalise+suggest → S7 reader. Added `[[surrogate-key]]` + `[[reification]]` (glossary 28 → 30).
+    Reconciled across `graph-quality.md` (§3/4/5/6/8), `PLAN_SHORT` (task list + Decided S69), OQ-29, BACKLOG.
+    **Next:** **S1** — the auto-chunker completeness check, the first *build* slice, **test-first**
+    (independent of this register). The §4-handle ADR + the S4 dedup-suggest step-0 draft at their build.
 
 _Run log: see [[changelog]]. Seeded by `initialize-project-architecture`; extended by
 `review-architecture` + `decompose-requirement`, 2026-06-02._

@@ -92,18 +92,23 @@ re-target, behind the human gate with undo, ADR 0006/0007), so this is largely a
 job, organised around the insight that the human gate is only as good as the *source context* it
 shows at each decision.
 
-Sliced (detail in the spec): **S0** decompose the graph-curation surface; **S1** stop the
-auto-chunker's **silent content loss** (the one extraction-side item kept in — a data-integrity fix);
-**S2** edge evidence + verifiable merges (the source quote at every decision) + cheap safeguards;
-**S3** the **graph as a direct in-place editing/curation surface** (the spine — incl. **predicate
-consolidation**); **S4** density filters + node search; **S5** the reader as a correction surface for
-existing entities.
+Sliced (detail in the spec — **reshaped Session 69** after the S0 decompose + owner resolutions): **S0**
+decompose the graph-curation surface ✅; **S1** stop the auto-chunker's **silent content loss** (the one
+extraction-side item kept in — a data-integrity fix); **S2** **navigate** the graph — filters + node
+search + a **better layout algorithm**, pulled early so curation isn't done on a hairball; **S3** edge
+evidence + verifiable merges (the source quote at every decision) + cheap safeguards; **S4** **suggest
+duplicate-entity clusters** over the accepted graph (proactive, human-gated — NEW); **S5** the **graph as
+a direct in-place editing/curation surface** (the spine — node/edge edit/merge/delete on the canvas);
+**S6** **predicate-name normalisation + synonym suggestion** (cut relationship-name noise, human-gated —
+reframed from "consolidation", *not* edge-joining); **S7** the reader as a correction surface for existing
+entities. The S0 decompose's main additions: two human-gated **"suggest, then you decide"** passes (S4
+entities, S6 predicate names) and a reserved **stable edge handle** for future relation-modelling.
 
 **Deferred to the later extraction pass** (the post-sprint fork — go deeper vs. move to V2): the
 extraction/cascade **eval baseline** + spaCy-PreNER eval, and relation deep-modelling
-(**modality / arity / eventive-vs-stative + timeline ordering**) beyond a forward-compat
-edge-addressability call. Also tracked: the deferred app capabilities this exposed —
-**re-structure / delete-story**.
+(**modality / arity / eventive-vs-stative + timeline ordering**) beyond the **§4 edge-addressability
+call** (resolved Session 69 — reserve a stable edge handle now, build the modelling later). Also tracked:
+the deferred app capabilities this exposed — **re-structure / delete-story**.
 
 ## V2 — Editing
 

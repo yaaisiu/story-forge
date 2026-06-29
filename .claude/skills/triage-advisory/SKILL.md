@@ -110,6 +110,20 @@ row** (the two must stay mirrored — a row in one and not the other is drift `/
 flags). Re-scan to confirm the advisory is gone with no waiver. If the condition is *not* yet
 met, leave it and re-confirm the reachability rationale still holds; refresh `Last reviewed`.
 
+**Dropping *on* the floor date? First check `main` for *another* `security` red — if there is
+one, plan ONE combined PR, not two.** The floor date is the day the waiver's `ignoreUntil`
+*expires*, so until your drop-PR lands `main`'s `security` gate is red on that very advisory.
+If `main` *also* carries an unrelated treadmill red (a fresh image/lockfile CVE), the two fixes
+**mutually block**: `security` is a *required* status check (branch-protection ruleset), so a
+single-fix PR can never go green — it still trips the other red — and neither can merge. The
+"split unrelated security discoveries into their own PR" rule (root `AGENTS.md` Merge flow) then
+*yields*: carry **both** fixes on one branch so the required gate can actually go green. So before
+you start: run all three gates (step 1) and `gh pr checks` / the last `main` run; if a second red
+exists, scope one combined PR from the outset instead of opening a single-fix PR that can't merge.
+(Earned 2026-06-27: the starlette waiver dropped on its 2026-06-27 floor the same day a fresh
+ollama `x/crypto/ssh/agent` HIGH landed; two single-fix PRs each left the other's red on the
+required `security` check, so they were folded into one.)
+
 ## 4. Verify, then PR
 
 Re-run the affected gate(s) → **green** (or green-with-only-still-valid-waivers). Confirm the
