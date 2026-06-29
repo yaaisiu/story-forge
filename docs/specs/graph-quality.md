@@ -137,7 +137,7 @@ edge-joining.
 **Ride-alongs** (cheap, fold in where natural per the owner's "easy fixes along the way"):
 review-queue "X of N remaining" count; empty-queue → onward navigation instead of a dead end.
 
-## 4. Forward-compatibility call (decide in S0/S2, don't build the feature)
+## 4. Forward-compatibility call (decided in S0; respected by the S3+ edge slices, don't build the feature)
 
 > **✅ Resolved 2026-06-26 (Session 69, owner): YES — reserve a stable edge handle now.** Each edge gets
 > an opaque surrogate id (a `uuid4`) carried *alongside* the content-addressed
@@ -153,8 +153,9 @@ Relation deep-modelling (modality, arity, aspect, temporal validity) is deferred
 standing constraint is **design-constraint-now, feature-later**: don't bake in a bare, un-addressable
 triple that a later temporal/modality model has to unpick. So S0 must make one explicit decision — does
 an edge get enough **addressability** now (a stable id / handle) that a later model can hang a qualifier
-on it — and S2's edge surface must respect it. This is a modelling-discipline decision, not scheduled
-feature work.
+on it — and the edge-curation slices that first open edge-write paths (S3 onward) must respect it. (S2 is
+navigation-only and surfaces no edge-write path — DM-GN-3.) This is a modelling-discipline decision, not
+scheduled feature work.
 
 ## 5. Scope — out (deferred to the later extraction pass)
 

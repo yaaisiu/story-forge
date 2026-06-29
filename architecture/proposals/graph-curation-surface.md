@@ -107,21 +107,24 @@ graph view as a curation canvas" and each operation's home. The line that matter
 | **Node** | edit name/type/aliases/properties | ✅ `PATCH …/entities/{eid}` (S3a) | **S3a — new affordance** |
 | **Node** | merge into another | ✅ `POST …/entities/{eid}/merge` (S3b) | **S3a — new affordance** |
 | **Node** | delete | ✅ `DELETE …/entities/{eid}` (S3b) | **S3a — new affordance** |
-| **Edge** | select (tap) + evidence (predicate + source sentence) | read exists (`staged_relations` provenance) | **S2** (the enabler — *not S3*) |
+| **Edge** | select (tap) + evidence (predicate + source sentence) | read exists (`staged_relations` provenance) | **S3** (the edge-evidence slice — *reconciled 2026-06-29*; was mis-stated as S2, see note 1) |
 | **Edge** | edit predicate (re-predicate) | ✅ add/remove via `EntityEditService` (S3a) | **S3b — new affordance** |
 | **Edge** | re-target an endpoint | ✅ composable delete-old + create-new (S3a) | **S3b — new affordance** |
 | **Edge** | delete | ✅ `DELETE …/relations` (S3a) | **S3b — new affordance** |
 | **Predicate** | consolidate two synonyms → one (graph-wide) | ❌ **NEW** (no endpoint, no domain fn) | **S3c — NEW** |
-| **Edge** | addressability — a stable handle surviving curation | ❌ **§4 decision** | **S0 decides · S2/S3c respect** |
+| **Edge** | addressability — a stable handle surviving curation | ❌ **§4 decision** | **S0 decides · S3+ edge-write slices respect** (S2 has no edge surface — DM-GN-3) |
 | **Operation** | undo (preview + confirm) | ✅ `POST …/graph-edits/undo` (S3b) | **S3a — new affordance** |
 
 **Every operation has a home; no slicing gap.** Two routing notes a sweep must make explicit:
 
-1. **Edge-tap selection + the edge detail panel is S2's, not S3's.** `graph-quality.md` §3 puts "click
-   an edge → predicate + source sentence(s)" in **S2** (the read enabler). So S3's edge *write* actions
-   (S3b) **build on a panel S2 introduces** — S3 is a dependent of S2, not its originator. If S2 is
-   built first (the milestone order), the edge substrate is already there when S3b lands. Flagged so
-   the slice boundary isn't drawn as if S3 owns edge-tap.
+1. **Edge-tap selection + the edge detail panel is S3's, not S2's.** *(Reconciled 2026-06-29 — DM-GN-3 /
+   OQ-30, the S2 [[graph-navigation]] decompose. This note originally claimed the reverse — that the spec
+   put edge-tap in S2 — which was **drift**: `graph-quality.md` §3 puts "click an edge → predicate + source
+   sentence(s)" in **S3** (the edge-evidence slice), and S2 is navigation-only. Per `architecture/AGENTS.md`
+   the spec wins; the owner confirmed S2 stays navigation-only — option A.)* So the edge-evidence panel is
+   introduced by the **S3** edge-evidence slice, and the later edge-*write* affordances (the editing slices)
+   build on **that** panel — not on anything S2 ships. S2 (navigation) and S3 (edge evidence) are
+   independent slices in the reshaped order; S2 does **not** introduce an edge surface.
 2. **Explicitly deferred (named, routed):** relation *deep-modelling* (modality, arity, temporal
    validity) → post-PoC (`graph-quality.md` §5), **beyond** the §4 addressability call; **bulk**
    merge/delete/consolidate (multi-select) → see DM-GQ-7 (likely a backlog ride-along, surfaced not
@@ -374,7 +377,7 @@ from S3b, so S3c writes only the new *forward* op and the undo machine handles t
   edit/merge/delete/consolidate/undo *on the canvas*?
 - **Options.** **(a) Right-click context menu** on a node/edge (curation actions in a menu at the
   cursor). **(b) Selection → an action panel** (tap selects; the side panel — extended from the
-  read-only `NodeDetailsPanel` + S2's edge panel — grows action buttons + an inline edit mode). **(c)
+  read-only `NodeDetailsPanel` + the S3 edge-evidence panel — grows action buttons + an inline edit mode). **(c)
   Both** (right-click for speed, panel for discoverability + the edit forms). Component reuse: extend the
   graph viewer's own `NodeDetailsPanel` into an editable panel, vs **reuse the reader's already-editable
   `ReaderEntityPanel`** (which has edit mode + the mutation hooks) on the canvas.
@@ -427,7 +430,8 @@ from S3b, so S3c writes only the new *forward* op and the undo machine handles t
 > suggest passes (S2 navigate was promoted; S4 dedup-suggest is net-new) were added by the owner.
 - **Context.** S3 is too big for one session (canvas substrate × node writes × edge writes × the new
   consolidation write × the §4 handle). It must be cut into one-conversation slices, respecting that
-  **S2 builds the edge-tap + evidence panel** (so S3's edge work depends on S2) and that **S3c depends on
+  **the S3 edge-evidence slice introduces the edge-tap + evidence panel** (DM-GN-3; *not* S2, which is
+  navigation-only) so the later edge-write work builds on it, and that **the consolidation slice depends on
   DM-GQ-1** (the handle rule) + DM-GQ-2 (consolidation semantics).
 - **My proposal (the slice boundaries).**
   - **S3a — Node curation on the canvas** *(frontend-led; backend exists).* Bring edit / merge / delete
@@ -527,7 +531,7 @@ from S3b, so S3c writes only the new *forward* op and the undo machine handles t
    in the *reader* rather than building a second one.
 4. **How should we cut S3 into sessions? (DM-GQ-6.)** My lean: **(S3a)** node clean-up on the canvas first
    (all the plumbing exists — it's mostly wiring buttons), **(S3b)** edge clean-up next (builds on the
-   edge panel that S2 introduces), **(S3c)** the new "merge two relation words" tool last (it's the only
+   edge-evidence panel the **S3** edge-evidence slice introduces — *not* S2; DM-GN-3), **(S3c)** the new "merge two relation words" tool last (it's the only
    genuinely new code, and it needs your call on #1 and #2 first).
 5. **Confirm the smaller things:** reuse the existing save/merge/delete/undo endpoints (only "merge
    relation words" is new); keep undo as the same project-wide "undo last" with a preview; and leave
