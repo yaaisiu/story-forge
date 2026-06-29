@@ -61,14 +61,19 @@ Drawn from the owner's principles across the backlog findings. Granularity is **
 
 ## 3. Scope — in
 
-Curation of the **existing** graph, working from the text and graph we already have:
+Curation of the **existing** graph, working from the text and graph we already have. **Slices reshaped
+2026-06-26 (Session 69)** after the S0 decompose + owner resolutions (register DM-GQ-1..7 in the vault
+proposal `architecture/proposals/graph-curation-surface.md`): navigation pulled early (you cannot curate
+a hairball you cannot see), two human-gated **"suggest, then you decide"** passes added (duplicate
+*entities*, synonymous *predicate names*), and the predicate work reframed as *naming normalisation*, not
+edge-joining.
 
-- **S0 — Decompose the graph-curation surface** *(architecture, no build)*. Run
-  `meta-architect:decompose-requirement` on "the graph view as a direct in-place curation surface." It is
-  branchy (canvas interactions × the existing write paths × the human gate × undo) and the backlog note
-  flags it as needing a design pass before any build. Output: data-flow, decision register (including the
-  forward-compat edge-addressability call, §4), edge-case enumeration, and the slice boundaries for S3.
-  **Milestone opener.**
+- **S0 — Decompose the graph-curation surface** *(architecture, no build; ✅ DONE Session 69)*. Ran
+  `meta-architect:decompose-requirement` → the `graph-curation-surface` proposal: data-flow, register
+  DM-GQ-1..7, edge-case enumeration, and the slice boundaries below. The defining finding: the
+  edit/merge/delete/undo write plumbing already ships (`EntityEditService`, M4.S3a/S3b) but only on the
+  *reader's* panel — so the editing slices are largely UX-surfacing onto the canvas. **§4 resolved here**
+  (see §4).
 
 - **S1 — Stop silent data loss** *(correctness; standalone, cheap)*. The auto-chunker can drop trailing
   paragraphs and report success — silent data loss (the worst failure class). Add a **completeness check**
@@ -77,7 +82,14 @@ Curation of the **existing** graph, working from the text and graph we already h
   validation** so a one-off LLM off-by-one re-prompts instead of 500ing. Failing test first. Independent
   of the curation surface — can land early. *(OQ-28 hazard #1; the single most serious finding.)*
 
-- **S2 — Edge evidence + verifiable merges** *(the enabler; data already exists)*.
+- **S2 — Navigate the graph** *(pulled early — the foundation curation sits on)*. The §3.4 **filters**
+  (by entity type / story / connection density) + **node search by name**, **and a better layout
+  algorithm** to spread a dense graph (today's force-directed `cose` is an unnavigable hairball at
+  Oakhaven scale). A hairball is only curatable if you can focus and read it — so this lands *before* the
+  curation slices, not after. *(Was S4; promoted ahead of curation + the layout-algorithm dimension added,
+  owner Session 69 — the planned filters alone don't fix the hairball.)*
+
+- **S3 — Edge evidence + verifiable merges** *(the enabler; data already exists)*.
   - Click an edge in the viewer → show the predicate + the source sentence(s) (`staged_relations` keeps
     the per-paragraph provenance, ADR 0005).
   - Each entity-merge option (the graph panel + any merge target list) shows a **context quote + type +
@@ -87,26 +99,50 @@ Curation of the **existing** graph, working from the text and graph we already h
     two-different-"crew"s trap); **fix the amber "merge target" highlight** that makes a *New* card read
     as if Accept will merge.
 
-- **S3 — The graph as an in-place editing surface** *(the spine; sliced per S0)*. Bring the existing
-  write paths onto the canvas with the human gate and undo intact (INV-1 / INV-9 / INV-3): click a node →
-  edit name/type/aliases/properties, merge with another node, or delete; click an edge → edit / re-target
-  / delete the predicate; **consolidate two synonym predicates into one** (the relation analogue of entity
-  merge — distinct from ADR 0005's exact-triple dedup, which only collapses *identical* triples). The
-  owner's emphasis: **accessibility + fluid in-place editing** — a dense graph is only curatable if
-  editing is easy and where you see the problem.
+- **S4 — Suggest duplicate clusters over the accepted graph** *(NEW — proactive entity dedup; human-gated)*.
+  Re-point the §3.3 cascade matcher at the **already-accepted** entities (not just intake candidates) to
+  **surface likely-duplicate clusters** the author would otherwise hunt for by eye — then the human
+  reviews and commits each merge through the existing merge path (INV-1 / INV-9 hold; this *suggests*, it
+  never auto-merges). Promoted from `docs/BACKLOG.md` (graph-traversal connection discovery) into scope,
+  owner Session 69 — a solid step toward a cleaner graph. Feeds S3/S5's merge surface; likely its own
+  `meta-architect:decompose-requirement` step-0 (it re-points the matcher over committed state).
 
-- **S4 — Navigate density** *(so curation is possible at scale)*. The spec §3.4 **filters** (by entity
-  type / story / connection density) + node search by name. A hairball is only curatable if you can focus
-  it.
+- **S5 — The graph as an in-place editing surface** *(the spine; sliced S5a node / S5b edge per S0,
+  DM-GQ-6)*. Bring the existing write paths onto the canvas with the human gate and undo intact (INV-1 /
+  INV-9 / INV-3): click a node → edit name/type/aliases/properties, merge with another node, or delete;
+  click an edge → edit / re-target / delete the predicate. Interaction model = **a selection-driven
+  editable panel + a right-click shortcut**, reusing the reader's edit panel (DM-GQ-3). The owner's
+  emphasis: **accessibility + fluid in-place editing** — a dense graph is only curatable if editing is
+  easy and where you see the problem. Reserves the **§4 edge handle** at the first edge-write path.
 
-- **S5 — Reader as a correction surface for existing entities** *(close the loop)*. Verify and fill gaps
+- **S6 — Predicate-name normalisation + synonym suggestion** *(the reframed "consolidate"; naming
+  consistency, not edge-joining)*. Reduce the *vocabulary* of relationship names that mean the same thing
+  (e.g. rename `PASSENGER_ON` → `ON_SHIP` graph-wide), with an **NLP / embedding layer that *suggests***
+  which predicate names look synonymous so the author isn't hunting the list. Renaming inevitably collapses
+  any edges that become identical triples — that is a **reported side-effect** ("2 edges merged"), never
+  the goal. Human-gated; predicates stay open-world free strings (INV-4). The relation twin of S4's entity
+  dedup-suggest; carries the §4 edge handle (DM-GQ-1). Promoted from `docs/BACKLOG.md` (predicate
+  proliferation), owner Session 69. Distinct from ADR 0005's exact-triple dedup, which only collapses
+  *identical* triples.
+
+- **S7 — Reader as a correction surface for existing entities** *(close the loop)*. Verify and fill gaps
   so the reader's click → side panel + right-click correction (mostly built in M4.S3c, spec §3.5) works
   against existing entities — so corrections that only surface while *reading* flow back to the graph.
 
-**Backlog ride-alongs** (cheap, fold in where natural per the owner's "easy fixes along the way"):
+**Ride-alongs** (cheap, fold in where natural per the owner's "easy fixes along the way"):
 review-queue "X of N remaining" count; empty-queue → onward navigation instead of a dead end.
 
 ## 4. Forward-compatibility call (decide in S0/S2, don't build the feature)
+
+> **✅ Resolved 2026-06-26 (Session 69, owner): YES — reserve a stable edge handle now.** Each edge gets
+> an opaque surrogate id (a `uuid4`) carried *alongside* the content-addressed
+> `relation_edge_id = uuid5(subject, predicate, object)`: the content id stays the MERGE/dedup key (ADR
+> 0005 unbroken), the surrogate is the addressable handle a future temporal/modality qualifier can hang on,
+> **preserved through re-point / merge / predicate-rename**. **We build no qualifier feature** — only
+> reserve the hook. It lands with the first slice that opens the edge-write paths (S5/S6, register DM-GQ-1)
+> and is **ADR-worthy** (it crosses the data-model identity boundary — draft the ADR at build). Fold rule
+> (which handle survives when two edges collapse): the survivor keeps its handle; the folded edge's handle
+> goes to the undo before-image. See [[surrogate-key]] / [[reification]] in the vault.
 
 Relation deep-modelling (modality, arity, aspect, temporal validity) is deferred (§5). But the owner's
 standing constraint is **design-constraint-now, feature-later**: don't bake in a bare, un-addressable
@@ -121,25 +157,32 @@ Everything extraction-side, to be picked up in a subsequent polishing pass once 
 good — **except S1** (kept in as a data-integrity fix, owner's call):
 
 - Re-extraction; extraction-time granularity normalisation (separating stable identity from transient
-  modifiers *at extraction*); open-world type/predicate auto-suggestion at extraction time.
+  modifiers *at extraction*); type/predicate auto-suggestion **at extraction time**. *(Boundary clarified
+  Session 69: **curation-time** suggestion over the **already-accepted** graph is now IN scope — S4 suggests
+  duplicate entities, S6 suggests synonymous predicate names, both human-gated. What stays deferred is
+  suggestion baked into the *extraction/intake* path.)*
 - The **extraction + cascade eval baseline** (hand-authored reference graph, precision/recall scoring
   across model tiers) and the **spaCy-PreNER-without-LLM eval** (BACKLOG; PoC spec §7 Step 3).
 - **Relation deep-modelling features** — modality / irrealis, n-ary arity (reification), eventive-vs-
-  stative aspect + narrative-timeline ordering, temporal validity intervals — *beyond* the S0/S2
-  forward-compat addressability call.
-- Bulk-accept and other **intake review-queue** polish (this milestone curates the *existing* graph, not
-  the intake path), except where entity-merge context naturally overlaps S2.
+  stative aspect + narrative-timeline ordering, temporal validity intervals — *beyond* the **§4
+  edge-addressability handle** (resolved Session 69 — reserve the hook, build no feature).
+- **Bulk / multi-select** merge-delete-consolidate (DM-GQ-7 → `docs/BACKLOG.md`; S4/S6 already deliver the
+  highest-value bulk need — proactive duplicate-cluster and predicate-name suggestion — without a generic
+  multi-select) and other **intake review-queue** polish (this milestone curates the *existing* graph, not
+  the intake path), except where entity-merge context naturally overlaps S3.
 
 ## 6. Success criteria
 
 Working from the Oakhaven graph + its prose, the author can:
 
 1. Trust that no content was silently lost on ingest (S1).
-2. Merge / edit / delete entities and edges **on the graph canvas**, with the source context visible to
-   verify each decision (S2 + S3).
-3. Consolidate near-synonym predicates into one (S3).
-4. Focus a dense graph via filters and search (S4).
-5. Round-trip corrections through the reader (S5).
+2. **Focus and read** a dense graph — filters, node search, and a layout that isn't a hairball (S2).
+3. Merge / edit / delete entities and edges **on the graph canvas**, with the source context visible to
+   verify each decision (S3 + S5).
+4. Be **shown** likely-duplicate entities and synonymous predicate names to review — not hunt for them
+   (S4 + S6).
+5. Normalise relationship naming so one relationship isn't split across synonyms (S6).
+6. Round-trip corrections through the reader (S7).
 
 — ending with a **hand-cleaned Oakhaven graph** good enough to serve as the baseline you compare future
 models and changes against.
@@ -155,8 +198,10 @@ possible either way.
 
 - **INV-1 / INV-9** — every entity and edge mutation stays an explicit human action; nothing auto-writes
   the graph. Curation actions are new *surfaces* for existing human-gated writers, not new automated
-  writers.
+  writers. **The S4/S6 suggest passes *propose* (duplicate entities / synonymous predicate names) and
+  never commit** — the human reviews and merges/renames through the existing gated path, exactly as the
+  §3.3 cascade *proposes* and the human accepts.
 - **INV-3** — every change is reversible; curation actions ride the existing `graph_edits` undo log
   (ADR 0007).
-- **INV-4** — open-world types/predicates stay free strings; predicate consolidation is human-gated
-  normalisation, never a closed enum.
+- **INV-4** — open-world types/predicates stay free strings; predicate-name normalisation (S6) is
+  human-gated naming consistency, never a closed enum — it folds *instances*, never constrains the *type*.

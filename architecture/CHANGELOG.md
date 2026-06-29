@@ -783,3 +783,41 @@ can't be re-found by search and un-tagging acts on a highlight with no row to de
   (`docs/PLAN_SHORT.md` Decided S44, concretizes §3.4 scoping; §3.6/§9 stop-and-amend pending);
   code-doc-generation → backlog.
 - **Next:** build M4.S3c-be test-first from the pure reconciling-resolver function.
+
+## 2026-06-26 — Graph-quality S0 decompose: the in-place curation surface (register OPEN)
+
+- **`proposals/graph-curation-surface.md`** (NEW, `proposed`) — step-0 decompose of "the graph view as a
+  direct in-place curation surface" (`docs/specs/graph-quality.md` §3 S0). Nine-layer pass + stations +
+  operation-surface completeness sweep + data-flow + decision register **DM-GQ-1..7 (OPEN)** + "but what
+  if" + slice boundaries for S3. **Defining finding:** the write plumbing already exists
+  (`EntityEditService` edit/merge/delete/undo, M4.S3a/S3b) — only on the *reader's* panel, not the graph
+  canvas — so S3 is a UX-surfacing job, with **one** net-new write (predicate consolidation) and **one**
+  modelling call: the **§4 edge-addressability** decision (content-addressed `uuid5` edge id vs a stable
+  [[surrogate-key]] handle for future [[reification]]). Proposed slice cut: **S3a** node writes → **S3b**
+  edge writes (on S2's panel) → **S3c** consolidation + the §4 handle.
+- **`glossary/surrogate-key.md`** + **`glossary/reification.md`** (NEW) — the two concepts the §4 call
+  rests on; glossary index 28 → **30**.
+- **`learning-log.md`** — two lines (surrogate-vs-natural key; reification = design-constraint-now).
+- **`open-questions.md`** → OQ-29 added (the DM-GQ-1..7 register + the §4 call); `updated` bumped.
+- **`INDEX.md`** — proposals table row + glossary list + next-steps regenerated.
+- **Register stays OPEN.** No ADR (no confirmed decision yet); no production code (S0 is a design slice).
+  **Next:** owner resolves DM-GQ-1..7 (DM-GQ-1 §4 + DM-GQ-2 consolidation gate S3c); then S1 (test-first).
+
+## 2026-06-26 — Graph-quality S0 register RESOLVED + milestone reshaped (owner, Session 69)
+
+- **`proposals/graph-curation-surface.md`** → `accepted`; register **RESOLVED** (top resolution banner +
+  per-entry `✅ Decision` banners DM-GQ-1..7; original forward-design body kept as history). **DM-GQ-1 §4 =
+  reserve a stable `edge_uid` handle now** (content id stays the dedup key per ADR 0005; the surrogate is the
+  addressable hook for future [[reification]]; build no feature; ADR at build). **DM-GQ-2 reframed (owner) →
+  predicate-*name normalisation*, not edge-joining**, + an NLP/embedding *suggest* layer. **Two owner
+  additions promoted from `docs/BACKLOG.md`:** a proactive **entity dedup-suggest** pass over the accepted
+  graph, and **navigation pulled early + a layout algorithm**. DM-GQ-3 = editable panel + right-click;
+  DM-GQ-4/5 confirmed; DM-GQ-6 = the reshaped order; DM-GQ-7 bulk → backlog.
+- **`open-questions.md`** — OQ-29 struck ✅ with the per-entry resolutions.
+- **`INDEX.md`** — proposal row + next-steps item 28 flipped to RESOLVED/reshaped.
+- **Host-repo reconciliation (recorded, not vault):** `docs/specs/graph-quality.md` amended (§3 reshaped
+  slices S1–S7, §4 the edge-handle decision, §5 the curation-time-suggest boundary, §6 criteria, §8 the
+  suggest passes); `docs/PLAN_SHORT.md` task list reshaped + Decided S69; `docs/BACKLOG.md` two items marked
+  PROMOTED (graph-traversal discovery → S4, predicate proliferation → S6).
+- **Next:** **S1** (auto-chunker completeness check) — the first *build* slice, test-first, independent of
+  this register. The §4-handle **ADR** + the S4 dedup-suggest **step-0** draft at their build.

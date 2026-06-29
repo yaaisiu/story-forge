@@ -1,7 +1,7 @@
 ---
 type: open-questions
 slug: open-questions
-updated: 2026-06-25
+updated: 2026-06-26
 status: living
 related: ["[[overview]]", "[[project]]", "[[invariants]]", "[[2026-06-02-architecture-review]]", "[[m2s3-extraction-agent]]", "[[2026-06-09-architecture-review]]", "[[2026-06-11-architecture-review]]"]
 ---
@@ -826,6 +826,47 @@ milestone owns *resolving* them:
   view (no ghost in the §3.4 toggle). The OQ-1 two-store seam on the *membership-read* side; check when
   delete-story lands.
 - **Lands:** the Graph-quality milestone's opening backlog triage. Open.
+
+### ~~OQ-29 — Graph-curation-surface decision register (DM-GQ-1..7) + the §4 edge-addressability call~~ ✅ RESOLVED 2026-06-26 (Session 69, owner)
+**Resolved same session** (authoritative: `docs/PLAN_SHORT.md` Decided S69 + `[[graph-curation-surface]]`
+now `accepted`; `docs/specs/graph-quality.md` amended §3/§4/§5/§6/§8). **DM-GQ-1 §4 = reserve a stable
+`edge_uid` handle now** (content id stays the dedup key; build no feature; ADR at build). **DM-GQ-2 =
+graph-wide tool, reframed as predicate-*name normalisation*** (+ an NLP suggest layer) → slice **S6**.
+**Two owner additions:** a proactive **entity dedup-suggest** pass over the accepted graph → slice **S4**
+(both promoted from `docs/BACKLOG.md`); **navigation pulled early + a layout algorithm** → slice **S2**.
+**DM-GQ-3 = editable panel + right-click**; **DM-GQ-4/5 confirmed**; **DM-GQ-6 = the reshaped order**
+(S1→S7); **DM-GQ-7 bulk → backlog**. Original framing kept below for history.
+
+Raised by the Graph-quality **S0** `decompose-requirement` step-0 (2026-06-26, `[[graph-curation-surface]]`).
+The milestone opener decomposed "the graph view as a direct in-place curation surface." Full
+Context/Options/Proposal for each entry live in that proposal's register; listed here so the vault's
+reader knows they gate the S3 build. **Register all OPEN — the owner resolves before any S3 code.** The
+defining finding: the write plumbing **already exists** (`EntityEditService`: edit/merge/delete/undo +
+relation ops, M4.S3a/S3b) but only on the *reader's* panel — so S3 is a UX-surfacing job onto the graph
+canvas, with **one** net-new write (**predicate consolidation**) and **one** modelling call to make first:
+- **DM-GQ-1 — edge addressability (the §4 forward-compat call; spec §4 mandates deciding it in S0).** An
+  edge's id is content-addressed `uuid5(subject,predicate,object)`, so curation (merge re-point, predicate
+  consolidation) *changes* it — a future qualifier ([[reification]]) attached to an edge would be orphaned.
+  Options: (a) keep content-addressing (re-key the future); (b) add a stable [[surrogate-key]] handle
+  (`edge_uid`) now, preserved on re-point — *my lean* (cheapest moment, makes the future additive, builds
+  no feature); (c) reserve-the-seam only. **Gates S3c.** `verify-at-build`: a Neo4j edge property survives
+  the delete-old+create-new re-point; `edge_uid` doesn't become a second MERGE key (ADR 0005 unbroken).
+- **DM-GQ-2 — predicate consolidation semantics (the one net-new write; `graph-quality.md`-silent → a
+  likely §3 amendment to *that* spec).** Graph-wide fold of predicate P into Q (re-point + fold-collisions-
+  report-count + grouped undo), the relation analogue of entity merge. *Read §3 S3 before asserting the
+  amendment target* (the M4.S3b "delete→§3.5" miscue).
+- **DM-GQ-3 — canvas interaction model** (right-click menu vs selection→editable panel vs both; reuse the
+  reader's edit panel vs graph-native). **DM-GQ-4 — reuse the existing endpoints** (only consolidation is
+  new). **DM-GQ-5 — undo on the canvas** (same project-scoped `…/graph-edits/undo`, preview+confirm).
+  **DM-GQ-6 — the slice boundaries for S3** (the deliverable): **S3a** node writes (fe-led, backend exists)
+  → **S3b** edge writes (on S2's edge panel) → **S3c** consolidation + the §4 handle (new, gated on
+  DM-GQ-1/2). **DM-GQ-7 — bulk/multi-select** (out of S3 → backlog, my lean — consolidation covers the top
+  bulk need).
+- **Invariants carried (`graph-quality.md` §8):** INV-1/INV-9 (consolidation is the 7th human-reached
+  writer path, broaden-don't-mint); INV-3 (consolidation rides the grouped [[graph-operation]] undo);
+  INV-4 (consolidation normalises free-string predicates, never a closed enum). No new invariant minted at
+  S0 (the edge-handle is a *design constraint* until a feature enforces it). **Lands in:** S3 (sliced
+  S3a/S3b/S3c). Open.
 
 ## Referenced — owned by spec §10 (not duplicated)
 
