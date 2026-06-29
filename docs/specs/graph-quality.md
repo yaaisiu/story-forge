@@ -75,12 +75,17 @@ edge-joining.
   *reader's* panel — so the editing slices are largely UX-surfacing onto the canvas. **§4 resolved here**
   (see §4).
 
-- **S1 — Stop silent data loss** *(correctness; standalone, cheap)*. The auto-chunker can drop trailing
-  paragraphs and report success — silent data loss (the worst failure class). Add a **completeness check**
-  after `proposal_to_outline` (assert scene ranges cover every paragraph `[0, count)` — no gaps, no
-  unassigned trailing paragraphs) and **fold the existing range-overflow check into the agent's retried
-  validation** so a one-off LLM off-by-one re-prompts instead of 500ing. Failing test first. Independent
-  of the curation surface — can land early. *(OQ-28 hazard #1; the single most serious finding.)*
+- **S1 — Stop silent data loss** *(correctness; standalone, cheap)* — ✅ **DONE Session 71 (PR #164)**.
+  The auto-chunker can drop trailing paragraphs and report success — silent data loss (the worst failure
+  class). Add a **completeness check** after `proposal_to_outline` (assert scene ranges cover every
+  paragraph `[0, count)` — no gaps, no unassigned trailing paragraphs) and **fold the range check into the
+  agent's retried validation** so a one-off LLM off-by-one re-prompts instead of 500ing. Failing test
+  first. Independent of the curation surface — can land early. *(OQ-28 hazard #1; the single most serious
+  finding.)* **As built (owner option B, Session 71):** one canonical rule `domain.paragraph_range_problem`
+  (overshoot **and** coverage-hole; overlap allowed — duplication, not loss, partition-check deferred to
+  `docs/BACKLOG.md`) is folded into the agent's retried `check` so **both** a coverage gap and an overshoot
+  re-prompt (symmetric recovery); the `proposal_to_outline`/coordinator completeness assertion remains as a
+  terminal `OutlineCoverageError` backstop. Both surviving-after-retry failures map to the route's 502.
 
 - **S2 — Navigate the graph** *(pulled early — the foundation curation sits on)*. The §3.4 **filters**
   (by entity type / story / connection density) + **node search by name**, **and a better layout

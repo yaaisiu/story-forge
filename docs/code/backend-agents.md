@@ -54,6 +54,9 @@ seam wired in `main.py`: it dispatches the three §3.1 modes — **manual** (pur
 LLM), **hybrid** (parse the author's anchors, LLM-fill only the untitled spans, preserve every
 explicit `##`/`###`), and **auto** (LLM over the whole text). It converts a proposal's
 paragraph ranges back into an `Outline` and guards over-long input with `ChunkingTooLongError`.
+Stop-silent-data-loss (graph-quality §3 S1): the agent folds the paragraph-coverage invariant
+(`domain.paragraph_range_problem`) into its retried validation — a gap or an overshoot re-prompts —
+and the coordinator re-asserts it as a terminal backstop (`OutlineCoverageError` → 502).
 
 ### `extraction_agent.py` — one paragraph → entity & relation candidates (§3.2, §7 step 4)
 
@@ -177,9 +180,10 @@ here as built-but-dormant, the deterministic-local exception that lets it import
 ### Shared helpers — `validation.py`, `json_output.py`
 
 [`validation.py`](../../backend/src/story_forge/agents/validation.py) (`validate_with_retry`) is the
-shared call → parse → validate → retry-on-schema-failure loop, folded at the rule-of-three (Chunking
-+ Extraction + Judge). It retries *schema* failures only; transport failover and the pause-and-ask
-budget/quota signals propagate past it untouched. [`json_output.py`](../../backend/src/story_forge/agents/json_output.py)
+shared call → parse → validate → retry loop, folded at the rule-of-three (Chunking + Extraction +
+Judge). It retries *schema* failures and a failed optional post-parse `check` (a semantic invariant
+the schema can't express — e.g. chunking's paragraph coverage), both surfacing as a `ValueError`;
+transport failover and the pause-and-ask budget/quota signals propagate past it untouched. [`json_output.py`](../../backend/src/story_forge/agents/json_output.py)
 (`extract_json`) strips a model's markdown code fence before Pydantic — the text-cleanup step
 `validate_with_retry` calls, shared rather than copied per agent.
 
