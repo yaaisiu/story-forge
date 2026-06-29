@@ -20,6 +20,7 @@ from story_forge.agents.chunking_agent import (
 from story_forge.agents.chunking_coordinator import (
     ChunkingCoordinator,
     ChunkingTooLongError,
+    OutlineCoverageError,
     OutlineRangeError,
     proposal_to_outline,
 )
@@ -124,6 +125,70 @@ def test_proposal_to_outline_enforces_paragraph_upper_bound() -> None:
     )
     with pytest.raises(OutlineRangeError):
         proposal_to_outline(proposal, paragraphs)
+
+
+async def test_auto_mode_rejects_a_proposal_that_drops_a_trailing_paragraph() -> None:
+    # Silent data loss (OQ-28 hazard #1): the proposal's ranges cover paragraphs
+    # 0..2 but the text has four, so paragraph 3 is assigned to no scene. Slicing
+    # would succeed and quietly drop it — the completeness check must raise instead.
+    raw = "p0\n\np1\n\np2\n\np3\n"
+    proposal = ChunkingProposal(
+        chapters=[ChapterProposal(title="Whole", summary="c", scenes=[_scene(0, 2, "All")])]
+    )
+    agent = _StubAgent([proposal])
+    coord = ChunkingCoordinator(agent)
+    with pytest.raises(OutlineCoverageError):
+        await coord.build_outline(raw_text=raw, language="en", mode="auto")
+
+
+async def test_auto_mode_rejects_a_proposal_with_an_interior_gap() -> None:
+    # Ranges 0..1 and 3..3 leave paragraph 2 uncovered — a hole in the middle, not
+    # just a dropped tail. Still data loss; must raise.
+    raw = "p0\n\np1\n\np2\n\np3\n"
+    proposal = ChunkingProposal(
+        chapters=[
+            ChapterProposal(
+                title="Whole", summary="c", scenes=[_scene(0, 1, "A"), _scene(3, 3, "B")]
+            )
+        ]
+    )
+    agent = _StubAgent([proposal])
+    coord = ChunkingCoordinator(agent)
+    with pytest.raises(OutlineCoverageError):
+        await coord.build_outline(raw_text=raw, language="en", mode="auto")
+
+
+async def test_auto_mode_accepts_full_coverage() -> None:
+    # Regression guard: a proposal that tiles every paragraph still passes.
+    raw = "p0\n\np1\n\np2\n\np3\n"
+    proposal = ChunkingProposal(
+        chapters=[
+            ChapterProposal(
+                title="Whole", summary="c", scenes=[_scene(0, 1, "A"), _scene(2, 3, "B")]
+            )
+        ]
+    )
+    agent = _StubAgent([proposal])
+    coord = ChunkingCoordinator(agent)
+    outline = await coord.build_outline(raw_text=raw, language="en", mode="auto")
+    scenes = outline.chapters[0].scenes
+    assert scenes[0].paragraphs == ["p0", "p1"]
+    assert scenes[1].paragraphs == ["p2", "p3"]
+
+
+async def test_hybrid_rejects_a_sub_division_that_drops_a_paragraph() -> None:
+    # Hybrid sub-divides untitled spans through the same _propose path, so the coverage
+    # backstop guards hybrid too: an agent sub-division that drops the span's last
+    # paragraph must raise rather than silently lose it. (The live agent would re-prompt
+    # first; the stub bypasses that, exercising the terminal backstop.)
+    raw = "## Chapter\nFirst.\n\nSecond.\n\nThird.\n"  # one untitled scene, 3 paragraphs
+    proposal = ChunkingProposal(
+        chapters=[ChapterProposal(title="ignored", summary="c", scenes=[_scene(0, 1, "A")])]
+    )
+    agent = _StubAgent([proposal])
+    coord = ChunkingCoordinator(agent)
+    with pytest.raises(OutlineCoverageError):
+        await coord.build_outline(raw_text=raw, language="en", mode="hybrid")
 
 
 async def test_auto_mode_guards_text_over_the_word_budget() -> None:

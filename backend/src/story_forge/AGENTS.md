@@ -77,12 +77,17 @@ than being copy-pasted.
 
 **The validate-and-retry loop is shared via `agents/validation.py`
 (`validate_with_retry`), folded at the rule-of-three.** The `call → extract_json →
-validate-against-schema → retry-on-ValidationError → give-up` loop was copied per-agent
-through n=2 (Chunking + Extraction, deliberately left per-copy); `JudgeAgent` was the
-third, so the mechanical loop moved into one helper. Each agent still owns the parts that
-are genuinely its own — its **schema** (passed as `model`), its **call shape** (the
-`call` thunk: a raw provider vs the router, the weight/`task_type`), and its **give-up
-error** (`error` + `label`). Only the schema-agnostic loop mechanics are shared. The
+validate-against-schema → (optional post-parse check) → retry-on-failure → give-up` loop
+was copied per-agent through n=2 (Chunking + Extraction, deliberately left per-copy);
+`JudgeAgent` was the third, so the mechanical loop moved into one helper. Each agent still
+owns the parts that are genuinely its own — its **schema** (passed as `model`), its **call
+shape** (the `call` thunk: a raw provider vs the router, the weight/`task_type`), its
+**give-up error** (`error` + `label`), and an optional **post-parse `check`** for an
+invariant the schema can't express (e.g. chunking's `paragraph_range` validated against the
+document's paragraph count — graph-quality §3 S1). The `check` signals "retry" by raising
+`ValueError`, so the loop catches `ValueError` (Pydantic's `ValidationError` is one) — a
+failed `check` re-prompts exactly like a schema failure, then ends in the same give-up
+error. Only the schema-agnostic loop mechanics are shared. The
 router-shaped collaborator each router-driven agent types against is the `Router` Protocol
 in `adapters/llm/base.py` (promoted there from a per-agent local mirror at the same n=3),
 alongside the `TaskWeight` literal — so an agent stays free of the concrete `router`

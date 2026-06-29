@@ -23,6 +23,8 @@ from story_forge.adapters.llm.base import (
     ProviderResponseError,
 )
 from story_forge.agents.validation import validate_with_retry
+from story_forge.domain.chunking import paragraph_range_problem
+from story_forge.domain.parsing import split_paragraphs
 from story_forge.prompts import PromptNotFound, render_messages
 
 DEFAULT_LOCAL_MAX_WORDS = 4000
@@ -115,6 +117,24 @@ class ChunkingAgent:
             local_max_words=self._local_max_words,
         )
 
+        # The schema validator (`_ordered_and_non_negative`) can't see the document, so
+        # the range invariant — every paragraph in `[0, count)` covered, nothing past the
+        # end — is checked here against the real paragraph count and folded into the
+        # retried validation: a one-off LLM slip (an off-by-one overshoot, or a dropped
+        # trailing paragraph) re-prompts rather than failing the request (spec
+        # graph-quality §3 S1). The rule lives once in `paragraph_range_problem`; the
+        # coordinator re-asserts it as a terminal backstop. The count matches the
+        # coordinator's, since both split the same `raw_text` with `split_paragraphs`.
+        count = len(split_paragraphs(raw_text))
+
+        def check_ranges(proposal: ChunkingProposal) -> None:
+            ranges = [
+                scene.paragraph_range for chapter in proposal.chapters for scene in chapter.scenes
+            ]
+            problem = paragraph_range_problem(ranges, count)
+            if problem is not None:
+                raise ValueError(problem)
+
         async def call() -> CompletionResult:
             try:
                 return await self._provider.complete(messages, tier, _SCHEMA)
@@ -123,20 +143,21 @@ class ChunkingAgent:
                 # schema violation, retrying the same raw provider won't help (no router
                 # failover here — chunking holds a raw provider), so surface it as a
                 # ChunkingError → the route maps that to 502, not an unhandled 500. Raised
-                # from inside the thunk, it propagates past the shared loop (which catches
-                # only ValidationError), so it is not retried.
+                # from inside the thunk, it propagates past the shared loop (which retries
+                # only a failed parse/schema/check), so it is not retried.
                 raise ChunkingError(
                     f"chunking provider returned an unusable response: {exc}"
                 ) from exc
 
-        # The shared loop retries parse/schema failures only — a sampling model can
-        # return valid JSON on a second pass. Network errors and rate limits are not
-        # retried here; cross-provider failover is the router's job (spec §6.5), so a
-        # provider HTTP error propagates to the caller.
+        # The shared loop retries parse/schema failures and the `check_ranges` bound
+        # check — a sampling model can return valid JSON (or fix an off-by-one) on a
+        # second pass. Network errors and rate limits are not retried here; cross-provider
+        # failover is the router's job (spec §6.5), so a provider HTTP error propagates.
         return await validate_with_retry(
             ChunkingProposal,
             call,
             max_retries=self._max_retries,
             error=ChunkingError,
             label="chunking",
+            check=check_ranges,
         )

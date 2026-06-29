@@ -104,6 +104,20 @@ passed empty), so PreNER injection (proposal D3) stays "deferred until a real ev
 is this item. (The spec-drift was reconciled in Public-readiness Session 1, 2026-06-25 — §7 Step 3
 now marks PreNER deferred for the PoC; this eval is what would wire it.)
 
+## Chunking coverage — reject overlapping scene ranges (post-PoC, surfaced S71 `/code-review`)
+
+The Graph-quality S1 range check (`domain/chunking.py` `paragraph_range_problem`) enforces that the
+auto-chunker's scene ranges **cover** every paragraph `[0, count)` — no gaps, no dropped trailing
+paragraphs (the silent-data-*loss* case S1 targets). It deliberately **permits overlap**: a paragraph
+claimed by two scenes passes, and `proposal_to_outline` then slices that paragraph's text into both
+scenes, so the persisted outline (and downstream extraction) carries the paragraph twice. The S71
+`/code-review` flagged this (PLAUSIBLE): duplication isn't *loss*, so it's out of S1's stated scope,
+but the duplicated text feeds entity extraction and could double-count. The fix is small — tighten the
+check to require a **partition** (cover *and* no overlap) by reporting any index covered more than once.
+Defer until duplication is observed in a real auto/hybrid run (the auto path is itself untested in
+practice — see *Chunking modes* above), or fold in when the auto-chunker is next touched. (Session 71,
+2026-06-29.)
+
 ## Entity-resolution limitations surfaced in testing (context, coreference, re-match ordering)
 
 Session 33's live smoke test exposed several related gaps — all rooted in the matcher working on
