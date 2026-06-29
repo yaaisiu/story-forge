@@ -1,7 +1,7 @@
 ---
 type: open-questions
 slug: open-questions
-updated: 2026-06-26
+updated: 2026-06-29
 status: living
 related: ["[[overview]]", "[[project]]", "[[invariants]]", "[[2026-06-02-architecture-review]]", "[[m2s3-extraction-agent]]", "[[2026-06-09-architecture-review]]", "[[2026-06-11-architecture-review]]"]
 ---
@@ -859,14 +859,52 @@ canvas, with **one** net-new write (**predicate consolidation**) and **one** mod
   reader's edit panel vs graph-native). **DM-GQ-4 — reuse the existing endpoints** (only consolidation is
   new). **DM-GQ-5 — undo on the canvas** (same project-scoped `…/graph-edits/undo`, preview+confirm).
   **DM-GQ-6 — the slice boundaries for S3** (the deliverable): **S3a** node writes (fe-led, backend exists)
-  → **S3b** edge writes (on S2's edge panel) → **S3c** consolidation + the §4 handle (new, gated on
-  DM-GQ-1/2). **DM-GQ-7 — bulk/multi-select** (out of S3 → backlog, my lean — consolidation covers the top
+  → **S3b** edge writes (on the S3 edge-evidence panel — *not* S2; reconciled 2026-06-29, DM-GN-3) → **S3c**
+  consolidation + the §4 handle (new, gated on DM-GQ-1/2). **DM-GQ-7 — bulk/multi-select** (out of S3 → backlog, my lean — consolidation covers the top
   bulk need).
 - **Invariants carried (`graph-quality.md` §8):** INV-1/INV-9 (consolidation is the 7th human-reached
   writer path, broaden-don't-mint); INV-3 (consolidation rides the grouped [[graph-operation]] undo);
   INV-4 (consolidation normalises free-string predicates, never a closed enum). No new invariant minted at
   S0 (the edge-handle is a *design constraint* until a feature enforces it). **Lands in:** S3 (sliced
   S3a/S3b/S3c). Open.
+
+### ~~OQ-30 — Graph-quality S2 navigate-the-graph decision register (DM-GN-1..4)~~ ✅ RESOLVED 2026-06-29 (Session 72, owner)
+**Resolved same session** (authoritative: `docs/PLAN_SHORT.md` Decided S72 + `[[graph-navigation]]` now
+`accepted`). **DM-GN-1 = (a) client-side filtering** over the existing `useStoryGraph` payload (no new
+backend; reuse the binary `scope` toggle for the story axis; the finer N-story filter deferred-as-YAGNI).
+**DM-GN-2 = `cytoscape-fcose`** layout (pin via `/add-dependency`, `verify-at-build` the version).
+**DM-GN-3 = (a) spec-faithful — S2 is navigation-only, the edge-tap evidence panel stays S3**; the parent
+`[[graph-curation-surface]]` "edge panel is S2's" note was the drift and is reconciled (its §3
+operation-sweep now shows the edge panel home as S3). **DM-GN-4 = AND-combine + hide-and-relayout +
+search-as-focus.** No *substantive* spec change; no ADR (frontend read-only slice). One tiny §4 wording nit
+(spec §4's "S2's edge surface" forward-reference) was **fixed with owner OK 2026-06-29** → "the S3+ edge
+slices respect it" (S2 is navigation-only). Original
+framing kept below for history.
+
+Raised by the Graph-quality **S2** `decompose-requirement` step-0 (2026-06-29, `[[graph-navigation]]`).
+The first *navigation* slice — filters (type / connection-density / story) + node search by name + a
+better layout algorithm to spread the `cose` hairball. **Read-only, frontend-led:** S2 writes nothing,
+so INV-1/INV-3/INV-9 are untouched (INV-4 constrains the type filter — derive options from the data,
+never a closed enum). Full Context/Options/Proposal live in the proposal's register; listed here so the
+reader knows they gate the S2 build. **Register all OPEN — the owner resolves before code.**
+- **DM-GN-1 — filter data source:** client-side over the existing `useStoryGraph` payload vs new backend
+  query params vs project story-membership onto `GraphNode`. *Lean:* (a) client-side for type/density/name
+  (all data already on the wire) + reuse the existing binary `scope` toggle for the story axis; the finer
+  N-story filter is YAGNI-deferred ([[prefer-deterministic]] / simplicity).
+- **DM-GN-2 — layout algorithm + the dep it adds:** *lean* `cytoscape-fcose` (better spread than `cose`,
+  near drop-in, large-graph-fast), `animate:false` for a smoke-verifiable settle. **`verify-at-build`:**
+  the pin's publish-age (≥14d) + OSV status via `/add-dependency` — the *algorithm* is the recommendation,
+  the *pin* is a build-time check.
+- **DM-GN-3 — S2 scope boundary (a real spec↔vault conflict):** spec §3 puts the edge-tap evidence panel
+  in **S3**; the accepted parent `[[graph-curation-surface]]` (lines 110/120-122) asserts it is **S2's**.
+  Per `architecture/AGENTS.md` (*source wins; the vault drifted*), *lean* (a) spec-faithful — S2 is
+  navigation-only, edge panel stays S3, reconcile the parent-proposal note — **but it's the owner's
+  boundary to draw**; (b) (pull the read-only edge panel into S2) needs a §3 stop-and-amend first.
+- **DM-GN-4 — filter mechanism/interaction:** *lean* AND-combine across axes + hide-and-relayout the
+  visible subset (decluttering is the point) + search-as-focus/pan-to (not a hard filter); clear the
+  selection when a filter hides the selected node (mirrors the existing scope-change clear).
+- **Lands in:** S2 (frontend-led, test-first; no ADR anticipated). **Gaps for the owner:** DM-GN-3 needs
+  resolving first (it sizes the slice); DM-GN-2 adds one frontend dep. Open.
 
 ## Referenced — owned by spec §10 (not duplicated)
 

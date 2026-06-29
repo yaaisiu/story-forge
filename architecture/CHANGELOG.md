@@ -821,3 +821,52 @@ can't be re-found by search and un-tagging acts on a highlight with no row to de
   PROMOTED (graph-traversal discovery → S4, predicate proliferation → S6).
 - **Next:** **S1** (auto-chunker completeness check) — the first *build* slice, test-first, independent of
   this register. The §4-handle **ADR** + the S4 dedup-suggest **step-0** draft at their build.
+
+## 2026-06-29 — Graph-quality S2 decompose: navigate the graph (register OPEN, Session 72)
+
+- **`proposals/graph-navigation.md`** (NEW, `proposed`) — step-0 decompose of the branchy S2 navigate slice
+  (`docs/specs/graph-quality.md` §3 S2): §3.4 filters (type / connection-density / story) + node search by
+  name + a better layout algorithm. Nine-layer pass (Concise) + stations (most honestly `n/a` — read-only,
+  no gated action) + operation-surface completeness sweep + data-flow Mermaid + decision register
+  **DM-GN-1..4 (OPEN)** + "but what if" + hand-off build plan. **Read-only, frontend-led** → INV-1/3/9
+  untouched; INV-4 constrains the type filter (derive options from data, never a closed enum).
+- **Defining finding (completeness sweep):** every §3.4 filter runs **client-side over the payload
+  `useStoryGraph` already fetches** — `GraphNode` carries `type`+names+aliases, node degree derives from
+  `edges[]`, and the "by story" axis is *already shipped* as the binary `scope` toggle (DM-MS-2). So
+  DM-GN-1 leans **no new backend/endpoint**. DM-GN-2 = one layout dep (lean `cytoscape-fcose`,
+  `verify-at-build` the pin via `/add-dependency`). DM-GN-4 = AND-combine + hide-and-relayout + search-as-focus.
+- **Surfaced a real spec↔vault conflict (DM-GN-3):** spec §3 places the **edge-tap evidence panel in S3**,
+  but the *accepted* parent `[[graph-curation-surface]]` (operation sweep, lines 110/120-122) asserts it is
+  **S2's**. Per `architecture/AGENTS.md` (*the source wins; the vault is what drifted*) the lean is
+  spec-faithful (S3 owns the edge panel; reconcile the parent-proposal note) — flagged as the owner's
+  boundary to draw, **not** corrected unilaterally. A reconcile of the parent note is owed either way.
+- **`open-questions.md`** — OQ-30 added (mirrors DM-GN-1..4); `updated` 2026-06-29.
+- **`INDEX.md`** — `graph-navigation` proposal row + next-steps item 29; `updated` 2026-06-29.
+- **Next:** owner resolves DM-GN-1..4 (one plain-language question at a time, **DM-GN-3 first** — it sizes
+  the slice), then build S2 test-first from the pure filter/degree/search functions; `/add-dependency` for
+  the layout extension at the canvas step. No ADR anticipated.
+
+## 2026-06-29 — Graph-quality S2 register RESOLVED (owner, Session 72)
+
+- **`proposals/graph-navigation.md`** → `accepted`; resolution banner + every register entry rewritten
+  *My proposal → Decision*, rejected options de-activated, gaps-for-PO closed. **DM-GN-1 = (a) client-side**
+  filtering over the existing payload (no new backend; reuse the binary `scope` toggle; finer N-story filter
+  deferred-as-YAGNI). **DM-GN-2 = `cytoscape-fcose`** (pin via `/add-dependency`, `verify-at-build` the
+  version). **DM-GN-3 = (a) spec-faithful — S2 navigation-only; the edge-tap evidence panel stays S3.**
+  **DM-GN-4 = AND-combine + hide-and-relayout + search-as-focus.** No spec amendment; no ADR.
+- **Drift reconciled (DM-GN-3) — the parent `[[graph-curation-surface]]` "edge panel is S2's" claim.** Per
+  `architecture/AGENTS.md` (the spec wins; the vault is what drifted), the parent proposal's §3
+  operation-sweep table + routing note 1 (it had asserted the spec puts edge-tap in S2) are corrected to
+  **S3** with a dated pointer to DM-GN-3; the DM-GQ-3 interaction-model option, the DM-GQ-6 context, the
+  plain-language Q4, and the OQ-29 body cross-refs were likewise fixed ("S2's edge panel" → "the S3
+  edge-evidence panel"). The explicitly-"kept for history" superseded blocks are left intact, covered by
+  the dated supersession note. One small spec §4 wording nit (spec §4's "S2's edge surface"
+  forward-reference read off, since S2 has no edge surface) was **fixed with owner OK 2026-06-29** → the §4
+  header + line now read "respected by the S3+ edge slices" (the §4 *constraint* is unchanged).
+- **`open-questions.md`** — OQ-30 struck ✅ with the per-entry resolutions; the OQ-29 body cross-ref fixed.
+- **`INDEX.md`** — `graph-navigation` row → ACCEPTED/RESOLVED banner; next-steps item 29 → resolved.
+- **Host-repo reconciliation (recorded, not vault):** `docs/PLAN_SHORT.md` Decided S72 records the
+  resolution (authoritative decision home). `docs/specs/graph-quality.md` §4 carries the small wording fix
+  above (owner-approved); no other spec change (decision A keeps S2 aligned with §3).
+- **Next:** build **S2** test-first (frontend-led, read-only) from the pure filter/degree/search functions;
+  `/add-dependency` for `cytoscape-fcose` at the canvas step.
