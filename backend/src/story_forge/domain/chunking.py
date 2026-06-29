@@ -57,6 +57,32 @@ class Outline:
     chapters: list[OutlineChapter] = field(default_factory=list)
 
 
+def paragraph_range_problem(ranges: list[tuple[int, int]], count: int) -> str | None:
+    """Return why scene `ranges` fail to cover paragraphs `[0, count)`, else None.
+
+    The single home for the auto-chunker's range invariant (spec graph-quality §3 S1),
+    so the rule has one definition rather than drifting copies. Two failure modes, both
+    data corruption a human-gated outline must not ship:
+
+    - **overshoot** — an `end` index at or beyond `count` points past the text;
+    - **a hole** — a paragraph in `[0, count)` that no range covers (a gap, or a dropped
+      trailing paragraph: silent data loss, the worst class).
+
+    Overlap (a paragraph claimed by two scenes) is duplication, not loss, so it is *not*
+    reported here. Used both as the agent's retriable check (a one-off LLM slip
+    re-prompts) and the coordinator's terminal backstop.
+    """
+    covered: set[int] = set()
+    for start, end in ranges:
+        if end >= count:
+            return f"paragraph_range ({start}, {end}) exceeds paragraph count {count}"
+        covered.update(range(start, end + 1))
+    missing = set(range(count)) - covered
+    if missing:
+        return f"proposal leaves paragraphs {sorted(missing)} of {count} unassigned"
+    return None
+
+
 def parse_manual_outline(raw_text: str) -> Outline:
     """Parse markdown-anchored `raw_text` into an `Outline` tree (modes 2 & 3)."""
     text = raw_text.replace("\r\n", "\n").replace("\r", "\n")

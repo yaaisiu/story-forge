@@ -17,6 +17,7 @@ from story_forge.domain.chunking import (
     OutlineChapter,
     OutlineScene,
     outline_to_tree,
+    paragraph_range_problem,
     parse_manual_outline,
 )
 
@@ -139,3 +140,34 @@ def test_outline_to_tree_on_empty_outline_returns_empty_lists() -> None:
     story_id = UUID("22222222-2222-2222-2222-222222222222")
     chapters, scenes, paragraphs = outline_to_tree(Outline(), story_id)
     assert (chapters, scenes, paragraphs) == ([], [], [])
+
+
+# --- paragraph_range_problem: the single home for the auto-chunker range invariant ---
+
+
+def test_range_problem_none_when_ranges_tile_the_text() -> None:
+    assert paragraph_range_problem([(0, 1), (2, 3)], 4) is None
+
+
+def test_range_problem_reports_a_dropped_trailing_paragraph() -> None:
+    # Covers 0..2 of four paragraphs — paragraph 3 is silently lost without this.
+    assert paragraph_range_problem([(0, 2)], 4) == "proposal leaves paragraphs [3] of 4 unassigned"
+
+
+def test_range_problem_reports_an_interior_gap() -> None:
+    assert (
+        paragraph_range_problem([(0, 1), (3, 3)], 4)
+        == "proposal leaves paragraphs [2] of 4 unassigned"
+    )
+
+
+def test_range_problem_reports_an_overshoot() -> None:
+    assert (
+        paragraph_range_problem([(0, 5)], 1) == "paragraph_range (0, 5) exceeds paragraph count 1"
+    )
+
+
+def test_range_problem_permits_overlap() -> None:
+    # Overlap is duplication, not loss — deliberately allowed (see BACKLOG: tighten to a
+    # partition check post-PoC). Every index 0..3 is covered, so no problem is reported.
+    assert paragraph_range_problem([(0, 2), (1, 3)], 4) is None

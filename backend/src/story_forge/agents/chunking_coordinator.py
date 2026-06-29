@@ -13,7 +13,9 @@ domain parser with the `LLMProvider`-backed `ChunkingAgent`. The agent's
 `paragraph_range` indexes into the blank-line paragraph blocks of the text it was
 given (spec prompt: "paragraphs numbered from 0"), so `proposal_to_outline` slices
 that same list — and enforces the end-index-vs-count upper bound the schema can't
-(carry-forward from Session 3).
+(carry-forward from Session 3). After conversion `_assert_full_coverage` checks that
+the proposal's ranges cover *every* paragraph: a gap or a dropped trailing paragraph
+raises rather than silently shipping a truncated outline (graph-quality §3 S1).
 
 Long input is guarded, not windowed: above `max_input_words` the LLM paths raise
 `ChunkingTooLongError`. Manual mode (and hybrid with enough anchors) handles any
@@ -29,6 +31,7 @@ from story_forge.domain.chunking import (
     Outline,
     OutlineChapter,
     OutlineScene,
+    paragraph_range_problem,
     parse_manual_outline,
 )
 from story_forge.domain.parsing import split_paragraphs
@@ -57,16 +60,36 @@ class OutlineRangeError(ChunkingError):
     """A proposal's `paragraph_range` end index exceeds the paragraph count."""
 
 
+class OutlineCoverageError(ChunkingError):
+    """A proposal's scenes leave some paragraph in `[0, count)` unassigned."""
+
+
 class ChunkingTooLongError(ChunkingError):
     """Input exceeds the per-call word budget for the LLM chunking paths."""
+
+
+def _assert_full_coverage(proposal: ChunkingProposal, count: int) -> None:
+    """Terminal backstop for the range invariant (spec graph-quality §3 S1).
+
+    The agent's retried `check` (`paragraph_range_problem`) normally clears a gap or a
+    dropped trailing paragraph by re-prompting before we reach here; this is the spec's
+    "assert after `proposal_to_outline`" final guard, and the path the coordinator's own
+    tests exercise (where the agent is a stub that bypasses the retry). Same rule, one
+    home — overlaps are duplication, not loss, so they pass (see `paragraph_range_problem`).
+    """
+    ranges = [scene.paragraph_range for chapter in proposal.chapters for scene in chapter.scenes]
+    problem = paragraph_range_problem(ranges, count)
+    if problem is not None:
+        raise OutlineCoverageError(problem)
 
 
 def proposal_to_outline(proposal: ChunkingProposal, paragraphs: list[str]) -> Outline:
     """Slice `paragraphs` into an `Outline` per the proposal's ranges.
 
-    Enforces the upper bound the schema validator deferred: an `end` index at or
-    beyond the paragraph count is unpersistable, so it raises here rather than
-    silently dropping or duplicating text.
+    Keeps a local slice-safety guard against an out-of-range `end` (a `paragraphs[start:
+    end + 1]` over the end would silently truncate). The canonical range *validation* is
+    `paragraph_range_problem`, run first by the agent's retry and again by the coordinator
+    backstop, so in the live path this guard never fires — it protects a direct caller.
     """
     count = len(paragraphs)
     chapters: list[OutlineChapter] = []
@@ -122,7 +145,10 @@ class ChunkingCoordinator:
         proposal = await self._agent.propose_outline(
             raw_text=text, language=language, word_count=word_count
         )
-        return proposal_to_outline(proposal, split_paragraphs(text))
+        paragraphs = split_paragraphs(text)
+        outline = proposal_to_outline(proposal, paragraphs)  # raises on an overshooting range
+        _assert_full_coverage(proposal, len(paragraphs))  # raises on a gap / dropped tail
+        return outline
 
     async def _fill_untitled(self, outline: Outline, language: str) -> Outline:
         """Sub-divide only untitled *scenes*; preserve every explicit anchor.
