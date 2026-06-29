@@ -143,3 +143,10 @@ Give the user a short brief:
 
 End by confirming the session goal with the user before starting. Per the spec- and
 test-driven rule, the first work step is the failing test, not production code.
+
+**Then branch before the first edit.** Once the goal is confirmed and the unit starts
+producing changes, create its feature branch *first* (before touching a file) and tell the
+user the branch name + the plan (branch → work → PR → `/review-pr` → their OK → squash-merge).
+Don't accumulate a unit's edits on `main`'s working tree and branch retroactively — it leaves
+the user unable to see the branch/PR ritual is in motion. (Root `AGENTS.md` Merge flow, earned
+Session 72.)
