@@ -142,6 +142,23 @@ uv run uvicorn story_forge.main:app --reload --port 8000
 
 Infra (Neo4j, Postgres, Ollama) comes from the root `docker compose up`.
 
+## Live/manual testing against the dev stores — name disposably, clean up by id
+
+A manual or live verification (running the app, hitting `/upload` + `/structure` + `/extract`,
+a smoke script) writes **real data to the dev Postgres / Neo4j / upload sandbox** — the same
+stores that hold the owner's actual work. Two rules so a throwaway test can never endanger it:
+
+- **Name it disposably.** Give test uploads/projects a clearly throwaway name (a `DELETEME`
+  marker or a date), so it can't be confused with real data at a glance.
+- **Clean up by the exact id, after inspecting — never by name.** Look at what's there first
+  (`SELECT id, name, created_at …`), confirm the id you created, and delete *that id* (FKs cascade
+  project → story → chapters → scenes → paragraphs). **Never delete by name** — names collide.
+  (Earned Session 71, 2026-06-29: an S1 live smoke named its story `oakhaven`, identical to the
+  owner's real graph; there were three `oakhaven` projects and a delete-by-name would have wiped two
+  real ones — deleting the exact test id `2d184fed…` was the safe path. The `llm_calls` cost ledger
+  has no story/project column, so a test call's row isn't attributable — leave it rather than risk a
+  real row.)
+
 ## Manual real-provider smoke (M2 close) + §6.7 key-leak check
 
 The unit tests mock every provider. This is the **manual** smoke that exercises *real*

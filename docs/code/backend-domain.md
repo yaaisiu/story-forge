@@ -55,7 +55,10 @@ Deterministic manual/hybrid chunking: `parse_manual_outline` reads markdown head
 `OutlineScene`, with stray prose landing in implicit untitled containers so no text is lost.
 `outline_to_tree` flattens that tree into ordered `Chapter`/`Scene`/`Paragraph` rows under a
 `story_id` — assigning `order_index` and threading parent ids, but leaving persistence to the
-adapter. [`domain/chunking.py`](../../backend/src/story_forge/domain/chunking.py)
+adapter. `paragraph_range_problem` is the single home for the auto-chunker's range invariant
+(every paragraph `[0, count)` covered, nothing past the end — graph-quality §3 S1): both the
+agent's retried check and the coordinator's terminal backstop call it.
+[`domain/chunking.py`](../../backend/src/story_forge/domain/chunking.py)
 
 ### `language.py` — detect a story's language
 `detect_language`: text in, an ISO 639-1 code out (`pl`/`en` for this app), via `langdetect` with a
