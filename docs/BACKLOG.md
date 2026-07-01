@@ -364,6 +364,22 @@ The Session-33 reader run made the curation gap concrete. Three threads:
   the PoC graph becomes genuinely editable by the author. Needs its own design pass / decompose before any
   build. (Owner direction, Session 54 smoke.)
 
+## Graph view state in the URL — reloadable/shareable filters (post-PoC, surfaced S73 `/code-review`)
+
+The Graph-quality S2 navigation controls (entity-type filter, min-connections degree filter, and the
+node-name search term) live in component `useState` in `GraphViewer.tsx`, as the accepted
+`graph-navigation` proposal (§5 — "all of S2 is UI state … `useState`/a small store, not a persisted
+transition") specified, and matching the **existing story/project scope toggle** in the same component
+(also `useState`). Consequence: a page refresh, a bookmarked graph URL, or a shared link drops the whole
+filter+search configuration and the user lands back on the unfiltered graph. `frontend/AGENTS.md` (State
+management) notes that "a filter the user could reasonably reload into belongs in the query string (read
+via `useSearchParams`), so a refresh keeps it" — so this is a real, tracked deviation, deferred by owner
+call (S73). Post-PoC, lift the graph **view state** into the URL query string via `useSearchParams` —
+and do the **filters and the scope toggle together** for consistency (serialize the type set + min-degree
++ search term + scope; parse them back on load), so a reloaded/shared graph URL restores exactly the view
+the author had navigated to. (Surfaced by the S2 multi-agent `/code-review`; owner chose useState-now +
+backlog, 2026-07-01.)
+
 ## Reader as the paragraph-by-paragraph working surface (post-PoC)
 
 The reader (M4) starts read-only and gains correction (the next M4 slices). The owner's larger idea
