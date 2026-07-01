@@ -17,10 +17,12 @@ import type { EdgeEvidence } from "../../lib/api/useEdgeEvidence";
 interface EdgeEvidencePanelProps {
   /** The tapped edge id, or null when nothing is selected. */
   edgeId: string | null;
-  /** The fetched evidence bundle (undefined while loading / on error). */
+  /** The last-known evidence bundle (kept across a background refetch, undefined until first load). */
   evidence: EdgeEvidence | undefined;
   isPending: boolean;
-  isError: boolean;
+  /** Retry the evidence read — re-tapping the already-selected edge is a no-op, so the
+   * error state needs an explicit refetch rather than a "select again" instruction. */
+  onRetry: () => void;
   onClose: () => void;
 }
 
@@ -30,7 +32,7 @@ export function EdgeEvidencePanel({
   edgeId,
   evidence,
   isPending,
-  isError,
+  onRetry,
   onClose,
 }: EdgeEvidencePanelProps) {
   if (!edgeId) {
@@ -59,6 +61,9 @@ export function EdgeEvidencePanel({
     </div>
   );
 
+  // `isPending` is only true before the first successful load (TanStack keeps `data`
+  // across a background refetch), so a refetch failure with data in hand falls through
+  // to render the last-good evidence rather than blanking it with the error state.
   if (isPending) {
     return (
       <aside data-testid="edge-evidence-loading" className={PANEL_CLASS}>
@@ -68,13 +73,21 @@ export function EdgeEvidencePanel({
     );
   }
 
-  if (isError || !evidence) {
+  if (!evidence) {
     return (
       <aside data-testid="edge-evidence-error" className={PANEL_CLASS}>
         {header}
         <p role="alert" className="text-red-700">
-          Couldn&rsquo;t load this edge&rsquo;s evidence. Select the edge again.
+          Couldn&rsquo;t load this edge&rsquo;s evidence.
         </p>
+        <button
+          type="button"
+          data-testid="edge-evidence-retry"
+          onClick={onRetry}
+          className="self-start rounded border border-gray-300 px-2 py-1 text-xs text-gray-700 hover:bg-gray-50"
+        >
+          Try again
+        </button>
       </aside>
     );
   }
@@ -85,12 +98,12 @@ export function EdgeEvidencePanel({
     <aside data-testid="edge-evidence" className={PANEL_CLASS}>
       {header}
 
-      <div>
+      <dl>
         <dt className="text-xs font-medium uppercase tracking-wide text-gray-500">Relationship</dt>
         <dd data-testid="edge-evidence-predicate" className="text-gray-800">
           {evidence.predicate ?? <span className="text-gray-400">unknown</span>}
         </dd>
-      </div>
+      </dl>
 
       {sources.length === 0 ? (
         <p data-testid="edge-evidence-none" className="text-gray-400">

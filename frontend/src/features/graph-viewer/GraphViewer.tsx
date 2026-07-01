@@ -422,7 +422,7 @@ export function GraphViewer() {
                 edgeId={selectedEdgeId}
                 evidence={edgeEvidence.data}
                 isPending={edgeEvidence.isPending}
-                isError={edgeEvidence.isError}
+                onRetry={() => void edgeEvidence.refetch()}
                 onClose={() => setSelectedEdgeId(null)}
               />
             ) : (

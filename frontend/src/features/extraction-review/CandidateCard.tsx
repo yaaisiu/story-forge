@@ -14,7 +14,7 @@ import { useState } from "react";
 import type { CandidateView } from "../../lib/api/useCandidates";
 import type { EntitySearchResult } from "../../lib/api/useEntitySearch";
 import { EntityPicker } from "./EntityPicker";
-import { alternativesOf, exactNameDuplicate, type ReviewIntent } from "./reviewQueue";
+import { alternativesOf, exactNameDuplicates, type ReviewIntent } from "./reviewQueue";
 
 interface CandidateCardProps {
   candidate: CandidateView;
@@ -52,14 +52,18 @@ export function CandidateCard({
   // DM-EE-5: if the reviewer clicks "New" for a name that already exists among the
   // loaded alternatives, warn and offer the merge before creating a duplicate — never a
   // hard block (INV-1). The warning is opened by the New button; "Create anyway" and
-  // "Merge instead" resolve it. (The keyboard `N` path in reduceReviewKey stays a direct
-  // create — the guard rides the discoverable button; the rare power-user bypass is a
-  // documented limitation, not a block.)
-  const duplicate = exactNameDuplicate(candidate);
+  // "Merge instead" resolve it. A one-click "Merge instead" only appears when there is a
+  // *single* same-named entity: two distinct entities can share a name (DM-EE-4's "two
+  // crews" trap), so an ambiguous match defers to a manual pick from the list above rather
+  // than silently merging into an arbitrary one. (The keyboard `N` path in reduceReviewKey
+  // stays a direct create — the guard rides the discoverable button; the rare power-user
+  // bypass is a documented limitation, not a block.)
+  const duplicates = exactNameDuplicates(candidate);
+  const soleDuplicate = duplicates.length === 1 ? duplicates[0] : null;
   const [dupWarnOpen, setDupWarnOpen] = useState(false);
 
   function handleNewClick() {
-    if (duplicate) {
+    if (duplicates.length > 0) {
       setDupWarnOpen(true);
       return;
     }
@@ -183,32 +187,44 @@ export function CandidateCard({
         </p>
       )}
 
-      {dupWarnOpen && duplicate && (
+      {dupWarnOpen && duplicates.length > 0 && (
         <div
           data-testid="dup-warning"
           role="alert"
           className="flex flex-col gap-2 rounded border border-amber-300 bg-amber-50 p-2 text-xs text-amber-900"
         >
-          <p>
-            An entity named <span className="font-medium">{duplicate.canonical_name}</span> already
-            exists. Merge into it instead of creating a duplicate?
-          </p>
+          {soleDuplicate ? (
+            <p>
+              An entity named <span className="font-medium">{soleDuplicate.canonical_name}</span>{" "}
+              already exists. Merge into it instead of creating a duplicate?
+            </p>
+          ) : (
+            // Several same-named entities exist — don't guess which the reviewer means;
+            // point them at the list above to pick the intended target explicitly.
+            <p>
+              {duplicates.length} entities named{" "}
+              <span className="font-medium">{candidate.candidate_name}</span> already exist. Pick
+              the intended one under &ldquo;Merge with instead&rdquo; above, or create a duplicate.
+            </p>
+          )}
           <div className="flex flex-wrap gap-2">
-            <button
-              type="button"
-              data-testid="dup-warning-merge"
-              onClick={() => {
-                setDupWarnOpen(false);
-                onAct({
-                  decision: "accept",
-                  accept: { action: "merge", target_entity_id: duplicate.entity_id },
-                });
-              }}
-              disabled={pending}
-              className="rounded border border-amber-400 px-2 py-1 font-medium text-amber-900 hover:bg-amber-100 disabled:opacity-50"
-            >
-              Merge instead
-            </button>
+            {soleDuplicate && (
+              <button
+                type="button"
+                data-testid="dup-warning-merge"
+                onClick={() => {
+                  setDupWarnOpen(false);
+                  onAct({
+                    decision: "accept",
+                    accept: { action: "merge", target_entity_id: soleDuplicate.entity_id },
+                  });
+                }}
+                disabled={pending}
+                className="rounded border border-amber-400 px-2 py-1 font-medium text-amber-900 hover:bg-amber-100 disabled:opacity-50"
+              >
+                Merge instead
+              </button>
+            )}
             <button
               type="button"
               data-testid="dup-warning-create"

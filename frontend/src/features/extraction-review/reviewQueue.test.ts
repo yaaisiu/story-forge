@@ -7,7 +7,7 @@
 
 import { describe, expect, it } from "vitest";
 
-import { alternativesOf, exactNameDuplicate, reduceReviewKey, type NavState } from "./reviewQueue";
+import { alternativesOf, exactNameDuplicates, reduceReviewKey, type NavState } from "./reviewQueue";
 import type { CandidateView } from "../../lib/api/useCandidates";
 
 function candidate(over: Partial<CandidateView> = {}): CandidateView {
@@ -188,18 +188,43 @@ describe("alternativesOf", () => {
   });
 });
 
-describe("exactNameDuplicate", () => {
+describe("exactNameDuplicates", () => {
   it("returns the alternative whose name matches the candidate (case/space-insensitive)", () => {
     const c = candidate({ candidate_name: "  jan  " });
-    expect(exactNameDuplicate(c)?.entity_id).toBe("e1"); // "Jan"
+    expect(exactNameDuplicates(c).map((a) => a.entity_id)).toEqual(["e1"]); // "Jan"
   });
 
-  it("returns null when no alternative shares the candidate's name", () => {
-    const c = candidate({ candidate_name: "Bartek" });
-    expect(exactNameDuplicate(c)).toBeNull();
+  it("returns ALL same-named matches so the caller never merges into an arbitrary one", () => {
+    // Two distinct entities legitimately share a name (DM-EE-4's "two crews" trap).
+    const c = candidate({
+      candidate_name: "Jan",
+      alternatives: [
+        {
+          entity_id: "e1",
+          canonical_name: "Jan",
+          score: 100,
+          type: "Character",
+          aliases: [],
+          context_quote: null,
+        },
+        {
+          entity_id: "e9",
+          canonical_name: "jan",
+          score: 100,
+          type: "Location",
+          aliases: [],
+          context_quote: null,
+        },
+      ],
+    });
+    expect(exactNameDuplicates(c).map((a) => a.entity_id)).toEqual(["e1", "e9"]);
   });
 
-  it("returns null when there are no alternatives", () => {
-    expect(exactNameDuplicate(candidate({ alternatives: [] }))).toBeNull();
+  it("is empty when no alternative shares the candidate's name", () => {
+    expect(exactNameDuplicates(candidate({ candidate_name: "Bartek" }))).toEqual([]);
+  });
+
+  it("is empty when there are no alternatives", () => {
+    expect(exactNameDuplicates(candidate({ alternatives: [] }))).toEqual([]);
   });
 });

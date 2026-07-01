@@ -274,6 +274,41 @@ describe("CandidateCard — duplicate-create guard (DM-EE-5)", () => {
     expect(onAct).toHaveBeenCalledWith({ decision: "accept", accept: { action: "create" } });
     expect(screen.queryByTestId("dup-warning")).not.toBeInTheDocument();
   });
+
+  it("does NOT offer a one-click merge when two entities share the name (never merges into an arbitrary one)", () => {
+    // Two distinct same-named entities is a legitimate INV-1 case; a one-click "merge
+    // instead" would silently pick the first — so the shortcut is withheld and the
+    // reviewer is pointed at the list to choose explicitly.
+    const { onAct } = renderCard({
+      candidate: candidate({
+        candidate_name: "Jan",
+        alternatives: [
+          {
+            entity_id: "e1",
+            canonical_name: "Jan",
+            score: 100,
+            type: "Character",
+            aliases: [],
+            context_quote: null,
+          },
+          {
+            entity_id: "e9",
+            canonical_name: "Jan",
+            score: 100,
+            type: "Location",
+            aliases: [],
+            context_quote: null,
+          },
+        ],
+      }),
+    });
+    fireEvent.click(screen.getByTestId("accept-create"));
+    expect(screen.getByTestId("dup-warning")).toHaveTextContent(/2 entities named/i);
+    expect(screen.queryByTestId("dup-warning-merge")).not.toBeInTheDocument();
+    // "Create anyway" still available — the guard warns, never blocks.
+    fireEvent.click(screen.getByTestId("dup-warning-create"));
+    expect(onAct).toHaveBeenCalledWith({ decision: "accept", accept: { action: "create" } });
+  });
 });
 
 describe("CandidateCard — manual handpick (M3.S4d)", () => {

@@ -25,17 +25,18 @@ const EVIDENCE: EdgeEvidence = {
 
 function renderPanel(over: Partial<Parameters<typeof EdgeEvidencePanel>[0]> = {}) {
   const onClose = vi.fn();
+  const onRetry = vi.fn();
   render(
     <EdgeEvidencePanel
       edgeId={EDGE_ID}
       evidence={EVIDENCE}
       isPending={false}
-      isError={false}
+      onRetry={onRetry}
       onClose={onClose}
       {...over}
     />,
   );
-  return { onClose };
+  return { onClose, onRetry };
 }
 
 describe("EdgeEvidencePanel", () => {
@@ -50,9 +51,20 @@ describe("EdgeEvidencePanel", () => {
     expect(screen.getByTestId("edge-evidence-loading")).toBeInTheDocument();
   });
 
-  it("shows an error state (with a re-select hint) when the read fails", () => {
-    renderPanel({ isError: true, evidence: undefined });
-    expect(screen.getByTestId("edge-evidence-error")).toHaveTextContent(/select the edge again/i);
+  it("shows an error state with a working Retry when the read fails with no data", () => {
+    const { onRetry } = renderPanel({ evidence: undefined });
+    expect(screen.getByTestId("edge-evidence-error")).toBeInTheDocument();
+    // Re-tapping the same edge is a no-op, so recovery must be an explicit refetch.
+    fireEvent.click(screen.getByTestId("edge-evidence-retry"));
+    expect(onRetry).toHaveBeenCalledOnce();
+  });
+
+  it("keeps the last-good evidence visible when a background refetch fails (no blanking)", () => {
+    // TanStack keeps `data` across a background-refetch error; the panel must not throw
+    // away what the user is reading. isPending is false (data in hand) → render, not error.
+    renderPanel({ isPending: false, evidence: EVIDENCE });
+    expect(screen.getByTestId("edge-evidence")).toBeInTheDocument();
+    expect(screen.queryByTestId("edge-evidence-error")).not.toBeInTheDocument();
   });
 
   it("renders the predicate and each source paragraph with its quote", () => {

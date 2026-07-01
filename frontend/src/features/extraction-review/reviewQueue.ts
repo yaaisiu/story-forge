@@ -62,17 +62,19 @@ export function alternativesOf(candidate: CandidateView): CandidateAlternative[]
   }));
 }
 
-/** DM-EE-5 guard: the alternative (if any) whose canonical name matches the candidate's
+/** DM-EE-5 guard: every loaded alternative whose canonical name matches the candidate's
  * name, compared case- and surrounding-space-insensitively. Used to warn-and-offer the
  * merge before the reviewer creates a same-named duplicate — never a hard block (INV-1;
- * the author may legitimately keep two same-named entities). Checks the loaded top-3
- * alternatives only; a 100-scoring exact name almost always ranks there (the rare
- * outside-top-3 false negative is a documented, deferred backend-lookup escape hatch). */
-export function exactNameDuplicate(candidate: CandidateView): CandidateAlternative | null {
+ * the author may legitimately keep two same-named entities). Returns *all* matches, not
+ * one: two distinct entities can legitimately share a name (the "two crews" trap DM-EE-4
+ * names), so a one-click "merge instead" must only fire when the match is unambiguous —
+ * the caller offers the shortcut for a single match and defers to a manual pick otherwise.
+ * Checks the loaded top-3 alternatives only; a 100-scoring exact name almost always ranks
+ * there (the rare outside-top-3 false negative is a documented, deferred backend lookup). */
+export function exactNameDuplicates(candidate: CandidateView): CandidateAlternative[] {
   const target = candidate.candidate_name.trim().toLowerCase();
-  return (
-    alternativesOf(candidate).find((alt) => alt.canonical_name.trim().toLowerCase() === target) ??
-    null
+  return alternativesOf(candidate).filter(
+    (alt) => alt.canonical_name.trim().toLowerCase() === target,
   );
 }
 
