@@ -62,16 +62,22 @@ card shows the extractor's *surface* triple (subject — predicate → object), 
 names — a recorded v1 simplification.
 
 ### `graph-viewer/` — the Neo4j graph visualization (spec §3.4)
-Reads a story's entity graph and renders it force-directed, with a node-details side panel and the
-agent-activity panel alongside; it also hosts the "Run extraction" trigger for a freshly-structured
-story that has no graph yet. The cytoscape *runtime* is isolated in
+Reads a story's entity graph and renders it with a force-directed layout, a node-details side panel,
+navigation controls, and the agent-activity panel alongside; it also hosts the "Run extraction"
+trigger for a freshly-structured story that has no graph yet. The cytoscape *runtime* is isolated in
 [`GraphCanvas.tsx`](../../frontend/src/features/graph-viewer/GraphCanvas.tsx) (jsdom can't drive a
-canvas — verified by the browser smoke), fed by the pure
+canvas — verified by the browser smoke; it uses the `cytoscape-fcose` layout extension and takes an
+already-filtered element set plus the search-match ids to highlight/pan), fed by the pure
 [`graphElements.ts`](../../frontend/src/features/graph-viewer/graphElements.ts) mapper that turns the
-API's graph response into cytoscape elements plus a colour-by-type palette. The
-[`GraphViewer.tsx`](../../frontend/src/features/graph-viewer/GraphViewer.tsx) container and
-[`NodeDetailsPanel.tsx`](../../frontend/src/features/graph-viewer/NodeDetailsPanel.tsx) (read-only
-entity details) stay testable with the canvas mocked.
+API's graph response into cytoscape elements plus a colour-by-type palette. Client-side navigation
+(spec §3.4 — filter by entity type + connection density, search by name) is pure logic in
+[`graphFilters.ts`](../../frontend/src/features/graph-viewer/graphFilters.ts) (`nodeDegrees` /
+`elementDegrees` / `distinctTypes` / `filterGraph` / diacritic-folding `matchNodes`), which the
+[`GraphViewer.tsx`](../../frontend/src/features/graph-viewer/GraphViewer.tsx) container runs over the
+already-fetched payload (no backend round-trip) before handing the visible subset to the canvas; the
+search box is debounced via the shared [`useDebouncedValue`](../../frontend/src/hooks/useDebouncedValue.ts)
+hook. The container and [`NodeDetailsPanel.tsx`](../../frontend/src/features/graph-viewer/NodeDetailsPanel.tsx)
+(read-only entity details) stay testable with the canvas mocked.
 
 ### `agent-activity/` — the live model/agent panel (spec §8.5)
 A small persistent panel that makes the multi-model, agent-based architecture legible to anyone
