@@ -421,6 +421,9 @@ export interface paths {
          *     Each candidate's view carries the merge-verification context S3 (DM-EE-3) adds: the target's
          *     resolved name and each alternative's type/aliases/sample quote. The accepted-entity read and
          *     the sample-quote read are batched once for the whole queue (not per candidate) to avoid an N+1.
+         *     The queue's core data is Postgres, so a Postgres outage is a declared 503; the enrichment is
+         *     **best-effort** verification context, so a graph-DB outage (or a transient enrichment-read
+         *     failure) degrades to an *unenriched* queue rather than blocking the human's review.
          */
         get: operations["list_candidates_stories__story_id__candidates_get"];
         put?: never;

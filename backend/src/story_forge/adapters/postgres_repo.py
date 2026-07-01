@@ -263,6 +263,24 @@ async def get_paragraph(conn: AsyncConnection, paragraph_id: UUID) -> Paragraph 
         return await cur.fetchone()
 
 
+async def list_paragraph_texts_by_ids(
+    conn: AsyncConnection, paragraph_ids: list[UUID]
+) -> dict[UUID, str]:
+    """The `content` text of each given paragraph, keyed by id, in one round-trip.
+
+    The batched sibling of `get_paragraph` for the edge-evidence read (graph-quality S3): an edge
+    asserted across N paragraphs resolves all N texts in a single query rather than N sequential
+    fetches. Missing ids are simply absent from the map (the caller decides the fallback).
+    """
+    if not paragraph_ids:
+        return {}
+    cur = await conn.execute(
+        "SELECT id, content FROM paragraphs WHERE id = ANY(%s)",
+        (paragraph_ids,),
+    )
+    return {row[0]: row[1] for row in await cur.fetchall()}
+
+
 async def list_paragraph_ids_for_story(conn: AsyncConnection, story_id: UUID) -> set[UUID]:
     """The id set of every paragraph in a story (the story-scope graph filter, DM-MS-2).
 

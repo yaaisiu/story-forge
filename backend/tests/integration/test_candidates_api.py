@@ -66,10 +66,12 @@ class _StubStore:
 class _StubRepo:
     """Canned accepted-entity read for the merge-context enrichment (list_entities only)."""
 
-    def __init__(self, entities: list[GraphEntity]) -> None:
+    def __init__(self, entities: list[GraphEntity] | Exception) -> None:
         self._entities = entities
 
     async def list_entities(self, project_id: UUID) -> list[GraphEntity]:
+        if isinstance(self._entities, Exception):
+            raise self._entities
         return self._entities
 
 
@@ -196,6 +198,31 @@ async def test_list_candidates_enriches_merge_context(
     assert alt["type"] == "Character"
     assert alt["aliases"] == ["Jaś"]
     assert alt["context_quote"] == "Janek came home late."
+
+
+async def test_list_candidates_degrades_when_graph_db_unavailable(
+    client: AsyncClient, db_conn: psycopg.AsyncConnection
+) -> None:
+    # The queue's core data is Postgres; a Neo4j outage must degrade to an *unenriched* queue,
+    # never 503 the whole review (the enrichment is best-effort verification context).
+    from neo4j.exceptions import ServiceUnavailable
+
+    story = await _make_story(db_conn)
+    candidate = _candidate(story.id)
+    candidate.target_entity_id = uuid4()
+    candidate.proposal = "merge"
+    candidate.alternatives = [{"entity_id": str(uuid4()), "canonical_name": "Jan", "score": 90.0}]
+    _with_store(_StubStore([candidate]))
+    _with_repo(_StubRepo(ServiceUnavailable("neo4j down")))
+
+    resp = await client.get(f"/stories/{story.id}/candidates")
+
+    assert resp.status_code == 200, resp.text
+    view = resp.json()["candidates"][0]
+    assert view["target_canonical_name"] is None  # unresolved without the graph
+    assert view["alternatives"][0]["type"] is None
+    assert view["alternatives"][0]["context_quote"] is None
+    assert view["alternatives"][0]["canonical_name"] == "Jan"  # stored fields still render
 
 
 async def test_list_candidates_unknown_story_404(client: AsyncClient) -> None:

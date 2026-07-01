@@ -1,9 +1,9 @@
 """HTTP-contract tests for `GET /stories/{id}/relations/{edge_id}/evidence` (graph-quality S3).
 
 Stub the relation store (its read is covered by `test_edge_evidence_store`) via a dependency
-override and seed real paragraphs in the test transaction (the route resolves each row's text via
-`get_paragraph` on the injected connection). Prove the assembled shape, the zero-provenance
-"manually added" edge → 200 + empty list, and the unknown-story 404.
+override and seed real paragraphs in the test transaction (the route resolves the rows' texts in one
+batched read on the injected connection). Prove the assembled shape, the one-to-many resolution, the
+zero-provenance "manually added" edge → 200 + empty list, and the unknown-story 404.
 """
 
 from __future__ import annotations
@@ -104,6 +104,33 @@ async def test_evidence_assembles_predicate_and_paragraph_text(
             "evidence_quote": "Janek knew her.",
         }
     ]
+
+
+async def test_evidence_resolves_each_source_paragraph_one_to_many(
+    client: AsyncClient, db_conn: psycopg.AsyncConnection
+) -> None:
+    # An edge asserted in two paragraphs → two rows; the batched fetch must map each row to its
+    # own paragraph text (not conflate them).
+    story, para1 = await _make_story_with_paragraph(db_conn)
+    para2 = Paragraph(scene_id=para1.scene_id, order_index=1, content="Second mention of the bond.")
+    await insert_paragraph(db_conn, para2)
+    edge = uuid4()
+    r1 = _written(story, para1.id, "quote one")
+    r1.edge_id = edge
+    r2 = _written(story, para2.id, "quote two")
+    r2.edge_id = edge
+    _with_store([r1, r2])
+
+    resp = await client.get(f"/stories/{story.id}/relations/{edge}/evidence")
+
+    assert resp.status_code == 200, resp.text
+    by_para = {s["paragraph_id"]: s for s in resp.json()["source_provenance"]}
+    assert by_para[str(para1.id)]["paragraph_text"] == "Janek knew Mokosz well."
+    assert by_para[str(para2.id)]["paragraph_text"] == "Second mention of the bond."
+    assert {s["evidence_quote"] for s in resp.json()["source_provenance"]} == {
+        "quote one",
+        "quote two",
+    }
 
 
 async def test_zero_provenance_edge_returns_empty_not_404(

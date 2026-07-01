@@ -26,7 +26,6 @@ from story_forge.adapters.neo4j_repo import Neo4jRepo
 from story_forge.adapters.postgres_candidate_store import PostgresCandidateStore
 from story_forge.adapters.postgres_relation_store import PostgresRelationStore
 from story_forge.adapters.postgres_repo import (
-    get_paragraph,
     get_project,
     get_story,
     get_story_for_update,
@@ -41,6 +40,7 @@ from story_forge.adapters.postgres_repo import (
     list_entity_mentions_for_story,
     list_mention_suppressions_for_story,
     list_paragraph_ids_for_story,
+    list_paragraph_texts_by_ids,
     list_recent_mention_texts_for_entities,
     list_story_paragraphs,
     update_story_raw_text,
@@ -1481,7 +1481,9 @@ def enrich_candidate_view(
             target_name = canonical_for_language(target, language) or None
     alternatives: list[AlternativeView] = []
     for alt in candidate.alternatives:
-        entity_id = str(alt.get("entity_id"))
+        if "entity_id" not in alt:
+            continue  # an alternative carries an entity_id by construction; skip a malformed one
+        entity_id = str(alt["entity_id"])
         entity = entities_by_id.get(entity_id)
         quotes = quotes_by_id.get(entity_id) or []
         alternatives.append(
@@ -1528,29 +1530,37 @@ async def list_candidates(
     Each candidate's view carries the merge-verification context S3 (DM-EE-3) adds: the target's
     resolved name and each alternative's type/aliases/sample quote. The accepted-entity read and
     the sample-quote read are batched once for the whole queue (not per candidate) to avoid an N+1.
+    The queue's core data is Postgres, so a Postgres outage is a declared 503; the enrichment is
+    **best-effort** verification context, so a graph-DB outage (or a transient enrichment-read
+    failure) degrades to an *unenriched* queue rather than blocking the human's review.
     """
     story = await get_story(conn, story_id)
     if story is None:
         raise HTTPException(status_code=404, detail="story not found")
-    project = await get_project(conn, story.project_id)
-    language = project.language if project is not None else "en"
     try:
+        project = await get_project(conn, story.project_id)
         pending = await store.list_pending(story_id)
     except OperationalError as exc:
         raise HTTPException(status_code=503, detail="the staging store is unavailable") from exc
+    language = project.language if project is not None else "en"
     if not pending:
         return CandidatesResponse(candidates=[])
+    entities_by_id: dict[str, GraphEntity] = {}
+    quotes_by_id: dict[str, list[str]] = {}
     try:
         entities_by_id = {str(e.id): e for e in await repo.list_entities(story.project_id)}
-    except (OperationalError, ServiceUnavailable) as exc:
-        raise HTTPException(status_code=503, detail="a data store is unavailable") from exc
-    alt_ids = {
-        UUID(str(alt["entity_id"])) for c in pending for alt in c.alternatives if "entity_id" in alt
-    }
-    quotes_by_uuid = await list_recent_mention_texts_for_entities(
-        conn, list(alt_ids), limit_per_entity=1
-    )
-    quotes_by_id = {str(k): v for k, v in quotes_by_uuid.items()}
+        alt_ids = {
+            UUID(str(alt["entity_id"]))
+            for c in pending
+            for alt in c.alternatives
+            if "entity_id" in alt
+        }
+        quotes_by_uuid = await list_recent_mention_texts_for_entities(
+            conn, list(alt_ids), limit_per_entity=1
+        )
+        quotes_by_id = {str(k): v for k, v in quotes_by_uuid.items()}
+    except (OperationalError, ServiceUnavailable):
+        entities_by_id, quotes_by_id = {}, {}  # degrade to an unenriched queue
     return CandidatesResponse(
         candidates=[
             enrich_candidate_view(c, entities_by_id, quotes_by_id, language=language)
@@ -1700,13 +1710,12 @@ async def get_edge_evidence(
         raise HTTPException(status_code=404, detail="story not found")
     try:
         rows = await store.get_written_by_edge_id(story_id, edge_id)
+        # One batched fetch for the source paragraphs (avoid an N+1 over the one-to-many set).
+        paragraph_texts = await list_paragraph_texts_by_ids(
+            conn, [row.paragraph_id for row in rows]
+        )
     except OperationalError as exc:
         raise HTTPException(status_code=503, detail="the staging store is unavailable") from exc
-    paragraph_texts: dict[UUID, str] = {}
-    for row in rows:
-        paragraph = await get_paragraph(conn, row.paragraph_id)
-        if paragraph is not None:
-            paragraph_texts[row.paragraph_id] = paragraph.content
     return build_edge_evidence(rows, paragraph_texts)
 
 

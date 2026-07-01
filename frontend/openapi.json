@@ -1382,7 +1382,7 @@
           "stories"
         ],
         "summary": "List Candidates",
-        "description": "The pending review queue for a story (spec \u00a73.3 Stage 4) \u2014 candidates awaiting a human.\n\nEach candidate's view carries the merge-verification context S3 (DM-EE-3) adds: the target's\nresolved name and each alternative's type/aliases/sample quote. The accepted-entity read and\nthe sample-quote read are batched once for the whole queue (not per candidate) to avoid an N+1.",
+        "description": "The pending review queue for a story (spec \u00a73.3 Stage 4) \u2014 candidates awaiting a human.\n\nEach candidate's view carries the merge-verification context S3 (DM-EE-3) adds: the target's\nresolved name and each alternative's type/aliases/sample quote. The accepted-entity read and\nthe sample-quote read are batched once for the whole queue (not per candidate) to avoid an N+1.\nThe queue's core data is Postgres, so a Postgres outage is a declared 503; the enrichment is\n**best-effort** verification context, so a graph-DB outage (or a transient enrichment-read\nfailure) degrades to an *unenriched* queue rather than blocking the human's review.",
         "operationId": "list_candidates_stories__story_id__candidates_get",
         "parameters": [
           {
