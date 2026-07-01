@@ -12,6 +12,7 @@
           "stories"
         ],
         "summary": "Upload Story",
+        "description": "Ingest an uploaded document as a new story (spec \u00a77 step 1, multi-story DM-MS-3).\n\nAccepts `.txt`/`.md`/`.docx` (the `_ALLOWED_TYPES` allowlist), validating the declared\n`content_type` against the extension \u2014 a positively-wrong type is rejected (415), but a\ngeneric/absent one passes to the parser, which is the real content check. Oversized files\n(over `MAX_UPLOAD_BYTES`) 413, empty or unparseable bytes 400. `parse_document` extracts the\ntext and `detect_language` tags it.\n\n`project_id` selects between two modes: omitted \u21d2 mint a fresh project named after the file,\ncarrying the detected language; given \u21d2 add the story to that existing project, failing closed\nwith 404 if it doesn't exist so a story is never created under a ghost project. The original\nbytes are sandboxed to disk *before* the DB write, so a storage failure aborts the row rather\nthan leaving a story with no backing file. Echoes `raw_text` back for the manual-mode editor.",
         "operationId": "upload_story_stories_upload_post",
         "parameters": [
           {
@@ -1381,7 +1382,7 @@
           "stories"
         ],
         "summary": "List Candidates",
-        "description": "The pending review queue for a story (spec \u00a73.3 Stage 4) \u2014 candidates awaiting a human.",
+        "description": "The pending review queue for a story (spec \u00a73.3 Stage 4) \u2014 candidates awaiting a human.\n\nEach candidate's view carries the merge-verification context S3 (DM-EE-3) adds: the target's\nresolved name and each alternative's type/aliases/sample quote. The accepted-entity read and\nthe sample-quote read are batched once for the whole queue (not per candidate) to avoid an N+1.\nThe queue's core data is Postgres, so a Postgres outage is a declared 503; the enrichment is\n**best-effort** verification context, so a graph-DB outage (or a transient enrichment-read\nfailure) degrades to an *unenriched* queue rather than blocking the human's review.",
         "operationId": "list_candidates_stories__story_id__candidates_get",
         "parameters": [
           {
@@ -1583,6 +1584,80 @@
           },
           "404": {
             "description": "Story or candidate not found.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "The staging store is unavailable.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/stories/{story_id}/relations/{edge_id}/evidence": {
+      "get": {
+        "tags": [
+          "stories"
+        ],
+        "summary": "Get Edge Evidence",
+        "description": "The recorded source(s) behind one committed graph edge (graph-quality \u00a73 S3, DM-EE-1/2).\n\nA read/verify surface (writes nothing): fetch every `written` `staged_relations` row for this\ncontent-addressed `edge_id` (the complete one-to-many provenance) and resolve each row's\nparagraph text. A zero-row edge is a valid case \u2014 a manually-added edge stages no relation \u2014 and\nreturns an empty `source_provenance` (the client renders \"added manually\"), not a 404.",
+        "operationId": "get_edge_evidence_stories__story_id__relations__edge_id__evidence_get",
+        "parameters": [
+          {
+            "name": "story_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Story Id"
+            }
+          },
+          {
+            "name": "edge_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Edge Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EdgeEvidence"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Story not found.",
             "content": {
               "application/json": {
                 "schema": {
@@ -1911,6 +1986,63 @@
         "title": "AddRelationRequest",
         "description": "Add a relation between two accepted entities (DM-S3a-3). A self-loop (subject == object)\nis allowed \u2014 a manual one is intentional. Re-predicate is a remove + add, client-side."
       },
+      "AlternativeView": {
+        "properties": {
+          "entity_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Entity Id"
+          },
+          "canonical_name": {
+            "type": "string",
+            "title": "Canonical Name"
+          },
+          "score": {
+            "type": "number",
+            "title": "Score"
+          },
+          "type": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Type"
+          },
+          "aliases": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Aliases"
+          },
+          "context_quote": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Context Quote"
+          }
+        },
+        "type": "object",
+        "required": [
+          "entity_id",
+          "canonical_name",
+          "score",
+          "type",
+          "aliases",
+          "context_quote"
+        ],
+        "title": "AlternativeView",
+        "description": "One alternative merge target the reviewer can retarget to, enriched for verification (S3).\n\nThe stored alternative carries only `entity_id` + `canonical_name` + `score` (a RapidFuzz name\nrank). S3 (DM-EE-3) adds the identity context that makes a merge *verifiable* \u2014 the target's\n`type`, its `aliases`, and a sample `context_quote` (one mention paragraph) \u2014 so two same-named\nentities can be told apart before merging. The enrichment fields are nullable: an alternative\nwhose entity is absent from the graph read (or that has no surfaced mention) still renders."
+      },
       "Body_upload_story_stories_upload_post": {
         "properties": {
           "file": {
@@ -2031,6 +2163,17 @@
             ],
             "title": "Target Entity Id"
           },
+          "target_canonical_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Target Canonical Name"
+          },
           "stage_reached": {
             "type": "integer",
             "title": "Stage Reached"
@@ -2059,8 +2202,7 @@
           },
           "alternatives": {
             "items": {
-              "additionalProperties": true,
-              "type": "object"
+              "$ref": "#/components/schemas/AlternativeView"
             },
             "type": "array",
             "title": "Alternatives"
@@ -2075,13 +2217,14 @@
           "context",
           "proposal",
           "target_entity_id",
+          "target_canonical_name",
           "stage_reached",
           "confidence",
           "reasoning",
           "alternatives"
         ],
         "title": "CandidateView",
-        "description": "One staged candidate for the \u00a73.3 Stage-4 review queue (the render set S4b consumes).\n\nCarries the quote/context (\u00b1200 chars), the cascade's NEW-vs-MERGE proposal + the stage it\nreached, the judge's reasoning (if Stage 3 ran), and the top-3 alternative entities the\nreviewer can retarget to. Persistence-only fields (the vector, project/story ids) are omitted."
+        "description": "One staged candidate for the \u00a73.3 Stage-4 review queue (the render set S4b consumes).\n\nCarries the quote/context (\u00b1200 chars), the cascade's NEW-vs-MERGE proposal + the stage it\nreached, the judge's reasoning (if Stage 3 ran), and the top-3 alternative entities the\nreviewer can retarget to. `target_canonical_name` resolves the merge proposal's target name\n(S3/DM-EE-3, so a non-top-3 target no longer reads as \"an existing entity\"). Persistence-only\nfields (the vector, project/story ids) are omitted."
       },
       "CandidatesResponse": {
         "properties": {
@@ -2117,6 +2260,67 @@
         ],
         "title": "DecideRelationRequest",
         "description": "The reviewer's relation decision: commit the edge, or reject the relation."
+      },
+      "EdgeEvidence": {
+        "properties": {
+          "predicate": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Predicate"
+          },
+          "source_provenance": {
+            "items": {
+              "$ref": "#/components/schemas/EdgeEvidenceSource"
+            },
+            "type": "array",
+            "title": "Source Provenance"
+          }
+        },
+        "type": "object",
+        "required": [
+          "predicate",
+          "source_provenance"
+        ],
+        "title": "EdgeEvidence",
+        "description": "All recorded provenance behind one graph edge \u2014 its predicate + every source paragraph."
+      },
+      "EdgeEvidenceSource": {
+        "properties": {
+          "paragraph_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Paragraph Id"
+          },
+          "paragraph_text": {
+            "type": "string",
+            "title": "Paragraph Text"
+          },
+          "evidence_quote": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Evidence Quote"
+          }
+        },
+        "type": "object",
+        "required": [
+          "paragraph_id",
+          "paragraph_text",
+          "evidence_quote"
+        ],
+        "title": "EdgeEvidenceSource",
+        "description": "One source of an edge: the paragraph it was asserted in + the model's supporting quote.\n\n`evidence_quote` is the LLM-provided string (may paraphrase \u2014 a soft flag, not an offset), so\nthe client shows it *alongside* the paragraph text rather than asserting a character offset."
       },
       "EgoEdge": {
         "properties": {

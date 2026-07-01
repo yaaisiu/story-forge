@@ -82,6 +82,23 @@ class PostgresRelationStore:
             )
             return await cur.fetchall()
 
+    async def get_written_by_edge_id(self, story_id: UUID, edge_id: UUID) -> list[StagedRelation]:
+        """Every committed source row behind one graph edge — the edge-evidence read (S3, DM-EE-2).
+
+        A content-addressed `edge_id` collapses the same resolved triple across N paragraphs to one
+        edge but keeps one `written` row per paragraph, so this returns the **complete one-to-many**
+        provenance set (ordered by staging time), scoped to the story. A manually-added edge (no
+        staged relation) yields an empty list — the read-side face of INV-9's graph-vs-staging line.
+        """
+        async with await self._connect(autocommit=True) as conn:
+            cur = conn.cursor(row_factory=class_row(StagedRelation))
+            await cur.execute(
+                f"SELECT {_RELATION_COLUMNS} FROM staged_relations "
+                "WHERE edge_id = %s AND story_id = %s AND status = 'written' ORDER BY created_at",
+                (edge_id, story_id),
+            )
+            return await cur.fetchall()
+
     async def get_relation(self, relation_id: UUID) -> StagedRelation | None:
         async with await self._connect(autocommit=True) as conn:
             cur = conn.cursor(row_factory=class_row(StagedRelation))

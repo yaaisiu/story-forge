@@ -9,6 +9,7 @@ frontend, and a `Story` needs a `project_id` to exist.
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from pathlib import Path
 from typing import Annotated, Literal
 from uuid import UUID
@@ -23,6 +24,7 @@ from story_forge.adapters.db import get_connection
 from story_forge.adapters.llm.base import ProviderResponseError
 from story_forge.adapters.neo4j_repo import Neo4jRepo
 from story_forge.adapters.postgres_candidate_store import PostgresCandidateStore
+from story_forge.adapters.postgres_relation_store import PostgresRelationStore
 from story_forge.adapters.postgres_repo import (
     get_project,
     get_story,
@@ -38,6 +40,8 @@ from story_forge.adapters.postgres_repo import (
     list_entity_mentions_for_story,
     list_mention_suppressions_for_story,
     list_paragraph_ids_for_story,
+    list_paragraph_texts_by_ids,
+    list_recent_mention_texts_for_entities,
     list_story_paragraphs,
     update_story_raw_text,
 )
@@ -74,6 +78,7 @@ from story_forge.api.responses import ErrorResponse
 from story_forge.config import settings
 from story_forge.domain.candidates import CandidateProposal, RelationStatus, StagedCandidate
 from story_forge.domain.chunking import outline_to_tree
+from story_forge.domain.edge_evidence import EdgeEvidence, build_edge_evidence
 from story_forge.domain.entity_edits import EntityEditInvalid, EntityEditPatch
 from story_forge.domain.entity_merge import EntityMergeInvalid
 from story_forge.domain.graph import GraphEntity
@@ -1407,12 +1412,32 @@ def get_candidate_review(request: Request) -> CandidateReviewService:
     return service
 
 
+class AlternativeView(BaseModel):
+    """One alternative merge target the reviewer can retarget to, enriched for verification (S3).
+
+    The stored alternative carries only `entity_id` + `canonical_name` + `score` (a RapidFuzz name
+    rank). S3 (DM-EE-3) adds the identity context that makes a merge *verifiable* — the target's
+    `type`, its `aliases`, and a sample `context_quote` (one mention paragraph) — so two same-named
+    entities can be told apart before merging. The enrichment fields are nullable: an alternative
+    whose entity is absent from the graph read (or that has no surfaced mention) still renders.
+    """
+
+    entity_id: UUID
+    canonical_name: str
+    score: float
+    type: str | None
+    aliases: list[str]
+    context_quote: str | None
+
+
 class CandidateView(BaseModel):
     """One staged candidate for the §3.3 Stage-4 review queue (the render set S4b consumes).
 
     Carries the quote/context (±200 chars), the cascade's NEW-vs-MERGE proposal + the stage it
     reached, the judge's reasoning (if Stage 3 ran), and the top-3 alternative entities the
-    reviewer can retarget to. Persistence-only fields (the vector, project/story ids) are omitted.
+    reviewer can retarget to. `target_canonical_name` resolves the merge proposal's target name
+    (S3/DM-EE-3, so a non-top-3 target no longer reads as "an existing entity"). Persistence-only
+    fields (the vector, project/story ids) are omitted.
     """
 
     id: UUID
@@ -1422,10 +1447,11 @@ class CandidateView(BaseModel):
     context: str
     proposal: CandidateProposal
     target_entity_id: UUID | None
+    target_canonical_name: str | None
     stage_reached: int
     confidence: float | None
     reasoning: str | None
-    alternatives: list[dict[str, object]]
+    alternatives: list[AlternativeView]
 
 
 class CandidatesResponse(BaseModel):
@@ -1434,7 +1460,42 @@ class CandidatesResponse(BaseModel):
     candidates: list[CandidateView]
 
 
-def _to_view(candidate: StagedCandidate) -> CandidateView:
+def enrich_candidate_view(
+    candidate: StagedCandidate,
+    entities_by_id: Mapping[str, GraphEntity],
+    quotes_by_id: Mapping[str, list[str]],
+    *,
+    language: str,
+) -> CandidateView:
+    """Project a staged candidate to its review-queue view, enriched with merge context (DM-EE-3).
+
+    Pure (S3/DM-EE-3): the caller resolves the accepted-entity lookup (id → `GraphEntity`) and the
+    sample-quote lookup (id → mention texts) once, batched; this maps them onto the view. Resolves
+    `target_canonical_name` from the merge target, and each alternative's `type`/`aliases`/sample
+    `context_quote`. An id absent from a lookup falls back to `None`/`[]` — never a raised error.
+    """
+    target_name: str | None = None
+    if candidate.target_entity_id is not None:
+        target = entities_by_id.get(str(candidate.target_entity_id))
+        if target is not None:
+            target_name = canonical_for_language(target, language) or None
+    alternatives: list[AlternativeView] = []
+    for alt in candidate.alternatives:
+        if "entity_id" not in alt:
+            continue  # an alternative carries an entity_id by construction; skip a malformed one
+        entity_id = str(alt["entity_id"])
+        entity = entities_by_id.get(entity_id)
+        quotes = quotes_by_id.get(entity_id) or []
+        alternatives.append(
+            AlternativeView(
+                entity_id=UUID(entity_id),
+                canonical_name=str(alt.get("canonical_name", "")),
+                score=float(alt.get("score", 0.0)),  # type: ignore[arg-type]
+                type=entity.type if entity is not None else None,
+                aliases=list(entity.aliases) if entity is not None else [],
+                context_quote=quotes[0] if quotes else None,
+            )
+        )
     return CandidateView(
         id=candidate.id,
         paragraph_id=candidate.paragraph_id,
@@ -1443,10 +1504,11 @@ def _to_view(candidate: StagedCandidate) -> CandidateView:
         context=candidate.context,
         proposal=candidate.proposal,
         target_entity_id=candidate.target_entity_id,
+        target_canonical_name=target_name,
         stage_reached=candidate.stage_reached,
         confidence=candidate.confidence,
         reasoning=candidate.reasoning,
-        alternatives=candidate.alternatives,
+        alternatives=alternatives,
     )
 
 
@@ -1461,15 +1523,50 @@ async def list_candidates(
     story_id: UUID,
     conn: Annotated[AsyncConnection, Depends(get_connection)],
     store: Annotated[PostgresCandidateStore, Depends(get_candidate_store)],
+    repo: Annotated[Neo4jRepo, Depends(get_neo4j_repo)],
 ) -> CandidatesResponse:
-    """The pending review queue for a story (spec §3.3 Stage 4) — candidates awaiting a human."""
-    if await get_story(conn, story_id) is None:
+    """The pending review queue for a story (spec §3.3 Stage 4) — candidates awaiting a human.
+
+    Each candidate's view carries the merge-verification context S3 (DM-EE-3) adds: the target's
+    resolved name and each alternative's type/aliases/sample quote. The accepted-entity read and
+    the sample-quote read are batched once for the whole queue (not per candidate) to avoid an N+1.
+    The queue's core data is Postgres, so a Postgres outage is a declared 503; the enrichment is
+    **best-effort** verification context, so a graph-DB outage (or a transient enrichment-read
+    failure) degrades to an *unenriched* queue rather than blocking the human's review.
+    """
+    story = await get_story(conn, story_id)
+    if story is None:
         raise HTTPException(status_code=404, detail="story not found")
     try:
+        project = await get_project(conn, story.project_id)
         pending = await store.list_pending(story_id)
     except OperationalError as exc:
         raise HTTPException(status_code=503, detail="the staging store is unavailable") from exc
-    return CandidatesResponse(candidates=[_to_view(c) for c in pending])
+    language = project.language if project is not None else "en"
+    if not pending:
+        return CandidatesResponse(candidates=[])
+    entities_by_id: dict[str, GraphEntity] = {}
+    quotes_by_id: dict[str, list[str]] = {}
+    try:
+        entities_by_id = {str(e.id): e for e in await repo.list_entities(story.project_id)}
+        alt_ids = {
+            UUID(str(alt["entity_id"]))
+            for c in pending
+            for alt in c.alternatives
+            if "entity_id" in alt
+        }
+        quotes_by_uuid = await list_recent_mention_texts_for_entities(
+            conn, list(alt_ids), limit_per_entity=1
+        )
+        quotes_by_id = {str(k): v for k, v in quotes_by_uuid.items()}
+    except (OperationalError, ServiceUnavailable):
+        entities_by_id, quotes_by_id = {}, {}  # degrade to an unenriched queue
+    return CandidatesResponse(
+        candidates=[
+            enrich_candidate_view(c, entities_by_id, quotes_by_id, language=language)
+            for c in pending
+        ]
+    )
 
 
 class AcceptRequest(BaseModel):
@@ -1581,6 +1678,45 @@ def get_relation_review(request: Request) -> RelationReviewService:
     """The app-lifetime relation-decide service wired in `main.py` (the only edge writer)."""
     service: RelationReviewService = request.app.state.relation_review
     return service
+
+
+def get_relation_store(request: Request) -> PostgresRelationStore:
+    """The app-lifetime `staged_relations` store wired in `main.py` (the edge-evidence read, S3)."""
+    store: PostgresRelationStore = request.app.state.relation_store
+    return store
+
+
+@router.get(
+    "/{story_id}/relations/{edge_id}/evidence",
+    responses={
+        404: {"model": ErrorResponse, "description": "Story not found."},
+        503: {"model": ErrorResponse, "description": "The staging store is unavailable."},
+    },
+)
+async def get_edge_evidence(
+    story_id: UUID,
+    edge_id: UUID,
+    conn: Annotated[AsyncConnection, Depends(get_connection)],
+    store: Annotated[PostgresRelationStore, Depends(get_relation_store)],
+) -> EdgeEvidence:
+    """The recorded source(s) behind one committed graph edge (graph-quality §3 S3, DM-EE-1/2).
+
+    A read/verify surface (writes nothing): fetch every `written` `staged_relations` row for this
+    content-addressed `edge_id` (the complete one-to-many provenance) and resolve each row's
+    paragraph text. A zero-row edge is a valid case — a manually-added edge stages no relation — and
+    returns an empty `source_provenance` (the client renders "added manually"), not a 404.
+    """
+    if await get_story(conn, story_id) is None:
+        raise HTTPException(status_code=404, detail="story not found")
+    try:
+        rows = await store.get_written_by_edge_id(story_id, edge_id)
+        # One batched fetch for the source paragraphs (avoid an N+1 over the one-to-many set).
+        paragraph_texts = await list_paragraph_texts_by_ids(
+            conn, [row.paragraph_id for row in rows]
+        )
+    except OperationalError as exc:
+        raise HTTPException(status_code=503, detail="the staging store is unavailable") from exc
+    return build_edge_evidence(rows, paragraph_texts)
 
 
 class RelationView(BaseModel):

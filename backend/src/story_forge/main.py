@@ -117,10 +117,12 @@ app.state.candidate_review = CandidateReviewService(
 # Relation-write (M3.S4e): the human-gated edge writer (§3.3's 5th action). Resolves a staged
 # relation's surface endpoints to committed entity ids (via the candidate store) and writes the
 # edge idempotently to Neo4j — the only edge-writing path (INV-1/INV-9), the sibling of the
-# candidate-accept node writer.
-app.state.relation_review = RelationReviewService(
-    _neo4j_repo, PostgresRelationStore(), _candidate_store
-)
+# candidate-accept node writer. The same store backs the edge-evidence read (graph-quality S3):
+# `written` rows survive commit and carry each edge's source paragraph(s) + quote(s), so it is
+# also exposed on `app.state` for the read-only evidence endpoint.
+_relation_store = PostgresRelationStore()
+app.state.relation_store = _relation_store
+app.state.relation_review = RelationReviewService(_neo4j_repo, _relation_store, _candidate_store)
 # Manual correction (M4.S3a/S3b): the human edit-handler for committed graph state — edits an
 # accepted entity's fields, adds/removes relations, and merges entity B into survivor A (re-pointing
 # its edges + mentions), recording a before→after / grouped edit-evidence trail (INV-3, DM-S3a-2 /
