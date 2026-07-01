@@ -2,7 +2,7 @@
 type: proposal
 slug: graph-edge-evidence
 updated: 2026-07-01
-status: proposed
+status: accepted
 related:
   - "[[graph-curation-surface]]"
   - "[[graph-navigation]]"
@@ -19,11 +19,31 @@ related:
 
 # Graph-quality S3 — Edge evidence + verifiable merges
 
-> **Status: PROPOSED — register OPEN (DM-EE-1..6 / OQ-31). The owner resolves before any S3 code.**
+> **✅ Status: ACCEPTED — register RESOLVED (DM-EE-1..6 / OQ-31, owner Session 74, 2026-07-01).**
+> Authoritative decision home: `docs/PLAN_SHORT.md` Decided (Session 74). The owner resolved **every
+> entry on the architect's leaned option (a)** — a coherent "leaner reads, verify by evidence" cut:
+> - **DM-EE-1 = (a) focused per-edge BFF read** (`GET …/relations/{edge_id}/evidence`, fetch-on-tap) —
+>   *not* payload-enrich; provenance is one-to-many so it would inflate a dense-graph download.
+> - **DM-EE-2 = (a) all `written` `staged_relations` rows by `edge_id`** (+ an `edge_id` index) — the
+>   complete one-to-many source set, *not* the single lossy Neo4j property; zero-provenance edge → "added manually".
+> - **DM-EE-3 = (a) enrich all merge surfaces** (type + aliases + a context quote + `target_canonical_name`)
+>   — **closes the cross-cutting `CandidateView`-no-target-name item** when built.
+> - **DM-EE-4 = (a) solve by context, not type-classification** — honest score label + the DM-EE-3 context;
+>   no closed enum of "group" types (INV-4-safe).
+> - **DM-EE-5 = (a) client-side warn-and-offer** against the loaded alternatives (never a hard block, INV-1);
+>   backend exact-name lookup deferred unless the false-negative bites.
+> - **DM-EE-6 = (a) backend-first / frontend-second** (S3a the two reads test-first; S3b the panel + merge
+>   context + the three safeguards incl. the amber-highlight fix).
+>
+> **No spec amendment, no ADR** (S3 reads what §3 S3 already scopes; the §4 handle's ADR stays with the
+> first edge-*write* slice, S5/S6). The original forward-design body is kept below (public-portfolio
+> history — append the resolution, don't delete the thinking); each register entry carries its Decision.
+> **Next: build S3a** test-first from the pure `staged_relations`-by-`edge_id` read + the enriched
+> `CandidateView` projection.
+>
 > Step-0 forward design of `docs/specs/graph-quality.md` §3 **S3** ("Edge evidence + verifiable
-> merges"). The deliverable is *this note*; the test-first rule resumes at the S3 build. **Source of
-> truth for scope:** `docs/specs/graph-quality.md` §3 S3 + §4 (the reserved edge handle) + §8
-> (invariants). Prior slices: [[graph-curation-surface]] (S0, the parent) and [[graph-navigation]] (S2).
+> merges"). **Source of truth for scope:** `docs/specs/graph-quality.md` §3 S3 + §4 + §8 (invariants).
+> Prior slices: [[graph-curation-surface]] (S0, the parent) and [[graph-navigation]] (S2).
 
 ## The one finding that shapes the slice
 
@@ -202,13 +222,16 @@ the §4 surrogate handle (State & invariants).
 
 ---
 
-## Decision register (OPEN — DM-EE-1..6; mirrored to [[open-questions]] OQ-31)
+## Decision register (✅ RESOLVED — DM-EE-1..6, owner Session 74, 2026-07-01; OQ-31 struck)
 
-> Each entry: **Context / Options / My proposal / Open.** I *propose*; the owner *resolves*. Plain-language
-> versions of the calls that need the owner are in "Gaps for the product owner" (root `CLAUDE.md` rule —
-> don't lift this shorthand into the question put to the owner).
+> Each entry keeps its **Context / Options / (former) My proposal** as history, with the owner's
+> **Decision** prepended. The owner resolved every entry on the leaned option (a). Plain-language
+> versions are in "Gaps for the product owner" below (all resolved).
 
-### DM-EE-1 — Edge-evidence delivery: enrich the `/graph` payload vs a focused per-edge BFF read **(THE central decision)**
+### DM-EE-1 — Edge-evidence delivery: enrich the `/graph` payload vs a focused per-edge BFF read **(THE central decision)** — ✅ **(a) focused per-edge BFF read**
+> **✅ Decision (owner, Session 74): (a) focused per-edge BFF read** `GET …/relations/{edge_id}/evidence`
+> (fetch-on-tap). *Rejected:* (b) payload-enrich (inflates a dense-graph download with one-to-many data
+> read on a few edges) and (c) the single Neo4j `source_paragraph_id` (lossy — see DM-EE-2).
 - **Context.** The evidence a tapped edge must show (source paragraph(s) + quote(s)) lives in
   `staged_relations` (survives commit, keyed by `edge_id`) but reaches no client. Two shapes can deliver
   it: bake it onto every `GraphEdge` in the whole-graph payload, or fetch it per-edge on tap. This is the
@@ -227,9 +250,14 @@ the §4 surrogate handle (State & invariants).
   loads exactly what a tap needs, keeps the cross-store join (staged_relations → paragraph text) server-
   side and Python-testable, and mirrors `GET …/entities/{eid}`. `verify-at-build`: confirm the endpoint
   path shape fits the existing `stories.py` router conventions.
-- **Open.** Owner: focused per-edge read (my lean **a**) vs payload-enrichment (b)?
+- **✅ Resolved (owner, Session 74): (a) focused per-edge read.**
 
-### DM-EE-2 — Provenance source, shape, and the one-to-many read
+### DM-EE-2 — Provenance source, shape, and the one-to-many read — ✅ **(a) all `written` `staged_relations` by `edge_id`**
+> **✅ Decision (owner, Session 74): (a) the full one-to-many set from `staged_relations` by `edge_id`**
+> (add `get_written_by_edge_id` + an `edge_id` index). Show every source paragraph + quote; a
+> zero-provenance edge (manually-added) renders "no recorded source (added manually)". No offset-resolved
+> sentences (LLM offsets are null). *Rejected:* (b) the single Neo4j property (only the triggering
+> paragraph — silently under-reports a multiply-attested fact).
 - **Context.** Two provenance homes exist: the **Postgres `staged_relations`** rows (the complete set —
   one `written` row per paragraph that asserts the fact, `paragraph_id` + `evidence_quote` intact) and a
   **single `source_paragraph_id`** property on the Neo4j edge (only the *first/triggering* commit's
@@ -247,10 +275,15 @@ the §4 surrogate handle (State & invariants).
   be indexed). Show the quote + a link/expander to the full paragraph. Handle the zero-provenance edge
   explicitly. `verify-at-build`: confirm a `written` row is never pruned (it isn't — `mark_written` only
   updates status/ids) so the history stays complete.
-- **Open.** Owner: full one-to-many from `staged_relations` (my lean **a**) vs the single Neo4j paragraph
-  (b, cheaper, lossy)? Show the whole paragraph, or just the quote with an expander (my lean)?
+- **✅ Resolved (owner, Session 74): (a) the full one-to-many set.** Show the quote + the paragraph
+  (build-time UX detail: quote with an expander to the full paragraph).
 
-### DM-EE-3 — Merge-verification context: enrich the existing merge surfaces
+### DM-EE-3 — Merge-verification context: enrich the existing merge surfaces — ✅ **(a) enrich fully**
+> **✅ Decision (owner, Session 74): (a) enrich all merge surfaces** — add `type`, `aliases`, and a
+> sample context quote to `CandidateView.alternatives` + the handpick picker, and add
+> `target_canonical_name` to `CandidateView`. **This closes the cross-cutting
+> `CandidateView`-no-target-name item** (`docs/PLAN_SHORT.md`) when S3a builds. Context quote = one
+> sample mention (cheap). *Rejected:* (b) a lighter first cut (leaves the review-queue merge options thin).
 - **Context.** "Each entity-merge option shows a context quote + type + aliases so identity is verifiable"
   (§3 S3). Today the review-queue `alternatives` carry only `{entity_id, canonical_name, score}`
   (`reviewQueue.ts:47-56`), `CandidateView` has **no `target_canonical_name`** (so a non-top-3 merge target
@@ -267,11 +300,13 @@ the §4 surrogate handle (State & invariants).
   (the two-"crew"s trap), and this also **closes the cross-cutting `CandidateView`-no-target-name item**
   (`docs/PLAN_SHORT.md`) rather than leaving it. Keep the quote cheap (one sample mention, not all). The
   handpick picker just renders its already-present `type`+`aliases` + adds the quote if cheap.
-- **Open.** Owner: enrich all merge surfaces incl. a context quote (my lean **a**) vs a lighter first cut
-  (b — target name + handpick type/aliases now, alternatives' quote later)? Confirm the context-quote
-  source (a sample mention).
+- **✅ Resolved (owner, Session 74): (a) enrich fully**, context quote = a sample mention.
 
-### DM-EE-4 — The score-100 / exact-name "self-evident" trap — solve by context, not type-classification
+### DM-EE-4 — The score-100 / exact-name "self-evident" trap — solve by context, not type-classification — ✅ **(a) context, not type-classification**
+> **✅ Decision (owner, Session 74): (a) solve by evidence.** Always show the DM-EE-3 verification
+> context and label the score honestly (a *name* match, not an identity verdict); make **no** type-based
+> judgement. *Rejected:* (b) a type heuristic — needs an enum INV-4 forbids and still under-serves the
+> general case (any two same-named distinct entities, not just "groups").
 - **Context.** §3 S3: "don't present a score-100 exact-name match as self-evidently correct for
   common-noun / group types (the two-different-'crew's trap)." Today a score renders as a bare `(100)` with
   no framing (`CandidateCard.tsx:131-132`) and nothing special-cases an exact match. The trap: two distinct
@@ -286,10 +321,13 @@ the §4 surrogate handle (State & invariants).
   not an identity verdict) and let the author read the quote+type+aliases. This is INV-4-safe (no type
   enum) and simplest. *Considered & rejected:* (b) a type heuristic — it needs an enum INV-4 forbids and
   still under-serves the general case (any two same-named distinct entities, not just "groups").
-- **Open.** Owner: solve by always-show-context + honest score label (my lean **a**) vs a type-based
-  warning (b, INV-4-fraught)?
+- **✅ Resolved (owner, Session 74): (a) context + honest score label** (no type-classification).
 
-### DM-EE-5 — Gate exact-name duplicate creation
+### DM-EE-5 — Gate exact-name duplicate creation — ✅ **(a) client-side warn-and-offer**
+> **✅ Decision (owner, Session 74): (a) client-side check against the loaded `alternatives`** — an exact
+> name match → **warn + offer the merge** (never a hard block; the author may legitimately keep two
+> same-named entities — INV-1). Backend exact-name lookup (b) is the robust escape hatch, deferred unless
+> the top-3 false-negative bites.
 - **Context.** §3 S3: "gate exact-name duplicate creation (warn / offer the merge)." Today "create new"
   fires immediately with no check (`CandidateCard.tsx:159-167`; `reviewQueue.ts:96-101`) — so the author
   can mint a second "Janek" when one exists.
@@ -303,10 +341,14 @@ the §4 surrogate handle (State & invariants).
   Backend lookup (b) is the robust version, deferred unless the gap bites — [[prefer-deterministic]] +
   simplicity-first. The gate is a **warn + offer merge**, never a hard block (the author may legitimately
   want two same-named entities — INV-1 keeps them in control).
-- **Open.** Owner: client-side warn-and-offer against the alternatives (my lean **a**) vs a backend
-  exact-name lookup (b, robust, a round-trip)?
+- **✅ Resolved (owner, Session 74): (a) client-side warn-and-offer** (backend lookup deferred).
 
-### DM-EE-6 — Slice boundaries for S3 (+ the amber-highlight safeguard ride-along)
+### DM-EE-6 — Slice boundaries for S3 (+ the amber-highlight safeguard ride-along) — ✅ **(a) backend-first / frontend-second**
+> **✅ Decision (owner, Session 74): (a) backend-first / frontend-second.** **S3a** = the two read
+> surfaces (edge-evidence endpoint + `staged_relations` read/index; `CandidateView` enrichment +
+> `target_canonical_name`), test-first; **S3b** = the frontend (edge-tap + `EdgeEvidencePanel`; merge-
+> context render; DM-EE-4/5 + the amber-highlight fix on *New* cards). *Rejected:* (b) feature-split (two
+> backend/OpenAPI passes over related reads).
 - **Context.** S3 spans a backend read (edge evidence + merge-context enrichment) and frontend work (edge
   panel, merge-context render, the three safeguards). It's likely two conversations. The **amber
   "merge target" highlight fix** is a concrete frontend bug: the amber alternatives block + always-amber
@@ -323,8 +365,8 @@ the §4 surrogate handle (State & invariants).
   contracts, and keeps each conversation one-unit-sized. The amber fix + DM-EE-4/5 + the merge-context
   render all live in the frontend slice. *Considered:* (b) feature-split — also clean, but the two reads
   share the same backend session and OpenAPI regen, so backend-first batches them once.
-- **Open.** Owner: backend-first / frontend-second (my lean **a**) vs feature-split (b)? Confirm the amber
-  fix + the two safeguards ride the frontend slice.
+- **✅ Resolved (owner, Session 74): (a) backend-first / frontend-second**; the amber fix + DM-EE-4/5
+  ride the frontend slice (S3b).
 
 ---
 
@@ -355,10 +397,11 @@ the §4 surrogate handle (State & invariants).
 
 ---
 
-## Gaps for the product owner (plain language — the calls only you can make)
+## Gaps for the product owner (plain language) — ✅ all resolved (owner Session 74, on the leaned option)
 
-> The register above is architect shorthand. Here are the calls that actually need you, in plain words.
-> One at a time when we resolve them.
+> Resolved one-by-one with the owner, 2026-07-01: **(1) fetch-on-click · (2) show all source sentences ·
+> (3) full merge context · (4) rely on context, not type-classification · (5) client-side warn-and-offer ·
+> (6) backend-first / frontend-second.** The original plain-language framing is kept below for history.
 
 1. **How should an edge's "source sentences" get to the screen? (DM-EE-1 — the main one.)** The evidence
    (which paragraphs a relationship came from, plus the model's supporting quote) is *saved* but never sent
@@ -389,13 +432,13 @@ the §4 surrogate handle (State & invariants).
 
 ---
 
-## Hand-off (register OPEN — the owner resolves before S3 code)
+## Hand-off (✅ register RESOLVED Session 74 — next is the S3a build)
 
-Per the **spec- and test-driven** rule, **no production code until the owner resolves the register.** The
-gating calls are **DM-EE-1** (how edge evidence reaches the client) and **DM-EE-2** (which provenance,
-one-to-many). DM-EE-3/4/5 shape the merge-verification surface; DM-EE-6 cuts the slices.
+> **✅ Register resolved (owner, Session 74, all on option a).** The build starts at **S3a** (backend,
+> test-first). Authoritative decision home: `docs/PLAN_SHORT.md` Decided S74. The original open-register
+> hand-off framing is kept below.
 
-When the build starts (my proposed cut, DM-EE-6a — **backend first**):
+The build cut (DM-EE-6a — **backend first**):
 
 1. **S3a (backend, test-first):** the pure/near-pure store read `get_written_by_edge_id` over
    `staged_relations` (+ the `edge_id` index migration) and the cross-store assembly

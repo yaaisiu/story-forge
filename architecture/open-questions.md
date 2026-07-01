@@ -906,7 +906,17 @@ reader knows they gate the S2 build. **Register all OPEN — the owner resolves 
 - **Lands in:** S2 (frontend-led, test-first; no ADR anticipated). **Gaps for the owner:** DM-GN-3 needs
   resolving first (it sizes the slice); DM-GN-2 adds one frontend dep. Open.
 
-### OQ-31 — Graph-quality S3 edge-evidence + verifiable-merges decision register (DM-EE-1..6)
+### ~~OQ-31 — Graph-quality S3 edge-evidence + verifiable-merges decision register (DM-EE-1..6)~~ ✅ RESOLVED 2026-07-01 (Session 74, owner)
+**Resolved same session** (authoritative: `docs/PLAN_SHORT.md` Decided S74 + `[[graph-edge-evidence]]` now
+`accepted`). The owner resolved **every entry on the architect's leaned option (a)**: **DM-EE-1 = focused
+per-edge BFF read** (fetch-on-tap, not payload-enrich); **DM-EE-2 = all `written` `staged_relations` by
+`edge_id`** (+ index; zero-provenance → "added manually"); **DM-EE-3 = enrich all merge surfaces**
+(type+aliases+quote+`target_canonical_name` — closes the cross-cutting `CandidateView`-no-target-name item
+at build); **DM-EE-4 = solve by context, not type-classification** (INV-4-safe); **DM-EE-5 = client-side
+warn-and-offer** (backend lookup deferred); **DM-EE-6 = backend-first / frontend-second** (amber fix rides
+S3b). **No spec amendment; no ADR** (the §4 handle's ADR stays with the first edge-*write* slice, S5/S6).
+Original framing kept below for history.
+
 Raised by the Graph-quality **S3** `decompose-requirement` step-0 (2026-07-01, `[[graph-edge-evidence]]`).
 The read/verify slice: click an edge → predicate + source sentence(s); each entity-merge option shows a
 context quote + type + aliases so identity is verifiable; three cheap safeguards. **S3 writes nothing**

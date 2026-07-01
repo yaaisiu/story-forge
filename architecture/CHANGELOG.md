@@ -899,3 +899,19 @@ can't be re-found by search and un-tagging acts on a highlight with no row to de
 - **No ADR, no spec amendment anticipated** (S3 reads what §3 S3 already scopes). Next: the owner resolves
   DM-EE-1..6 (plain-language "Gaps for the product owner" in the proposal), then the S3 build starts
   backend-first, test-first.
+
+## 2026-07-01 — Graph-quality S3 register RESOLVED (owner, Session 74)
+
+- **`proposals/graph-edge-evidence.md`** → `accepted`; resolution banner + every register entry carries
+  its **Decision** (owner resolved all six on the leaned option **a**): DM-EE-1 focused per-edge BFF read
+  (fetch-on-tap); DM-EE-2 all `written` `staged_relations` by `edge_id` (+ index; zero-provenance →
+  "added manually"); DM-EE-3 enrich all merge surfaces (type+aliases+quote+`target_canonical_name`);
+  DM-EE-4 solve by context, not type-classification (INV-4); DM-EE-5 client-side warn-and-offer; DM-EE-6
+  backend-first / frontend-second (amber-highlight fix rides S3b). Gaps-for-PO + hand-off flipped to resolved.
+- **`open-questions.md`** — OQ-31 struck ✅ with the per-entry resolutions. **`INDEX.md`** — proposal row →
+  ACCEPTED/RESOLVED banner; next-steps item 30 → resolved, next = S3a build.
+- **Host-repo reconciliation (recorded, not vault):** `docs/PLAN_SHORT.md` Decided S74 is the authoritative
+  decision home; the S3 task note + the cross-cutting `CandidateView`-no-target-name item (which DM-EE-3
+  closes **at the S3a build**, not yet) are annotated there. No spec change; no ADR.
+- **Next:** build **S3a** test-first (backend: the `staged_relations`-by-`edge_id` read + `edge_id` index;
+  the `CandidateView` enrichment + `target_canonical_name`; OpenAPI regen), then **S3b** frontend.
