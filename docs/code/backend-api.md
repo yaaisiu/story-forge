@@ -41,7 +41,10 @@ correction surfaces. See [`api/stories.py`](../../backend/src/story_forge/api/st
   (`POST .../candidates/{candidate_id}/accept|reject`) drive the §3.3 Stage-4 human review of staged
   entity candidates; `GET /{story_id}/relations` and `POST .../relations/{relation_id}/decide` are
   the parallel queue for proposed relations. Accept/decide are the only paths that commit to the
-  graph.
+  graph. The candidate view is enriched for *verifiable* merges (graph-quality §3 S3): the merge
+  target's resolved name plus each alternative's type/aliases/sample quote. `GET
+  /{story_id}/relations/{edge_id}/evidence` is the paired read — the recorded source paragraph(s) +
+  quote(s) behind one committed edge (empty for a manually-added edge); it writes nothing.
 - **Human graph edits** — `PATCH /{story_id}/entities/{entity_id}` (edit name/aliases/type/
   properties), `POST /{story_id}/relations` and `DELETE /{story_id}/relations/{edge_id}` (add /
   remove a relation edge directly), `POST /{story_id}/entities/{entity_id}/merge` (merge one entity

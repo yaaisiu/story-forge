@@ -78,6 +78,15 @@ retry-idempotency contract — and `normalize_name` is the tight casefold+strip 
 relation endpoint back to its entity candidate.
 [`domain/candidates.py`](../../backend/src/story_forge/domain/candidates.py)
 
+### `edge_evidence.py` — the read-side provenance of a committed edge
+The pure assembly behind the edge-evidence read (graph-quality §3 S3): `build_edge_evidence` takes an
+edge's `written` `staged_relations` rows plus a paragraph-id → text lookup the caller resolved, and
+returns the `EdgeEvidence` shape (predicate + one `EdgeEvidenceSource` per source paragraph/quote).
+Provenance is *one-to-many* — a content-addressed edge collapses the same fact across N paragraphs to
+one edge but keeps N rows — and a zero-row edge (manually added, no staged relation) yields an empty
+list rather than an error. No I/O; the cross-store fetch is the route's job.
+[`domain/edge_evidence.py`](../../backend/src/story_forge/domain/edge_evidence.py)
+
 ### `highlights.py` — resolving where entities sit in the prose
 A read-only projection of the accepted graph onto the text (spec §3.5). Because an
 `entity_mention`'s char offsets are usually null, highlighting is first a *where-does-this-entity-sit*
