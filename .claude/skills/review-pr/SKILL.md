@@ -286,6 +286,21 @@ Mostly grep-able — verify, don't assume:
   with a `{detail: str}` body) is the one trap: declaring it would clobber FastAPI's
   validation typing — either remap to a different status, or leave 422 alone and document
   the overload as a cross-cutting follow-up.
+  - **The inverse — a declared status must be *delivered*, so route every store read through
+    its guard.** The rule above catches "you raise X but didn't declare X"; the mirror gap is
+    "you declared 503 but a store read raises an undeclared **500**." When a route declares 503
+    (or any store-outage status), walk *every* store/DB read on its path — `get_story`,
+    `get_project`, a batched text/quote read, a per-row fetch — and confirm each sits **inside**
+    the `try/except (OperationalError, ServiceUnavailable)` that maps to that status. A read left
+    *outside* the guard raises a bare 500 the typed client's 503 handling never sees, silently
+    breaking the declared contract. **"It matches a sibling route that also leaves a read outside
+    the `try`" is not a clearance — the sibling shares the gap.** (Only reads whose failure is
+    genuinely *not* that status — e.g. a Neo4j enrichment read the route degrades-around rather
+    than 503s — legitimately sit outside it; that is a deliberate degrade, not an unguarded 500.)
+    (M4-graph-quality S3a PR #172: `list_candidates`/`get_edge_evidence` left `get_project`, a
+    quote read, and a paragraph fetch outside the declared-503 guard; the self-review waved them
+    through as "matches the existing pattern," the multi-agent `/code-review` flagged the
+    undeclared-500 contract holes.)
 - **Prompts live in `prompts/` as `.j2`**, never inline f-strings in agent code.
 - **LLM output is always Pydantic-validated and retried** — no raw JSON trusted, and the
   schema is *strict* (step 1: malformed-but-parseable must fail, not pass).
