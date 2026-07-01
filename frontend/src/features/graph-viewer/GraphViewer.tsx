@@ -26,7 +26,13 @@ import {
 } from "../../lib/api/useStoryGraph";
 import { GraphCanvas } from "./GraphCanvas";
 import { toCytoscapeElements } from "./graphElements";
-import { distinctTypes, filterGraph, matchNodes, nodeDegrees } from "./graphFilters";
+import {
+  distinctTypes,
+  elementDegrees,
+  filterGraph,
+  isNodeElement,
+  matchNodes,
+} from "./graphFilters";
 import { NodeDetailsPanel } from "./NodeDetailsPanel";
 
 function extractMessage(error: unknown): string {
@@ -72,13 +78,6 @@ export function GraphViewer() {
 
   const nodes = useMemo(() => graph.data?.nodes ?? [], [graph.data]);
 
-  // The type-filter options are derived from the data present (INV-4: types are
-  // open-world, never a hardcoded enum). Degree is computed over the *scoped* edge
-  // set, so density is honest under the story/project toggle.
-  const typeOptions = useMemo(() => distinctTypes(nodes), [nodes]);
-  const degrees = useMemo(() => nodeDegrees(graph.data?.edges ?? []), [graph.data]);
-  const maxDegree = useMemo(() => Math.max(0, ...Object.values(degrees)), [degrees]);
-
   // The client-side pipeline: full payload → cytoscape elements → AND-combined
   // type/degree filter → the visible subset GraphCanvas lays out (memoized for a
   // stable prop identity so the canvas rebuilds only when the visible set changes).
@@ -87,21 +86,32 @@ export function GraphViewer() {
     () => (graph.data ? toCytoscapeElements(graph.data) : []),
     [graph.data],
   );
+
+  // The type-filter options are derived from the data present (INV-4: types are
+  // open-world, never a hardcoded enum). Degree is computed over the same de-dangled
+  // element edges filterGraph uses (not the raw payload), so the slider bound and the
+  // filter agree, and density is honest under the story/project scope toggle.
+  const typeOptions = useMemo(() => distinctTypes(nodes), [nodes]);
+  const degrees = useMemo(() => elementDegrees(baseElements), [baseElements]);
+  const maxDegree = useMemo(() => Math.max(0, ...Object.values(degrees)), [degrees]);
+
   const visibleElements = useMemo(
-    () => filterGraph(baseElements, { types: activeTypes, minDegree }),
-    [baseElements, activeTypes, minDegree],
+    () => filterGraph(baseElements, { types: activeTypes, minDegree, degrees }),
+    [baseElements, activeTypes, minDegree, degrees],
   );
   const visibleNodeIds = useMemo(
-    () =>
-      new Set(
-        visibleElements.filter((el) => !("source" in el.data)).map((el) => el.data.id as string),
-      ),
+    () => new Set(visibleElements.filter(isNodeElement).map((el) => el.data.id as string)),
     [visibleElements],
   );
 
+  const totalCount = nodes.length;
+  const visibleCount = visibleNodeIds.size;
+
   // Search is focus-not-filter (DM-GN-4): match over the whole scoped node set, then
   // highlight/pan only the matches still visible. If matches exist but every one is
-  // hidden by an active filter, say so rather than appear to "do nothing".
+  // hidden by an active filter, say so rather than appear to "do nothing" — but not
+  // when a filter has emptied the graph entirely (the "0 of N" affordance owns that
+  // case; showing both messages at once would contradict).
   const matchedIds = useMemo(
     () => (debouncedTerm.trim() ? matchNodes(debouncedTerm, nodes) : []),
     [debouncedTerm, nodes],
@@ -110,20 +120,21 @@ export function GraphViewer() {
     () => matchedIds.filter((id) => visibleNodeIds.has(id)),
     [matchedIds, visibleNodeIds],
   );
-  const searchHidden = matchedIds.length > 0 && focusNodeIds.length === 0;
+  const searchHidden = visibleCount > 0 && matchedIds.length > 0 && focusNodeIds.length === 0;
 
-  const totalCount = nodes.length;
-  const visibleCount = visibleNodeIds.size;
-
-  // A refetch (e.g. after an extraction run) can drop a type the filter had selected.
-  // Prune the active set to what's still present so a now-absent value can't silently
-  // constrain the graph to nothing.
+  // A refetch (e.g. after an extraction run or a scope toggle) can drop a type the
+  // filter had selected, or drop the max degree below the active minimum. Prune both
+  // to what the new payload supports, so a now-unreachable filter value can't silently
+  // blank the graph while the control still reads its stale setting.
   useEffect(() => {
     setSelectedTypes((prev) => {
       const pruned = new Set([...prev].filter((t) => typeOptions.includes(t)));
       return pruned.size === prev.size ? prev : pruned;
     });
   }, [typeOptions]);
+  useEffect(() => {
+    setMinDegree((prev) => (prev > maxDegree ? maxDegree : prev));
+  }, [maxDegree]);
 
   // Reactive mirror of handleScopeChange's clear: if a filter hides the selected
   // node, drop the selection rather than leave the details panel showing a node no

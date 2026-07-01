@@ -9,8 +9,9 @@ import type { ElementDefinition } from "cytoscape";
 import type { GraphEdge, GraphNode } from "../../lib/api/useStoryGraph";
 
 /** A cytoscape element is a node unless it carries a `source` (the edge idiom used
- *  throughout graphElements.ts / its tests). */
-function isNodeElement(el: ElementDefinition): boolean {
+ *  throughout graphElements.ts / its tests). Exported so callers derive node-vs-edge
+ *  from one predicate rather than re-inlining the `"source" in el.data` check. */
+export function isNodeElement(el: ElementDefinition): boolean {
   return !("source" in el.data);
 }
 
@@ -43,28 +44,36 @@ export function distinctTypes(nodes: ReadonlyArray<Pick<GraphNode, "type">>): st
 }
 
 /**
+ * Node degree keyed off the *edge elements in a cytoscape set* — the rendered,
+ * de-dangled edges (toCytoscapeElements already dropped any edge with a missing
+ * endpoint). Degree derives from what actually renders under the current scope, so
+ * the caller's slider bound and filterGraph agree on one count.
+ */
+export function elementDegrees(elements: ElementDefinition[]): Record<string, number> {
+  return nodeDegrees(
+    elements
+      .filter((el) => !isNodeElement(el))
+      .map((el) => ({ subject_id: el.data.source as string, object_id: el.data.target as string })),
+  );
+}
+
+/**
  * AND-combine the type + minDegree axes over a cytoscape element set (DM-GN-4). An
  * empty/absent `types` imposes no type constraint; `minDegree` 0/absent imposes no
  * degree constraint. Degree is computed from the *edge elements in this set* (the
  * rendered, scope-filtered edges — not a cached project-wide count), so density is
- * honest under the story/project scope toggle. Edges whose endpoint got filtered out
- * are dropped (a dangling edge crashes cytoscape — the same guard toCytoscapeElements
- * applies to the raw payload).
+ * honest under the story/project scope toggle. Pass a precomputed `degrees` (from
+ * `elementDegrees` over the same set) to reuse the caller's memoized map instead of
+ * recomputing it per call. Edges whose endpoint got filtered out are dropped (a
+ * dangling edge crashes cytoscape — the same guard toCytoscapeElements applies).
  */
 export function filterGraph(
   elements: ElementDefinition[],
-  opts: { types?: readonly string[]; minDegree?: number },
+  opts: { types?: readonly string[]; minDegree?: number; degrees?: Record<string, number> },
 ): ElementDefinition[] {
   const typeSet = opts.types && opts.types.length > 0 ? new Set(opts.types) : null;
   const minDegree = opts.minDegree ?? 0;
-
-  const edgeElements = elements.filter((el) => !isNodeElement(el));
-  const degrees = nodeDegrees(
-    edgeElements.map((el) => ({
-      subject_id: el.data.source as string,
-      object_id: el.data.target as string,
-    })),
-  );
+  const degrees = opts.degrees ?? elementDegrees(elements);
 
   const keptNodeIds = new Set<string>();
   const nodes = elements.filter((el) => {
@@ -75,8 +84,11 @@ export function filterGraph(
     return true;
   });
 
-  const edges = edgeElements.filter(
-    (el) => keptNodeIds.has(el.data.source as string) && keptNodeIds.has(el.data.target as string),
+  const edges = elements.filter(
+    (el) =>
+      !isNodeElement(el) &&
+      keptNodeIds.has(el.data.source as string) &&
+      keptNodeIds.has(el.data.target as string),
   );
 
   return [...nodes, ...edges];

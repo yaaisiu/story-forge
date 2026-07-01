@@ -8,7 +8,13 @@ import { describe, expect, it } from "vitest";
 
 import type { GraphEdge, GraphNode, GraphResponse } from "../../lib/api/useStoryGraph";
 import { toCytoscapeElements } from "./graphElements";
-import { distinctTypes, filterGraph, matchNodes, nodeDegrees } from "./graphFilters";
+import {
+  distinctTypes,
+  elementDegrees,
+  filterGraph,
+  matchNodes,
+  nodeDegrees,
+} from "./graphFilters";
 
 function node(over: Partial<GraphNode> = {}): GraphNode {
   return {
@@ -55,6 +61,29 @@ describe("nodeDegrees", () => {
 
   it("counts a self-loop as degree 2 (both incidences)", () => {
     expect(nodeDegrees([edge({ subject_id: "a", object_id: "a" })]).a).toBe(2);
+  });
+});
+
+describe("elementDegrees", () => {
+  it("counts degree over the edge elements, matching what filterGraph uses", () => {
+    const elements = toCytoscapeElements({
+      nodes: [node({ id: "a" }), node({ id: "b" }), node({ id: "c" })],
+      edges: [
+        edge({ id: "e1", subject_id: "a", object_id: "b" }),
+        edge({ id: "e2", subject_id: "a", object_id: "c" }),
+      ],
+    });
+    expect(elementDegrees(elements)).toEqual({ a: 2, b: 1, c: 1 });
+  });
+
+  it("ignores a dangling edge that toCytoscapeElements already dropped", () => {
+    // The raw payload carries an edge to a missing endpoint; toCytoscapeElements
+    // drops it, so elementDegrees never counts it (the slider bound stays honest).
+    const elements = toCytoscapeElements({
+      nodes: [node({ id: "a" })],
+      edges: [edge({ id: "e1", subject_id: "a", object_id: "ghost" })],
+    });
+    expect(elementDegrees(elements)).toEqual({});
   });
 });
 

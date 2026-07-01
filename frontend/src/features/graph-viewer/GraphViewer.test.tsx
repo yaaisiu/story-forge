@@ -357,6 +357,57 @@ describe("GraphViewer", () => {
     expect(screen.getByTestId("focus-ids")).toHaveTextContent("");
   });
 
+  it("does not show the search-hidden hint when a filter has emptied the graph", async () => {
+    stubFetch(MULTI_GRAPH);
+    renderViewer();
+
+    // Filter to nothing (Location AND degree>=2), then search a now-hidden node: the
+    // "0 of N" affordance owns the empty view — the two messages must not both show.
+    fireEvent.click(await screen.findByTestId("type-filter-Location"));
+    fireEvent.change(screen.getByTestId("degree-filter"), { target: { value: "2" } });
+    fireEvent.change(screen.getByTestId("node-search"), { target: { value: "zosia" } });
+
+    expect(await screen.findByTestId("graph-no-match")).toBeInTheDocument();
+    // Give the debounced term time to land, then assert the hint stayed suppressed.
+    await waitFor(() =>
+      expect(screen.getByTestId("graph-match-count")).toHaveTextContent("0 of 3"),
+    );
+    expect(screen.queryByTestId("graph-search-hidden")).not.toBeInTheDocument();
+  });
+
+  it("clamps a stale min-degree when a refetch lowers the max (no blank graph)", async () => {
+    let graphCalls = 0;
+    const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input);
+      if (url.includes("/llm/status")) return jsonResponse(200, STATUS_BODY);
+      if (url.includes("/extract") && init?.method === "POST") {
+        return jsonResponse(200, EXTRACT_RESULT);
+      }
+      if (url.includes("/graph")) {
+        graphCalls += 1;
+        // MULTI_GRAPH (maxDegree 2) first; a sparser edgeless graph (maxDegree 0) next.
+        return jsonResponse(200, graphCalls === 1 ? MULTI_GRAPH : LOCATION_ONLY_GRAPH);
+      }
+      throw new Error(`unexpected url ${url}`);
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    renderViewer();
+
+    // Raise min-degree to the current max, then refetch a graph with no edges.
+    fireEvent.change(await screen.findByTestId("degree-filter"), { target: { value: "2" } });
+    await waitFor(() => expect(screen.queryByTestId(`cy-node-${LOC_B}`)).not.toBeInTheDocument());
+
+    await act(async () => {
+      fireEvent.click(screen.getByTestId("run-extraction"));
+    });
+
+    // min-degree clamps to the new max (0), so the edgeless Location node shows — the
+    // graph doesn't stay blanked behind a slider value nothing can satisfy.
+    await waitFor(() => expect(screen.getByTestId(`cy-node-${LOC_B}`)).toBeInTheDocument());
+    expect(screen.queryByTestId("graph-no-match")).not.toBeInTheDocument();
+  });
+
   it("prunes a selected type that a refetch removed (no blank graph)", async () => {
     let graphCalls = 0;
     const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
