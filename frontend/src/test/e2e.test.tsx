@@ -25,8 +25,10 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 // The cytoscape mount can't run in jsdom; stub it so the E2E can walk into the
 // graph page and prove the data seam (the canvas itself is browser-smoke territory).
 vi.mock("../features/graph-viewer/GraphCanvas", () => ({
-  GraphCanvas: ({ graph }: { graph: { nodes: { id: string }[] } }) => (
-    <div data-testid="graph-canvas-mock">{graph.nodes.length} nodes</div>
+  GraphCanvas: ({ elements }: { elements: { data: { source?: string } }[] }) => (
+    <div data-testid="graph-canvas-mock">
+      {elements.filter((el) => !("source" in el.data)).length} nodes
+    </div>
   ),
 }));
 
