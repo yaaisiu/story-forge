@@ -18,15 +18,23 @@ from httpx import ASGITransport, AsyncClient
 from psycopg import OperationalError
 
 from story_forge.adapters.db import get_connection
-from story_forge.adapters.postgres_repo import insert_project, insert_story
+from story_forge.adapters.postgres_repo import (
+    insert_chapter,
+    insert_entity_mention,
+    insert_paragraph,
+    insert_project,
+    insert_scene,
+    insert_story,
+)
 from story_forge.agents.candidate_review import (
     CandidateNotFound,
     ReviewResult,
     StaleMergeTarget,
 )
-from story_forge.api.stories import get_candidate_review, get_candidate_store
+from story_forge.api.stories import get_candidate_review, get_candidate_store, get_neo4j_repo
 from story_forge.domain.candidates import StagedCandidate
-from story_forge.domain.models import Project, Story
+from story_forge.domain.graph import GraphEntity
+from story_forge.domain.models import Chapter, EntityMention, Paragraph, Project, Scene, Story
 from story_forge.main import app
 
 pytestmark = pytest.mark.integration
@@ -53,6 +61,16 @@ class _StubStore:
         if isinstance(self._pending, Exception):
             raise self._pending
         return self._pending
+
+
+class _StubRepo:
+    """Canned accepted-entity read for the merge-context enrichment (list_entities only)."""
+
+    def __init__(self, entities: list[GraphEntity]) -> None:
+        self._entities = entities
+
+    async def list_entities(self, project_id: UUID) -> list[GraphEntity]:
+        return self._entities
 
 
 class _StubReview:
@@ -84,6 +102,8 @@ async def client(db_conn: psycopg.AsyncConnection) -> AsyncIterator[AsyncClient]
         yield db_conn
 
     app.dependency_overrides[get_connection] = _override
+    # Default to an empty accepted graph; enrichment tests override with populated entities.
+    app.dependency_overrides[get_neo4j_repo] = lambda: _StubRepo([])
     ac = AsyncClient(transport=ASGITransport(app=app), base_url="http://test")
     try:
         yield ac
@@ -94,6 +114,10 @@ async def client(db_conn: psycopg.AsyncConnection) -> AsyncIterator[AsyncClient]
 
 def _with_store(store: object) -> None:
     app.dependency_overrides[get_candidate_store] = lambda: store
+
+
+def _with_repo(repo: object) -> None:
+    app.dependency_overrides[get_neo4j_repo] = lambda: repo
 
 
 def _with_review(review: object) -> None:
@@ -113,6 +137,65 @@ async def test_list_candidates_returns_pending(
     body = resp.json()
     assert [c["candidate_name"] for c in body["candidates"]] == ["Janek"]
     assert body["candidates"][0]["proposal"] == "new"
+
+
+async def test_list_candidates_enriches_merge_context(
+    client: AsyncClient, db_conn: psycopg.AsyncConnection
+) -> None:
+    # A merge proposal whose target isn't in the alternatives, plus one alternative — S3/DM-EE-3
+    # resolves the target's name and the alternative's type/aliases/sample quote.
+    project = Project(name="t", language="pl")
+    story = Story(project_id=project.id, title="t", raw_text="x")
+    await insert_project(db_conn, project)
+    await insert_story(db_conn, story)
+    chapter = Chapter(story_id=story.id, order_index=0)
+    await insert_chapter(db_conn, chapter)
+    scene = Scene(chapter_id=chapter.id, order_index=0)
+    await insert_scene(db_conn, scene)
+    para = Paragraph(scene_id=scene.id, order_index=0, content="Janek came home late.")
+    await insert_paragraph(db_conn, para)
+
+    alt_id, target_id = uuid4(), uuid4()
+    await insert_entity_mention(
+        db_conn, EntityMention(paragraph_id=para.id, entity_id=alt_id, source="extraction")
+    )
+    candidate = StagedCandidate(
+        project_id=project.id,
+        story_id=story.id,
+        paragraph_id=para.id,
+        candidate_name="Janek",
+        type="Character",
+        context="Janek came home late.",
+        proposal="merge",
+        target_entity_id=target_id,
+        stage_reached=2,
+        alternatives=[{"entity_id": str(alt_id), "canonical_name": "Janek", "score": 100.0}],
+    )
+    entities = [
+        GraphEntity(
+            id=alt_id,
+            type="Character",
+            canonical_name_pl="Janek",
+            aliases=["Jaś"],
+            project_id=project.id,
+        ),
+        GraphEntity(
+            id=target_id, type="Character", canonical_name_pl="Janusz", project_id=project.id
+        ),
+    ]
+    _with_store(_StubStore([candidate]))
+    _with_repo(_StubRepo(entities))
+
+    resp = await client.get(f"/stories/{story.id}/candidates")
+
+    assert resp.status_code == 200, resp.text
+    view = resp.json()["candidates"][0]
+    assert view["target_canonical_name"] == "Janusz"
+    alt = view["alternatives"][0]
+    assert alt["entity_id"] == str(alt_id)
+    assert alt["type"] == "Character"
+    assert alt["aliases"] == ["Jaś"]
+    assert alt["context_quote"] == "Janek came home late."
 
 
 async def test_list_candidates_unknown_story_404(client: AsyncClient) -> None:

@@ -13,7 +13,22 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Upload Story */
+        /**
+         * Upload Story
+         * @description Ingest an uploaded document as a new story (spec §7 step 1, multi-story DM-MS-3).
+         *
+         *     Accepts `.txt`/`.md`/`.docx` (the `_ALLOWED_TYPES` allowlist), validating the declared
+         *     `content_type` against the extension — a positively-wrong type is rejected (415), but a
+         *     generic/absent one passes to the parser, which is the real content check. Oversized files
+         *     (over `MAX_UPLOAD_BYTES`) 413, empty or unparseable bytes 400. `parse_document` extracts the
+         *     text and `detect_language` tags it.
+         *
+         *     `project_id` selects between two modes: omitted ⇒ mint a fresh project named after the file,
+         *     carrying the detected language; given ⇒ add the story to that existing project, failing closed
+         *     with 404 if it doesn't exist so a story is never created under a ghost project. The original
+         *     bytes are sandboxed to disk *before* the DB write, so a storage failure aborts the row rather
+         *     than leaving a story with no backing file. Echoes `raw_text` back for the manual-mode editor.
+         */
         post: operations["upload_story_stories_upload_post"];
         delete?: never;
         options?: never;
@@ -402,6 +417,10 @@ export interface paths {
         /**
          * List Candidates
          * @description The pending review queue for a story (spec §3.3 Stage 4) — candidates awaiting a human.
+         *
+         *     Each candidate's view carries the merge-verification context S3 (DM-EE-3) adds: the target's
+         *     resolved name and each alternative's type/aliases/sample quote. The accepted-entity read and
+         *     the sample-quote read are batched once for the whole queue (not per candidate) to avoid an N+1.
          */
         get: operations["list_candidates_stories__story_id__candidates_get"];
         put?: never;
@@ -451,6 +470,31 @@ export interface paths {
          *     the author (DM-rej); that consult is not built in S4a.
          */
         post: operations["reject_candidate_stories__story_id__candidates__candidate_id__reject_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/stories/{story_id}/relations/{edge_id}/evidence": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Edge Evidence
+         * @description The recorded source(s) behind one committed graph edge (graph-quality §3 S3, DM-EE-1/2).
+         *
+         *     A read/verify surface (writes nothing): fetch every `written` `staged_relations` row for this
+         *     content-addressed `edge_id` (the complete one-to-many provenance) and resolve each row's
+         *     paragraph text. A zero-row edge is a valid case — a manually-added edge stages no relation — and
+         *     returns an empty `source_provenance` (the client renders "added manually"), not a 404.
+         */
+        get: operations["get_edge_evidence_stories__story_id__relations__edge_id__evidence_get"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -600,6 +644,33 @@ export interface components {
              */
             object_id: string;
         };
+        /**
+         * AlternativeView
+         * @description One alternative merge target the reviewer can retarget to, enriched for verification (S3).
+         *
+         *     The stored alternative carries only `entity_id` + `canonical_name` + `score` (a RapidFuzz name
+         *     rank). S3 (DM-EE-3) adds the identity context that makes a merge *verifiable* — the target's
+         *     `type`, its `aliases`, and a sample `context_quote` (one mention paragraph) — so two same-named
+         *     entities can be told apart before merging. The enrichment fields are nullable: an alternative
+         *     whose entity is absent from the graph read (or that has no surfaced mention) still renders.
+         */
+        AlternativeView: {
+            /**
+             * Entity Id
+             * Format: uuid
+             */
+            entity_id: string;
+            /** Canonical Name */
+            canonical_name: string;
+            /** Score */
+            score: number;
+            /** Type */
+            type: string | null;
+            /** Aliases */
+            aliases: string[];
+            /** Context Quote */
+            context_quote: string | null;
+        };
         /** Body_upload_story_stories_upload_post */
         Body_upload_story_stories_upload_post: {
             /** File */
@@ -645,7 +716,9 @@ export interface components {
          *
          *     Carries the quote/context (±200 chars), the cascade's NEW-vs-MERGE proposal + the stage it
          *     reached, the judge's reasoning (if Stage 3 ran), and the top-3 alternative entities the
-         *     reviewer can retarget to. Persistence-only fields (the vector, project/story ids) are omitted.
+         *     reviewer can retarget to. `target_canonical_name` resolves the merge proposal's target name
+         *     (S3/DM-EE-3, so a non-top-3 target no longer reads as "an existing entity"). Persistence-only
+         *     fields (the vector, project/story ids) are omitted.
          */
         CandidateView: {
             /**
@@ -671,6 +744,8 @@ export interface components {
             proposal: "new" | "merge";
             /** Target Entity Id */
             target_entity_id: string | null;
+            /** Target Canonical Name */
+            target_canonical_name: string | null;
             /** Stage Reached */
             stage_reached: number;
             /** Confidence */
@@ -678,9 +753,7 @@ export interface components {
             /** Reasoning */
             reasoning: string | null;
             /** Alternatives */
-            alternatives: {
-                [key: string]: unknown;
-            }[];
+            alternatives: components["schemas"]["AlternativeView"][];
         };
         /**
          * CandidatesResponse
@@ -700,6 +773,34 @@ export interface components {
              * @enum {string}
              */
             action: "commit" | "reject";
+        };
+        /**
+         * EdgeEvidence
+         * @description All recorded provenance behind one graph edge — its predicate + every source paragraph.
+         */
+        EdgeEvidence: {
+            /** Predicate */
+            predicate: string | null;
+            /** Source Provenance */
+            source_provenance: components["schemas"]["EdgeEvidenceSource"][];
+        };
+        /**
+         * EdgeEvidenceSource
+         * @description One source of an edge: the paragraph it was asserted in + the model's supporting quote.
+         *
+         *     `evidence_quote` is the LLM-provided string (may paraphrase — a soft flag, not an offset), so
+         *     the client shows it *alongside* the paragraph text rather than asserting a character offset.
+         */
+        EdgeEvidenceSource: {
+            /**
+             * Paragraph Id
+             * Format: uuid
+             */
+            paragraph_id: string;
+            /** Paragraph Text */
+            paragraph_text: string;
+            /** Evidence Quote */
+            evidence_quote: string | null;
         };
         /**
          * EgoEdge
@@ -2550,6 +2651,56 @@ export interface operations {
                 };
             };
             /** @description Story or candidate not found. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+            /** @description The staging store is unavailable. */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    get_edge_evidence_stories__story_id__relations__edge_id__evidence_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                story_id: string;
+                edge_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EdgeEvidence"];
+                };
+            };
+            /** @description Story not found. */
             404: {
                 headers: {
                     [name: string]: unknown;
