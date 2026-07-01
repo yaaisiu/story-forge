@@ -13,23 +13,34 @@ import { act, fireEvent, render, screen, waitFor } from "@testing-library/react"
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-// Mock the cytoscape mount: render a tappable button per node element (an element is
-// a node unless it carries a `source`) and expose the focus-ids so search is drivable.
+// Mock the cytoscape mount: render a tappable button per element — nodes (no `source`)
+// call onSelectNode, edges (with `source`) call onSelectEdge — and expose the focus-ids
+// so search is drivable. jsdom can't drive a canvas, so the real canvas (fcose layout,
+// highlight, pan-to, the actual edge tap) is covered by the browser smoke walk.
 vi.mock("./GraphCanvas", () => ({
   GraphCanvas: ({
     elements,
     focusNodeIds,
     onSelectNode,
+    onSelectEdge,
   }: {
     elements: { data: { id: string; source?: string } }[];
     focusNodeIds: string[];
     onSelectNode: (id: string) => void;
+    onSelectEdge: (id: string) => void;
   }) => (
     <div data-testid="graph-canvas-mock">
       <span data-testid="focus-ids">{focusNodeIds.join(",")}</span>
-      {elements
-        .filter((el) => !("source" in el.data))
-        .map((el) => (
+      {elements.map((el) =>
+        "source" in el.data ? (
+          <button
+            key={el.data.id}
+            data-testid={`cy-edge-${el.data.id}`}
+            onClick={() => onSelectEdge(el.data.id)}
+          >
+            {el.data.id}
+          </button>
+        ) : (
           <button
             key={el.data.id}
             data-testid={`cy-node-${el.data.id}`}
@@ -37,7 +48,8 @@ vi.mock("./GraphCanvas", () => ({
           >
             {el.data.id}
           </button>
-        ))}
+        ),
+      )}
     </div>
   ),
 }));
@@ -120,10 +132,22 @@ function jsonResponse(status: number, body: unknown): Response {
   });
 }
 
-/** A fetch stub that always answers /llm/status and returns `graphBody` for /graph. */
+const EDGE_EVIDENCE_BODY = {
+  predicate: "KNOWS",
+  source_provenance: [
+    {
+      paragraph_id: "77777777-7777-7777-7777-777777777777",
+      paragraph_text: "Janek knew the miller well.",
+      evidence_quote: "knew the miller",
+    },
+  ],
+};
+
+/** A fetch stub that answers /llm/status, /graph, and the per-edge /evidence read. */
 function stubFetch(graphBody: unknown) {
   const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
     const url = String(input);
+    if (url.includes("/evidence")) return jsonResponse(200, EDGE_EVIDENCE_BODY);
     if (url.includes("/graph")) return jsonResponse(200, graphBody);
     if (url.includes("/llm/status")) return jsonResponse(200, STATUS_BODY);
     throw new Error(`unexpected url ${url}`);
@@ -267,6 +291,63 @@ describe("GraphViewer", () => {
 
     expect(await screen.findByTestId("node-details")).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "Janek" })).toBeInTheDocument();
+  });
+
+  // ── §3.4 edge evidence (Session 76, S3b) ──────────────────────────────────────
+
+  it("opens the edge-evidence panel when an edge is tapped", async () => {
+    stubFetch(MULTI_GRAPH);
+    renderViewer();
+
+    fireEvent.click(await screen.findByTestId("cy-edge-e1"));
+
+    // The panel fetches on tap and renders the predicate + source quote.
+    expect(await screen.findByTestId("edge-evidence")).toBeInTheDocument();
+    expect(screen.getByTestId("edge-evidence-predicate")).toHaveTextContent("KNOWS");
+    expect(screen.getByTestId("edge-evidence-source")).toHaveTextContent("knew the miller");
+  });
+
+  it("node and edge selection are mutually exclusive (one details slot)", async () => {
+    stubFetch(MULTI_GRAPH);
+    renderViewer();
+
+    // Tap a node → node panel; then tap an edge → edge panel replaces it.
+    fireEvent.click(await screen.findByTestId(`cy-node-${CHAR_A}`));
+    expect(await screen.findByTestId("node-details")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByTestId("cy-edge-e1"));
+    expect(await screen.findByTestId("edge-evidence")).toBeInTheDocument();
+    expect(screen.queryByTestId("node-details")).not.toBeInTheDocument();
+
+    // Tapping a node again swaps back to the node panel.
+    fireEvent.click(screen.getByTestId(`cy-node-${CHAR_A}`));
+    expect(await screen.findByTestId("node-details")).toBeInTheDocument();
+    expect(screen.queryByTestId("edge-evidence")).not.toBeInTheDocument();
+  });
+
+  it("clears the open edge panel when the scope is toggled", async () => {
+    stubFetch(MULTI_GRAPH);
+    renderViewer();
+
+    fireEvent.click(await screen.findByTestId("cy-edge-e1"));
+    expect(await screen.findByTestId("edge-evidence")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByTestId("scope-project"));
+
+    await waitFor(() => expect(screen.queryByTestId("edge-evidence")).not.toBeInTheDocument());
+  });
+
+  it("clears the edge selection when a filter hides the selected edge", async () => {
+    stubFetch(MULTI_GRAPH);
+    renderViewer();
+
+    // e1 connects Character A ↔ Location B; hiding Characters de-dangles it away.
+    fireEvent.click(await screen.findByTestId("cy-edge-e1"));
+    expect(await screen.findByTestId("edge-evidence")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByTestId("type-filter-Location"));
+
+    await waitFor(() => expect(screen.queryByTestId("edge-evidence")).not.toBeInTheDocument());
   });
 
   // ── §3.4 client-side navigation (Session 73, S2) ──────────────────────────────

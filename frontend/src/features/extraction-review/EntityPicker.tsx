@@ -57,6 +57,11 @@ export function EntityPicker({ storyId, onPick, disabled = false }: EntityPicker
                 {result.canonical_name}
                 <span className="ml-1 text-gray-500">{result.type}</span>
                 <span className="ml-1 text-gray-400">({result.score})</span>
+                {result.aliases.length > 0 && (
+                  <span data-testid="entity-search-aliases" className="ml-1 text-gray-400">
+                    aka {result.aliases.join(", ")}
+                  </span>
+                )}
               </button>
             </li>
           ))}

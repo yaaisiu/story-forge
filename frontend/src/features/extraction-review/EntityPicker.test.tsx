@@ -69,6 +69,24 @@ describe("EntityPicker", () => {
     });
   });
 
+  it("renders a result's aliases so the reviewer can see why it matched (DM-EE-3)", () => {
+    stubSearch({
+      data: {
+        entities: [
+          {
+            entity_id: "e-kat",
+            canonical_name: "Katarzyna",
+            type: "Character",
+            score: 42,
+            aliases: ["Kasia", "Kaśka"],
+          },
+        ],
+      },
+    });
+    render(<EntityPicker storyId="s1" onPick={vi.fn()} />);
+    expect(screen.getByTestId("entity-search-aliases")).toHaveTextContent("Kasia, Kaśka");
+  });
+
   it("surfaces a search error", () => {
     stubSearch({ data: undefined, isError: true });
     render(<EntityPicker storyId="s1" onPick={vi.fn()} />);
