@@ -10,11 +10,12 @@
 // this container's behaviour — states, extraction, selection wiring — stays testable
 // with GraphCanvas mocked; the canvas itself is covered by the real-browser smoke.
 
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { useQueryClient } from "@tanstack/react-query";
 import { Link, useParams } from "react-router-dom";
 
+import { useDebouncedValue } from "../../hooks/useDebouncedValue";
 import { AgentActivityPanel } from "../agent-activity/AgentActivityPanel";
 import { ApiError, useExtractStory } from "../../lib/api/useExtractStory";
 import {
@@ -24,6 +25,14 @@ import {
   type GraphScope,
 } from "../../lib/api/useStoryGraph";
 import { GraphCanvas } from "./GraphCanvas";
+import { toCytoscapeElements } from "./graphElements";
+import {
+  distinctTypes,
+  elementDegrees,
+  filterGraph,
+  isNodeElement,
+  matchNodes,
+} from "./graphFilters";
 import { NodeDetailsPanel } from "./NodeDetailsPanel";
 
 function extractMessage(error: unknown): string {
@@ -46,6 +55,16 @@ export function GraphViewer() {
 
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
 
+  // §3.4 client-side navigation state (DM-GN-1: all filtering runs over the payload
+  // already fetched, no backend round-trip). Empty `selectedTypes` = no type
+  // constraint (all types shown); `minDegree` 0 = no density constraint.
+  const [selectedTypes, setSelectedTypes] = useState<ReadonlySet<string>>(new Set());
+  const [minDegree, setMinDegree] = useState(0);
+  const [searchTerm, setSearchTerm] = useState("");
+  // Debounce the search box so a dense graph doesn't recompute the focus set per
+  // keystroke (search only highlights/pans — it never re-runs the layout).
+  const debouncedTerm = useDebouncedValue(searchTerm, 200);
+
   // Stable identity so GraphCanvas's effect doesn't rebuild cytoscape every render.
   const handleSelectNode = useCallback((nodeId: string) => setSelectedNodeId(nodeId), []);
 
@@ -55,6 +74,88 @@ export function GraphViewer() {
   function handleScopeChange(next: GraphScope) {
     setScope(next);
     setSelectedNodeId(null);
+  }
+
+  const nodes = useMemo(() => graph.data?.nodes ?? [], [graph.data]);
+
+  // The client-side pipeline: full payload → cytoscape elements → AND-combined
+  // type/degree filter → the visible subset GraphCanvas lays out (memoized for a
+  // stable prop identity so the canvas rebuilds only when the visible set changes).
+  const activeTypes = useMemo(() => [...selectedTypes], [selectedTypes]);
+  const baseElements = useMemo(
+    () => (graph.data ? toCytoscapeElements(graph.data) : []),
+    [graph.data],
+  );
+
+  // The type-filter options are derived from the data present (INV-4: types are
+  // open-world, never a hardcoded enum). Degree is computed over the same de-dangled
+  // element edges filterGraph uses (not the raw payload), so the slider bound and the
+  // filter agree, and density is honest under the story/project scope toggle.
+  const typeOptions = useMemo(() => distinctTypes(nodes), [nodes]);
+  const degrees = useMemo(() => elementDegrees(baseElements), [baseElements]);
+  const maxDegree = useMemo(() => Math.max(0, ...Object.values(degrees)), [degrees]);
+
+  const visibleElements = useMemo(
+    () => filterGraph(baseElements, { types: activeTypes, minDegree, degrees }),
+    [baseElements, activeTypes, minDegree, degrees],
+  );
+  const visibleNodeIds = useMemo(
+    () => new Set(visibleElements.filter(isNodeElement).map((el) => el.data.id as string)),
+    [visibleElements],
+  );
+
+  const totalCount = nodes.length;
+  const visibleCount = visibleNodeIds.size;
+
+  // Search is focus-not-filter (DM-GN-4): match over the whole scoped node set, then
+  // highlight/pan only the matches still visible. If matches exist but every one is
+  // hidden by an active filter, say so rather than appear to "do nothing" — but not
+  // when a filter has emptied the graph entirely (the "0 of N" affordance owns that
+  // case; showing both messages at once would contradict).
+  const matchedIds = useMemo(
+    () => (debouncedTerm.trim() ? matchNodes(debouncedTerm, nodes) : []),
+    [debouncedTerm, nodes],
+  );
+  const focusNodeIds = useMemo(
+    () => matchedIds.filter((id) => visibleNodeIds.has(id)),
+    [matchedIds, visibleNodeIds],
+  );
+  const searchHidden = visibleCount > 0 && matchedIds.length > 0 && focusNodeIds.length === 0;
+
+  // A refetch (e.g. after an extraction run or a scope toggle) can drop a type the
+  // filter had selected, or drop the max degree below the active minimum. Prune both
+  // to what the new payload supports, so a now-unreachable filter value can't silently
+  // blank the graph while the control still reads its stale setting.
+  useEffect(() => {
+    setSelectedTypes((prev) => {
+      const pruned = new Set([...prev].filter((t) => typeOptions.includes(t)));
+      return pruned.size === prev.size ? prev : pruned;
+    });
+  }, [typeOptions]);
+  useEffect(() => {
+    setMinDegree((prev) => (prev > maxDegree ? maxDegree : prev));
+  }, [maxDegree]);
+
+  // Reactive mirror of handleScopeChange's clear: if a filter hides the selected
+  // node, drop the selection rather than leave the details panel showing a node no
+  // longer on the canvas.
+  useEffect(() => {
+    if (selectedNodeId && !visibleNodeIds.has(selectedNodeId)) setSelectedNodeId(null);
+  }, [selectedNodeId, visibleNodeIds]);
+
+  function toggleType(type: string) {
+    setSelectedTypes((prev) => {
+      const next = new Set(prev);
+      if (next.has(type)) next.delete(type);
+      else next.add(type);
+      return next;
+    });
+  }
+
+  function handleClearFilters() {
+    setSelectedTypes(new Set());
+    setMinDegree(0);
+    setSearchTerm("");
   }
 
   const selectedNode: GraphNode | null = useMemo(
@@ -80,6 +181,9 @@ export function GraphViewer() {
 
   const nodeCount = graph.data?.nodes.length ?? 0;
   const isEmpty = graph.isSuccess && nodeCount === 0;
+  // Every active filter ANDs down to zero: show a "clear filters" affordance, never
+  // an unexplained blank canvas.
+  const noMatch = graph.isSuccess && nodeCount > 0 && visibleCount === 0;
 
   return (
     <main className="flex h-screen flex-col gap-4 p-6">
@@ -173,6 +277,76 @@ export function GraphViewer() {
         </p>
       )}
 
+      {graph.isSuccess && nodeCount > 0 && (
+        <div
+          data-testid="graph-filters"
+          className="flex flex-wrap items-center gap-x-6 gap-y-2 rounded-lg border border-gray-200 bg-white p-3 text-sm"
+        >
+          {/* Type filter — options derived from the data (INV-4), AND-combined. */}
+          <div
+            data-testid="type-filter"
+            role="group"
+            aria-label="Filter by entity type"
+            className="flex flex-wrap items-center gap-2"
+          >
+            <span className="text-gray-600">Types:</span>
+            {typeOptions.map((type) => {
+              const active = selectedTypes.has(type);
+              return (
+                <button
+                  key={type}
+                  type="button"
+                  data-testid={`type-filter-${type}`}
+                  aria-pressed={active}
+                  onClick={() => toggleType(type)}
+                  className={
+                    active
+                      ? "rounded-full bg-blue-600 px-3 py-1 font-medium text-white"
+                      : "rounded-full border border-gray-300 px-3 py-1 text-gray-700 hover:bg-gray-50"
+                  }
+                >
+                  {type}
+                </button>
+              );
+            })}
+          </div>
+
+          {/* Connection-density filter — node degree over the scoped edge set. */}
+          <label className="flex items-center gap-2 text-gray-600">
+            Min. connections: <span className="font-medium text-gray-900">{minDegree}</span>
+            <input
+              data-testid="degree-filter"
+              type="range"
+              min={0}
+              max={maxDegree}
+              value={minDegree}
+              onChange={(e) => setMinDegree(Number(e.target.value))}
+              aria-label="Minimum connections"
+            />
+          </label>
+
+          {/* Name search — focuses/highlights + pans-to, does not hide the rest. */}
+          <input
+            data-testid="node-search"
+            type="search"
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            placeholder="Find by name…"
+            aria-label="Find a node by name"
+            className="rounded border border-gray-300 px-3 py-1"
+          />
+
+          <span data-testid="graph-match-count" className="text-gray-600">
+            {visibleCount} of {totalCount} entities
+          </span>
+          {searchHidden && (
+            <span data-testid="graph-search-hidden" role="status" className="text-amber-700">
+              Match hidden by active filters.
+            </span>
+          )}
+        </div>
+      )}
+
       <div className="flex min-h-0 flex-1 gap-4">
         <div className="flex min-h-0 flex-1 gap-0 overflow-hidden rounded-lg border border-gray-200 bg-gray-50">
           <div className="relative min-h-0 flex-1">
@@ -191,9 +365,27 @@ export function GraphViewer() {
                 No entities yet. Run extraction to build the graph.
               </p>
             )}
-            {graph.isSuccess && nodeCount > 0 && (
-              <GraphCanvas graph={graph.data} onSelectNode={handleSelectNode} />
-            )}
+            {graph.isSuccess &&
+              nodeCount > 0 &&
+              (noMatch ? (
+                <p data-testid="graph-no-match" className="p-4 text-sm text-gray-500">
+                  0 of {totalCount} entities match —{" "}
+                  <button
+                    type="button"
+                    data-testid="clear-filters"
+                    onClick={handleClearFilters}
+                    className="underline hover:text-gray-700"
+                  >
+                    clear filters
+                  </button>
+                </p>
+              ) : (
+                <GraphCanvas
+                  elements={visibleElements}
+                  focusNodeIds={focusNodeIds}
+                  onSelectNode={handleSelectNode}
+                />
+              ))}
           </div>
           {graph.isSuccess && nodeCount > 0 && (
             <NodeDetailsPanel node={selectedNode} onClose={() => setSelectedNodeId(null)} />
