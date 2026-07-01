@@ -23,14 +23,18 @@ cytoscape.use(fcose);
 
 // fcose is a third-party layout, so its options aren't part of cytoscape's typed
 // LayoutOptions union — describe the fields we set, then widen for the constructor.
-// `animate: false` + `randomize: false` give a deterministic settle the browser
-// smoke can assert (§3.4 must handle 500+ nodes without a long/nondeterministic run).
+// `randomize: true` is fcose's normal spread mode: it seeds an initial layout before
+// the force-directed refinement, so disconnected / sparsely-connected nodes get
+// separated instead of piling up (its `false`/incremental mode refines from existing
+// positions, which on a fresh graph are all ~origin — a clumped hairball). `animate:
+// false` keeps the settle instant, not deterministic — the layout is verified by the
+// browser smoke, not an automated assertion, so a non-deterministic seed is fine.
 interface FcoseLayoutOptions {
   name: "fcose";
   animate: boolean;
   randomize: boolean;
 }
-const FCOSE_LAYOUT: FcoseLayoutOptions = { name: "fcose", animate: false, randomize: false };
+const FCOSE_LAYOUT: FcoseLayoutOptions = { name: "fcose", animate: false, randomize: true };
 
 interface GraphCanvasProps {
   // The already-filtered visible subset (GraphViewer runs the pure filter pipeline).

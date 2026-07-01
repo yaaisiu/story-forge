@@ -380,6 +380,24 @@ and do the **filters and the scope toggle together** for consistency (serialize 
 the author had navigated to. (Surfaced by the S2 multi-agent `/code-review`; owner chose useState-now +
 backlog, 2026-07-01.)
 
+## Graph layout — label crowding for a filtered set of disconnected nodes (post-PoC, surfaced S73 smoke)
+
+The Graph-quality S2 layout swap (`cose` → `cytoscape-fcose`, `GraphCanvas.tsx`) spreads a *connected*
+graph well — the whole-project Oakhaven view (186 nodes / 286 edges) opens as a readable force-directed
+cloud. But when a filter narrows to a set of nodes that are **mutually disconnected** (e.g. the `Location`
+type, whose 19 nodes' edges nearly all point at *other* types and are dropped), each node becomes its own
+component and fcose hands them to its **component-packer** (`packComponents`), which tiles the singletons
+into a tight grid. The nodes are fine, but the labels (long entity names, positioned to the right of each
+node) collide across columns and smear. `nodeSeparation` doesn't help — it only spaces nodes *within* a
+connected component, not the packer's grid (verified in the S73 smoke). The real levers each have a cost
+this slice shouldn't pay: `packComponents: false` lets gravity/repulsion scatter the singletons but risks
+crowding the *connected* whole-project view (the primary, verified-good one); hover-/selection-only labels
+would declutter but change label behaviour for the whole viewer. Post-PoC, improve the disconnected-set
+case — likely hover/selection-gated labels, or a packer-spacing tune, or a dedicated grid/list rendering
+for an all-disconnected filtered set. Low urgency: it's a secondary view (filtering to one low-connectivity
+type), the nodes are navigable, and later slices (S4 entity dedup, S6 predicate-name normalisation) thin
+the graph anyway. (Surfaced in the S73 browser smoke; owner + agent agreed to ship S2 and backlog this.)
+
 ## Reader as the paragraph-by-paragraph working surface (post-PoC)
 
 The reader (M4) starts read-only and gains correction (the next M4 slices). The owner's larger idea
