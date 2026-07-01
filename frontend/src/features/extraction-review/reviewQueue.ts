@@ -14,13 +14,18 @@
 import type { CandidateView } from "../../lib/api/useCandidates";
 import type { ReviewInput } from "../../lib/api/useReviewCandidate";
 
-/** One §3.3 alternative existing-entity the reviewer can retarget a merge to. Backend
- * stages these as `{entity_id, canonical_name, score}` (matching_agent.top_alternatives),
- * but the generated schema types the array as untyped dicts — `alternativesOf` narrows. */
+/** One §3.3 alternative existing-entity the reviewer can retarget a merge to. The
+ * backend enriches these for S3 verification (DM-EE-3): beyond the RapidFuzz name
+ * `score`, it carries the target's `type`, `aliases`, and a sample `context_quote` so
+ * two same-named entities can be told apart before merging. The enrichment fields are
+ * nullable — a graph-DB outage degrades them to null and the queue still renders. */
 export interface CandidateAlternative {
   entity_id: string;
   canonical_name: string;
   score: number;
+  type: string | null;
+  aliases: string[];
+  context_quote: string | null;
 }
 
 /** Navigation state of the queue: which card is active, and (while the reviewer is
@@ -42,17 +47,33 @@ export interface KeyResult {
   intent?: ReviewIntent;
 }
 
-/** Narrow the schema's untyped `alternatives` dicts into typed entries for rendering
- * and retargeting. Unknown/missing fields fall back to empty/zero rather than throw. */
+/** Project the schema's `AlternativeView[]` into the rendering/retargeting shape,
+ * carrying the S3 verification context (type/aliases/quote) through null-tolerantly. */
 export function alternativesOf(candidate: CandidateView): CandidateAlternative[] {
-  return candidate.alternatives.map((raw) => {
-    const alt = raw as Record<string, unknown>;
-    return {
-      entity_id: String(alt.entity_id ?? ""),
-      canonical_name: String(alt.canonical_name ?? ""),
-      score: typeof alt.score === "number" ? alt.score : 0,
-    };
-  });
+  return candidate.alternatives.map((alt) => ({
+    entity_id: alt.entity_id,
+    canonical_name: alt.canonical_name,
+    score: alt.score,
+    type: alt.type,
+    // The contract types `aliases` as a non-null list (a graph-DB outage degrades it to
+    // `[]`, not null), but coerce defensively so a rendering `.length` can never throw.
+    aliases: alt.aliases ?? [],
+    context_quote: alt.context_quote,
+  }));
+}
+
+/** DM-EE-5 guard: the alternative (if any) whose canonical name matches the candidate's
+ * name, compared case- and surrounding-space-insensitively. Used to warn-and-offer the
+ * merge before the reviewer creates a same-named duplicate — never a hard block (INV-1;
+ * the author may legitimately keep two same-named entities). Checks the loaded top-3
+ * alternatives only; a 100-scoring exact name almost always ranks there (the rare
+ * outside-top-3 false negative is a documented, deferred backend-lookup escape hatch). */
+export function exactNameDuplicate(candidate: CandidateView): CandidateAlternative | null {
+  const target = candidate.candidate_name.trim().toLowerCase();
+  return (
+    alternativesOf(candidate).find((alt) => alt.canonical_name.trim().toLowerCase() === target) ??
+    null
+  );
 }
 
 function clamp(index: number, length: number): number {

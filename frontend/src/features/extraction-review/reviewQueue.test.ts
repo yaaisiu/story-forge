@@ -7,7 +7,7 @@
 
 import { describe, expect, it } from "vitest";
 
-import { alternativesOf, reduceReviewKey, type NavState } from "./reviewQueue";
+import { alternativesOf, exactNameDuplicate, reduceReviewKey, type NavState } from "./reviewQueue";
 import type { CandidateView } from "../../lib/api/useCandidates";
 
 function candidate(over: Partial<CandidateView> = {}): CandidateView {
@@ -131,15 +131,75 @@ describe("reduceReviewKey — merge picker", () => {
 });
 
 describe("alternativesOf", () => {
-  it("coerces the untyped alternatives array into typed entries", () => {
-    const alts = alternativesOf(candidate());
+  it("surfaces the enriched verification context (type, aliases, quote) alongside name+score", () => {
+    const alts = alternativesOf(
+      candidate({
+        alternatives: [
+          {
+            entity_id: "e1",
+            canonical_name: "Jan",
+            score: 91,
+            type: "Character",
+            aliases: ["Janek"],
+            context_quote: "Jan crossed the yard.",
+          },
+        ],
+      }),
+    );
     expect(alts).toEqual([
-      { entity_id: "e1", canonical_name: "Jan", score: 91 },
-      { entity_id: "e2", canonical_name: "Janusz", score: 70 },
+      {
+        entity_id: "e1",
+        canonical_name: "Jan",
+        score: 91,
+        type: "Character",
+        aliases: ["Janek"],
+        context_quote: "Jan crossed the yard.",
+      },
     ]);
+  });
+
+  it("tolerates null enrichment (a graph-DB outage degrades type/quote to null)", () => {
+    const alts = alternativesOf(
+      candidate({
+        alternatives: [
+          {
+            entity_id: "e1",
+            canonical_name: "Jan",
+            score: 91,
+            type: null,
+            aliases: [],
+            context_quote: null,
+          },
+        ],
+      }),
+    );
+    expect(alts[0]).toEqual({
+      entity_id: "e1",
+      canonical_name: "Jan",
+      score: 91,
+      type: null,
+      aliases: [],
+      context_quote: null,
+    });
   });
 
   it("is empty for a candidate with no alternatives", () => {
     expect(alternativesOf(candidate({ alternatives: [] }))).toEqual([]);
+  });
+});
+
+describe("exactNameDuplicate", () => {
+  it("returns the alternative whose name matches the candidate (case/space-insensitive)", () => {
+    const c = candidate({ candidate_name: "  jan  " });
+    expect(exactNameDuplicate(c)?.entity_id).toBe("e1"); // "Jan"
+  });
+
+  it("returns null when no alternative shares the candidate's name", () => {
+    const c = candidate({ candidate_name: "Bartek" });
+    expect(exactNameDuplicate(c)).toBeNull();
+  });
+
+  it("returns null when there are no alternatives", () => {
+    expect(exactNameDuplicate(candidate({ alternatives: [] }))).toBeNull();
   });
 });

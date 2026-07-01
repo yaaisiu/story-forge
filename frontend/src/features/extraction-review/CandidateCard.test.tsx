@@ -115,15 +115,62 @@ describe("CandidateCard — render", () => {
     expect(screen.getByTestId("proposal-badge")).toHaveTextContent(/new/i);
   });
 
-  it("never shows a raw UUID when the merge target is not among the alternatives", () => {
+  it("shows the resolved target name for a merge outside the fuzzy top-3 (DM-EE-3)", () => {
     // Stage-2/3 merges pick the target by embedding cosine / judge, a different signal
-    // from the fuzzy top-3 alternatives, so target_entity_id need not be in the list.
+    // from the fuzzy top-3 alternatives, so target_entity_id need not be in the list —
+    // but the backend now resolves its name, so the badge shows it (not "an existing entity").
     const uuid = "99999999-9999-9999-9999-999999999999";
-    renderCard({ candidate: candidate({ proposal: "merge", target_entity_id: uuid }) });
+    renderCard({
+      candidate: candidate({
+        proposal: "merge",
+        target_entity_id: uuid,
+        target_canonical_name: "Kasia",
+      }),
+    });
     const badge = screen.getByTestId("proposal-badge");
     expect(badge).toHaveTextContent(/merge/i);
+    expect(badge).toHaveTextContent("Kasia");
+    expect(badge).not.toHaveTextContent(uuid);
+  });
+
+  it("falls back to a generic label (never a raw UUID) when enrichment degraded the name to null", () => {
+    // A graph-DB outage degrades target_canonical_name to null; with a target outside the
+    // top-3 there's no name to show — a generic label, never the raw UUID.
+    const uuid = "99999999-9999-9999-9999-999999999999";
+    renderCard({
+      candidate: candidate({
+        proposal: "merge",
+        target_entity_id: uuid,
+        target_canonical_name: null,
+      }),
+    });
+    const badge = screen.getByTestId("proposal-badge");
     expect(badge).not.toHaveTextContent(uuid);
     expect(badge).toHaveTextContent(/existing entity/i);
+  });
+
+  it("shows each alternative's verification context and an honest name-match score (DM-EE-3/4)", () => {
+    renderCard({
+      candidate: candidate({
+        alternatives: [
+          {
+            entity_id: "e1",
+            canonical_name: "Jan",
+            score: 100,
+            type: "Character",
+            aliases: ["Janek"],
+            context_quote: "Jan crossed the yard.",
+          },
+        ],
+      }),
+    });
+    const alt = screen.getAllByTestId("candidate-alternative")[0]!;
+    // The score is framed as a *name* match, never a bare self-evident "(100)".
+    expect(alt).toHaveTextContent("name match 100");
+    expect(alt).not.toHaveTextContent("(100)");
+    expect(screen.getByTestId("alternative-identity")).toHaveTextContent("Character");
+    expect(screen.getByTestId("alternative-identity")).toHaveTextContent("Janek");
+    expect(screen.getByTestId("alternative-quote")).toHaveTextContent("Jan crossed the yard");
   });
 
   it("omits the reasoning block when the cascade gave none", () => {
@@ -182,6 +229,50 @@ describe("CandidateCard — dispatch", () => {
   it("disables Merge until a target is picked", () => {
     renderCard({ mergeTargetIndex: null });
     expect(screen.getByTestId("accept-merge")).toBeDisabled();
+  });
+
+  it("does not arm the merge affordance on a New card until a target is picked (DM-EE-6 amber fix)", () => {
+    renderCard({ candidate: candidate({ proposal: "new", target_entity_id: null }) });
+    expect(screen.getByTestId("accept-merge")).toHaveAttribute("data-armed", "false");
+  });
+
+  it("arms the merge affordance once a target is picked", () => {
+    renderCard({ mergeTargetIndex: 1 });
+    expect(screen.getByTestId("accept-merge")).toHaveAttribute("data-armed", "true");
+  });
+});
+
+describe("CandidateCard — duplicate-create guard (DM-EE-5)", () => {
+  it("warns and offers the merge instead of immediately creating a same-named duplicate", () => {
+    const { onAct } = renderCard({ candidate: candidate({ candidate_name: "Jan" }) });
+    fireEvent.click(screen.getByTestId("accept-create"));
+    expect(onAct).not.toHaveBeenCalled();
+    expect(screen.getByTestId("dup-warning")).toHaveTextContent("Jan");
+  });
+
+  it("'Merge instead' commits a merge into the existing same-named entity", () => {
+    const { onAct } = renderCard({ candidate: candidate({ candidate_name: "Jan" }) });
+    fireEvent.click(screen.getByTestId("accept-create"));
+    fireEvent.click(screen.getByTestId("dup-warning-merge"));
+    expect(onAct).toHaveBeenCalledWith({
+      decision: "accept",
+      accept: { action: "merge", target_entity_id: "e1" },
+    });
+  });
+
+  it("'Create anyway' still creates the duplicate — the guard warns, never blocks (INV-1)", () => {
+    const { onAct } = renderCard({ candidate: candidate({ candidate_name: "Jan" }) });
+    fireEvent.click(screen.getByTestId("accept-create"));
+    fireEvent.click(screen.getByTestId("dup-warning-create"));
+    expect(onAct).toHaveBeenCalledWith({ decision: "accept", accept: { action: "create" } });
+  });
+
+  it("creates immediately when no same-named entity exists (no needless warning)", () => {
+    // Default fixture candidate is "Janek" — no alternative shares that exact name.
+    const { onAct } = renderCard();
+    fireEvent.click(screen.getByTestId("accept-create"));
+    expect(onAct).toHaveBeenCalledWith({ decision: "accept", accept: { action: "create" } });
+    expect(screen.queryByTestId("dup-warning")).not.toBeInTheDocument();
   });
 });
 
