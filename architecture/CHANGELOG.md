@@ -870,3 +870,32 @@ can't be re-found by search and un-tagging acts on a highlight with no row to de
   above (owner-approved); no other spec change (decision A keeps S2 aligned with §3).
 - **Next:** build **S2** test-first (frontend-led, read-only) from the pure filter/degree/search functions;
   `/add-dependency` for `cytoscape-fcose` at the canvas step.
+
+## 2026-07-01 — Graph-quality S3 decompose (Session 74)
+
+- **`proposals/graph-edge-evidence.md`** (NEW, `type: proposal`, `status: proposed`) — step-0 forward
+  design of `docs/specs/graph-quality.md` §3 **S3** ("Edge evidence + verifiable merges"). Register OPEN
+  **DM-EE-1..6 / OQ-31**. **Defining finding:** S3 is a *read/verify* slice whose data is real but not on
+  the wire — edge [[provenance]] survives commit in `staged_relations` (keyed by the content-addressed
+  `edge_id`) but reaches no client and has no by-`edge_id` read/index (`postgres_relation_store.py:94-112`);
+  the graph viewer has no edge-tap (`GraphCanvas.tsx:106`, node-only); the merge surfaces show a bare
+  `(100)` score + a generic "an existing entity" (`CandidateCard.tsx:75-81,131-132`, no
+  `target_canonical_name`). So S3 needs a small set of new **read** surfaces (a focused edge-evidence BFF
+  read + merge-context enrichment), **not** new storage and **not** the §4 write-handle. **S3 writes
+  nothing** — INV-1/INV-3/INV-9 untouched; INV-4 constrains DM-EE-4 (no closed enum of "group" types).
+  Register: DM-EE-1 delivery (focused BFF vs payload-enrich), DM-EE-2 provenance source (one-to-many
+  `staged_relations` vs single Neo4j property), DM-EE-3 merge-context enrichment (closes the cross-cutting
+  `CandidateView`-no-target-name item), DM-EE-4 the score-100 trap (context not type-classification),
+  DM-EE-5 dup-create gate (client-side vs backend), DM-EE-6 slice cut (backend-first / frontend-second).
+- **Handoff correction recorded (OQ-31 + the proposal's State & invariants):** the Session-73 handoff read
+  "S3 consumes the reserved §4 edge handle for addressing"; code-verified there is **no** surrogate handle
+  built yet — the edge id *is* the content-addressed `uuid5` — and S3 addresses edges by it for a *read*
+  (stable because S3 writes nothing). The §4 handle is an edge-*write* concern (S5/S6, DM-GQ-1). To be
+  reconciled in `docs/PLAN_SHORT.md` at wrap.
+- **Glossary 30 → 31:** added **[[provenance]]** (source-text trail, one-to-many; cousin of
+  [[compliance-audit-layer]]). `learning-log.md` + `glossary/glossary.md` index updated.
+- **`open-questions.md`** — OQ-31 appended (register OPEN, mirrors the proposal). **`INDEX.md`** regenerated
+  (proposal row + next-steps item 30 + glossary count/list).
+- **No ADR, no spec amendment anticipated** (S3 reads what §3 S3 already scopes). Next: the owner resolves
+  DM-EE-1..6 (plain-language "Gaps for the product owner" in the proposal), then the S3 build starts
+  backend-first, test-first.

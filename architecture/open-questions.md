@@ -1,7 +1,7 @@
 ---
 type: open-questions
 slug: open-questions
-updated: 2026-06-29
+updated: 2026-07-01
 status: living
 related: ["[[overview]]", "[[project]]", "[[invariants]]", "[[2026-06-02-architecture-review]]", "[[m2s3-extraction-agent]]", "[[2026-06-09-architecture-review]]", "[[2026-06-11-architecture-review]]"]
 ---
@@ -905,6 +905,46 @@ reader knows they gate the S2 build. **Register all OPEN — the owner resolves 
   selection when a filter hides the selected node (mirrors the existing scope-change clear).
 - **Lands in:** S2 (frontend-led, test-first; no ADR anticipated). **Gaps for the owner:** DM-GN-3 needs
   resolving first (it sizes the slice); DM-GN-2 adds one frontend dep. Open.
+
+### OQ-31 — Graph-quality S3 edge-evidence + verifiable-merges decision register (DM-EE-1..6)
+Raised by the Graph-quality **S3** `decompose-requirement` step-0 (2026-07-01, `[[graph-edge-evidence]]`).
+The read/verify slice: click an edge → predicate + source sentence(s); each entity-merge option shows a
+context quote + type + aliases so identity is verifiable; three cheap safeguards. **S3 writes nothing**
+(INV-1/INV-3/INV-9 untouched; no egress/LLM). **The defining finding:** the data S3 must show is real but
+**not on the wire** — edge [[provenance]] survives commit in `staged_relations` (keyed by the content-
+addressed `edge_id`) but reaches no client and has no by-`edge_id` read/index; the graph viewer has no
+edge-tap; the merge surfaces show a bare score + a generic "an existing entity". So S3 needs a small,
+honest set of new **read** surfaces (unlike the pure-frontend S2). Full Context/Options/Proposal live in
+the proposal's register; listed here so the reader knows they gate the S3 build. **Register all OPEN — the
+owner resolves before code.**
+- **DM-EE-1 — edge-evidence delivery (the central one):** a focused per-edge BFF read
+  `GET …/relations/{edge_id}/evidence` (fetch-on-tap) vs enriching every `GraphEdge` in the `/graph`
+  payload. *Lean:* (a) focused read — the [[m4-side-panel]] DM-SP-1 precedent; [[provenance]] is one-to-many
+  so payload-baking inflates a dense graph for data read on a few edges.
+- **DM-EE-2 — provenance source/shape:** all `written` `staged_relations` rows by `edge_id` (the complete
+  one-to-many set + quotes; add a store method + an `edge_id` index) vs the single Neo4j `source_paragraph_id`
+  (lossy — only the triggering paragraph). *Lean:* (a) the full set; a manually-added edge has zero rows →
+  render "added manually". No offset-resolved sentences (LLM offsets are null).
+- **DM-EE-3 — merge-verification context:** enrich `CandidateView.alternatives` (+ a `target_canonical_name`)
+  and the handpick picker with type + aliases + a context quote. *Lean:* (a) enrich fully — this is where
+  under-context bites (the two-"crew"s trap) and it **closes the cross-cutting `CandidateView`-no-target-name
+  item**.
+- **DM-EE-4 — the score-100 "self-evident" trap:** solve by always showing verification context + an honest
+  score label vs a type-based warning. *Lean:* (a) context, **not** type-classification — INV-4 forbids a
+  closed enum of "common-noun/group" types.
+- **DM-EE-5 — gate exact-name duplicate creation:** a client-side check against the loaded `alternatives`
+  (cheap; a 100-score almost always ranks) vs a backend exact-name lookup (robust, a round-trip). *Lean:*
+  (a) client-side warn-and-offer-merge (never a hard block — INV-1); backend lookup deferred unless the
+  false-negative bites.
+- **DM-EE-6 — slice boundaries:** backend-first (the two reads + enrichment, test-first) / frontend-second
+  (edge panel + merge context + the safeguards, incl. the amber-highlight fix on *New* cards). *Lean:* (a)
+  backend-first — mirrors the M4.S2a/S2b split; the two reads share one OpenAPI regen.
+- **Lands in:** S3 (be+fe split; **no spec amendment** — S3 reads what §3 S3 already scopes; **no ADR** —
+  it crosses no data-model identity boundary; the §4 handle's ADR stays with the first edge-*write* slice
+  S5/S6). **Note — a handoff correction:** the Session-73 handoff read "S3 consumes the reserved §4 edge
+  handle for addressing"; code-verified there is **no** surrogate handle built yet, and S3 addresses edges
+  by the existing content-addressed id for a *read* (stable because S3 writes nothing) — the handle is an
+  edge-*write* concern (S5/S6, DM-GQ-1). Open.
 
 ## Referenced — owned by spec §10 (not duplicated)
 
