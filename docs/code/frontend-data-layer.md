@@ -42,13 +42,15 @@ hooks import their request/response types from (`components["schemas"][...]`). R
 
 ## The query/mutation hooks (`lib/api/use*.ts`)
 
-One file per logical operation (~25 hooks), each exporting its query-key factory, its schema-derived
+One file per logical operation (~26 hooks), each exporting its query-key factory, its schema-derived
 types, and the hook. They fall into a few groups by concern:
 
 - **Read queries** — `useProjects` / `useProjectStories` (the multi-story picker), `useStoryGraph`
   (the entity graph, with a `story`/`project` scope param folded into the key), `useReader` (story
-  text + inline highlights), and `useEntityDetail` (one entity's properties + 1-hop ego-graph for the
-  side panel). Shared patterns: a 30 s stale-while-revalidate window, and **disabled-until-id**
+  text + inline highlights), `useEntityDetail` (one entity's properties + 1-hop ego-graph for the
+  side panel), and `useEdgeEvidence` (one graph edge's provenance — predicate + every source
+  paragraph/quote — fetched on edge-tap for the evidence panel). Shared patterns: a 30 s
+  stale-while-revalidate window, and **disabled-until-id**
   (`enabled: Boolean(storyId)`) so a query never fires with `undefined` in the path during an initial
   render or deep-link race. `useEntitySearch` is the read used by the reviewer's manual-handpick
   duplicate search.
