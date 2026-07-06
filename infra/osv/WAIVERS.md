@@ -39,9 +39,12 @@ docker run --rm -v "$PWD/backend:/src:ro" \
   scan source -L /src/uv.lock --config=/cfg/osv.toml
 ```
 
-**Last reviewed:** 2026-06-27 — **dropped the starlette waiver**: bumped `starlette`
-1.2.0 → 1.3.1 (its floor, 2026-06-27, reached), clearing both CVE-2026-54283 (HIGH DoS)
-and CVE-2026-54282 (LOW); removed both `[[IgnoredVulns]]` blocks + this section. Prior
+**Last reviewed:** 2026-07-06 — **dropped the pydantic-settings waiver**: bumped
+`pydantic-settings` 2.14.0 → 2.14.2 (its floor, 2026-07-04, reached; the `ignoreUntil`
+had expired and re-red the gate), clearing GHSA-4xgf-cpjx-pc3j (MEDIUM 5.3); removed the
+`[[IgnoredVulns]]` block + this section. Prior (2026-06-27): **dropped the starlette waiver**:
+bumped `starlette` 1.2.0 → 1.3.1 (its floor, 2026-06-27, reached), clearing both CVE-2026-54283
+(HIGH DoS) and CVE-2026-54282 (LOW); removed both `[[IgnoredVulns]]` blocks + this section. Prior
 (2026-06-26): corrected the starlette floors to pub+15 and batched the LOW's `ignoreUntil`
 to 2026-06-27. Prior (2026-06-18): dropped the python-multipart waiver — 0.0.31 cleared its
 soak, advisory GHSA-v9pg-7xvm-68hf gone.
@@ -67,24 +70,3 @@ _Historical note: the advisory that motivated this gate — `starlette` 1.0.0,
 GHSA-86qp-5c8j-p5mr / PYSEC-2026-161, MEDIUM — was resolved by an explicit
 `starlette==1.0.1` pin in `backend/pyproject.toml`, not a waiver. That bump was
 this gate's first live self-test: red on 1.0.0, green on 1.0.1._
-
-### pydantic-settings — `pydantic-settings==2.14.0` (surfaced 2026-06-20)
-
-Scoped file: `infra/osv/osv-scanner.toml` (`[[IgnoredVulns]]`).
-GHSA-4xgf-cpjx-pc3j (MEDIUM, CVSS 5.3): `NestedSecretsSettingsSource` follows a symlink
-inside `secrets_dir` that points **outside** it (when `secrets_nested_subdir=True`), enabling
-an unintended local file read and bypassing `secrets_dir_max_size`. Triggering it requires
-(a) using that settings source with a `secrets_dir`, and (b) an attacker able to plant symlinks
-in that directory (a shared/writable secrets mount).
-**Reachability — code path unused.** Story Forge's only settings source is `env_file=".env"`
-(`backend/src/story_forge/config.py` `SettingsConfigDict`); we never construct
-`NestedSecretsSettingsSource`, set `secrets_dir`, or enable `secrets_nested_subdir`, so the
-vulnerable code is never instantiated. (Local single-user, 127.0.0.1 — there is also no
-lower-privileged component to plant the symlink.) **Fix-first is blocked only by the soak:**
-the fix **2.14.2** was published 2026-06-19, inside the 14-day window.
-**Drop when:** 2.14.2 clears the soak (floor **2026-07-04** = publication + 15 days) — bump
-`pydantic-settings` to 2.14.2 via `/add-dependency`, then delete the toml block + this row.
-
-| CVE / advisory | Severity | Class | Fixed in | Drop when (soaks) | Why safe meanwhile |
-|---|---|---|---|---|---|
-| GHSA-4xgf-cpjx-pc3j | MEDIUM (CVSS 5.3) | local file read via `secrets_dir` symlink | 2.14.2 | 2026-07-04 | the `NestedSecretsSettingsSource` / `secrets_dir` code path is never used (we read `.env` only); no untrusted local component on a single-user host |
