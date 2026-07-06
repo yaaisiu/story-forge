@@ -1,7 +1,7 @@
 ---
 type: glossary
 slug: glossary
-updated: 2026-07-01
+updated: 2026-07-06
 status: living
 related: []
 ---
@@ -11,7 +11,7 @@ related: []
 The glossary is a **knowledge graph**, not a flat list: each term is its own note (a node) in
 `glossary/`, cross-linked via `related` so concepts form a web you can wander in Obsidian. This
 index is **regenerated** each run; the term notes are the source. Terms are added *organically* —
-only when real work first surfaces them — and deduped by slug. Count today: **31**.
+only when real work first surfaces them — and deduped by slug. Count today: **34**.
 
 | Term (EN / PL) | Answers | Note |
 |---|---|---|
@@ -46,3 +46,6 @@ only when real work first surfaces them — and deduped by slug. Count today: **
 | surrogate key / klucz zastępczy | is this the same edge after I curate it? | [[surrogate-key]] |
 | reification / reifikacja | how do I say something *about* a relationship? | [[reification]] |
 | provenance / proweniencja | where in the text did this fact come from? | [[provenance]] |
+| entity resolution / rozpoznawanie tożsamości encji | are these two names the same thing, and who decides? | [[entity-resolution]] |
+| connected components / składowe spójne | A≈B and B≈C — is {A,B,C} one duplicate cluster? | [[connected-components]] |
+| blocking / blokowanie | dedup is O(n²) — how to avoid comparing everything? | [[blocking]] |

@@ -1,7 +1,7 @@
 ---
 type: open-questions
 slug: open-questions
-updated: 2026-07-01
+updated: 2026-07-06
 status: living
 related: ["[[overview]]", "[[project]]", "[[invariants]]", "[[2026-06-02-architecture-review]]", "[[m2s3-extraction-agent]]", "[[2026-06-09-architecture-review]]", "[[2026-06-11-architecture-review]]"]
 ---
@@ -955,6 +955,54 @@ owner resolves before code.**
   handle for addressing"; code-verified there is **no** surrogate handle built yet, and S3 addresses edges
   by the existing content-addressed id for a *read* (stable because S3 writes nothing) — the handle is an
   edge-*write* concern (S5/S6, DM-GQ-1). Open.
+
+### ~~OQ-32 — Graph-quality S4 duplicate-cluster-suggest decision register (DM-CD-1..6)~~ ✅ RESOLVED 2026-07-06 (Session 77, owner)
+**Resolved same session** (authoritative: `docs/PLAN_SHORT.md` Decided S77 + `[[graph-cluster-dedup]]` now
+`accepted`): **DM-CD-1 = pairwise for V1** (transitive [[connected-components]] a named later refinement);
+**DM-CD-2 = eager/recall-first** (Stage 1 name + Stage 2 embeddings, ambiguous floor, ranked,
+deterministic-only, a `duplicate_suggest_floor` knob; type a soft signal — INV-4); **DM-CD-3 = persist
+dismissals** (a Postgres pair-store, staging-side, none-at-PoC retention, reversible — the
+[[intra-batch-dedup|DM-rej]] precedent; **ADR-worthy, drafts at the S4a build**); **DM-CD-4 = a dedicated
+review-queue-like list** (reuse S3 DM-EE-3 merge-context; canvas overlay → BACKLOG); **DM-CD-5/6 = S4a be /
+S4b fe, reuse the existing merge unchanged, project-scoped.** No `graph-quality.md` amendment at decompose
+time (the dismissal store is staging-side plumbing, not a §3 S4 scope change). Original framing kept below
+for history.
+
+Raised by the Graph-quality **S4** `decompose-requirement` step-0 (2026-07-06, `[[graph-cluster-dedup]]`).
+S4 re-points the §3.3 cascade matcher **inward** — each already-accepted entity scored against the others
+(a self-join over the `AcceptedSnapshot`) — to **suggest** likely-duplicate entities the author would
+hunt for by eye; the human commits each merge through the **existing** `POST …/entities/{id}/merge`. **It
+suggests, never auto-merges** (INV-1/INV-9 hold; no egress/LLM). **The defining finding:** both the
+matcher (`MatchingAgent` + `AcceptedEntityReader.load_accepted`) and the merge commit path (`plan_merge` →
+`EntityEditService.merge_entities` → the merge endpoint) already ship — so S4 adds only a *read/analysis*
+surface (the self-join) and a *review* surface, **no net-new graph write**. Full Context/Options/Proposal
+live in the proposal's register; listed here so the reader knows they gate the S4 build. **Register all
+OPEN — the owner resolves before code.**
+- **DM-CD-1 — cluster model (the central call):** flat **pairwise** suggestions vs **transitive**
+  [[connected-components]] clusters (risk: *cluster drift* — A≈B≈C chains A and C though A≉C). *Lean:* (a)
+  pairwise, ranked — the merge is pairwise anyway; transitive (star-guarded) is a named later refinement.
+- **DM-CD-2 — matcher rungs + the *suggestion* floor:** Stage 1 name + Stage 2 embeddings, floored at the
+  **ambiguous** band (recall-first — nothing auto-merges, so surface the diminutive zone; a false positive
+  costs one dismiss click), ranked, deterministic-only (no live judge — [[prefer-deterministic]]). Add a
+  `duplicate_suggest_floor` knob. *`verify-at-build`:* a zero-mention-vector entity must fall back to
+  name-only (cosine raises on a zero-magnitude vector), not crash.
+- **DM-CD-3 — dismissal memory (the Evidence/Expiry-station call; likely ADR-worthy):** **persist** a "not
+  a duplicate" dismissal (a small Postgres pair-store, the [[intra-batch-dedup|DM-rej]] precedent —
+  staging-side, INV-9 holds) vs ephemeral (a dismissed pair recurs every open). *Lean:* (b) persist
+  dismissals only; none-at-PoC retention (OQ-4). The one call that adds stored state → **ADR-worthy**.
+- **DM-CD-4 — where suggestions surface:** a dedicated review-queue-like **list** (reuse the review-queue +
+  S3 DM-EE-3 merge-context components) vs canvas annotation. *Lean:* (a) the list for V1; canvas overlay →
+  `docs/BACKLOG.md`.
+- **DM-CD-5 — slice boundaries:** **S4a** (pure `domain/duplicate_clusters.py` self-join + `GET
+  …/duplicate-suggestions` read + the dismiss store/endpoint iff DM-CD-3 b/c) / **S4b** (the review list
+  feeding the existing merge). *Lean:* the be/fe split, S4a first.
+- **DM-CD-6 — reuse-not-fork (confirm):** the merge is unchanged; exactly one new read (+ one conditional
+  dismiss write); project-scoped (as the matcher already is).
+- **Lands in:** S4 (be+fe split). **Spec amendment only if** DM-CD-3 adds the dismissal store or DM-CD-1
+  picks transitive clusters (read `graph-quality.md` §3 S4 first — the M4.S3b "delete → §3.5" miscue).
+  **ADR** only on confirmation (DM-CD-3 crosses the data-storage boundary). INV-4 constrains DM-CD-2 (type
+  is a soft ranking signal, never a hard filter — two duplicates over-extracted as different types are the
+  case S4 exists to catch). Open.
 
 ## Referenced — owned by spec §10 (not duplicated)
 
