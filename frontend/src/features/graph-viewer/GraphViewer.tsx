@@ -24,6 +24,7 @@ import {
   type GraphNode,
   type GraphScope,
 } from "../../lib/api/useStoryGraph";
+import { useEdgeEvidence } from "../../lib/api/useEdgeEvidence";
 import { GraphCanvas } from "./GraphCanvas";
 import { toCytoscapeElements } from "./graphElements";
 import {
@@ -33,6 +34,7 @@ import {
   isNodeElement,
   matchNodes,
 } from "./graphFilters";
+import { EdgeEvidencePanel } from "./EdgeEvidencePanel";
 import { NodeDetailsPanel } from "./NodeDetailsPanel";
 
 function extractMessage(error: unknown): string {
@@ -53,7 +55,10 @@ export function GraphViewer() {
   const graph = useStoryGraph(storyId, scope);
   const extract = useExtractStory();
 
+  // Node and edge selection share the one details slot, so they are mutually
+  // exclusive: picking one clears the other (S3b). At most one is ever non-null.
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
+  const [selectedEdgeId, setSelectedEdgeId] = useState<string | null>(null);
 
   // §3.4 client-side navigation state (DM-GN-1: all filtering runs over the payload
   // already fetched, no backend round-trip). Empty `selectedTypes` = no type
@@ -66,14 +71,26 @@ export function GraphViewer() {
   const debouncedTerm = useDebouncedValue(searchTerm, 200);
 
   // Stable identity so GraphCanvas's effect doesn't rebuild cytoscape every render.
-  const handleSelectNode = useCallback((nodeId: string) => setSelectedNodeId(nodeId), []);
+  // Selecting a node clears any edge selection (and vice-versa) — one panel slot.
+  const handleSelectNode = useCallback((nodeId: string) => {
+    setSelectedNodeId(nodeId);
+    setSelectedEdgeId(null);
+  }, []);
+  const handleSelectEdge = useCallback((edgeId: string) => {
+    setSelectedEdgeId(edgeId);
+    setSelectedNodeId(null);
+  }, []);
 
-  // Clear the selection when the scope changes: a node picked in the whole-project
+  // The tapped edge's evidence — fetched per tap, disabled until an edge is selected.
+  const edgeEvidence = useEdgeEvidence(storyId, selectedEdgeId ?? undefined);
+
+  // Clear the selection when the scope changes: a node/edge picked in the whole-project
   // view may not exist in the narrower story view, and a stale id would just blank
   // the details panel with no explanation.
   function handleScopeChange(next: GraphScope) {
     setScope(next);
     setSelectedNodeId(null);
+    setSelectedEdgeId(null);
   }
 
   const nodes = useMemo(() => graph.data?.nodes ?? [], [graph.data]);
@@ -101,6 +118,11 @@ export function GraphViewer() {
   );
   const visibleNodeIds = useMemo(
     () => new Set(visibleElements.filter(isNodeElement).map((el) => el.data.id as string)),
+    [visibleElements],
+  );
+  const visibleEdgeIds = useMemo(
+    () =>
+      new Set(visibleElements.filter((el) => !isNodeElement(el)).map((el) => el.data.id as string)),
     [visibleElements],
   );
 
@@ -142,6 +164,9 @@ export function GraphViewer() {
   useEffect(() => {
     if (selectedNodeId && !visibleNodeIds.has(selectedNodeId)) setSelectedNodeId(null);
   }, [selectedNodeId, visibleNodeIds]);
+  useEffect(() => {
+    if (selectedEdgeId && !visibleEdgeIds.has(selectedEdgeId)) setSelectedEdgeId(null);
+  }, [selectedEdgeId, visibleEdgeIds]);
 
   function toggleType(type: string) {
     setSelectedTypes((prev) => {
@@ -384,12 +409,25 @@ export function GraphViewer() {
                   elements={visibleElements}
                   focusNodeIds={focusNodeIds}
                   onSelectNode={handleSelectNode}
+                  onSelectEdge={handleSelectEdge}
                 />
               ))}
           </div>
-          {graph.isSuccess && nodeCount > 0 && (
-            <NodeDetailsPanel node={selectedNode} onClose={() => setSelectedNodeId(null)} />
-          )}
+          {/* One details slot: the tapped edge's evidence when an edge is selected,
+              otherwise the node-details panel (which owns the "click a node" prompt). */}
+          {graph.isSuccess &&
+            nodeCount > 0 &&
+            (selectedEdgeId ? (
+              <EdgeEvidencePanel
+                edgeId={selectedEdgeId}
+                evidence={edgeEvidence.data}
+                isPending={edgeEvidence.isPending}
+                onRetry={() => void edgeEvidence.refetch()}
+                onClose={() => setSelectedEdgeId(null)}
+              />
+            ) : (
+              <NodeDetailsPanel node={selectedNode} onClose={() => setSelectedNodeId(null)} />
+            ))}
         </div>
 
         <AgentActivityPanel />

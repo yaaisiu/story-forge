@@ -14,7 +14,7 @@ import { useState } from "react";
 import type { CandidateView } from "../../lib/api/useCandidates";
 import type { EntitySearchResult } from "../../lib/api/useEntitySearch";
 import { EntityPicker } from "./EntityPicker";
-import { alternativesOf, type ReviewIntent } from "./reviewQueue";
+import { alternativesOf, exactNameDuplicates, type ReviewIntent } from "./reviewQueue";
 
 interface CandidateCardProps {
   candidate: CandidateView;
@@ -49,6 +49,27 @@ export function CandidateCard({
   const [handpicked, setHandpicked] = useState<EntitySearchResult | null>(null);
   const mergeTarget = handpicked ?? pickedAlternative;
 
+  // DM-EE-5: if the reviewer clicks "New" for a name that already exists among the
+  // loaded alternatives, warn and offer the merge before creating a duplicate — never a
+  // hard block (INV-1). The warning is opened by the New button; "Create anyway" and
+  // "Merge instead" resolve it. A one-click "Merge instead" only appears when there is a
+  // *single* same-named entity: two distinct entities can share a name (DM-EE-4's "two
+  // crews" trap), so an ambiguous match defers to a manual pick from the list above rather
+  // than silently merging into an arbitrary one. (The keyboard `N` path in reduceReviewKey
+  // stays a direct create — the guard rides the discoverable button; the rare power-user
+  // bypass is a documented limitation, not a block.)
+  const duplicates = exactNameDuplicates(candidate);
+  const soleDuplicate = duplicates.length === 1 ? duplicates[0] : null;
+  const [dupWarnOpen, setDupWarnOpen] = useState(false);
+
+  function handleNewClick() {
+    if (duplicates.length > 0) {
+      setDupWarnOpen(true);
+      return;
+    }
+    onAct({ decision: "accept", accept: { action: "create" } });
+  }
+
   return (
     <article
       data-testid="candidate-card"
@@ -73,11 +94,15 @@ export function CandidateCard({
           }`}
         >
           {candidate.proposal === "merge"
-            ? // A Stage-2/3 merge targets the best embedding/judge match, which need not be
-              // in the fuzzy top-3 alternatives — and CandidateView carries no target name —
-              // so fall back to a generic label rather than surfacing a raw UUID. (The real
-              // name lands when the backend adds target_canonical_name — see PLAN_SHORT.md.)
-              `Merge → ${proposalTarget?.canonical_name ?? "an existing entity"}`
+            ? // The backend resolves the target's name (DM-EE-3); a Stage-2/3 merge can
+              // target an entity outside the fuzzy top-3, so fall back to a top-3 match's
+              // name, then a generic label (never a raw UUID). `target_canonical_name` is
+              // null-tolerant — a graph-DB outage degrades enrichment to null.
+              `Merge → ${
+                candidate.target_canonical_name ??
+                proposalTarget?.canonical_name ??
+                "an existing entity"
+              }`
             : "New entity"}
         </span>
       </header>
@@ -122,14 +147,30 @@ export function CandidateCard({
                       setHandpicked(null);
                       onPickTarget(index);
                     }}
-                    className={`w-full rounded border px-2 py-1 text-left text-xs ${
+                    className={`flex w-full flex-col gap-0.5 rounded border px-2 py-1 text-left text-xs ${
                       active
                         ? "border-amber-400 bg-amber-50 text-amber-900"
                         : "border-gray-200 text-gray-700 hover:bg-gray-50"
                     }`}
                   >
-                    {alt.canonical_name}
-                    <span className="ml-1 text-gray-400">({alt.score})</span>
+                    <span className="flex items-baseline justify-between gap-2">
+                      <span className="font-medium">{alt.canonical_name}</span>
+                      {/* Label the RapidFuzz score honestly as a *name* match, never an
+                          identity verdict — a 100 can still be two different things
+                          (DM-EE-4). The context below is how the author disambiguates. */}
+                      <span className="shrink-0 text-gray-400">name match {alt.score}</span>
+                    </span>
+                    {(alt.type || alt.aliases.length > 0) && (
+                      <span data-testid="alternative-identity" className="text-gray-500">
+                        {alt.type ?? "unknown type"}
+                        {alt.aliases.length > 0 && ` · aka ${alt.aliases.join(", ")}`}
+                      </span>
+                    )}
+                    {alt.context_quote && (
+                      <span data-testid="alternative-quote" className="italic text-gray-500">
+                        “{alt.context_quote}”
+                      </span>
+                    )}
                   </button>
                 </li>
               );
@@ -146,6 +187,60 @@ export function CandidateCard({
         </p>
       )}
 
+      {dupWarnOpen && duplicates.length > 0 && (
+        <div
+          data-testid="dup-warning"
+          role="alert"
+          className="flex flex-col gap-2 rounded border border-amber-300 bg-amber-50 p-2 text-xs text-amber-900"
+        >
+          {soleDuplicate ? (
+            <p>
+              An entity named <span className="font-medium">{soleDuplicate.canonical_name}</span>{" "}
+              already exists. Merge into it instead of creating a duplicate?
+            </p>
+          ) : (
+            // Several same-named entities exist — don't guess which the reviewer means;
+            // point them at the list above to pick the intended target explicitly.
+            <p>
+              {duplicates.length} entities named{" "}
+              <span className="font-medium">{candidate.candidate_name}</span> already exist. Pick
+              the intended one under &ldquo;Merge with instead&rdquo; above, or create a duplicate.
+            </p>
+          )}
+          <div className="flex flex-wrap gap-2">
+            {soleDuplicate && (
+              <button
+                type="button"
+                data-testid="dup-warning-merge"
+                onClick={() => {
+                  setDupWarnOpen(false);
+                  onAct({
+                    decision: "accept",
+                    accept: { action: "merge", target_entity_id: soleDuplicate.entity_id },
+                  });
+                }}
+                disabled={pending}
+                className="rounded border border-amber-400 px-2 py-1 font-medium text-amber-900 hover:bg-amber-100 disabled:opacity-50"
+              >
+                Merge instead
+              </button>
+            )}
+            <button
+              type="button"
+              data-testid="dup-warning-create"
+              onClick={() => {
+                setDupWarnOpen(false);
+                onAct({ decision: "accept", accept: { action: "create" } });
+              }}
+              disabled={pending}
+              className="rounded border border-gray-300 px-2 py-1 text-gray-700 hover:bg-gray-100 disabled:opacity-50"
+            >
+              Create anyway
+            </button>
+          </div>
+        </div>
+      )}
+
       <footer className="flex flex-wrap gap-2">
         <button
           type="button"
@@ -159,7 +254,7 @@ export function CandidateCard({
         <button
           type="button"
           data-testid="accept-create"
-          onClick={() => onAct({ decision: "accept", accept: { action: "create" } })}
+          onClick={handleNewClick}
           disabled={pending}
           className="rounded border border-gray-300 px-3 py-1 text-xs font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50"
         >
@@ -168,6 +263,7 @@ export function CandidateCard({
         <button
           type="button"
           data-testid="accept-merge"
+          data-armed={String(Boolean(mergeTarget))}
           onClick={() =>
             mergeTarget &&
             onAct({
@@ -176,7 +272,15 @@ export function CandidateCard({
             })
           }
           disabled={pending || !mergeTarget}
-          className="rounded border border-amber-300 px-3 py-1 text-xs font-medium text-amber-800 hover:bg-amber-50 disabled:opacity-50"
+          // Amber signals an *armed* merge (a target is picked), not that merging is
+          // merely possible — so a New-proposal card no longer reads as "this will merge"
+          // just because it has alternatives (DM-EE-6 amber fix). Neutral until a target
+          // is chosen (when it is also disabled).
+          className={`rounded border px-3 py-1 text-xs font-medium disabled:opacity-50 ${
+            mergeTarget
+              ? "border-amber-300 text-amber-800 hover:bg-amber-50"
+              : "border-gray-300 text-gray-700"
+          }`}
         >
           Merge (M)
         </button>

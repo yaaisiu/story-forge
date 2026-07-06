@@ -42,9 +42,16 @@ interface GraphCanvasProps {
   // Ids of the current search matches — highlighted + panned-to, not filtered.
   focusNodeIds: string[];
   onSelectNode: (nodeId: string) => void;
+  // Edge tap → the tapped edge's content-addressed id (its evidence read address, S3b).
+  onSelectEdge: (edgeId: string) => void;
 }
 
-export function GraphCanvas({ elements, focusNodeIds, onSelectNode }: GraphCanvasProps) {
+export function GraphCanvas({
+  elements,
+  focusNodeIds,
+  onSelectNode,
+  onSelectEdge,
+}: GraphCanvasProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const cyRef = useRef<Core | null>(null);
 
@@ -104,13 +111,16 @@ export function GraphCanvas({ elements, focusNodeIds, onSelectNode }: GraphCanva
     });
 
     cy.on("tap", "node", (event) => onSelectNode(event.target.id()));
+    // The edge's cytoscape id is its content-addressed GraphEdge.id — exactly the
+    // {edge_id} the evidence read expects (graphElements.ts). Reads-only (S3b).
+    cy.on("tap", "edge", (event) => onSelectEdge(event.target.id()));
     cyRef.current = cy;
 
     return () => {
       cy.destroy();
       cyRef.current = null;
     };
-  }, [elements, onSelectNode]);
+  }, [elements, onSelectNode, onSelectEdge]);
 
   // Search focus: highlight the matched nodes and pan to them, in place — never a
   // rebuild or relayout (the graph stays whole). Keyed on `elements` too so the
