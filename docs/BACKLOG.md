@@ -24,6 +24,19 @@ rationale survives.
 
 ---
 
+## Distribute the `meta-architect` skills with the repository
+
+The `meta-architect:*` skills (`decompose-requirement`, `review-architecture`,
+`initialize-project-architecture`) that produce the `architecture/` vault currently live in a
+**Claude Code plugin**, not in the repo — so they are **not distributed with Story Forge**. A
+person who clones the public repo gets the vault (`architecture/`) and the ADRs that reference the
+skills, but not the skills themselves, so they can't regenerate or extend the vault. **Owner ask
+(Session 76): share the architect skills *with* the repository** so a cloner has the whole toolchain,
+not just its output. Post-PoC because it's a packaging/distribution concern, not PoC functionality;
+needs a decision on *how* (vendor the skills under `.claude/skills/`, document the plugin as a
+dependency in the README, or a submodule) and a check that nothing in them is plugin-private. Pairs
+with the public-portfolio goal — the repo already dogfoods the architect; the tooling should ship too.
+
 ## LLM task evaluation baselines (chunking, extraction, cascade)
 
 A recurring need surfaced across the Session-33 smoke test: **every LLM-backed task needs a

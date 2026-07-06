@@ -76,8 +76,12 @@ API's graph response into cytoscape elements plus a colour-by-type palette. Clie
 [`GraphViewer.tsx`](../../frontend/src/features/graph-viewer/GraphViewer.tsx) container runs over the
 already-fetched payload (no backend round-trip) before handing the visible subset to the canvas; the
 search box is debounced via the shared [`useDebouncedValue`](../../frontend/src/hooks/useDebouncedValue.ts)
-hook. The container and [`NodeDetailsPanel.tsx`](../../frontend/src/features/graph-viewer/NodeDetailsPanel.tsx)
-(read-only entity details) stay testable with the canvas mocked.
+hook. `GraphCanvas` taps both nodes *and* edges: a node selection opens
+[`NodeDetailsPanel.tsx`](../../frontend/src/features/graph-viewer/NodeDetailsPanel.tsx) (read-only entity
+details), an edge selection opens [`EdgeEvidencePanel.tsx`](../../frontend/src/features/graph-viewer/EdgeEvidencePanel.tsx)
+(the tapped edge's provenance — predicate + source paragraphs/quotes, fetched via `useEdgeEvidence`; a
+zero-provenance edge reads "added manually"), and the two are mutually exclusive in the one details
+slot. Both stay testable with the canvas mocked.
 
 ### `agent-activity/` — the live model/agent panel (spec §8.5)
 A small persistent panel that makes the multi-model, agent-based architecture legible to anyone
