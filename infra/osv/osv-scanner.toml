@@ -27,12 +27,3 @@
 [[IgnoredVulns]]
 id = "GHSA-rrmf-rvhw-rf47"   # CVE-2025-3000 / PYSEC-2025-194 / BIT-pytorch-2025-3000 (MEDIUM, CVSS 5.3)
 reason = "torch.jit.script memory corruption; unreachable (inference-only encode), no fix — see infra/osv/WAIVERS.md"
-
-# pydantic-settings symlink-traversal in NestedSecretsSettingsSource (surfaced 2026-06-20).
-# We never use that source — config reads `.env` only (env_file in config.py), so the
-# vulnerable code path is never instantiated. Fix 2.14.2 published 2026-06-19, inside the
-# 14-day soak; time-boxed until it bakes. Full reachability + drop-when in WAIVERS.md.
-[[IgnoredVulns]]
-id = "GHSA-4xgf-cpjx-pc3j"   # CVE pending (MEDIUM, CVSS 5.3); fixed 2.14.2 (soaks 2026-07-04)
-ignoreUntil = 2026-07-04
-reason = "pydantic-settings secrets_dir symlink traversal; code path unused (we read .env, not a secrets_dir); fix 2.14.2 in 14-day soak — see infra/osv/WAIVERS.md"
