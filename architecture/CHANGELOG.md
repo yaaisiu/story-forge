@@ -1,7 +1,7 @@
 ---
 type: changelog
 slug: changelog
-updated: 2026-06-25
+updated: 2026-07-06
 status: living
 related: []
 ---
@@ -10,6 +10,28 @@ related: []
 
 Append-only audit trail of writes into the vault. Newest entries at the top. History also lives
 in `updated` fields (freshness) and git (diffs); this is the human-readable "what changed when".
+
+## 2026-07-06 (Graph-quality Session 77) — decompose + resolve: S4 suggest duplicate clusters
+
+- **`proposals/graph-cluster-dedup.md`** — new `decompose-requirement` step-0 for `graph-quality.md`
+  §3 **S4**, **resolved same session** (`status: accepted`, register **RESOLVED** DM-CD-1..6 / OQ-32).
+  Re-point the §3.3 cascade matcher inward (a self-join over the `AcceptedSnapshot`) to *suggest*
+  likely-duplicate accepted entities; the human commits each merge through the existing merge endpoint —
+  suggests, never auto-merges (INV-1/9 hold). Defining finding: both the matcher and the merge commit
+  path already ship → S4 adds only a read/analysis + review surface, no net-new graph write. Nine layers
+  + stations + data-flow (Mermaid) + "but what if" + plain-language owner gaps. Concise density (G=31,
+  L=59). **Owner resolutions:** DM-CD-1 pairwise · DM-CD-2 eager/recall-first (deterministic) · DM-CD-3
+  persist dismissals (ADR at build) · DM-CD-4 dedicated list · DM-CD-5/6 S4a be / S4b fe, reuse the merge.
+  Reconciled to resolved: banner + per-entry Decision lines + Mermaid/sweep dismiss-path activated + hand-off.
+- **`open-questions.md`** — added **OQ-32** (the DM-CD-1..6 register, mirrored) and **struck it resolved**
+  same session; bumped `updated`.
+- **`glossary/entity-resolution.md`, `glossary/connected-components.md`, `glossary/blocking.md`** — three
+  new terms surfaced by S4 (the umbrella field; transitive clustering + cluster drift; the O(n²) lever).
+  `glossary/glossary.md` regenerated (count 31→34).
+- **`learning-log.md`** — three lines (entity resolution as one signal at three moments; connected
+  components / cluster drift; blocking as a named deferred cost). Bumped `updated`.
+- **`INDEX.md`** — new proposal row + a milestone-narrative S4 block; marked S3 complete (PRs #172/#174);
+  bumped `updated`.
 
 ## 2026-06-25 (Public-readiness Session 2) — review: V1-complete → Public-readiness re-sync sweep
 
