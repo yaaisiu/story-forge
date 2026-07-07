@@ -73,6 +73,20 @@ path the tests assert — find the cases nobody wrote a test for. Check, concret
   persisted the *changed* merge target onto the row — harmless for the old terminal-noop reader,
   but the new relation-endpoint-resolution reader resolved to the **stale** target → an edge to
   the wrong entity. `/code-review`'s cross-file tracer caught it; the single self-review missed it.)
+- **Complete-the-extraction sweep — when a PR extracts/relocates a primitive to be its "single
+  home," did *every* existing inline copy get routed through it?** A refactor that pulls a shared
+  helper out (a scoring/format/parse expression, a constant, a small algorithm) so there is *one*
+  home for it is only half-done if it updates just the call sites the author happened to be touching
+  and leaves a sibling computing the same thing inline. The two then silently **drift** the day one
+  is tuned and the other is forgotten — reintroducing the exact inconsistency the extraction was
+  meant to prevent. So when the diff adds a helper "so there's one home for X" (or its docstring
+  says so), **grep the whole module/package for the pre-extraction expression** (the RapidFuzz call,
+  the literal, the loop body) and confirm each remaining copy was converted — the extraction's own
+  claim is the check. (Graph-quality S4a: the PR relocated `cosine_similarity` + `name_match_score`
+  into `domain/name_similarity.py` "so there is one home for the math" and converted `_rank`, but
+  left `MatchingAgent.stage1` computing the same `max(fuzz.token_set_ratio…)` inline; `/review-pr`
+  passed it, the multi-agent `/code-review` caught the leftover copy. Authoring-side mirror: the
+  rule-of-three discipline in `backend/src/story_forge/AGENTS.md` Agents.)
 - **Checkpoint / resume-marker ordering** — when a persisted write doubles as a *done /
   resume marker* (a row whose presence makes a re-run *skip* that unit of work), verify it
   lands **only after every operation whose completion it certifies** has succeeded. A marker
