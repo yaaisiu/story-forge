@@ -107,9 +107,14 @@ describe("DuplicatePairCard", () => {
     expect(names).toEqual(["Elara", "Elira"]);
     const identities = screen.getAllByTestId("duplicate-side-identity").map((n) => n.textContent);
     expect(identities[0]).toContain("aka El");
-    expect(screen.getByText("Elara stepped forward.", { exact: false })).toBeInTheDocument();
-    // Only side A has a quote (side B's is null).
+    // Only side A has a quote (side B's is null), and the entity's name is highlighted within it.
     expect(screen.getAllByTestId("duplicate-side-quote")).toHaveLength(1);
+    expect(screen.getByTestId("duplicate-side-quote").textContent).toContain(
+      "Elara stepped forward.",
+    );
+    const mentions = screen.getAllByTestId("quote-mention");
+    expect(mentions).toHaveLength(1);
+    expect(mentions[0]).toHaveTextContent("Elara");
     expect(screen.getByTestId("duplicate-scores").textContent).toBe(
       "name match 88 · embedding 0.91",
     );

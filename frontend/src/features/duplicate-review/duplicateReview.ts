@@ -58,6 +58,41 @@ export function mergeVarsFor(
   return { targetEntityId: survivorEntity.entity_id, absorbedId: absorbedEntity.entity_id };
 }
 
+/** One run of a context quote, flagged whether it is a mention of the entity being judged. */
+export interface QuoteSegment {
+  text: string;
+  match: boolean;
+}
+
+function escapeRegExp(term: string): string {
+  return term.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+/**
+ * Split a context quote into runs, marking every occurrence of the entity's own names (its
+ * canonical name + aliases) so the UI can highlight the mention the pair was surfaced on —
+ * the author shouldn't have to hunt for it. Case-insensitive, longest-term-first so a
+ * multi-word alias wins over a substring of it. Best-effort: an inflected mention that doesn't
+ * match verbatim simply stays unmarked (the quote still renders), never throws.
+ */
+export function markMentions(quote: string, terms: string[]): QuoteSegment[] {
+  const cleaned = [...new Set(terms.map((t) => t.trim()).filter(Boolean))].sort(
+    (a, b) => b.length - a.length,
+  );
+  if (cleaned.length === 0) return quote ? [{ text: quote, match: false }] : [];
+
+  const pattern = cleaned.map(escapeRegExp).join("|");
+  // One capturing group → String.split interleaves the matched delimiters at odd indices.
+  const parts = quote.split(new RegExp(`(${pattern})`, "gi"));
+  const segments: QuoteSegment[] = [];
+  for (let i = 0; i < parts.length; i++) {
+    const part = parts[i];
+    if (!part) continue; // skip the empty runs split yields at match boundaries
+    segments.push({ text: part, match: i % 2 === 1 });
+  }
+  return segments;
+}
+
 function clamp(index: number, length: number): number {
   if (length === 0) return 0;
   return Math.min(Math.max(index, 0), length - 1);

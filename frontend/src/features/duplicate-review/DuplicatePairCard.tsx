@@ -27,7 +27,7 @@ import {
   resolvedPropertiesFrom,
   type ConflictChoice,
 } from "../text-reader/mergeConflicts";
-import { mergeVarsFor, scoreLabels, type SurvivorSide } from "./duplicateReview";
+import { markMentions, mergeVarsFor, scoreLabels, type SurvivorSide } from "./duplicateReview";
 
 interface DuplicatePairCardProps {
   storyId: string;
@@ -58,7 +58,22 @@ function EntitySide({ entity, active }: { entity: DuplicateEntityView; active: b
       </p>
       {entity.context_quote && (
         <p data-testid="duplicate-side-quote" className="text-xs italic text-gray-500">
-          &ldquo;{entity.context_quote}&rdquo;
+          &ldquo;
+          {markMentions(entity.context_quote, [entity.canonical_name, ...entity.aliases]).map(
+            (seg, i) =>
+              seg.match ? (
+                <mark
+                  key={i}
+                  data-testid="quote-mention"
+                  className="rounded bg-yellow-200 px-0.5 font-medium not-italic text-gray-900"
+                >
+                  {seg.text}
+                </mark>
+              ) : (
+                <span key={i}>{seg.text}</span>
+              ),
+          )}
+          &rdquo;
         </p>
       )}
     </div>
@@ -174,6 +189,12 @@ export function DuplicatePairCard({
           {suggestion.entity_b.canonical_name}
         </button>
       </div>
+
+      <p data-testid="keep-hint" className="text-xs text-gray-500">
+        {survivor
+          ? "Press Merge to fold the other entity into the amber one — its relations and mentions move over. Nothing happens until you press Merge."
+          : "“Keep” chooses which entity survives; the other is merged into it. Or dismiss if they aren’t the same."}
+      </p>
 
       {detailsLoading && (
         <p data-testid="duplicate-details-loading" className="text-xs text-gray-500">

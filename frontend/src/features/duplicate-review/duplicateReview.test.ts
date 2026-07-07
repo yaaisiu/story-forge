@@ -3,7 +3,13 @@
 import { describe, expect, it } from "vitest";
 
 import type { DuplicateSuggestionView } from "../../lib/api/useDuplicateSuggestions";
-import { mergeVarsFor, pairKey, reduceDuplicateKey, scoreLabels } from "./duplicateReview";
+import {
+  markMentions,
+  mergeVarsFor,
+  pairKey,
+  reduceDuplicateKey,
+  scoreLabels,
+} from "./duplicateReview";
 
 function suggestion(overrides: Partial<DuplicateSuggestionView> = {}): DuplicateSuggestionView {
   return {
@@ -68,6 +74,48 @@ describe("mergeVarsFor", () => {
       targetEntityId: "b-id",
       absorbedId: "a-id",
     });
+  });
+});
+
+describe("markMentions", () => {
+  it("marks a name occurrence, case-insensitively, leaving the rest unmarked", () => {
+    expect(markMentions("The crew roared.", ["crew"])).toEqual([
+      { text: "The ", match: false },
+      { text: "crew", match: true },
+      { text: " roared.", match: false },
+    ]);
+    // Case-insensitive: a lowercased mention of a capitalised name still marks.
+    expect(markMentions("then Crew and crew", ["Crew"])).toEqual([
+      { text: "then ", match: false },
+      { text: "Crew", match: true },
+      { text: " and ", match: false },
+      { text: "crew", match: true },
+    ]);
+  });
+
+  it("prefers the longest term so a multi-word alias wins over its substring", () => {
+    expect(markMentions("the merchant crew sailed", ["crew", "merchant crew"])).toEqual([
+      { text: "the ", match: false },
+      { text: "merchant crew", match: true },
+      { text: " sailed", match: false },
+    ]);
+  });
+
+  it("returns the whole quote unmarked when no term matches or the term list is empty", () => {
+    expect(markMentions("nothing here", ["absent"])).toEqual([
+      { text: "nothing here", match: false },
+    ]);
+    expect(markMentions("nothing here", [" ", ""])).toEqual([
+      { text: "nothing here", match: false },
+    ]);
+  });
+
+  it("treats regex-special characters in a name literally", () => {
+    expect(markMentions("Dr. (A.) speaks", ["(A.)"])).toEqual([
+      { text: "Dr. ", match: false },
+      { text: "(A.)", match: true },
+      { text: " speaks", match: false },
+    ]);
   });
 });
 

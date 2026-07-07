@@ -131,10 +131,11 @@ describe("DuplicatesQueue", () => {
     expect(screen.getByTestId("duplicates-empty")).toBeInTheDocument();
   });
 
-  it("renders one card per suggestion", () => {
+  it("renders one card per suggestion and counts the remaining pairs", () => {
     h.items = [suggestion("1"), suggestion("2")];
     renderQueue();
     expect(screen.getAllByTestId("pair-stub")).toHaveLength(2);
+    expect(screen.getByTestId("duplicates-count")).toHaveTextContent("2");
     // The first card is selected by default.
     expect(screen.getAllByTestId("pair-stub")[0]).toHaveAttribute("data-selected", "true");
   });

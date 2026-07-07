@@ -114,10 +114,16 @@ export function DuplicatesQueue() {
     >
       <header className="flex items-baseline justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-semibold">Possible duplicates</h1>
+          <h1 className="text-2xl font-semibold">
+            Possible duplicates
+            <span data-testid="duplicates-count" className="ml-2 text-lg font-normal text-gray-500">
+              {items.length}
+            </span>
+          </h1>
           <p className="text-sm text-gray-600">
-            Entities that look like the same thing. Pick which one to keep and merge, or dismiss the
-            pair. Nothing is merged until you decide. Keys: J/K move · D dismiss.
+            {items.length} pair{items.length === 1 ? "" : "s"} left to review. Entities that look
+            like the same thing — pick which one to keep and merge, or dismiss the pair. Nothing is
+            merged until you decide. Keys: J/K move · D dismiss.
           </p>
         </div>
         {storyId && (
