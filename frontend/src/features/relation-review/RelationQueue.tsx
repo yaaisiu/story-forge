@@ -13,27 +13,14 @@
 // Components render and dispatch; the only effect here is a keydown subscription, not a
 // data fetch (frontend/src/CLAUDE.md — TanStack owns the server state).
 
-import { useEffect, useState } from "react";
-
 import { Link, useParams } from "react-router-dom";
 
 import { ApiError } from "../../lib/api/client";
 import { useDecideRelation } from "../../lib/api/useDecideRelation";
-import { useRelations } from "../../lib/api/useRelations";
+import { useRelations, type RelationView } from "../../lib/api/useRelations";
+import { useReviewQueue } from "../../hooks/useReviewQueue";
 import { RelationCard } from "./RelationCard";
 import { reduceRelationKey, type DecideAction, type NavState } from "./relationQueue";
-
-/** True when a keystroke is destined for an editable field, so the window-bound
- * keyboard scheme should leave it alone. */
-function isEditableTarget(target: EventTarget | null): boolean {
-  if (!(target instanceof HTMLElement)) return false;
-  return (
-    target.tagName === "INPUT" ||
-    target.tagName === "TEXTAREA" ||
-    target.tagName === "SELECT" ||
-    target.isContentEditable
-  );
-}
 
 function decideMessage(error: unknown): string {
   // Neutral wording: this maps both the queue-load error and the commit/reject decision
@@ -54,11 +41,7 @@ export function RelationQueue() {
   const queue = useRelations(storyId);
   const decide = useDecideRelation(storyId ?? "");
 
-  const [nav, setNav] = useState<NavState>({ selectedIndex: 0 });
-
   const relations = queue.data?.relations ?? [];
-  // The list shrinks as decisions land; keep the selection in range.
-  const selectedIndex = Math.min(nav.selectedIndex, Math.max(0, relations.length - 1));
 
   function commit(index: number, action: DecideAction) {
     const target = relations[index];
@@ -66,22 +49,19 @@ export function RelationQueue() {
     decide.mutate({ relationId: target.id, action });
   }
 
-  useEffect(() => {
-    function onKeyDown(event: KeyboardEvent) {
-      // The scheme is bound at the window, so skip it when the user is typing into a
-      // field — else J/K/A/R would hijack their input.
-      if (isEditableTarget(event.target)) return;
-      const result = reduceRelationKey(event.key, { selectedIndex }, relations);
-      if (!result) return;
-      event.preventDefault();
-      setNav(result.state);
-      if (result.action) commit(result.state.selectedIndex, result.action);
-    }
-    window.addEventListener("keydown", onKeyDown);
-    return () => window.removeEventListener("keydown", onKeyDown);
-    // No deps array is intentional: `relations`/`selectedIndex` are read inside, so
-    // re-binding each render keeps the closure fresh (cost is negligible at this scale).
+  // Cursor + the §8.3 keyboard scheme. The key semantics live in the pure `reduceRelationKey`
+  // (which returns an `action`, adapted here to the hook's generic `intent`); the shared hook
+  // owns the window keydown subscription and re-clamps the cursor as the queue shrinks.
+  const { state: nav } = useReviewQueue<RelationView, NavState, DecideAction>({
+    items: relations,
+    initialState: { selectedIndex: 0 },
+    reduceKey: (key, state, items) => {
+      const result = reduceRelationKey(key, state, items);
+      return result ? { state: result.state, intent: result.action } : null;
+    },
+    onCommit: (state, action) => commit(state.selectedIndex, action),
   });
+  const selectedIndex = nav.selectedIndex;
 
   if (queue.isPending) {
     return (

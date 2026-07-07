@@ -13,27 +13,14 @@
 // Components render and dispatch; the only effect here is a keydown subscription, not a
 // data fetch (frontend/src/CLAUDE.md — TanStack owns the server state).
 
-import { useEffect, useState } from "react";
-
 import { useParams } from "react-router-dom";
 
 import { ApiError } from "../../lib/api/client";
-import { useCandidates } from "../../lib/api/useCandidates";
+import { useCandidates, type CandidateView } from "../../lib/api/useCandidates";
 import { useReviewCandidate } from "../../lib/api/useReviewCandidate";
+import { useReviewQueue } from "../../hooks/useReviewQueue";
 import { CandidateCard } from "./CandidateCard";
 import { reduceReviewKey, type NavState, type ReviewIntent } from "./reviewQueue";
-
-/** True when a keystroke is destined for an editable field, so the window-bound
- * keyboard scheme should leave it alone. */
-function isEditableTarget(target: EventTarget | null): boolean {
-  if (!(target instanceof HTMLElement)) return false;
-  return (
-    target.tagName === "INPUT" ||
-    target.tagName === "TEXTAREA" ||
-    target.tagName === "SELECT" ||
-    target.isContentEditable
-  );
-}
 
 function reviewMessage(error: unknown): string {
   // Neutral wording: this maps both the queue-load error and the accept/reject decision
@@ -50,11 +37,7 @@ export function ReviewQueue() {
   const queue = useCandidates(storyId);
   const review = useReviewCandidate(storyId ?? "");
 
-  const [nav, setNav] = useState<NavState>({ selectedIndex: 0, mergeTargetIndex: null });
-
   const candidates = queue.data?.candidates ?? [];
-  // The list shrinks as decisions land; keep the selection in range.
-  const selectedIndex = Math.min(nav.selectedIndex, Math.max(0, candidates.length - 1));
 
   function commit(index: number, intent: ReviewIntent) {
     const target = candidates[index];
@@ -62,23 +45,17 @@ export function ReviewQueue() {
     review.mutate({ candidateId: target.id, ...intent });
   }
 
-  useEffect(() => {
-    function onKeyDown(event: KeyboardEvent) {
-      // The scheme is bound at the window, so skip it when the user is typing into a
-      // field — the handpick search box (EntityPicker, M3.S4d) is one — else J/K/A/…
-      // would hijack their input.
-      if (isEditableTarget(event.target)) return;
-      const result = reduceReviewKey(event.key, { ...nav, selectedIndex }, candidates);
-      if (!result) return;
-      event.preventDefault();
-      setNav(result.state);
-      if (result.intent) commit(result.state.selectedIndex, result.intent);
-    }
-    window.addEventListener("keydown", onKeyDown);
-    return () => window.removeEventListener("keydown", onKeyDown);
-    // No deps array is intentional: `nav`/`candidates`/`selectedIndex` are read inside,
-    // so re-binding each render keeps the closure fresh (cost is negligible at this scale).
+  // Cursor + the §8.3 keyboard scheme. The key semantics live in the pure `reduceReviewKey`;
+  // the shared hook owns the window keydown subscription and re-clamps the cursor as the
+  // queue shrinks under committed decisions. The handpick search box (EntityPicker) is left
+  // alone (isEditableTarget) so typing never triggers J/K/A/N/M/R.
+  const { state: nav, setState: setNav } = useReviewQueue<CandidateView, NavState, ReviewIntent>({
+    items: candidates,
+    initialState: { selectedIndex: 0, mergeTargetIndex: null },
+    reduceKey: reduceReviewKey,
+    onCommit: (state, intent) => commit(state.selectedIndex, intent),
   });
+  const selectedIndex = nav.selectedIndex;
 
   if (queue.isPending) {
     return (

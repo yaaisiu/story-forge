@@ -9,6 +9,7 @@ import { lazy, Suspense } from "react";
 import { Route, Routes } from "react-router-dom";
 
 import { OutlineEditor } from "../features/chunking/OutlineEditor";
+import { DuplicatesQueue } from "../features/duplicate-review/DuplicatesQueue";
 import { ReviewQueue } from "../features/extraction-review/ReviewQueue";
 import { ProjectPicker } from "../features/projects/ProjectPicker";
 import { RelationQueue } from "../features/relation-review/RelationQueue";
@@ -52,6 +53,9 @@ export function AppRoutes() {
       {/* M4.S1: read the story with accepted entities highlighted inline (spec §3.5).
           Read-only — no editor dep, so it imports directly (no code-split needed). */}
       <Route path="/stories/:storyId/reader" element={<TextReader />} />
+      {/* Graph-quality S4b: work down the likely-duplicate entity pairs suggested over the
+          accepted graph — accept (→ the existing merge) or dismiss each (human-gated). */}
+      <Route path="/stories/:storyId/duplicates" element={<DuplicatesQueue />} />
     </Routes>
   );
 }

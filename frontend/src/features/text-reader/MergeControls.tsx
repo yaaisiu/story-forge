@@ -18,7 +18,7 @@ import { EntityPicker } from "../extraction-review/EntityPicker";
 import type { EntitySearchResult } from "../../lib/api/useEntitySearch";
 import { useEntityDetail } from "../../lib/api/useEntityDetail";
 import { useMergeEntities } from "../../lib/api/useMergeEntities";
-import { formatPropertyValue } from "./formatPropertyValue";
+import { MergeConflictFields } from "./MergeConflictFields";
 import { buildConflictRows, resolvedPropertiesFrom, type ConflictChoice } from "./mergeConflicts";
 
 interface MergeControlsProps {
@@ -164,55 +164,11 @@ export function MergeControls({
         </p>
       )}
 
-      {conflicts.length > 0 && (
-        <fieldset data-testid="merge-conflicts" className="flex flex-col gap-2">
-          <legend className="text-xs font-medium uppercase tracking-wide text-gray-500">
-            Resolve conflicting properties
-          </legend>
-          {conflicts.map((row) => {
-            const choice = picks[row.key] ?? "survivor";
-            const setChoice = (c: ConflictChoice) =>
-              setPicks((prev) => ({ ...prev, [row.key]: c }));
-            return (
-              <div
-                key={row.key}
-                data-testid="merge-conflict"
-                className="flex flex-col gap-1 border-b border-gray-100 pb-1"
-              >
-                <span className="text-xs font-medium text-gray-600">{row.key}</span>
-                <div className="flex gap-1">
-                  <button
-                    type="button"
-                    data-testid="merge-keep-survivor"
-                    aria-pressed={choice === "survivor"}
-                    onClick={() => setChoice("survivor")}
-                    className={`flex-1 truncate rounded border px-2 py-1 text-left text-xs ${
-                      choice === "survivor"
-                        ? "border-gray-800 bg-gray-800 text-white"
-                        : "border-gray-300 text-gray-700 hover:bg-gray-50"
-                    }`}
-                  >
-                    keep: {formatPropertyValue(row.survivorValue)}
-                  </button>
-                  <button
-                    type="button"
-                    data-testid="merge-keep-absorbed"
-                    aria-pressed={choice === "absorbed"}
-                    onClick={() => setChoice("absorbed")}
-                    className={`flex-1 truncate rounded border px-2 py-1 text-left text-xs ${
-                      choice === "absorbed"
-                        ? "border-gray-800 bg-gray-800 text-white"
-                        : "border-gray-300 text-gray-700 hover:bg-gray-50"
-                    }`}
-                  >
-                    use: {formatPropertyValue(row.absorbedValue)}
-                  </button>
-                </div>
-              </div>
-            );
-          })}
-        </fieldset>
-      )}
+      <MergeConflictFields
+        conflicts={conflicts}
+        picks={picks}
+        onChange={(key, choice) => setPicks((prev) => ({ ...prev, [key]: choice }))}
+      />
 
       {merge.isError && (
         <p data-testid="merge-error" role="alert" className="text-xs text-red-700">
