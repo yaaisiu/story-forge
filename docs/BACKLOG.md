@@ -215,6 +215,38 @@ Session 33's live smoke test exposed several related gaps — all rooted in the 
   attributes*, not just surface strings — the mechanism most likely to close the coreference/context
   gaps above (smuggler→Elara, the magistrate→Locke). (Owner observation, Session 33.)
 
+## Graph-quality S4 duplicate-suggestion quality — name scorer + embeddings (post-PoC, surfaced S79)
+
+The S4 duplicate-suggestion list works and is correctly human-gated, but its **suggestion quality** on
+the real Oakhaven graph was poor — a flood of false positives — traced during the S4b live review to two
+independent upstream causes, **both outside the S4b frontend** (the list honestly shows what the backend
+computes). Deferred by the owner ("work with embeddings sometime later"); logged so the quality work is a
+deliberate, informed pass, not a rushed hotfix.
+
+- **The RapidFuzz `token_set_ratio` name scorer over-matches on shared/subset tokens.** `name_match_score`
+  (`backend/src/story_forge/domain/name_similarity.py`) uses `token_set_ratio`, which returns **100 when one
+  name's tokens are a *subset* of the other's** (`harbor` — its alias is literally "harbor" — vs `harbor
+  master`, or `docks` vs `city's labyrinthine docks`), and a **single shared generic word** inflates the
+  score (the aliases "heavy fog" vs "heavy brass" → **71**, above the `duplicate_suggest_floor` of 60). The
+  self-join scores across the *cross-product of all surface forms and takes the max* (`duplicate_clusters._best_name_score`),
+  so one coincidental alias collision surfaces the whole pair; and the combine is `max(name/100, cosine)` on
+  an `OR` qualifier, so a name-100 pair tops the list *regardless of cosine*. **Fix direction:** replace raw
+  `token_set_ratio` with a length/coverage-aware score (blend with `token_sort_ratio`/`WRatio`, or penalise
+  a lone-shared-token match) so a container/contained or single-shared-word pair can't reach the floor.
+  **Caveat — this scorer is shared with the intake cascade matcher** (`agents/matching_agent.py`), so a
+  change affects auto-merge/matching at extraction time too, and S6's predicate-name suggest will reuse the
+  same pattern — so it wants its own decision + session, not a spot fix. (Owner-surfaced, Session 79.)
+- **No mention embeddings for graphs extracted without the `models` group.** This Oakhaven graph's 512
+  `entity_mentions` all have `embedding = NULL`, so every suggestion falls back to name-only and the Stage-2
+  cosine signal that would counter the name over-match is entirely absent. This is **documented, intended
+  degradation** (spec §3.3): the embedding model lives in the optional `models` dependency group, and
+  `CandidateStager._safe_encode` fail-closes an encode failure to `None` — so a backend run *without*
+  `uv sync --group models` stages every candidate with a NULL vector, and the mention is written NULL on
+  accept. **To get embeddings for existing graphs:** install the `models` group, then either re-extract or
+  write a one-off backfill that re-encodes each mention's stored `context` and updates
+  `entity_mentions.embedding`. Note embeddings add *recall* but don't by themselves suppress the name-scorer
+  false positives above (the two fixes are complementary). (Owner-surfaced, Session 79.)
+
 ## Ingest & review UX feedback
 
 Several "where am I / how much is left" gaps surfaced in the Session-33 smoke test. All
