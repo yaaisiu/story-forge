@@ -69,11 +69,22 @@ function escapeRegExp(term: string): string {
 }
 
 /**
+ * Normalise the punctuation that varies between a stored entity name and the manuscript prose
+ * so an exact match doesn't miss on a cosmetic difference: typographic apostrophes/quotes
+ * (’ ‘ “ ” ‹ ›) → their ASCII forms. Length-preserving (1:1 char swaps), so match offsets on
+ * the normalised string map straight back onto the original text we render.
+ */
+function normalizeForMatch(text: string): string {
+  return text.replace(/[‘’‛′]/g, "'").replace(/[“”″]/g, '"');
+}
+
+/**
  * Split a context quote into runs, marking every occurrence of the entity's own names (its
  * canonical name + aliases) so the UI can highlight the mention the pair was surfaced on —
  * the author shouldn't have to hunt for it. Case-insensitive, longest-term-first so a
- * multi-word alias wins over a substring of it. Best-effort: an inflected mention that doesn't
- * match verbatim simply stays unmarked (the quote still renders), never throws.
+ * multi-word alias wins over a substring of it, and apostrophe/quote-insensitive (the prose
+ * often uses curly punctuation the stored name doesn't). Best-effort: an inflected mention
+ * that doesn't match verbatim simply stays unmarked (the quote still renders), never throws.
  */
 export function markMentions(quote: string, terms: string[]): QuoteSegment[] {
   const cleaned = [...new Set(terms.map((t) => t.trim()).filter(Boolean))].sort(
@@ -81,15 +92,21 @@ export function markMentions(quote: string, terms: string[]): QuoteSegment[] {
   );
   if (cleaned.length === 0) return quote ? [{ text: quote, match: false }] : [];
 
-  const pattern = cleaned.map(escapeRegExp).join("|");
-  // One capturing group → String.split interleaves the matched delimiters at odd indices.
-  const parts = quote.split(new RegExp(`(${pattern})`, "gi"));
+  const pattern = cleaned.map((t) => escapeRegExp(normalizeForMatch(t))).join("|");
+  const re = new RegExp(pattern, "gi");
+  // Match on the normalised quote (so curly vs straight punctuation still matches), but slice
+  // the ORIGINAL quote at those offsets — the normalisation is length-preserving, so offsets align.
+  const normalized = normalizeForMatch(quote);
   const segments: QuoteSegment[] = [];
-  for (let i = 0; i < parts.length; i++) {
-    const part = parts[i];
-    if (!part) continue; // skip the empty runs split yields at match boundaries
-    segments.push({ text: part, match: i % 2 === 1 });
+  let last = 0;
+  for (const m of normalized.matchAll(re)) {
+    const start = m.index;
+    const end = start + m[0].length;
+    if (start > last) segments.push({ text: quote.slice(last, start), match: false });
+    segments.push({ text: quote.slice(start, end), match: true });
+    last = end;
   }
+  if (last < quote.length) segments.push({ text: quote.slice(last), match: false });
   return segments;
 }
 

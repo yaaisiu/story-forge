@@ -110,6 +110,15 @@ describe("markMentions", () => {
     ]);
   });
 
+  it("matches across a typographic vs straight apostrophe, preserving the original text", () => {
+    // The stored name uses a straight apostrophe; the manuscript prose uses a curly one.
+    expect(markMentions("visiting the city’s docks today", ["city's docks"])).toEqual([
+      { text: "visiting the ", match: false },
+      { text: "city’s docks", match: true },
+      { text: " today", match: false },
+    ]);
+  });
+
   it("treats regex-special characters in a name literally", () => {
     expect(markMentions("Dr. (A.) speaks", ["(A.)"])).toEqual([
       { text: "Dr. ", match: false },
