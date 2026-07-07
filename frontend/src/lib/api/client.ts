@@ -88,6 +88,21 @@ export async function del(path: string): Promise<void> {
   await readJson<null>(response);
 }
 
+/**
+ * DELETE `path` carrying an `application/json` body. The bare `del()` sends no body; a few
+ * routes model an idempotent *reversal* keyed by a payload (the duplicate-suggestion
+ * un-dismiss, DM-CD-3) and need the pair in the body. Success is `204 No Content` (empty
+ * body → `null`); a non-2xx bubbles as a typed `ApiError`.
+ */
+export async function delJsonBody<T>(path: string, body: unknown): Promise<T> {
+  const response = await fetch(`${API_BASE_URL}${path}`, {
+    method: "DELETE",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+  return readJson<T>(response);
+}
+
 async function readJson<T>(response: Response): Promise<T> {
   const text = await response.text();
   const body: unknown = text ? safeJsonParse(text) : null;

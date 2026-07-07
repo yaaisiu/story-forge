@@ -23,11 +23,13 @@ export interface NavState {
  * `DecideRelationRequest.action` enum the decide endpoint accepts. */
 export type DecideAction = "commit" | "reject";
 
-/** Result of handling a keypress: the next nav state, plus a decision when the key
- * was A/R. `null` means the key isn't part of the scheme (ignore it). */
+/** Result of handling a keypress: the next nav state, plus a commit `intent` when the key
+ * was A/R. `null` means the key isn't part of the scheme (ignore it). The field is named
+ * `intent` to match the shared `useReviewQueue` contract (`QueueKeyResult`), so this reducer
+ * drops straight in without an adapter, symmetric with reduceReviewKey/reduceDuplicateKey. */
 export interface KeyResult {
   state: NavState;
-  action?: DecideAction;
+  intent?: DecideAction;
 }
 
 function clamp(index: number, length: number): number {
@@ -55,10 +57,10 @@ export function reduceRelationKey(
       return { state: { selectedIndex: clamp(state.selectedIndex - 1, relations.length) } };
     case "a":
     case "A":
-      return { state, action: "commit" };
+      return { state, intent: "commit" };
     case "r":
     case "R":
-      return { state, action: "reject" };
+      return { state, intent: "reject" };
     default:
       return null;
   }
