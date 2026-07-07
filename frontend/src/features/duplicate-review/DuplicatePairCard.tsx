@@ -116,9 +116,14 @@ export function DuplicatePairCard({
     );
   }
 
+  // Once the merge has committed, this card is transient — the list refetch will drop it. But
+  // the merge invalidates the entity-detail cache, so the absorbed (now-deleted) entity refetches
+  // and 404s in the gap before the card unmounts; suppress the detail loading/error so that race
+  // can't flash a spurious "couldn't load" on the happy path.
   const detailsLoading =
-    Boolean(survivor) && (survivorDetail.isPending || absorbedDetail.isPending);
-  const detailsError = Boolean(survivor) && (survivorDetail.isError || absorbedDetail.isError);
+    Boolean(survivor) && !merge.isSuccess && (survivorDetail.isPending || absorbedDetail.isPending);
+  const detailsError =
+    Boolean(survivor) && !merge.isSuccess && (survivorDetail.isError || absorbedDetail.isError);
   const canMerge =
     Boolean(vars) && survivorDetail.isSuccess && absorbedDetail.isSuccess && !merge.isPending;
 

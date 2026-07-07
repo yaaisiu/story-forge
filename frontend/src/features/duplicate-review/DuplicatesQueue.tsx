@@ -156,6 +156,12 @@ export function DuplicatesQueue() {
         </p>
       )}
 
+      {undismiss.isError && (
+        <p data-testid="duplicates-undismiss-error" role="alert" className="text-sm text-red-700">
+          Couldn&rsquo;t undo the dismissal. {duplicatesMessage(undismiss.error)}
+        </p>
+      )}
+
       {items.length === 0 ? (
         <p data-testid="duplicates-empty" className="text-sm text-gray-500">
           No possible duplicates — the accepted entities all look distinct.

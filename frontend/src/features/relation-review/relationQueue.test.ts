@@ -44,27 +44,27 @@ describe("reduceRelationKey — navigation", () => {
   });
 
   it("navigation carries no decision intent", () => {
-    expect(reduceRelationKey("j", START, TWO)?.action).toBeUndefined();
-    expect(reduceRelationKey("k", { selectedIndex: 1 }, TWO)?.action).toBeUndefined();
+    expect(reduceRelationKey("j", START, TWO)?.intent).toBeUndefined();
+    expect(reduceRelationKey("k", { selectedIndex: 1 }, TWO)?.intent).toBeUndefined();
   });
 });
 
 describe("reduceRelationKey — decisions", () => {
   it("A commits the selected relation's edge", () => {
     const result = reduceRelationKey("a", START, TWO);
-    expect(result?.action).toBe("commit");
+    expect(result?.intent).toBe("commit");
     expect(result?.state.selectedIndex).toBe(0);
   });
 
   it("R rejects the selected relation", () => {
     const result = reduceRelationKey("r", START, TWO);
-    expect(result?.action).toBe("reject");
+    expect(result?.intent).toBe("reject");
     expect(result?.state.selectedIndex).toBe(0);
   });
 
   it("decision keys are case-insensitive", () => {
-    expect(reduceRelationKey("A", START, TWO)?.action).toBe("commit");
-    expect(reduceRelationKey("R", START, TWO)?.action).toBe("reject");
+    expect(reduceRelationKey("A", START, TWO)?.intent).toBe("commit");
+    expect(reduceRelationKey("R", START, TWO)?.intent).toBe("reject");
   });
 });
 

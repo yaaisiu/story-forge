@@ -50,15 +50,12 @@ export function RelationQueue() {
   }
 
   // Cursor + the §8.3 keyboard scheme. The key semantics live in the pure `reduceRelationKey`
-  // (which returns an `action`, adapted here to the hook's generic `intent`); the shared hook
-  // owns the window keydown subscription and re-clamps the cursor as the queue shrinks.
+  // (whose result already conforms to the hook's `intent` contract); the shared hook owns the
+  // window keydown subscription and re-clamps the cursor as the queue shrinks.
   const { state: nav } = useReviewQueue<RelationView, NavState, DecideAction>({
     items: relations,
     initialState: { selectedIndex: 0 },
-    reduceKey: (key, state, items) => {
-      const result = reduceRelationKey(key, state, items);
-      return result ? { state: result.state, intent: result.action } : null;
-    },
+    reduceKey: reduceRelationKey,
     onCommit: (state, action) => commit(state.selectedIndex, action),
   });
   const selectedIndex = nav.selectedIndex;

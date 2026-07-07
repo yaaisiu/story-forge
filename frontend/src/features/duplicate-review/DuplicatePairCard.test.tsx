@@ -17,6 +17,7 @@ import { DuplicatePairCard } from "./DuplicatePairCard";
 const h = vi.hoisted(() => ({
   mergeMutate: vi.fn(),
   mergeReset: vi.fn(),
+  mergeSuccess: { value: false },
   detailMode: { value: "success" as "success" | "loading" | "error" },
   props: {} as Record<string, Record<string, unknown>>,
 }));
@@ -43,6 +44,7 @@ vi.mock("../../lib/api/useMergeEntities", () => ({
     reset: h.mergeReset,
     isPending: false,
     isError: false,
+    isSuccess: h.mergeSuccess.value,
     error: null,
   }),
 }));
@@ -94,6 +96,7 @@ function renderCard(props: Partial<Parameters<typeof DuplicatePairCard>[0]> = {}
 afterEach(() => {
   vi.clearAllMocks();
   h.detailMode.value = "success";
+  h.mergeSuccess.value = false;
   h.props = {};
 });
 
@@ -165,5 +168,22 @@ describe("DuplicatePairCard", () => {
     // Dismiss stays available regardless of the merge sub-form.
     fireEvent.click(screen.getByTestId("duplicate-dismiss"));
     expect(onDismiss).toHaveBeenCalledTimes(1);
+  });
+
+  it("surfaces a details-error when a detail read fails and the merge has not succeeded", () => {
+    h.detailMode.value = "error";
+    renderCard();
+    fireEvent.click(screen.getByTestId("duplicate-keep-a"));
+    expect(screen.getByTestId("duplicate-details-error")).toBeInTheDocument();
+  });
+
+  it("suppresses the details-error once the merge has succeeded (no happy-path flash)", () => {
+    // After merge success useMergeEntities invalidates entity-detail, so the deleted absorbed
+    // entity refetches and 404s in the gap before the card unmounts — that must not flash an error.
+    h.detailMode.value = "error";
+    h.mergeSuccess.value = true;
+    renderCard();
+    fireEvent.click(screen.getByTestId("duplicate-keep-a"));
+    expect(screen.queryByTestId("duplicate-details-error")).not.toBeInTheDocument();
   });
 });

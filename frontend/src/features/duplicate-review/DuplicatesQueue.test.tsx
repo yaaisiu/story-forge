@@ -18,6 +18,7 @@ const h = vi.hoisted(() => ({
   items: [] as DuplicateSuggestionView[],
   dismissMutate: vi.fn(),
   undismissMutate: vi.fn(),
+  undismissFails: { value: false },
 }));
 
 vi.mock("../../lib/api/useDuplicateSuggestions", () => ({
@@ -44,11 +45,12 @@ vi.mock("../../lib/api/useDismissDuplicate", () => ({
   useUndismissDuplicate: () => ({
     mutate: (vars: unknown, opts?: { onSuccess?: () => void }) => {
       h.undismissMutate(vars);
-      opts?.onSuccess?.();
+      // A failed un-dismiss does not run onSuccess, so the banner is not cleared.
+      if (!h.undismissFails.value) opts?.onSuccess?.();
     },
     isPending: false,
-    isError: false,
-    error: null,
+    isError: h.undismissFails.value,
+    error: undefined,
   }),
 }));
 
@@ -107,6 +109,7 @@ afterEach(() => {
   vi.clearAllMocks();
   h.mode.value = "success";
   h.items = [];
+  h.undismissFails.value = false;
 });
 
 describe("DuplicatesQueue", () => {
@@ -162,5 +165,19 @@ describe("DuplicatesQueue", () => {
     expect(h.undismissMutate).toHaveBeenCalledWith({ entityIdA: "1-a", entityIdB: "1-b" });
     // Undo clears the banner.
     expect(screen.queryByTestId("duplicates-undo")).not.toBeInTheDocument();
+  });
+
+  it("surfaces a failed Undo and keeps the banner so it can be retried", () => {
+    h.undismissFails.value = true;
+    h.items = [suggestion("1")];
+    renderQueue();
+
+    fireEvent.click(screen.getByTestId("stub-dismiss"));
+    fireEvent.click(screen.getByTestId("duplicates-undo-button"));
+
+    expect(h.undismissMutate).toHaveBeenCalledWith({ entityIdA: "1-a", entityIdB: "1-b" });
+    // The failure is shown (not swallowed) and the banner remains for a retry.
+    expect(screen.getByTestId("duplicates-undismiss-error")).toBeInTheDocument();
+    expect(screen.getByTestId("duplicates-undo")).toBeInTheDocument();
   });
 });
