@@ -9,6 +9,7 @@ frontend, and a `Story` needs a `project_id` to exist.
 
 from __future__ import annotations
 
+import asyncio
 from collections.abc import Mapping
 from pathlib import Path
 from typing import Annotated, Literal
@@ -20,10 +21,14 @@ from neo4j.exceptions import ServiceUnavailable
 from psycopg import AsyncConnection, OperationalError
 from pydantic import BaseModel, field_validator, model_validator
 
+from story_forge.adapters.accepted_entity_reader import AcceptedEntityReader
 from story_forge.adapters.db import get_connection
 from story_forge.adapters.llm.base import ProviderResponseError
 from story_forge.adapters.neo4j_repo import Neo4jRepo
 from story_forge.adapters.postgres_candidate_store import PostgresCandidateStore
+from story_forge.adapters.postgres_duplicate_dismissal_store import (
+    PostgresDuplicateDismissalStore,
+)
 from story_forge.adapters.postgres_relation_store import PostgresRelationStore
 from story_forge.adapters.postgres_repo import (
     get_project,
@@ -76,8 +81,17 @@ from story_forge.agents.relation_review import (
 )
 from story_forge.api.responses import ErrorResponse
 from story_forge.config import settings
-from story_forge.domain.candidates import CandidateProposal, RelationStatus, StagedCandidate
+from story_forge.domain.candidates import (
+    AcceptedSnapshot,
+    CandidateProposal,
+    RelationStatus,
+    StagedCandidate,
+)
 from story_forge.domain.chunking import outline_to_tree
+from story_forge.domain.duplicate_clusters import (
+    dismissal_pair_id,
+    suggest_duplicate_pairs,
+)
 from story_forge.domain.edge_evidence import EdgeEvidence, build_edge_evidence
 from story_forge.domain.entity_edits import EntityEditInvalid, EntityEditPatch
 from story_forge.domain.entity_merge import EntityMergeInvalid
@@ -1567,6 +1581,195 @@ async def list_candidates(
             for c in pending
         ]
     )
+
+
+# --- Duplicate-suggestion surface (graph-quality S4a) -----------------------
+
+
+def get_accepted_reader(request: Request) -> AcceptedEntityReader:
+    """The app-lifetime accepted-graph snapshot reader wired in `main.py`."""
+    reader: AcceptedEntityReader = request.app.state.accepted_reader
+    return reader
+
+
+def get_duplicate_dismissal_store(request: Request) -> PostgresDuplicateDismissalStore:
+    """The app-lifetime dismissed-duplicate-pair store wired in `main.py` (DM-CD-3)."""
+    store: PostgresDuplicateDismissalStore = request.app.state.duplicate_dismissal_store
+    return store
+
+
+class DuplicateEntityView(BaseModel):
+    """One side of a suggested duplicate pair, enriched for verification (S3/DM-EE-3 context).
+
+    Carries the identity context the author needs to judge a merge: the display name, the
+    `type` (shown, never a filter — INV-4), the `aliases`, and one sample mention `context_quote`
+    (None when the entity has no surfaced mention).
+    """
+
+    entity_id: UUID
+    canonical_name: str
+    type: str
+    aliases: list[str]
+    context_quote: str | None
+
+
+class DuplicateSuggestionView(BaseModel):
+    """One suggested duplicate pair for review: the two entities + why they were surfaced.
+
+    `cosine_score` is None when neither entity had a usable mention vector (name-only). The
+    author reviews the pair and either commits the merge (the existing merge endpoint, S4b) or
+    dismisses it (`POST …/duplicate-suggestions/dismiss`). Suggests only — writes no graph.
+    """
+
+    entity_a: DuplicateEntityView
+    entity_b: DuplicateEntityView
+    name_score: float
+    cosine_score: float | None
+    combined_score: float
+
+
+class DuplicateSuggestionsResponse(BaseModel):
+    """A project's ranked likely-duplicate pairs (dismissed pairs already suppressed)."""
+
+    suggestions: list[DuplicateSuggestionView]
+
+
+class DismissDuplicateRequest(BaseModel):
+    """The pair the author marked (or un-marked) as 'not a duplicate' — unordered."""
+
+    entity_id_a: UUID
+    entity_id_b: UUID
+
+
+def _duplicate_entity_view(
+    entity: GraphEntity, snapshot: AcceptedSnapshot, *, language: str
+) -> DuplicateEntityView:
+    """Project an accepted entity to its suggestion-row view, enriched from the snapshot (pure)."""
+    quotes = snapshot.recent_mentions.get(entity.id, [])
+    return DuplicateEntityView(
+        entity_id=entity.id,
+        canonical_name=canonical_for_language(entity, language) or "",
+        type=entity.type,
+        aliases=list(entity.aliases),
+        context_quote=quotes[0] if quotes else None,
+    )
+
+
+@router.get(
+    "/{story_id}/duplicate-suggestions",
+    responses={
+        404: {"model": ErrorResponse, "description": "Story not found."},
+        503: {"model": ErrorResponse, "description": "A data store is unavailable."},
+    },
+)
+async def list_duplicate_suggestions(
+    story_id: UUID,
+    conn: Annotated[AsyncConnection, Depends(get_connection)],
+    reader: Annotated[AcceptedEntityReader, Depends(get_accepted_reader)],
+    store: Annotated[PostgresDuplicateDismissalStore, Depends(get_duplicate_dismissal_store)],
+) -> DuplicateSuggestionsResponse:
+    """Likely-duplicate entity pairs over a story's accepted graph (graph-quality S4).
+
+    Re-points the §3.3 matcher inward: assembles the `AcceptedSnapshot` once, runs the pure
+    self-join (name + embedding, floored at `duplicate_suggest_floor` / the Stage-2 cosine bar),
+    drops any pair the author has dismissed, and enriches each side with S3 (DM-EE-3) verification
+    context. Ranked strongest-first. **Suggests only — writes no graph** (INV-1/INV-9); the human
+    commits each merge through the existing merge endpoint. Snapshot + dismissal reads are one
+    project-scoped batch; a store outage is a declared 503.
+    """
+    story = await get_story(conn, story_id)
+    if story is None:
+        raise HTTPException(status_code=404, detail="story not found")
+    try:
+        project = await get_project(conn, story.project_id)
+        # The accepted-graph snapshot (Neo4j + Postgres) and the dismissal set (Postgres) are
+        # independent reads over separate connections — fetch them concurrently.
+        snapshot, dismissed = await asyncio.gather(
+            reader.load_accepted(story.project_id),
+            store.list_pair_ids(story.project_id),
+        )
+    except (OperationalError, ServiceUnavailable) as exc:
+        raise HTTPException(status_code=503, detail="a data store is unavailable") from exc
+    language = project.language if project is not None else "pl"
+    entities_by_id = {e.id: e for e in snapshot.entities}
+    # The self-join is a pure, CPU-bound O(n²) pass; run it off the event loop so a large
+    # accepted graph can't block other requests. (The O(n²) scaling itself is the named
+    # blocking/LSH revisit-lever for a future multi-thousand-node graph — ADR 0010, Layer 9.)
+    pairs = await asyncio.to_thread(
+        suggest_duplicate_pairs,
+        snapshot,
+        name_floor=settings.duplicate_suggest_floor,
+        cosine_floor=settings.match_stage2_cosine_merge,
+    )
+    suggestions: list[DuplicateSuggestionView] = []
+    for pair in pairs:
+        if dismissal_pair_id(story.project_id, pair.entity_id_lo, pair.entity_id_hi) in dismissed:
+            continue
+        entity_a = entities_by_id.get(pair.entity_id_lo)
+        entity_b = entities_by_id.get(pair.entity_id_hi)
+        if entity_a is None or entity_b is None:
+            continue  # defensive — the snapshot is self-consistent by construction
+        suggestions.append(
+            DuplicateSuggestionView(
+                entity_a=_duplicate_entity_view(entity_a, snapshot, language=language),
+                entity_b=_duplicate_entity_view(entity_b, snapshot, language=language),
+                name_score=pair.name_score,
+                cosine_score=pair.cosine_score,
+                combined_score=pair.combined_score,
+            )
+        )
+    return DuplicateSuggestionsResponse(suggestions=suggestions)
+
+
+@router.post(
+    "/{story_id}/duplicate-suggestions/dismiss",
+    status_code=204,
+    responses={
+        404: {"model": ErrorResponse, "description": "Story not found."},
+        503: {"model": ErrorResponse, "description": "The dismissal store is unavailable."},
+    },
+)
+async def dismiss_duplicate_suggestion(
+    story_id: UUID,
+    body: DismissDuplicateRequest,
+    conn: Annotated[AsyncConnection, Depends(get_connection)],
+    store: Annotated[PostgresDuplicateDismissalStore, Depends(get_duplicate_dismissal_store)],
+) -> None:
+    """Record a 'not a duplicate' so the pair is not re-suggested (DM-CD-3). Idempotent."""
+    story = await get_story(conn, story_id)
+    if story is None:
+        raise HTTPException(status_code=404, detail="story not found")
+    try:
+        await store.insert(story.project_id, body.entity_id_a, body.entity_id_b)
+    except OperationalError as exc:
+        raise HTTPException(status_code=503, detail="the dismissal store is unavailable") from exc
+
+
+@router.delete(
+    "/{story_id}/duplicate-suggestions/dismiss",
+    status_code=204,
+    responses={
+        404: {"model": ErrorResponse, "description": "Story not found."},
+        503: {"model": ErrorResponse, "description": "The dismissal store is unavailable."},
+    },
+)
+async def undismiss_duplicate_suggestion(
+    story_id: UUID,
+    body: DismissDuplicateRequest,
+    conn: Annotated[AsyncConnection, Depends(get_connection)],
+    store: Annotated[PostgresDuplicateDismissalStore, Depends(get_duplicate_dismissal_store)],
+) -> None:
+    """Un-dismiss a pair so it can be suggested again (reversibility, DM-CD-3).
+
+    Silent no-op if the pair was not dismissed.
+    """
+    story = await get_story(conn, story_id)
+    if story is None:
+        raise HTTPException(status_code=404, detail="story not found")
+    try:
+        await store.delete(story.project_id, body.entity_id_a, body.entity_id_b)
+    except OperationalError as exc:
+        raise HTTPException(status_code=503, detail="the dismissal store is unavailable") from exc
 
 
 class AcceptRequest(BaseModel):

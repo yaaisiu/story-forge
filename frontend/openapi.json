@@ -1440,6 +1440,202 @@
         }
       }
     },
+    "/stories/{story_id}/duplicate-suggestions": {
+      "get": {
+        "tags": [
+          "stories"
+        ],
+        "summary": "List Duplicate Suggestions",
+        "description": "Likely-duplicate entity pairs over a story's accepted graph (graph-quality S4).\n\nRe-points the \u00a73.3 matcher inward: assembles the `AcceptedSnapshot` once, runs the pure\nself-join (name + embedding, floored at `duplicate_suggest_floor` / the Stage-2 cosine bar),\ndrops any pair the author has dismissed, and enriches each side with S3 (DM-EE-3) verification\ncontext. Ranked strongest-first. **Suggests only \u2014 writes no graph** (INV-1/INV-9); the human\ncommits each merge through the existing merge endpoint. Snapshot + dismissal reads are one\nproject-scoped batch; a store outage is a declared 503.",
+        "operationId": "list_duplicate_suggestions_stories__story_id__duplicate_suggestions_get",
+        "parameters": [
+          {
+            "name": "story_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Story Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DuplicateSuggestionsResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Story not found.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "A data store is unavailable.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/stories/{story_id}/duplicate-suggestions/dismiss": {
+      "post": {
+        "tags": [
+          "stories"
+        ],
+        "summary": "Dismiss Duplicate Suggestion",
+        "description": "Record a 'not a duplicate' so the pair is not re-suggested (DM-CD-3). Idempotent.",
+        "operationId": "dismiss_duplicate_suggestion_stories__story_id__duplicate_suggestions_dismiss_post",
+        "parameters": [
+          {
+            "name": "story_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Story Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DismissDuplicateRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "404": {
+            "description": "Story not found.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "The dismissal store is unavailable.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "stories"
+        ],
+        "summary": "Undismiss Duplicate Suggestion",
+        "description": "Un-dismiss a pair so it can be suggested again (reversibility, DM-CD-3).\n\nSilent no-op if the pair was not dismissed.",
+        "operationId": "undismiss_duplicate_suggestion_stories__story_id__duplicate_suggestions_dismiss_delete",
+        "parameters": [
+          {
+            "name": "story_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Story Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DismissDuplicateRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "404": {
+            "description": "Story not found.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "The dismissal store is unavailable.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/stories/{story_id}/candidates/{candidate_id}/accept": {
       "post": {
         "tags": [
@@ -2260,6 +2456,128 @@
         ],
         "title": "DecideRelationRequest",
         "description": "The reviewer's relation decision: commit the edge, or reject the relation."
+      },
+      "DismissDuplicateRequest": {
+        "properties": {
+          "entity_id_a": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Entity Id A"
+          },
+          "entity_id_b": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Entity Id B"
+          }
+        },
+        "type": "object",
+        "required": [
+          "entity_id_a",
+          "entity_id_b"
+        ],
+        "title": "DismissDuplicateRequest",
+        "description": "The pair the author marked (or un-marked) as 'not a duplicate' \u2014 unordered."
+      },
+      "DuplicateEntityView": {
+        "properties": {
+          "entity_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Entity Id"
+          },
+          "canonical_name": {
+            "type": "string",
+            "title": "Canonical Name"
+          },
+          "type": {
+            "type": "string",
+            "title": "Type"
+          },
+          "aliases": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Aliases"
+          },
+          "context_quote": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Context Quote"
+          }
+        },
+        "type": "object",
+        "required": [
+          "entity_id",
+          "canonical_name",
+          "type",
+          "aliases",
+          "context_quote"
+        ],
+        "title": "DuplicateEntityView",
+        "description": "One side of a suggested duplicate pair, enriched for verification (S3/DM-EE-3 context).\n\nCarries the identity context the author needs to judge a merge: the display name, the\n`type` (shown, never a filter \u2014 INV-4), the `aliases`, and one sample mention `context_quote`\n(None when the entity has no surfaced mention)."
+      },
+      "DuplicateSuggestionView": {
+        "properties": {
+          "entity_a": {
+            "$ref": "#/components/schemas/DuplicateEntityView"
+          },
+          "entity_b": {
+            "$ref": "#/components/schemas/DuplicateEntityView"
+          },
+          "name_score": {
+            "type": "number",
+            "title": "Name Score"
+          },
+          "cosine_score": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cosine Score"
+          },
+          "combined_score": {
+            "type": "number",
+            "title": "Combined Score"
+          }
+        },
+        "type": "object",
+        "required": [
+          "entity_a",
+          "entity_b",
+          "name_score",
+          "cosine_score",
+          "combined_score"
+        ],
+        "title": "DuplicateSuggestionView",
+        "description": "One suggested duplicate pair for review: the two entities + why they were surfaced.\n\n`cosine_score` is None when neither entity had a usable mention vector (name-only). The\nauthor reviews the pair and either commits the merge (the existing merge endpoint, S4b) or\ndismisses it (`POST \u2026/duplicate-suggestions/dismiss`). Suggests only \u2014 writes no graph."
+      },
+      "DuplicateSuggestionsResponse": {
+        "properties": {
+          "suggestions": {
+            "items": {
+              "$ref": "#/components/schemas/DuplicateSuggestionView"
+            },
+            "type": "array",
+            "title": "Suggestions"
+          }
+        },
+        "type": "object",
+        "required": [
+          "suggestions"
+        ],
+        "title": "DuplicateSuggestionsResponse",
+        "description": "A project's ranked likely-duplicate pairs (dismissed pairs already suppressed)."
       },
       "EdgeEvidence": {
         "properties": {

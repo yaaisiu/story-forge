@@ -125,6 +125,14 @@ class Settings(BaseSettings):
         "is proposed for MERGE; at/below it (or any NO) is 'new or uncertain'. Spec "
         "§3.3: confidence > 0.8.",
     )
+    duplicate_suggest_floor: float = Field(
+        default=60.0,
+        description="Graph-quality S4 duplicate self-join: RapidFuzz name score (0–100) "
+        "at/above which two accepted entities are surfaced as a likely-duplicate pair for "
+        "review. Recall-first — the ambiguous band, not the auto-merge bar — since nothing "
+        "auto-merges (INV-1); embedding similarity reuses match_stage2_cosine_merge. "
+        "Register DM-CD-2.",
+    )
 
     # --- Uploads ---
     upload_dir: Path = Field(

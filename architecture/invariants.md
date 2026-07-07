@@ -261,3 +261,14 @@ precedent: ADR 0006, DM-S3a-1.)
   "automated writer" and reaches for INV-9 should check *what store* it writes: graph → violation,
   staging → fine. Witnessed by the S4c flip test (`accept Janek → pending Janeks flip to merge, graph
   count unchanged`). See [[candidate-lifecycle]] (the `review-queued → review-queued` self-loop).
+- **Graph-quality S4 (duplicate-suggestion) adds *no* graph writer — read + a staging-side dismissal.**
+  The duplicate self-join (`domain/duplicate_clusters.suggest_duplicate_pairs`) re-points the §3.3
+  matcher inward over the accepted graph and *suggests* likely-duplicate pairs; it **writes nothing**.
+  The human commits each merge through the **existing** `POST …/entities/{id}/merge` (reused unchanged —
+  no new writer class, no new grep-set symbol). The only new persisted state is a **dismissal** — a
+  "not a duplicate" recorded in the new `duplicate_suggestion_dismissals` table (`domain` pair-id + the
+  `PostgresDuplicateDismissalStore`), which writes **Postgres only**, the *staging* side of the line
+  INV-9 draws (like on-accept re-match / the S3c mutators). So S4 introduces a new *read* and a new
+  *staging write*, but keeps the guarded Neo4j boundary untouched (INV-1/INV-9 hold — it *suggests*,
+  never auto-merges). A pair-dismissal is a tiny two-state record (`suggested → dismissed`, reversible),
+  not a graph transition. See ADR 0010, [[graph-cluster-dedup]] register, [[intra-batch-dedup|DM-rej]].
