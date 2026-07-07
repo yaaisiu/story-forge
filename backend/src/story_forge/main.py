@@ -16,6 +16,9 @@ from story_forge.adapters.llm.postgres_cost_store import PostgresCostStore
 from story_forge.adapters.llm.router import LLMRouter
 from story_forge.adapters.neo4j_repo import Neo4jRepo
 from story_forge.adapters.postgres_candidate_store import PostgresCandidateStore
+from story_forge.adapters.postgres_duplicate_dismissal_store import (
+    PostgresDuplicateDismissalStore,
+)
 from story_forge.adapters.postgres_edit_store import PostgresEditStore
 from story_forge.adapters.postgres_mention_store import PostgresMentionStore
 from story_forge.adapters.postgres_relation_store import PostgresRelationStore
@@ -102,6 +105,10 @@ _candidate_store = PostgresCandidateStore()
 # Shared across the read path (the §3.4 graph viewer) and the accept path (the review service).
 app.state.neo4j_repo = _neo4j_repo
 app.state.candidate_store = _candidate_store
+# Duplicate-suggestion surface (graph-quality S4a): a read-only accepted-graph snapshot reader
+# for the self-join, and the staging-side dismissed-pair store (INV-9 holds — never a graph write).
+app.state.accepted_reader = AcceptedEntityReader(_neo4j_repo)
+app.state.duplicate_dismissal_store = PostgresDuplicateDismissalStore()
 app.state.extraction_coordinator = ExtractionCoordinator(
     ExtractionAgent(_extraction_router),
     CandidateStager(EmbeddingAgent(), MatchingAgent(), JudgeAgent(_extraction_router)),

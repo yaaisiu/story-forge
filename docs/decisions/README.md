@@ -16,3 +16,4 @@ stays, so the record shows how the design evolved.
 | [0007](0007-graph-mutations-and-grouped-undo-log.md) | Entity merge/delete/undo are grouped, reversible operations under the human gate | Accepted |
 | [0008](0008-manual-correction-overlay-storage.md) | Manual correction in the reader: an overlay storage model + reconciled highlights | Accepted |
 | [0009](0009-branch-protection-ruleset.md) | Branch protection on `main` via a repository ruleset | Accepted |
+| [0010](0010-duplicate-suggestion-dismissal-store.md) | Persisting duplicate-suggestion dismissals: a staging-side pair store (graph-quality S4a) | Accepted |

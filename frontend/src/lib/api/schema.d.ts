@@ -434,6 +434,59 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/stories/{story_id}/duplicate-suggestions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Duplicate Suggestions
+         * @description Likely-duplicate entity pairs over a story's accepted graph (graph-quality S4).
+         *
+         *     Re-points the §3.3 matcher inward: assembles the `AcceptedSnapshot` once, runs the pure
+         *     self-join (name + embedding, floored at `duplicate_suggest_floor` / the Stage-2 cosine bar),
+         *     drops any pair the author has dismissed, and enriches each side with S3 (DM-EE-3) verification
+         *     context. Ranked strongest-first. **Suggests only — writes no graph** (INV-1/INV-9); the human
+         *     commits each merge through the existing merge endpoint. Snapshot + dismissal reads are one
+         *     project-scoped batch; a store outage is a declared 503.
+         */
+        get: operations["list_duplicate_suggestions_stories__story_id__duplicate_suggestions_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/stories/{story_id}/duplicate-suggestions/dismiss": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Dismiss Duplicate Suggestion
+         * @description Record a 'not a duplicate' so the pair is not re-suggested (DM-CD-3). Idempotent.
+         */
+        post: operations["dismiss_duplicate_suggestion_stories__story_id__duplicate_suggestions_dismiss_post"];
+        /**
+         * Undismiss Duplicate Suggestion
+         * @description Un-dismiss a pair so it can be suggested again (reversibility, DM-CD-3).
+         *
+         *     Silent no-op if the pair was not dismissed.
+         */
+        delete: operations["undismiss_duplicate_suggestion_stories__story_id__duplicate_suggestions_dismiss_delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/stories/{story_id}/candidates/{candidate_id}/accept": {
         parameters: {
             query?: never;
@@ -776,6 +829,71 @@ export interface components {
              * @enum {string}
              */
             action: "commit" | "reject";
+        };
+        /**
+         * DismissDuplicateRequest
+         * @description The pair the author marked (or un-marked) as 'not a duplicate' — unordered.
+         */
+        DismissDuplicateRequest: {
+            /**
+             * Entity Id A
+             * Format: uuid
+             */
+            entity_id_a: string;
+            /**
+             * Entity Id B
+             * Format: uuid
+             */
+            entity_id_b: string;
+        };
+        /**
+         * DuplicateEntityView
+         * @description One side of a suggested duplicate pair, enriched for verification (S3/DM-EE-3 context).
+         *
+         *     Carries the identity context the author needs to judge a merge: the display name, the
+         *     `type` (shown, never a filter — INV-4), the `aliases`, and one sample mention `context_quote`
+         *     (None when the entity has no surfaced mention).
+         */
+        DuplicateEntityView: {
+            /**
+             * Entity Id
+             * Format: uuid
+             */
+            entity_id: string;
+            /** Canonical Name */
+            canonical_name: string;
+            /** Type */
+            type: string;
+            /** Aliases */
+            aliases: string[];
+            /** Context Quote */
+            context_quote: string | null;
+        };
+        /**
+         * DuplicateSuggestionView
+         * @description One suggested duplicate pair for review: the two entities + why they were surfaced.
+         *
+         *     `cosine_score` is None when neither entity had a usable mention vector (name-only). The
+         *     author reviews the pair and either commits the merge (the existing merge endpoint, S4b) or
+         *     dismisses it (`POST …/duplicate-suggestions/dismiss`). Suggests only — writes no graph.
+         */
+        DuplicateSuggestionView: {
+            entity_a: components["schemas"]["DuplicateEntityView"];
+            entity_b: components["schemas"]["DuplicateEntityView"];
+            /** Name Score */
+            name_score: number;
+            /** Cosine Score */
+            cosine_score: number | null;
+            /** Combined Score */
+            combined_score: number;
+        };
+        /**
+         * DuplicateSuggestionsResponse
+         * @description A project's ranked likely-duplicate pairs (dismissed pairs already suppressed).
+         */
+        DuplicateSuggestionsResponse: {
+            /** Suggestions */
+            suggestions: components["schemas"]["DuplicateSuggestionView"][];
         };
         /**
          * EdgeEvidence
@@ -2559,6 +2677,157 @@ export interface operations {
                 };
             };
             /** @description The staging store is unavailable. */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    list_duplicate_suggestions_stories__story_id__duplicate_suggestions_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                story_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DuplicateSuggestionsResponse"];
+                };
+            };
+            /** @description Story not found. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+            /** @description A data store is unavailable. */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    dismiss_duplicate_suggestion_stories__story_id__duplicate_suggestions_dismiss_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                story_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DismissDuplicateRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Story not found. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+            /** @description The dismissal store is unavailable. */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    undismiss_duplicate_suggestion_stories__story_id__duplicate_suggestions_dismiss_delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                story_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DismissDuplicateRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Story not found. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+            /** @description The dismissal store is unavailable. */
             503: {
                 headers: {
                     [name: string]: unknown;

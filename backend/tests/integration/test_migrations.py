@@ -21,6 +21,7 @@ EXPECTED_TABLES = {
     "paragraphs",
     "entity_mentions",
     "mention_suppressions",
+    "duplicate_suggestion_dismissals",
 }
 
 
@@ -77,6 +78,26 @@ async def test_mention_suppressions_schema(db_conn: psycopg.AsyncConnection) -> 
     assert nullability["entity_id"] == "YES"
     assert nullability["span_start"] == "NO"
     assert nullability["span_end"] == "NO"
+
+
+@pytest.mark.integration
+async def test_duplicate_suggestion_dismissals_schema(db_conn: psycopg.AsyncConnection) -> None:
+    # Graph-quality S4a (DM-CD-3): staging-side pair-dismissal store — id PK (app-supplied
+    # uuid5, no default), project_id + both entity ids NOT NULL and un-FK'd (Neo4j ids), plus a
+    # created_at. All columns NOT NULL.
+    cur = await db_conn.execute(
+        "SELECT column_name, is_nullable FROM information_schema.columns "
+        "WHERE table_name = 'duplicate_suggestion_dismissals'"
+    )
+    nullability = dict(await cur.fetchall())
+    assert set(nullability) == {
+        "id",
+        "project_id",
+        "entity_id_lo",
+        "entity_id_hi",
+        "created_at",
+    }
+    assert all(v == "NO" for v in nullability.values())
 
 
 @pytest.mark.integration

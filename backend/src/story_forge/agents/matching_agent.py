@@ -4,12 +4,12 @@ Stage 1 is the cheapest cascade rung: a deterministic RapidFuzz token-set ratio 
 candidate's surface form against every existing entity's `canonical_name` + aliases.
 Stage 2 is the next: the max cosine of a candidate's context vector (produced by
 `EmbeddingAgent`) against an entity's stored mention vectors. Both are deterministic,
-local compute — no LLM, no network — so, like `PreNERAgent`, this module imports its
-local libraries (RapidFuzz; plain `math` for cosine) directly rather than behind a
-Protocol (the layering rule targets network/DB/provider I/O; ceremony for a single
-deterministic implementation buys nothing — `backend/src/story_forge/AGENTS.md`). The
-pure band/distance helpers (`classify`, `cosine_similarity`) need neither RapidFuzz nor
-a model, so the §3.3 thresholds are CI-tested without any scoring or embedding call.
+local compute — no LLM, no network. The pure scoring primitives themselves
+(`name_match_score`, the RapidFuzz core; `cosine_similarity`) live in
+`domain/name_similarity.py` — one home for the math, so both this intake matcher and the
+curation-time duplicate self-join (graph-quality S4) reuse them (`domain/` may not import
+`agents/`). The band helper `classify` and those primitives need no model, so the §3.3
+thresholds are CI-tested without any scoring or embedding call.
 
 Both stages only *propose* and never touch the graph (INV-1; a human commits at Stage 4).
 Stage 1 routes a candidate to `auto-merge-proposed` (> merge threshold), `ambiguous`
@@ -26,14 +26,17 @@ into the live extraction path with the review queue + the DM6 write-path refacto
 
 from __future__ import annotations
 
-import math
-from collections.abc import Sequence
 from typing import Literal
 
 from pydantic import BaseModel, Field
-from rapidfuzz import fuzz
 
 from story_forge.config import settings
+
+# The pure Stage-1/Stage-2 scoring primitives live in `domain/` so both this intake
+# matcher and the curation-time duplicate self-join (graph-quality S4) reuse one home
+# (`domain/` may not import `agents/`). Imported here (and used by `_rank` / `stage2`) so
+# existing importers of `matching_agent.cosine_similarity` keep working after the move.
+from story_forge.domain.name_similarity import cosine_similarity, name_match_score
 
 # The closed set of Stage-1 lifecycle states (`[[candidate-lifecycle]]`). Closed —
 # unlike the open-world entity *type* (INV-4) — because it is a state machine, not a
@@ -87,24 +90,6 @@ class Stage2Result(BaseModel):
     score: float = 0.0
 
 
-def cosine_similarity(a: Sequence[float], b: Sequence[float]) -> float:
-    """Cosine similarity of two equal-length vectors, in [-1.0, 1.0].
-
-    Pure — no model — so the §3.3 Stage-2 distance math is unit-tested in CI without
-    loading the ~2 GB embedding stack. Raises on a length mismatch (a candidate vector
-    and a stored mention vector must share the model's dimensionality) and on a
-    zero-magnitude vector (cosine is undefined there; a real embedding is never all-zero).
-    """
-    if len(a) != len(b):
-        raise ValueError(f"vector length mismatch: {len(a)} != {len(b)}")
-    dot = sum(x * y for x, y in zip(a, b, strict=True))
-    norm_a = math.sqrt(sum(x * x for x in a))
-    norm_b = math.sqrt(sum(y * y for y in b))
-    if norm_a == 0.0 or norm_b == 0.0:
-        raise ValueError("cosine similarity is undefined for a zero-magnitude vector")
-    return dot / (norm_a * norm_b)
-
-
 def _rank(query: str, existing: list[ExistingEntity]) -> list[tuple[float, str, str]]:
     """Score every entity by its best token_set_ratio over canonical_name + aliases.
 
@@ -116,7 +101,7 @@ def _rank(query: str, existing: list[ExistingEntity]) -> list[tuple[float, str, 
     scored: list[tuple[float, str, str]] = []
     for entity in existing:
         names = [entity.canonical_name, *entity.aliases]
-        best = max((fuzz.token_set_ratio(query, name) for name in names), default=0.0)
+        best = name_match_score(query, names)
         scored.append((best, entity.id, entity.canonical_name))
     scored.sort(key=lambda row: row[0], reverse=True)
     return scored
@@ -219,10 +204,7 @@ class MatchingAgent:
         best_score = 0.0
         for entity in existing:
             names = [entity.canonical_name, *entity.aliases]
-            entity_best = max(
-                (fuzz.token_set_ratio(candidate_name, name) for name in names),
-                default=0.0,
-            )
+            entity_best = name_match_score(candidate_name, names)
             if entity_best > best_score:
                 best_score = entity_best
                 best_id = entity.id
