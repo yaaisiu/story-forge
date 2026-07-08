@@ -5,7 +5,10 @@ This directory holds the React + TypeScript frontend, built with Vite.
 ## Conventions
 
 - TypeScript strict mode on
-- Format: prettier. Lint: eslint with typescript-eslint
+- Format: prettier. Lint: eslint with typescript-eslint. **Run `npm run format` (or
+  `prettier --write` on the files you touched) before committing** — the pre-commit hook is
+  `--check` and _rejects_ an unformatted file, so skipping this costs a format-and-recommit
+  cycle. (Earned Session 79: the hook bounced three separate commits for want of one `format` run.)
 - Tests: vitest (unit) + Playwright (e2e, later)
 - Package manager: npm (no yarn/pnpm churn unless we decide otherwise)
 - All dependency pins in `package.json` are exact versions, minimum 14 days old
