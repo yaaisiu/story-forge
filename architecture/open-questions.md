@@ -1,7 +1,7 @@
 ---
 type: open-questions
 slug: open-questions
-updated: 2026-07-06
+updated: 2026-07-08
 status: living
 related: ["[[overview]]", "[[project]]", "[[invariants]]", "[[2026-06-02-architecture-review]]", "[[m2s3-extraction-agent]]", "[[2026-06-09-architecture-review]]", "[[2026-06-11-architecture-review]]"]
 ---
@@ -1003,6 +1003,65 @@ OPEN — the owner resolves before code.**
   **ADR** only on confirmation (DM-CD-3 crosses the data-storage boundary). INV-4 constrains DM-CD-2 (type
   is a soft ranking signal, never a hard filter — two duplicates over-extracted as different types are the
   case S4 exists to catch). Open.
+
+### ~~OQ-33 — Graph-quality S5 in-place-editing (graph-canvas-editing) decision register (DM-S5-1..6)~~ ✅ RESOLVED 2026-07-09 (Session 80, owner)
+**Resolved same session** (authoritative: `docs/PLAN_SHORT.md` Decided S80 + `[[graph-canvas-editing]]` now
+`accepted`): **DM-S5-1 = (B) extract a shared `EntityEditPanel` core** (reader + canvas both compose it);
+**DM-S5-2 = (B) an atomic backend edge-edit op** (edit-predicate / re-target, one grouped reversible op,
+preserves the §4 handle); **DM-S5-3 = mint-forward + no backfill, coalesce-on-MERGE, survivor keeps the
+handle, AND mint the "handle survives curation" invariant at the S5b build** (ADR-worthy — drafts at the
+S5b build, DM-GQ-1); **DM-S5-4 = DEFER right-click entirely (owner override)** — S5 is panel-only, the
+`cxttap` shortcut is a later follow-up; **DM-S5-5 = a single S5a slice + fold the §4 tag into S5b-be**
+(cut: S5a → S5b-be → S5b-fe); **DM-S5-6 = add the modest panel-vanish guard** (keep selection while a form
+is dirty; still clear on delete/merge), concurrency stays LWW-at-PoC (carried, DM-S3a-6). **No
+`graph-quality.md` amendment; no ADR this session** (the §4-handle ADR drafts at the S5b build). Original
+framing kept below for history.
+
+Raised by the Graph-quality **S5** `decompose-requirement` step-0 (2026-07-08, `[[graph-canvas-editing]]`).
+S5 is the milestone **spine** — bring the existing entity/edge write paths onto the **graph canvas**
+([[direct-manipulation]]), human gate + grouped undo intact (INV-1/INV-9/INV-3). It is **branchy**: the
+parent `[[graph-curation-surface]]` already sliced it **S5a node / S5b edge** (DM-GQ-6). **The defining
+finding:** node-editing already ships end-to-end and is wired on the *reader*
+(`EntityEditService.{edit,merge,delete,undo}` + endpoints + `lib/api` hooks + `ReaderEntityPanel` /
+`MergeControls` — all invalidating the reader/story-graph/entity-detail triad), so **S5a is pure
+canvas-surfacing**; the *only* net-new plumbing is **edge-editing** — `edit-predicate` and `re-target`
+have **no atomic op** (only a client-side remove+add that **re-keys** the content-addressed
+`relation_edge_id = uuid5(subject,predicate,object)`), which is exactly why **S5b is the first
+edge-*write* slice and consumes the reserved §4 handle** ([[surrogate-key]], DM-GQ-1 — confirmed
+unbuilt): a client compose can't preserve a handle across the re-key, an atomic server op can. Full
+Context/Options/Proposal live in the proposal's register; listed here so the reader knows they gate the
+S5 build. **Register all OPEN — the owner resolves before code.**
+- **DM-S5-1 — the canvas edit panel (S5a central):** direct-reuse `ReaderEntityPanel` (occurrences block
+  conditional on `paragraphs`) vs extract a shared `EntityEditPanel` vs grow the read-only
+  `NodeDetailsPanel` (the fork DM-GQ-3 declined). *Lean:* (a) direct reuse — the panel fetches its own
+  detail, so the `/graph` payload's missing `properties` never bites; promote to extraction only if the
+  contexts diverge. `verify-at-build` the panel renders with `paragraphs=[]` in the viewer's layout.
+- **DM-S5-2 — edge re-predicate + re-target (S5b central; couples DM-S5-3):** an atomic backend op that
+  preserves `edge_uid` across the re-key vs the client-side remove+add compose (a passthrough handle).
+  *Lean:* (b) atomic ops — a handle a client compose can silently drop defeats §4; one grouped reversible
+  op, no no-edge window. `verify-at-build` the collision **fold** (`merged_into_existing`) on the re-key.
+- **DM-S5-3 — the §4 handle build (ADR-worthy; drafts at build):** mint scope (mint-on-write-going-forward
+  + **no backfill** vs a backfill migration); **coalesce-on-MERGE** (set-if-absent, or a duplicate write
+  re-tags the edge — `verify-at-build`); the survivor rule on a fold (S0-decided: survivor keeps, folded →
+  before-image); and whether preserve-on-re-key **earns an invariant** at the S5b build (an enforcer + test
+  now exist) or stays a recorded constraint. *Lean:* mint-forward + no-backfill + coalesce; mint the
+  invariant at build (owner's build-time call). **The DM-GQ-1 ADR drafts at the S5b build, not now** (never
+  write an ADR unasked).
+- **DM-S5-4 — right-click (`cxttap`) context menu:** ride-along in S5 (panel-first + a cheap right-click
+  fast-path) vs defer. *Lean:* (a) panel-first, right-click where cheap, droppable if the `cxttap`/browser-
+  menu interplay fights pan/zoom (`verify-at-build`, a real-browser boundary).
+- **DM-S5-5 — slice boundaries:** S5a single frontend-led (node edit/merge/delete/undo + surface the
+  existing add/delete-edge); **S5b split** be (§4 handle + the two atomic edge ops + ADR, test-first) / fe
+  (edge affordances on the canvas panel); fold the handle into S5b-be vs a standalone pre-slice. *Lean:*
+  S5a-single / S5b-be / S5b-fe, handle in S5b-be (nothing consumes it before the edge ops).
+- **DM-S5-6 — editing-state vs the canvas's reactive selection-pruning + concurrency:** guard the panel
+  against a mid-edit auto-clear (keep the selection while a form is dirty; re-select post-refetch) vs
+  accept-and-document; LWW-at-PoC carried (DM-S3a-6). *Lean:* (a) a modest guard; LWW confirmed.
+- **Lands in:** S5 (S5a frontend-led; S5b be+fe split). **No `graph-quality.md` amendment anticipated**
+  (§3 S5 already scopes node+edge edit/re-target/delete; §4 already reserved the handle — read §3 S5 + §4
+  first, the M4.S3b "delete → §3.5" miscue). **ADR** only on confirmation, **at the S5b build** (the §4
+  handle crosses the data-model identity boundary — DM-GQ-1). INV-4 constrains DM-S5-2 (re-predicate edits
+  a free-string predicate on *one* edge; graph-wide vocabulary reduction is S6). Open.
 
 ## Referenced — owned by spec §10 (not duplicated)
 

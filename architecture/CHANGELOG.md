@@ -1,7 +1,7 @@
 ---
 type: changelog
 slug: changelog
-updated: 2026-07-06
+updated: 2026-07-08
 status: living
 related: []
 ---
@@ -10,6 +10,51 @@ related: []
 
 Append-only audit trail of writes into the vault. Newest entries at the top. History also lives
 in `updated` fields (freshness) and git (diffs); this is the human-readable "what changed when".
+
+## 2026-07-09 (Graph-quality Session 80) — resolve: S5 in-place-editing register (DM-S5-1..6) — owner, same session
+
+- **`proposals/graph-canvas-editing.md`** — reconciled to **resolved** (`status: proposed → accepted`):
+  resolution banner + per-entry **Decision** lines (DM-S5-1..6) + rejected options deactivated across the
+  body (the panel-reuse framing → "extract a shared core"; the right-click "but what if" → deferred) +
+  hand-off flipped to "next is the S5a build". **Owner resolutions:** DM-S5-1 **(B) extract a shared
+  `EntityEditPanel` core** · DM-S5-2 **(B) atomic backend edge-edit op** (preserves the §4 handle) ·
+  DM-S5-3 mint-forward + no-backfill + coalesce-on-MERGE + **mint the "handle survives curation" invariant
+  at the S5b build** (ADR at build) · DM-S5-4 **DEFER right-click** (owner override — panel-only S5) ·
+  DM-S5-5 single S5a slice + fold the §4 tag into S5b-be · DM-S5-6 add the modest panel-vanish guard
+  (LWW-at-PoC carried). Build cut: **S5a → S5b-be → S5b-fe.**
+- **`open-questions.md`** — **OQ-33 struck resolved** with the per-entry decisions; `updated` bumped.
+- **`INDEX.md`** — proposal row → ACCEPTED/RESOLVED banner; next-steps item 31 → resolved.
+- **Host-repo reconciliation (recorded, not vault):** `docs/PLAN_SHORT.md` Decided S80 is the
+  authoritative decision home (written at `/wrap-session`); no spec change; **no ADR this session** (the
+  §4-handle ADR drafts at the S5b build).
+
+## 2026-07-08 (Graph-quality Session 80) — decompose: S5 the graph as an in-place editing surface (register OPEN)
+
+- **`proposals/graph-canvas-editing.md`** — new `decompose-requirement` step-0 for `graph-quality.md`
+  §3 **S5** + §4 (`status: proposed`, register **OPEN** DM-S5-1..6 / OQ-33). S5 is the milestone spine —
+  bring the existing node/edge write paths onto the graph canvas ([[direct-manipulation]]), human gate +
+  grouped undo intact (INV-1/9/3). Grounded in two code-level surveys (2026-07-08). **Defining finding:**
+  node-editing already ships end-to-end and is wired on the *reader* (`EntityEditService.{edit,merge,
+  delete,undo}` + endpoints + `lib/api` hooks + `ReaderEntityPanel`/`MergeControls`, all invalidating the
+  reader/story-graph/entity-detail triad) → **S5a is pure canvas-surfacing**; the *only* net-new plumbing
+  is **edge-editing** — `edit-predicate`/`re-target` have no atomic op (only a client remove+add that
+  **re-keys** the content-addressed `relation_edge_id = uuid5(...)`), which is why **S5b is the first
+  edge-write slice and consumes the reserved §4 handle** ([[surrogate-key]], DM-GQ-1 — confirmed unbuilt).
+  Nine layers + stations + data-flow (Mermaid) + operation-surface completeness sweep (node+edge) + "but
+  what if" + plain-language owner gaps. Concise density (G=34→35, L=62→63). Register left **OPEN** — the
+  owner resolves DM-S5-1..6 before code.
+- **`open-questions.md`** — added **OQ-33** (the DM-S5-1..6 register, mirrored); bumped `updated`.
+- **`glossary/direct-manipulation.md`** — one new term (edit the object in place vs a separate pane; the
+  UX principle that drives the S5a reuse-the-reader-panel call). `glossary/glossary.md` regenerated
+  (count 34→35); bumped `updated`.
+- **`learning-log.md`** — one line (direct manipulation selects the cheapest architecture; the net-new in
+  an in-place-editing slice is wherever the object's *identity* moves under the edit). Bumped `updated`.
+- **`INDEX.md`** — new proposal row + a milestone-narrative S5 block; glossary count 34→35; next-steps
+  item appended; bumped `updated`.
+- **No ADR** (the §4-handle ADR drafts at the S5b *build*, DM-GQ-1's standing obligation — never write an
+  ADR unasked). **No `graph-quality.md` amendment** (§3 S5 + §4 already scope this). **No host-repo
+  reconciliation yet** — the register is OPEN; on resolution the decisions land in `docs/PLAN_SHORT.md`
+  Decided (authoritative) and the note reconciles to resolved.
 
 ## 2026-07-06 (Graph-quality Session 77) — decompose + resolve: S4 suggest duplicate clusters
 
