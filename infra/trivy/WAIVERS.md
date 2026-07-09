@@ -19,7 +19,21 @@ docker run --rm -v /var/run/docker.sock:/var/run/docker.sock \
   --ignorefile /tmp/ignore <IMAGE>:<TAG>
 ```
 
-**Last reviewed:** 2026-06-27 — added **`CVE-2026-39832`** (`golang.org/x/crypto/ssh/agent`,
+**Last reviewed:** 2026-07-09 — added **`CVE-2026-40355`** (`krb5`, HIGH — MIT Kerberos 5
+NULL-pointer dereference → DoS) to the pgvector OS block; freshly disclosed against the unchanged
+`pgvector/pgvector:0.8.2-pg17-trixie` pin (pure treadmill, reddened the scheduled `security` gate
+on `main`). Sibling of the already-waived `CVE-2026-40356` — same krb5 linked libs, same
+unreachable posture (no Kerberos service; Postgres uses OpenSSL for TLS; 127.0.0.1 single trusted
+user), same fix (`1.21.3-5+deb13u1`, not yet in a pgvector rebuild). Owner-approved HIGH waiver
+(§6.7). NVD/GHSA-8qgv-wm66-hrmc rate it MEDIUM; Debian/Trivy score it HIGH.
+**Same review — sequential-unmask:** clearing pgvector let the scan reach ollama, which reddened
+on **`CVE-2026-39831`** (`golang.org/x/crypto/ssh`, FIDO/U2F security-key presence-check bypass;
+GHSA-89gr-r52h-f8rx, NVD/GHSA CRITICAL / Trivy HIGH) — added to the ollama wave-6 `x/crypto/ssh`
+block on the identical unreachable posture as its siblings (ollama opens no SSH client / uses no
+FIDO keys; fix x/crypto ≥0.52.0, upstream rebuild). Both fixes ride **one PR** because two reds on
+the required `security` gate mutually block (root `AGENTS.md` Merge flow). Verified locally with
+dockerized `aquasec/trivy:0.70.0`: neo4j / pgvector / ollama all clean with the updated waivers.
+**Prior (2026-06-27):** added **`CVE-2026-39832`** (`golang.org/x/crypto/ssh/agent`,
 HIGH — security bypass via improper key-restriction handling) to the ollama wave-6 block;
 freshly disclosed against the unchanged `ollama/ollama:0.24.0` pin (pure treadmill, reddened
 the `security` gate on an unrelated PR). Same `ssh/agent`-unreachable posture as its 8 sibling
@@ -145,6 +159,7 @@ the fixed packages** (re-scan should clear them without the waiver).
 | CVE-2026-29111 | systemd (libsystemd0/libudev1) | HIGH | DoS via spurious IPC (assert+freeze on v250+, stack corruption on v249-; not arbitrary code execution per NVD) | 257.13-1~deb13u1 | no systemd/D-Bus daemon in container; libs only — description tightened 2026-05-27 after waiver audit |
 | CVE-2026-4878 | libcap2 | HIGH | local privesc (TOCTOU race) | 1:2.75-10+deb13u1 | needs local attacker already inside container |
 | CVE-2026-40356 | krb5 (libgssapi-krb5-2/libk5crypto3/libkrb5-3/libkrb5support0) | HIGH | DoS via integer *underflow* in NegoEx → OOB read (corrected from "overflow" 2026-05-27) | 1.21.3-5+deb13u1 | no Kerberos service in container; linked libs only — added 2026-05-26 |
+| CVE-2026-40355 | krb5 (libgssapi-krb5-2/libk5crypto3/libkrb5-3/libkrb5support0) | HIGH | DoS via NULL-pointer dereference (krb5 <1.22.3; process crash) — Debian/Trivy HIGH, NVD/GHSA-8qgv-wm66-hrmc rate MEDIUM | 1.21.3-5+deb13u1 | no Kerberos service in container; linked libs only — sibling of CVE-2026-40356, same deb13u1 fix; added 2026-07-09 |
 | CVE-2026-45447 | openssl (libssl3t64/openssl/openssl-provider-legacy) | HIGH | heap UAF in PKCS7_verify() (potential RCE) | 3.5.6-1~deb13u2 | Postgres uses OpenSSL for TLS, never PKCS#7/S-MIME verify; loopback, trusted client — added 2026-06-10 |
 
 **Bundled — `gosu` Go stdlib (gobinary).** gosu is a setuid step-down wrapper
@@ -233,6 +248,7 @@ Rows below; rationale per CVE in `infra/trivy/ollama.trivyignore` wave-6 block.
 | CVE-2026-39828 | x/crypto/ssh | HIGH | SSH denial of service (wave 6) | x/crypto 0.52.0 | ollama runs no SSH → unreachable |
 | CVE-2026-39829 | x/crypto/ssh | HIGH | SSH denial of service (wave 6) | x/crypto 0.52.0 | ollama runs no SSH → unreachable |
 | CVE-2026-39830 | x/crypto/ssh | HIGH | SSH denial of service (wave 6) | x/crypto 0.52.0 | ollama runs no SSH → unreachable |
+| CVE-2026-39831 | x/crypto/ssh | HIGH | FIDO/U2F security-key physical-presence check bypass (GHSA-89gr-r52h-f8rx; NVD/GHSA rate CRITICAL, Trivy HIGH; added 2026-07-09, unmasked by the pgvector krb5 waiver) | x/crypto 0.52.0 | ollama opens no SSH client and uses no FIDO/U2F keys → unreachable |
 | CVE-2026-39832 | x/crypto/ssh/agent | HIGH | security bypass via improper key-restriction handling (added 2026-06-27) | x/crypto 0.52.0 | ollama opens no SSH agent client → unreachable |
 | CVE-2026-39835 | x/crypto/ssh | HIGH | SSH servers using CertChecker as a public-key callback (wave 6) | x/crypto 0.52.0 | ollama runs no SSH server → unreachable |
 | CVE-2026-42508 | x/crypto/ssh/knownhosts | HIGH | revocation bypass (wave 6) | x/crypto 0.52.0 | ollama does no SSH host-key checking → unreachable |

@@ -79,6 +79,15 @@ CVE-2026-4878
 # description said "integer overflow" — actually underflow (corrected 2026-05-27
 # during the post-PR-23 audit).
 CVE-2026-40356
+# CVE-2026-40355 — krb5 (Debian/Trivy HIGH; NVD/GHSA-8qgv-wm66-hrmc rate it MEDIUM): MIT
+# Kerberos 5 NULL-pointer dereference (krb5 before 1.22.3) → process crash (DoS) when an
+# application exercises the affected GSSAPI accept path. Sibling of CVE-2026-40356 — same krb5
+# libs (libgssapi-krb5-2 / libk5crypto3 / libkrb5-3 / libkrb5support0, linked libs only), same
+# reachability: this image runs no Kerberos service and Postgres uses OpenSSL for TLS, so the
+# vulnerable path is never executed; 127.0.0.1-bound, single trusted user. Fixed in Debian
+# 1.21.3-5+deb13u1 (the same update that fixes -40356); not yet baked into a pgvector rebuild.
+# Surfaced by the Trivy DB 2026-07-09. Drop when a rebuilt pgvector image ships deb13u1 krb5.
+CVE-2026-40355
 # CVE-2026-45447 — openssl/libssl3t64 (HIGH): heap use-after-free in PKCS7_verify()
 # when a PKCS#7 SignedData carries an empty digestAlgorithms SET — OpenSSL frees a
 # caller-owned BIO, a later use crashes (potential RCE). Reachable ONLY by apps that
