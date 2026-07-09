@@ -141,6 +141,12 @@ CVE-2026-39828
 CVE-2026-39829
 # CVE-2026-39830 — ssh: denial of service.
 CVE-2026-39830
+# CVE-2026-39831 — ssh: FIDO/U2F security-key physical-presence check can be bypassed
+# (GHSA-89gr-r52h-f8rx). ollama opens no SSH client and uses no FIDO/U2F security keys, so the
+# vulnerable path is unreachable. NVD/GHSA rate CRITICAL; Trivy scores HIGH. Same module + fix
+# (x/crypto 0.52.0) as its wave-6 siblings; surfaced by the Trivy DB 2026-07-09 (unmasked once
+# the pgvector krb5 waiver let the sequential scan reach ollama).
+CVE-2026-39831
 # CVE-2026-39832 — ssh/agent: security bypass via improper handling of key
 # restrictions. ollama opens no SSH agent client, so the agent package is unreachable.
 CVE-2026-39832
