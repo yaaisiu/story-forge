@@ -181,6 +181,11 @@ class Neo4jRepo:
                 "confidence": relation.confidence,
                 "source_paragraph_id": _opt_str(relation.source_paragraph_id),
                 "properties_json": json.dumps(relation.properties, ensure_ascii=False),
+                # The §4 surrogate handle (ADR 0011). `ON CREATE SET` (no `ON MATCH`) *is* the
+                # coalesce rule: a MERGE that matches an existing edge sets nothing, so an edge's
+                # handle is never overwritten by a duplicate/retried write, and a re-key preserves
+                # it by passing the old edge's `edge_uid` on the create (DM-S5-3).
+                "edge_uid": _opt_str(relation.edge_uid),
             },
         )
 
@@ -291,4 +296,6 @@ class Neo4jRepo:
             confidence=props["confidence"],
             source_paragraph_id=_opt_uuid(props.get("source_paragraph_id")),
             properties=json.loads(props["properties_json"]),
+            # `None` for a legacy edge written before §4 (mint-forward, no backfill — DM-S5-3).
+            edge_uid=_opt_uuid(props.get("edge_uid")),
         )

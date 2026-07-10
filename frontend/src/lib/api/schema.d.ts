@@ -281,7 +281,20 @@ export interface paths {
         delete: operations["remove_relation_route_stories__story_id__relations__edge_id__delete"];
         options?: never;
         head?: never;
-        patch?: never;
+        /**
+         * Retarget Relation Route
+         * @description Edit-predicate and/or re-target a committed edge atomically (spec §3.4, Graph-quality
+         *     S5b-be, DM-S5-2/3). The content-addressed edge id re-keys on any triple change, so this is a
+         *     server-side delete-old + create-new recorded as one grouped reversible operation, **preserving
+         *     the §4 surrogate handle** across the re-key (INV-10) — not the client-side remove+add, which
+         *     would split the edit and drop the handle.
+         *
+         *     404s a stale edge (`RelationEdgeNotFound`) or a re-target onto a missing endpoint
+         *     (`EntityNotFound`). A re-key that collides with an edge already between the new pair **folds**
+         *     (`merged_into_existing=True`); the returned `edge_id` is the **new** (post-re-key) id. A no-op
+         *     (nothing changed) returns the unchanged id. An empty body is a 422 request-validation error.
+         */
+        patch: operations["retarget_relation_route_stories__story_id__relations__edge_id__patch"];
         trace?: never;
     };
     "/stories/{story_id}/entities/{entity_id}/merge": {
@@ -684,7 +697,9 @@ export interface components {
         /**
          * AddRelationRequest
          * @description Add a relation between two accepted entities (DM-S3a-3). A self-loop (subject == object)
-         *     is allowed — a manual one is intentional. Re-predicate is a remove + add, client-side.
+         *     is allowed — a manual one is intentional. To *edit* an existing edge's predicate or endpoints,
+         *     use the atomic `PATCH …/relations/{edge_id}` (Graph-quality S5b-be) — not a client-side
+         *     remove + add, which would drop the edge's `edge_uid` handle (ADR 0011).
          */
         AddRelationRequest: {
             /**
@@ -1471,6 +1486,20 @@ export interface components {
         RelationsResponse: {
             /** Relations */
             relations: components["schemas"]["RelationView"][];
+        };
+        /**
+         * RetargetRelationRequest
+         * @description Edit-predicate and/or re-target a committed edge in one atomic op (Graph-quality S5b-be,
+         *     DM-S5-2). Every field is optional — an omitted field keeps the edge's current value — but at
+         *     least one must be supplied. The re-key preserves the §4 surrogate handle (DM-S5-3, INV-10).
+         */
+        RetargetRelationRequest: {
+            /** Predicate */
+            predicate?: string | null;
+            /** Subject Id */
+            subject_id?: string | null;
+            /** Object Id */
+            object_id?: string | null;
         };
         /**
          * ReviewResponse
@@ -2289,6 +2318,60 @@ export interface operations {
                 content?: never;
             };
             /** @description Story or relation edge not found. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+            /** @description A data store is unavailable. */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    retarget_relation_route_stories__story_id__relations__edge_id__patch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                story_id: string;
+                edge_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RetargetRelationRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RelationEditResponse"];
+                };
+            };
+            /** @description Story, the edge, or a new endpoint not found. */
             404: {
                 headers: {
                     [name: string]: unknown;

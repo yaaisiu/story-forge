@@ -1,7 +1,7 @@
 ---
 type: invariants
 slug: invariants
-updated: 2026-06-25
+updated: 2026-07-10
 status: living
 related: ["[[overview]]", "[[project]]", "[[open-questions]]", "[[2026-06-11-architecture-review]]", "[[candidate-lifecycle]]"]
 ---
@@ -272,3 +272,35 @@ precedent: ADR 0006, DM-S3a-1.)
   *staging write*, but keeps the guarded Neo4j boundary untouched (INV-1/INV-9 hold — it *suggests*,
   never auto-merges). A pair-dismissal is a tiny two-state record (`suggested → dismissed`, reversible),
   not a graph transition. See ADR 0010, [[graph-cluster-dedup]] register, [[intra-batch-dedup|DM-rej]].
+- **Seventh witnessed instance (Graph-quality S5b-be, edge re-key).** The atomic edit-predicate /
+  re-target op (`EntityEditService.retarget_relation`, reached only from `PATCH …/relations/{edge_id}`)
+  re-keys an edge as delete-old + create-new — reusing the **existing** `delete_relation` /
+  `create_relation` writers. Like merge and undo, it **adds no new graph-writing symbol**; the grep set
+  is unchanged and the enumeration grows by a *path*, not a writer class. The re-key is recorded as one
+  grouped, reversible `graph_edits` operation (INV-3) and preserves the §4 handle (INV-10). See ADR
+  0011, [[graph-canvas-editing]] register.
+
+### INV-10 — An edge's surrogate handle survives re-point, re-predicate, and merge
+A committed edge carries a stable, opaque surrogate handle (`edge_uid`, an `uuid4`) **independent of
+its content-addressed `id`**. The `id` is `uuid5(subject, predicate, object)`, so it re-keys whenever
+the edge is re-predicated, re-targeted, or re-pointed by a merge; `edge_uid` must **survive that
+re-key unchanged**, so anything that needs to address the edge durably (a future relation qualifier /
+[[reification]]) is not severed by ordinary curation. Minted forward on every edge write; never
+back-filled (a legacy edge stays handle-less until first curated); on a MERGE-fold the **surviving**
+edge keeps its own handle and the folded edge's rides the before-image (so undo un-folds it).
+- **Source:** `docs/specs/graph-quality.md` §4 (the reserved edge handle); ADR 0011 (the surrogate-key
+  decision); DM-S5-2 / DM-S5-3 ([[graph-canvas-editing]] register).
+- **Enforced at:** *(as-built, Graph-quality S5b-be)* the handle rides the re-key in the pure planners —
+  `domain.relation_rekey.plan_relation_rekey` (edit-predicate / re-target) and `domain.entity_merge.
+  plan_merge`'s re-point (`model_copy` keeps `edge_uid` while the id/endpoints change). The coalesce is
+  the Neo4j `create_relation` `MERGE … ON CREATE SET` (no `ON MATCH`), which never overwrites an
+  existing edge's handle; the handle is minted forward in every writer that creates an edge
+  (`RelationReviewService` decide-commit, `EntityEditService.add_relation`, the re-key). The re-key
+  records the old edge (handle and all) in the grouped `graph_edits` before-image, so undo restores it
+  (INV-3 widened by the handle). Witnessed by `test_relation_rekey` (pure), `test_entity_merge`
+  (re-point preserves the handle), `test_neo4j_repo` (round-trip + the ON-CREATE coalesce never
+  overwrites), and the `retarget` + undo round-trips in `test_entity_edit`.
+- **Why it matters:** a content-addressed id *is* the edge's content, so it cannot carry identity that
+  must outlive an edit. Reserving the handle now — before any consumer reads it — is "design the
+  constraint, defer the feature": S6 (graph-wide predicate rename) re-keys edges too, so the handle has
+  a near-term consumer. See [[surrogate-key]], [[reification]], [[graph-operation]].

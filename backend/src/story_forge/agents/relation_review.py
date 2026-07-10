@@ -30,7 +30,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from typing import Literal, Protocol
-from uuid import UUID
+from uuid import UUID, uuid4
 
 from story_forge.domain.candidates import (
     RelationStatus,
@@ -196,6 +196,10 @@ class RelationReviewService:
                 object_id=object_id,
                 confidence=relation.confidence if relation.confidence is not None else 0.0,
                 source_paragraph_id=relation.paragraph_id,
+                # Mint the §4 handle forward on every edge write (ADR 0011, DM-S5-3): this is the
+                # primary human-gated edge writer, not just the manual add path. `create_relation`'s
+                # ON-CREATE coalesce keeps an existing handle if a retried commit re-MERGEs.
+                edge_uid=uuid4(),
             )
         )
         await self._relations.mark_written(  # LAST graph-affecting write

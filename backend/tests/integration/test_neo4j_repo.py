@@ -169,6 +169,66 @@ async def test_relation_round_trip(graph: tuple[Neo4jRepo, UUID]) -> None:
     assert await repo.get_relations(project_id) == [relation]
 
 
+async def test_relation_round_trips_its_edge_uid_handle(graph: tuple[Neo4jRepo, UUID]) -> None:
+    """The §4 surrogate handle (ADR 0011) is stored as an edge property and read back verbatim."""
+    repo, project_id = graph
+    janek = GraphEntity(type="Character", canonical_name_pl="Janek", project_id=project_id)
+    mill = GraphEntity(type="Location", canonical_name_pl="Młyn", project_id=project_id)
+    await repo.create_entity(janek)
+    await repo.create_entity(mill)
+    handle = uuid4()
+    relation = GraphRelation(
+        type="LIVES_IN", subject_id=janek.id, object_id=mill.id, confidence=0.9, edge_uid=handle
+    )
+    await repo.create_relation(relation)
+
+    stored = await repo.get_relation(project_id, relation.id)
+    assert stored is not None
+    assert stored.edge_uid == handle
+
+
+async def test_create_relation_coalesces_and_never_overwrites_an_existing_handle(
+    graph: tuple[Neo4jRepo, UUID],
+) -> None:
+    """`ON CREATE SET` (no `ON MATCH`) *is* the coalesce rule (DM-S5-3): a MERGE that matches an
+    existing edge sets nothing, so a duplicate/retried write with a *different* `edge_uid` leaves
+    the original handle untouched — the handle is stable identity, not overwritable per-write."""
+    repo, project_id = graph
+    janek = GraphEntity(type="Character", canonical_name_pl="Janek", project_id=project_id)
+    mill = GraphEntity(type="Location", canonical_name_pl="Młyn", project_id=project_id)
+    await repo.create_entity(janek)
+    await repo.create_entity(mill)
+    original = uuid4()
+    edge = GraphRelation(
+        type="LIVES_IN", subject_id=janek.id, object_id=mill.id, confidence=0.9, edge_uid=original
+    )
+    await repo.create_relation(edge)
+    # a duplicate write of the *same content edge* (same id) carrying a fresh handle …
+    await repo.create_relation(edge.model_copy(update={"edge_uid": uuid4()}))
+
+    stored = await repo.get_relation(project_id, edge.id)
+    assert stored is not None
+    assert stored.edge_uid == original  # … does not overwrite the first handle
+
+
+async def test_a_legacy_edge_written_without_a_handle_reads_back_none(
+    graph: tuple[Neo4jRepo, UUID],
+) -> None:
+    """Mint-forward, no backfill (DM-S5-3): an edge written with no `edge_uid` round-trips to
+    `None`, so the model default must not fabricate a handle on read."""
+    repo, project_id = graph
+    janek = GraphEntity(type="Character", canonical_name_pl="Janek", project_id=project_id)
+    mill = GraphEntity(type="Location", canonical_name_pl="Młyn", project_id=project_id)
+    await repo.create_entity(janek)
+    await repo.create_entity(mill)
+    edge = GraphRelation(type="LIVES_IN", subject_id=janek.id, object_id=mill.id, confidence=0.9)
+    await repo.create_relation(edge)
+
+    stored = await repo.get_relation(project_id, edge.id)
+    assert stored is not None
+    assert stored.edge_uid is None
+
+
 async def test_get_neighbourhood_returns_incident_edges_both_directions(
     graph: tuple[Neo4jRepo, UUID],
 ) -> None:

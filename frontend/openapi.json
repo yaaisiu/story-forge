@@ -904,6 +904,88 @@
             }
           }
         }
+      },
+      "patch": {
+        "tags": [
+          "stories"
+        ],
+        "summary": "Retarget Relation Route",
+        "description": "Edit-predicate and/or re-target a committed edge atomically (spec \u00a73.4, Graph-quality\nS5b-be, DM-S5-2/3). The content-addressed edge id re-keys on any triple change, so this is a\nserver-side delete-old + create-new recorded as one grouped reversible operation, **preserving\nthe \u00a74 surrogate handle** across the re-key (INV-10) \u2014 not the client-side remove+add, which\nwould split the edit and drop the handle.\n\n404s a stale edge (`RelationEdgeNotFound`) or a re-target onto a missing endpoint\n(`EntityNotFound`). A re-key that collides with an edge already between the new pair **folds**\n(`merged_into_existing=True`); the returned `edge_id` is the **new** (post-re-key) id. A no-op\n(nothing changed) returns the unchanged id. An empty body is a 422 request-validation error.",
+        "operationId": "retarget_relation_route_stories__story_id__relations__edge_id__patch",
+        "parameters": [
+          {
+            "name": "story_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Story Id"
+            }
+          },
+          {
+            "name": "edge_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Edge Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RetargetRelationRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RelationEditResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Story, the edge, or a new endpoint not found.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "A data store is unavailable.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
       }
     },
     "/stories/{story_id}/entities/{entity_id}/merge": {
@@ -2180,7 +2262,7 @@
           "object_id"
         ],
         "title": "AddRelationRequest",
-        "description": "Add a relation between two accepted entities (DM-S3a-3). A self-loop (subject == object)\nis allowed \u2014 a manual one is intentional. Re-predicate is a remove + add, client-side."
+        "description": "Add a relation between two accepted entities (DM-S3a-3). A self-loop (subject == object)\nis allowed \u2014 a manual one is intentional. To *edit* an existing edge's predicate or endpoints,\nuse the atomic `PATCH \u2026/relations/{edge_id}` (Graph-quality S5b-be) \u2014 not a client-side\nremove + add, which would drop the edge's `edge_uid` handle (ADR 0011)."
       },
       "AlternativeView": {
         "properties": {
@@ -3691,6 +3773,48 @@
         ],
         "title": "RelationsResponse",
         "description": "A story's committable relations (both endpoints resolved) \u2014 the decide queue."
+      },
+      "RetargetRelationRequest": {
+        "properties": {
+          "predicate": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Predicate"
+          },
+          "subject_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Subject Id"
+          },
+          "object_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Object Id"
+          }
+        },
+        "type": "object",
+        "title": "RetargetRelationRequest",
+        "description": "Edit-predicate and/or re-target a committed edge in one atomic op (Graph-quality S5b-be,\nDM-S5-2). Every field is optional \u2014 an omitted field keeps the edge's current value \u2014 but at\nleast one must be supplied. The re-key preserves the \u00a74 surrogate handle (DM-S5-3, INV-10)."
       },
       "ReviewResponse": {
         "properties": {
