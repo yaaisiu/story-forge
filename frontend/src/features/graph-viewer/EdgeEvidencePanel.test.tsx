@@ -150,6 +150,21 @@ describe("EdgeEvidencePanel — read (S3b)", () => {
     const sources = screen.getAllByTestId("edge-evidence-source");
     expect(sources).toHaveLength(1);
     expect(sources[0]).toHaveTextContent("left the mill together");
+    // The surrounding source-paragraph context, not just the model's quote.
+    expect(sources[0]).toHaveTextContent("Janek and Katarzyna left the mill");
+  });
+
+  it("shows all sources when one fact is attested in several paragraphs (one-to-many)", () => {
+    renderPanel({
+      evidence: {
+        predicate: "KNOWS",
+        source_provenance: [
+          { paragraph_id: "p1", paragraph_text: "First mention.", evidence_quote: "a" },
+          { paragraph_id: "p2", paragraph_text: "Second mention.", evidence_quote: "b" },
+        ],
+      },
+    });
+    expect(screen.getAllByTestId("edge-evidence-source")).toHaveLength(2);
   });
 
   it("says 'added manually' for a zero-provenance edge instead of an empty/broken panel", () => {
@@ -266,6 +281,14 @@ describe("EdgeEvidencePanel — edit (S5b-fe)", () => {
 
   it("surfaces a fold from the previous edit as an amber note", () => {
     renderPanel({ justMerged: true });
+    expect(screen.getByTestId("edge-panel-merged-warning")).toHaveTextContent(/folded/i);
+  });
+
+  it("shows the fold note even when the re-pointed edge's evidence read errors", () => {
+    // The fold is an outcome of the edit, not the read — an evidence-read failure on the
+    // survivor edge must not silently hide that two relations merged.
+    renderPanel({ justMerged: true, evidence: undefined });
+    expect(screen.getByTestId("edge-evidence-error")).toBeInTheDocument();
     expect(screen.getByTestId("edge-panel-merged-warning")).toHaveTextContent(/folded/i);
   });
 

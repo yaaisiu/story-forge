@@ -247,6 +247,28 @@ deliberate, informed pass, not a rushed hotfix.
   `entity_mentions.embedding`. Note embeddings add *recall* but don't by themselves suppress the name-scorer
   false positives above (the two fixes are complementary). (Owner-surfaced, Session 79.)
 
+## Edge re-key orphans its displayed provenance (post-PoC, surfaced S83 `/code-review`)
+
+Edge provenance (the source paragraphs + evidence quotes S3b shows in the edge-evidence panel) lives
+in `staged_relations`, keyed by the **content-addressed** `edge_id` (`uuid5(subject, predicate,
+object)`). The S5b edge re-key (`retarget_relation`) rewrites the **Neo4j** edge to a new content id
+but deliberately does **not** touch `staged_relations` (no migration — S5b-be). So after a
+re-predicate/re-target, the new edge id has no staged rows → its evidence panel reads **200 + empty**
+and shows "added manually", while the original provenance is **orphaned** under the old (now
+edge-less) content id. A **fold** onto an existing edge B likewise does not merge the folded edge's
+source paragraphs into B's provenance — B keeps only its own. Net: curating an edge silently drops the
+provenance the S3b panel is meant to surface.
+
+This is a **backend/data-model** concern, not a frontend cache-invalidation one — the S5b-fe
+`/code-review` initially framed it as a stale `edge-evidence` cache, but verifying against the backend
+showed the write never dirties another edge's provenance, so no invalidation would fix it (the fresh
+read on the re-keyed id is genuinely empty). The real fix is to **re-key / carry the `staged_relations`
+provenance across an edge re-key + fold** (re-point the rows to the new content id; on a fold, union
+the folded edge's rows onto the survivor), so a curated edge keeps its evidence. Pairs with the §4
+`edge_uid` handle (INV-10) — the durable handle is the natural join key a provenance-follows-the-edge
+fix would hang on. Revisit when edge provenance durability matters (post-PoC). (Surfaced S83
+`/code-review`, verified against `agents/entity_edit.py` + `domain/relation_rekey.py`.)
+
 ## Ingest & review UX feedback
 
 Several "where am I / how much is left" gaps surfaced in the Session-33 smoke test. All

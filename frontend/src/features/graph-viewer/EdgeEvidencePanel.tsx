@@ -106,6 +106,15 @@ export function EdgeEvidencePanel({
     </div>
   );
 
+  // The fold outcome is a data-changing result of the *edit*, not of the evidence read — so it
+  // must surface on the re-pointed panel regardless of whether the survivor's evidence is still
+  // loading or errored (an evidence-read failure must not silently hide that two edges merged).
+  const mergedNote = justMerged ? (
+    <p data-testid="edge-panel-merged-warning" role="alert" className="text-xs text-amber-700">
+      Folded onto an existing relation between these entities.
+    </p>
+  ) : null;
+
   function startEditing() {
     retarget.reset();
     form.startEditing();
@@ -199,6 +208,7 @@ export function EdgeEvidencePanel({
     return (
       <aside data-testid="edge-evidence-loading" className={PANEL_CLASS}>
         {header}
+        {mergedNote}
         <p className="text-gray-500">Loading evidence…</p>
       </aside>
     );
@@ -208,6 +218,7 @@ export function EdgeEvidencePanel({
     return (
       <aside data-testid="edge-evidence-error" className={PANEL_CLASS}>
         {header}
+        {mergedNote}
         <p role="alert" className="text-red-700">
           Couldn&rsquo;t load this edge&rsquo;s evidence.
         </p>
@@ -228,6 +239,7 @@ export function EdgeEvidencePanel({
   return (
     <aside data-testid="edge-evidence" className={PANEL_CLASS}>
       {header}
+      {mergedNote}
 
       <dl>
         <dt className="text-xs font-medium uppercase tracking-wide text-gray-500">Relationship</dt>
@@ -260,12 +272,6 @@ export function EdgeEvidencePanel({
             </div>
           ))}
         </div>
-      )}
-
-      {justMerged && (
-        <p data-testid="edge-panel-merged-warning" role="alert" className="text-xs text-amber-700">
-          Folded onto an existing relation between these entities.
-        </p>
       )}
 
       {/* Curation affordances — only once the edge resolved in the payload (INV-1: human-gated). */}
