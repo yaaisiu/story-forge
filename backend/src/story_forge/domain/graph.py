@@ -64,6 +64,12 @@ class GraphRelation(BaseModel):
     confidence: float = Field(ge=0.0, le=1.0)
     source_paragraph_id: UUID | None = None
     properties: dict[str, object] = Field(default_factory=dict)
+    # A stable surrogate handle (§4, ADR 0011), independent of the content-addressed `id`. The
+    # `id` is `uuid5` of the (subject, predicate, object) triple, so it *re-keys* whenever the edge
+    # is re-predicated or re-targeted; `edge_uid` survives that re-key so a future qualifier can
+    # address the edge durably. Minted forward on every edge write (never here — a read of a legacy
+    # edge written before §4 must round-trip to `None`, so the default is None, not a factory).
+    edge_uid: UUID | None = None
 
     @field_validator("type")
     @classmethod

@@ -184,6 +184,34 @@ def test_incident_edge_is_repointed_onto_the_survivor() -> None:
     assert step.repoint.new_edge.id == relation_edge_id(survivor.id, "loves", other)
 
 
+def test_repoint_preserves_the_edge_uid_handle_across_the_re_key() -> None:
+    # The §4 surrogate handle survives a merge re-point (INV-10): `model_copy` re-keys the id and
+    # endpoints but keeps `edge_uid`, so the moved edge stays addressable. The service records the
+    # old edge (handle and all) in the before-image, so undo restores it.
+    project = uuid4()
+    survivor = _entity(project_id=project)
+    absorbed = _entity(project_id=project)
+    other = uuid4()
+    handle = uuid4()
+    edge = GraphRelation(
+        id=relation_edge_id(absorbed.id, "loves", other),
+        type="loves",
+        subject_id=absorbed.id,
+        object_id=other,
+        confidence=1.0,
+        edge_uid=handle,
+    )
+
+    plan = plan_merge(
+        survivor, absorbed, [edge], resolved_properties={}, existing_target_edge_ids=set()
+    )
+
+    (step,) = plan.steps
+    assert step.repoint.new_edge.id != edge.id  # the content id re-keyed …
+    assert step.repoint.new_edge.edge_uid == handle  # … but the handle rode across (INV-10)
+    assert step.repoint.old_edge.edge_uid == handle  # and the before-image carries it for undo
+
+
 def test_repoint_that_collides_with_an_existing_survivor_edge_folds() -> None:
     project = uuid4()
     survivor = _entity(project_id=project)

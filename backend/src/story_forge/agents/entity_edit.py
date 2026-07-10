@@ -25,7 +25,7 @@ from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from typing import Protocol
-from uuid import UUID, uuid5
+from uuid import UUID, uuid4, uuid5
 
 from story_forge.domain.candidates import relation_edge_id
 from story_forge.domain.entity_edits import (
@@ -54,6 +54,7 @@ from story_forge.domain.graph_undo import (
     invert_operation,
 )
 from story_forge.domain.models import EntityMention, MentionSuppression
+from story_forge.domain.relation_rekey import plan_relation_rekey
 
 # A manually-asserted edge carries full confidence (a human stated it, not a model).
 _MANUAL_CONFIDENCE = 1.0
@@ -204,6 +205,13 @@ def _display_name(entity: GraphEntity) -> str:
     )
 
 
+def _retarget_description(old: GraphRelation, new: GraphRelation) -> str:
+    """The human label an edge re-key's undo affordance previews (DM-S3b-1, see-what-I-undo)."""
+    if old.type != new.type:
+        return f"re-predicated an edge '{old.type}' → '{new.type}'"
+    return f"re-targeted a '{old.type}' edge"
+
+
 def _mention_payload(
     paragraph_id: UUID, entity_id: UUID, span_start: int, span_end: int
 ) -> dict[str, object]:
@@ -325,6 +333,10 @@ class EntityEditService:
                 subject_id=subject_id,
                 object_id=object_id,
                 confidence=_MANUAL_CONFIDENCE,
+                # Mint the §4 handle forward on every edge write (ADR 0011). On a MERGE-fold onto an
+                # edge that already exists, `create_relation`'s `ON CREATE SET`-only coalesce drops
+                # this fresh handle and keeps the existing one (DM-S5-3).
+                edge_uid=uuid4(),
             )
         )
         await self._evidence.record_edit(
@@ -363,6 +375,98 @@ class EntityEditService:
                 before=existing.model_dump(mode="json"),
                 project_id=project_id,
             )
+        )
+
+    async def retarget_relation(
+        self,
+        project_id: UUID,
+        edge_id: UUID,
+        *,
+        predicate: str | None = None,
+        subject_id: UUID | None = None,
+        object_id: UUID | None = None,
+    ) -> RelationEditResult:
+        """Atomically edit-predicate and/or re-target a committed edge (DM-S5-2), **preserving the
+        §4 surrogate handle across the content-id re-key** (DM-S5-3, INV-10).
+
+        The content id is `uuid5` of the (subject, predicate, object) triple, so any change re-keys
+        the edge — done here as delete-old + create-new **server-side as one grouped reversible
+        operation**, never the client-side remove+add (which splits the edit into two undo steps,
+        opens a partial-failure window, and cannot preserve the handle). The old edge's `edge_uid`
+        (or a freshly-minted one for a legacy handle-less edge) rides the new edge; a re-key that
+        lands on an edge already between the new pair **folds** — the surviving edge keeps its own
+        handle, the folded edge's rides the before-image so undo un-folds (DM-S5-3 survivor rule). A
+        no-op (nothing changed) is idempotent: the unchanged id back, nothing written.
+
+        404s a stale edge (`RelationEdgeNotFound`) and a re-target onto a missing endpoint
+        (`EntityNotFound`). Write order is graph-first, evidence-last (INV-3); the only
+        post-completion window is a missing audit row (accepted LWW at PoC — DM-S3a-6 / DM-S5-6).
+        The re-key reuses `create_relation`/`delete_relation` — no new graph-write symbol, so
+        INV-9's grep-guard enumeration is unchanged; only the reachable *path* grows.
+        """
+        old = await self._graph.get_relation(project_id, edge_id)
+        if old is None:
+            raise RelationEdgeNotFound(str(edge_id))
+
+        new_predicate = predicate if predicate is not None else old.type
+        new_subject_id = subject_id if subject_id is not None else old.subject_id
+        new_object_id = object_id if object_id is not None else old.object_id
+        await self._require_entity(project_id, new_subject_id)
+        await self._require_entity(project_id, new_object_id)
+
+        # Preserve the old edge's handle across the re-key; mint one forward if the old edge is a
+        # legacy handle-less edge (mint-forward, no backfill — DM-S5-3).
+        handle = old.edge_uid or uuid4()
+        new_edge_id = relation_edge_id(new_subject_id, new_predicate, new_object_id)
+        collision = (
+            None
+            if new_edge_id == edge_id
+            else await self._graph.get_relation(project_id, new_edge_id)
+        )
+        plan = plan_relation_rekey(
+            old,
+            new_predicate=new_predicate,
+            new_subject_id=new_subject_id,
+            new_object_id=new_object_id,
+            edge_uid=handle,
+            collision_exists=collision is not None,
+        )
+        if plan.kind == "noop" or plan.new_edge is None:
+            return RelationEditResult(edge_id=edge_id, merged_into_existing=False)
+
+        # Graph first: delete the old edge, then create the new one. On a fold the create MERGEs
+        # onto the pre-existing survivor edge, whose own handle wins (`create_relation`'s ON-CREATE
+        # coalesce) — the passed handle is dropped, exactly the survivor rule.
+        await self._graph.delete_relation(old.id)
+        await self._graph.create_relation(plan.new_edge)
+
+        # Evidence last: one grouped reversible op reusing the merge writer's per-edge op strings
+        # (`repoint_relation` / `fold_relation`), so `graph_undo.invert_operation` already reverses
+        # it — repoint = remove the new edge + recreate the old; fold = recreate the old only (the
+        # survivor was never created here). The before-image carries `edge_uid`, so undo restores
+        # the edge handle-and-all (INV-3 widened by the handle, DM-S5-3).
+        base_seed = f"retarget:{old.id}:{plan.new_edge.id}"
+        generation = await self._next_generation(base_seed)
+        await self._evidence.record_operation(
+            self._grouped(
+                project_id,
+                op_kind="retarget",
+                description=_retarget_description(old, plan.new_edge),
+                base_seed=base_seed,
+                generation=generation,
+                specs=[
+                    {
+                        "target_id": old.id,
+                        "target_kind": "relation",
+                        "op": f"{plan.kind}_relation",
+                        "before": old.model_dump(mode="json"),
+                        "after": plan.new_edge.model_dump(mode="json"),
+                    }
+                ],
+            )
+        )
+        return RelationEditResult(
+            edge_id=plan.new_edge.id, merged_into_existing=plan.kind == "fold"
         )
 
     async def merge_entities(

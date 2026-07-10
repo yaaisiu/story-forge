@@ -126,6 +126,41 @@ async def test_remove_unknown_edge_is_not_found(live: _Live) -> None:
         await live.service.remove_relation(live.project_id, uuid4())
 
 
+async def test_retarget_preserves_the_edge_uid_across_a_real_re_key_then_undo(live: _Live) -> None:
+    """End-to-end against real Neo4j + Postgres (Graph-quality S5b-be): a re-predicate re-keys the
+    content id but the §4 handle survives (INV-10), and undo restores the exact prior edge — its
+    predicate AND its handle (INV-3 widened by the handle)."""
+    janek = GraphEntity(type="Character", canonical_name_pl="Janek", project_id=live.project_id)
+    maria = GraphEntity(type="Character", canonical_name_pl="Maria", project_id=live.project_id)
+    await live.graph.create_entity(janek)
+    await live.graph.create_entity(maria)
+    add = await live.service.add_relation(live.project_id, janek.id, "PASSENGER_ON", maria.id)
+    original = await live.graph.get_relation(live.project_id, add.edge_id)
+    assert original is not None and original.edge_uid is not None  # minted forward on add
+    handle = original.edge_uid
+
+    result = await live.service.retarget_relation(live.project_id, add.edge_id, predicate="ON_SHIP")
+
+    # the content id re-keyed, the old edge is gone, the new one carries the SAME handle
+    new_id = relation_edge_id(janek.id, "ON_SHIP", maria.id)
+    assert result.edge_id == new_id
+    assert result.merged_into_existing is False
+    assert await live.graph.get_relation(live.project_id, add.edge_id) is None
+    rekeyed = await live.graph.get_relation(live.project_id, new_id)
+    assert rekeyed is not None
+    assert rekeyed.type == "ON_SHIP"
+    assert rekeyed.edge_uid == handle
+
+    await live.service.undo_last(live.project_id)
+
+    # the new edge is gone; the original is restored — predicate and handle both
+    assert await live.graph.get_relation(live.project_id, new_id) is None
+    restored = await live.graph.get_relation(live.project_id, add.edge_id)
+    assert restored is not None
+    assert restored.type == "PASSENGER_ON"
+    assert restored.edge_uid == handle
+
+
 async def _seed_mention(live: _Live, entity_id: UUID) -> UUID:
     """Build a minimal Postgres tree + a mention of `entity_id`, returning the project id to
     cascade-delete on cleanup. `entity_mentions.paragraph_id` is a real FK, so a paragraph must

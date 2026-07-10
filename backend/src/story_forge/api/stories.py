@@ -901,6 +901,37 @@ class RelationEditResponse(BaseModel):
     merged_into_existing: bool
 
 
+class RetargetRelationRequest(BaseModel):
+    """Edit-predicate and/or re-target a committed edge in one atomic op (Graph-quality S5b-be,
+    DM-S5-2). Every field is optional — an omitted field keeps the edge's current value — but at
+    least one must be supplied. The re-key preserves the §4 surrogate handle (DM-S5-3, INV-10)."""
+
+    predicate: str | None = None
+    subject_id: UUID | None = None
+    object_id: UUID | None = None
+
+    @field_validator("predicate")
+    @classmethod
+    def _predicate_non_empty(cls, value: str | None) -> str | None:
+        # If a predicate is supplied, reject blank + strip incidental whitespace so the
+        # deterministic `relation_edge_id` / Neo4j rel-type don't fork (as in `AddRelationRequest`).
+        if value is None:
+            return None
+        stripped = value.strip()
+        if not stripped:
+            raise ValueError("predicate must be a non-empty string")
+        return stripped
+
+    @model_validator(mode="after")
+    def _at_least_one_change(self) -> RetargetRelationRequest:
+        # An empty body is a request-validation error (422 `HTTPValidationError`) — there is no
+        # edge change to make. Not declared in `responses=` (the 422-trap): it is FastAPI's auto
+        # validation shape, which a domain 422 would clobber.
+        if self.predicate is None and self.subject_id is None and self.object_id is None:
+            raise ValueError("supply at least one of predicate, subject_id, object_id")
+        return self
+
+
 @router.patch(
     "/{story_id}/entities/{entity_id}",
     responses={
@@ -1008,6 +1039,56 @@ async def remove_relation_route(
     except (OperationalError, ServiceUnavailable) as exc:
         raise HTTPException(status_code=503, detail="a data store is unavailable") from exc
     return Response(status_code=204)
+
+
+@router.patch(
+    "/{story_id}/relations/{edge_id}",
+    responses={
+        404: {
+            "model": ErrorResponse,
+            "description": "Story, the edge, or a new endpoint not found.",
+        },
+        503: {"model": ErrorResponse, "description": "A data store is unavailable."},
+    },
+)
+async def retarget_relation_route(
+    story_id: UUID,
+    edge_id: UUID,
+    body: RetargetRelationRequest,
+    conn: Annotated[AsyncConnection, Depends(get_connection)],
+    edit: Annotated[EntityEditService, Depends(get_entity_edit)],
+) -> RelationEditResponse:
+    """Edit-predicate and/or re-target a committed edge atomically (spec §3.4, Graph-quality
+    S5b-be, DM-S5-2/3). The content-addressed edge id re-keys on any triple change, so this is a
+    server-side delete-old + create-new recorded as one grouped reversible operation, **preserving
+    the §4 surrogate handle** across the re-key (INV-10) — not the client-side remove+add, which
+    would split the edit and drop the handle.
+
+    404s a stale edge (`RelationEdgeNotFound`) or a re-target onto a missing endpoint
+    (`EntityNotFound`). A re-key that collides with an edge already between the new pair **folds**
+    (`merged_into_existing=True`); the returned `edge_id` is the **new** (post-re-key) id. A no-op
+    (nothing changed) returns the unchanged id. An empty body is a 422 request-validation error.
+    """
+    story = await get_story(conn, story_id)
+    if story is None:
+        raise HTTPException(status_code=404, detail="story not found")
+    try:
+        result = await edit.retarget_relation(
+            story.project_id,
+            edge_id,
+            predicate=body.predicate,
+            subject_id=body.subject_id,
+            object_id=body.object_id,
+        )
+    except RelationEdgeNotFound as exc:
+        raise HTTPException(status_code=404, detail="relation not found") from exc
+    except EntityNotFound as exc:
+        raise HTTPException(status_code=404, detail="an endpoint entity not found") from exc
+    except (OperationalError, ServiceUnavailable) as exc:
+        raise HTTPException(status_code=503, detail="a data store is unavailable") from exc
+    return RelationEditResponse(
+        edge_id=result.edge_id, merged_into_existing=result.merged_into_existing
+    )
 
 
 class MergeRequest(BaseModel):

@@ -62,7 +62,9 @@ class FakeGraph:
         return relation
 
     async def create_relation(self, relation: GraphRelation) -> None:
-        self.relations[relation.id] = relation
+        # MERGE ... ON CREATE SET: an edge already at this id is not clobbered (the coalesce that
+        # keeps a fold survivor's own `edge_uid` — DM-S5-3), mirroring `create_entity` above.
+        self.relations.setdefault(relation.id, relation)
         self._events.append(("create_relation", relation.id))
 
     async def delete_relation(self, edge_id: UUID) -> None:
@@ -318,6 +320,168 @@ async def test_remove_relation_missing_edge_is_not_found() -> None:
     service, _graph, _evidence, _mentions, _events = _service()
     with pytest.raises(RelationEdgeNotFound):
         await service.remove_relation(PROJECT, uuid4())
+
+
+# --- retarget: atomic edit-predicate / re-target (Graph-quality S5b-be) -----
+
+
+async def test_retarget_repredicates_atomically_and_preserves_the_handle() -> None:
+    service, graph, evidence, _mentions, events = _service()
+    janek = _entity()
+    maria = _entity(canonical_name_pl="Maria")
+    graph.entities[janek.id] = janek
+    graph.entities[maria.id] = maria
+    add = await service.add_relation(PROJECT, janek.id, "PASSENGER_ON", maria.id)
+    handle = graph.relations[add.edge_id].edge_uid  # minted forward on add
+    events.clear()
+
+    result = await service.retarget_relation(PROJECT, add.edge_id, predicate="ON_SHIP")
+
+    # the content id re-keyed, the old edge is gone, the new one carries the SAME handle (INV-10)
+    new_id = relation_edge_id(janek.id, "ON_SHIP", maria.id)
+    assert result.edge_id == new_id
+    assert result.merged_into_existing is False
+    assert add.edge_id not in graph.relations
+    assert graph.relations[new_id].type == "ON_SHIP"
+    assert graph.relations[new_id].edge_uid == handle
+    # graph-first, evidence-last (INV-3): delete old → create new → record the grouped op
+    assert events == [
+        ("delete_relation", add.edge_id),
+        ("create_relation", new_id),
+        ("record_operation", 1),
+    ]
+    (rows,) = evidence.operations
+    (row,) = rows
+    assert row.op_kind == "retarget" and row.op == "repoint_relation"  # type: ignore[attr-defined]
+    assert row.before["edge_uid"] == str(handle)  # type: ignore[attr-defined]
+
+
+async def test_retarget_re_targets_an_endpoint() -> None:
+    service, graph, _evidence, _mentions, _events = _service()
+    janek = _entity()
+    maria = _entity(canonical_name_pl="Maria")
+    zofia = _entity(canonical_name_pl="Zofia")
+    for e in (janek, maria, zofia):
+        graph.entities[e.id] = e
+    add = await service.add_relation(PROJECT, janek.id, "LOVES", maria.id)
+
+    result = await service.retarget_relation(PROJECT, add.edge_id, object_id=zofia.id)
+
+    assert result.edge_id == relation_edge_id(janek.id, "LOVES", zofia.id)
+    assert graph.relations[result.edge_id].object_id == zofia.id
+    assert add.edge_id not in graph.relations
+
+
+async def test_retarget_folds_onto_an_existing_edge_and_survivor_keeps_its_handle() -> None:
+    service, graph, evidence, _mentions, events = _service()
+    janek = _entity()
+    maria = _entity(canonical_name_pl="Maria")
+    graph.entities[janek.id] = janek
+    graph.entities[maria.id] = maria
+    doomed = await service.add_relation(PROJECT, janek.id, "PASSENGER_ON", maria.id)
+    survivor = await service.add_relation(PROJECT, janek.id, "ON_SHIP", maria.id)
+    survivor_handle = graph.relations[survivor.edge_id].edge_uid
+    events.clear()
+
+    # re-predicate the doomed edge onto the survivor's triple → MERGE-collision → fold
+    result = await service.retarget_relation(PROJECT, doomed.edge_id, predicate="ON_SHIP")
+
+    assert result.edge_id == survivor.edge_id
+    assert result.merged_into_existing is True
+    assert doomed.edge_id not in graph.relations
+    # the survivor edge is untouched and keeps its OWN handle (ON-CREATE coalesce, DM-S5-3)
+    assert graph.relations[survivor.edge_id].edge_uid == survivor_handle
+    (rows,) = evidence.operations
+    assert rows[0].op == "fold_relation"  # type: ignore[attr-defined]
+
+
+async def test_retarget_noop_when_nothing_changes_writes_nothing() -> None:
+    service, graph, evidence, _mentions, events = _service()
+    janek = _entity()
+    maria = _entity(canonical_name_pl="Maria")
+    graph.entities[janek.id] = janek
+    graph.entities[maria.id] = maria
+    add = await service.add_relation(PROJECT, janek.id, "LOVES", maria.id)
+    events.clear()
+
+    result = await service.retarget_relation(PROJECT, add.edge_id, predicate="LOVES")
+
+    assert result.edge_id == add.edge_id
+    assert result.merged_into_existing is False
+    assert events == []  # idempotent no-op: nothing mutated, no evidence
+    assert evidence.operations == []
+
+
+async def test_retarget_missing_edge_is_not_found() -> None:
+    service, _graph, _evidence, _mentions, _events = _service()
+    with pytest.raises(RelationEdgeNotFound):
+        await service.retarget_relation(PROJECT, uuid4(), predicate="LOVES")
+
+
+async def test_retarget_onto_a_missing_endpoint_is_not_found() -> None:
+    service, graph, _evidence, _mentions, _events = _service()
+    janek = _entity()
+    maria = _entity(canonical_name_pl="Maria")
+    graph.entities[janek.id] = janek
+    graph.entities[maria.id] = maria
+    add = await service.add_relation(PROJECT, janek.id, "LOVES", maria.id)
+    with pytest.raises(EntityNotFound):
+        await service.retarget_relation(PROJECT, add.edge_id, object_id=uuid4())
+
+
+async def test_undo_retarget_restores_the_old_predicate_and_handle() -> None:
+    service, graph, evidence, _mentions, _events = _service()
+    janek = _entity()
+    maria = _entity(canonical_name_pl="Maria")
+    graph.entities[janek.id] = janek
+    graph.entities[maria.id] = maria
+    add = await service.add_relation(PROJECT, janek.id, "PASSENGER_ON", maria.id)
+    handle = graph.relations[add.edge_id].edge_uid
+    new = await service.retarget_relation(PROJECT, add.edge_id, predicate="ON_SHIP")
+
+    await _undo(service, evidence.operations[-1])
+
+    # the new edge is removed and the old one restored — predicate AND handle (INV-3 + INV-10)
+    assert new.edge_id not in graph.relations
+    restored = graph.relations[add.edge_id]
+    assert restored.type == "PASSENGER_ON"
+    assert restored.edge_uid == handle
+
+
+async def test_undo_retarget_fold_restores_the_folded_edge_and_leaves_the_survivor() -> None:
+    service, graph, evidence, _mentions, _events = _service()
+    janek = _entity()
+    maria = _entity(canonical_name_pl="Maria")
+    graph.entities[janek.id] = janek
+    graph.entities[maria.id] = maria
+    doomed = await service.add_relation(PROJECT, janek.id, "PASSENGER_ON", maria.id)
+    survivor = await service.add_relation(PROJECT, janek.id, "ON_SHIP", maria.id)
+    await service.retarget_relation(PROJECT, doomed.edge_id, predicate="ON_SHIP")
+
+    await _undo(service, evidence.operations[-1])
+
+    # un-fold recreates the folded edge; the survivor (never created here) is untouched
+    assert doomed.edge_id in graph.relations
+    assert survivor.edge_id in graph.relations
+
+
+async def test_every_op_a_retarget_records_is_invertible() -> None:
+    # Writer↔inverter contract driven from the REAL rows a re-key emits (the PR-#108 discipline):
+    # a repoint and a fold each reuse the merge writer's op strings, so `invert_operation` must
+    # reverse them without UndoNotInvertible. Guards the S3b `discard_self_loop` 500 class of bug.
+    service, graph, evidence, _mentions, _events = _service()
+    janek = _entity()
+    maria = _entity(canonical_name_pl="Maria")
+    graph.entities[janek.id] = janek
+    graph.entities[maria.id] = maria
+    a = await service.add_relation(PROJECT, janek.id, "PASSENGER_ON", maria.id)
+    await service.add_relation(PROJECT, janek.id, "ON_SHIP", maria.id)  # fold target
+    await service.retarget_relation(PROJECT, a.edge_id, predicate="ON_SHIP")  # fold_relation
+    b = await service.add_relation(PROJECT, janek.id, "KNOWS", maria.id)
+    await service.retarget_relation(PROJECT, b.edge_id, predicate="ADORES")  # repoint_relation
+
+    for rows in evidence.operations:
+        invert_operation(rows)  # type: ignore[arg-type]  # must not raise UndoNotInvertible
 
 
 # --- merge (M4.S3b) --------------------------------------------------------

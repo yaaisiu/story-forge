@@ -85,6 +85,23 @@ class _StubEdit:
         if self._raises is not None:
             raise self._raises
 
+    async def retarget_relation(
+        self,
+        project_id: UUID,
+        edge_id: UUID,
+        *,
+        predicate: str | None = None,
+        subject_id: UUID | None = None,
+        object_id: UUID | None = None,
+    ) -> RelationEditResult:
+        self.calls.append(
+            ("retarget_relation", (project_id, edge_id, predicate, subject_id, object_id))
+        )
+        if self._raises is not None:
+            raise self._raises
+        assert self._relation is not None
+        return self._relation
+
     async def merge_entities(
         self,
         project_id: UUID,
@@ -292,6 +309,112 @@ async def test_delete_unknown_relation_is_404(
     client: AsyncClient = make_client(service)  # type: ignore[operator]
 
     resp = await client.delete(f"/stories/{story.id}/relations/{uuid4()}")
+    assert resp.status_code == 404, resp.text
+
+
+# --- retarget: PATCH /relations/{edge_id} (Graph-quality S5b-be) ------------
+
+
+async def test_patch_relation_returns_the_new_edge_and_collision_flag(
+    make_client: object, db_conn: psycopg.AsyncConnection
+) -> None:
+    story = await _make_story(db_conn)
+    edge_id, new_edge_id = uuid4(), uuid4()
+    service = _StubEdit(relation=RelationEditResult(edge_id=new_edge_id, merged_into_existing=True))
+    client: AsyncClient = make_client(service)  # type: ignore[operator]
+
+    resp = await client.patch(
+        f"/stories/{story.id}/relations/{edge_id}", json={"predicate": "ON_SHIP"}
+    )
+
+    assert resp.status_code == 200, resp.text
+    # the returned id is the NEW (post-re-key) edge id; the fold surfaces as merged_into_existing
+    assert resp.json() == {"edge_id": str(new_edge_id), "merged_into_existing": True}
+    assert service.calls[0] == (
+        "retarget_relation",
+        (story.project_id, edge_id, "ON_SHIP", None, None),
+    )
+
+
+async def test_patch_relation_strips_predicate_whitespace(
+    make_client: object, db_conn: psycopg.AsyncConnection
+) -> None:
+    story = await _make_story(db_conn)
+    edge_id = uuid4()
+    service = _StubEdit(relation=RelationEditResult(edge_id=uuid4(), merged_into_existing=False))
+    client: AsyncClient = make_client(service)  # type: ignore[operator]
+
+    resp = await client.patch(
+        f"/stories/{story.id}/relations/{edge_id}", json={"predicate": "  ON_SHIP  "}
+    )
+
+    assert resp.status_code == 200, resp.text
+    assert service.calls[0][1][2] == "ON_SHIP"  # stripped before dispatch
+
+
+async def test_patch_relation_re_targets_an_endpoint(
+    make_client: object, db_conn: psycopg.AsyncConnection
+) -> None:
+    story = await _make_story(db_conn)
+    edge_id, new_obj = uuid4(), uuid4()
+    service = _StubEdit(relation=RelationEditResult(edge_id=uuid4(), merged_into_existing=False))
+    client: AsyncClient = make_client(service)  # type: ignore[operator]
+
+    resp = await client.patch(
+        f"/stories/{story.id}/relations/{edge_id}", json={"object_id": str(new_obj)}
+    )
+
+    assert resp.status_code == 200, resp.text
+    assert service.calls[0] == (
+        "retarget_relation",
+        (story.project_id, edge_id, None, None, new_obj),
+    )
+
+
+async def test_patch_relation_unknown_edge_is_404(
+    make_client: object, db_conn: psycopg.AsyncConnection
+) -> None:
+    story = await _make_story(db_conn)
+    service = _StubEdit(raises=RelationEdgeNotFound("nope"))
+    client: AsyncClient = make_client(service)  # type: ignore[operator]
+
+    resp = await client.patch(
+        f"/stories/{story.id}/relations/{uuid4()}", json={"predicate": "ON_SHIP"}
+    )
+    assert resp.status_code == 404, resp.text
+
+
+async def test_patch_relation_missing_new_endpoint_is_404(
+    make_client: object, db_conn: psycopg.AsyncConnection
+) -> None:
+    story = await _make_story(db_conn)
+    service = _StubEdit(raises=EntityNotFound("gone"))
+    client: AsyncClient = make_client(service)  # type: ignore[operator]
+
+    resp = await client.patch(
+        f"/stories/{story.id}/relations/{uuid4()}", json={"object_id": str(uuid4())}
+    )
+    assert resp.status_code == 404, resp.text
+
+
+async def test_patch_relation_empty_body_is_422(
+    make_client: object, db_conn: psycopg.AsyncConnection
+) -> None:
+    # No field supplied → nothing to change → a request-validation 422 at the boundary; the service
+    # is never reached (the ≥1-field model validator, kept out of `responses=` per the 422-trap).
+    story = await _make_story(db_conn)
+    service = _StubEdit()
+    client: AsyncClient = make_client(service)  # type: ignore[operator]
+
+    resp = await client.patch(f"/stories/{story.id}/relations/{uuid4()}", json={})
+    assert resp.status_code == 422, resp.text
+    assert service.calls == []
+
+
+async def test_patch_relation_unknown_story_is_404(make_client: object) -> None:
+    service = _StubEdit()
+    client: AsyncClient = make_client(service)  # type: ignore[operator]
+    resp = await client.patch(f"/stories/{uuid4()}/relations/{uuid4()}", json={"predicate": "X"})
     assert resp.status_code == 404, resp.text
 
 
