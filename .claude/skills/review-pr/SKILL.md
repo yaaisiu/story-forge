@@ -390,6 +390,19 @@ those** — spot the things those tools miss:
   npm script / pytest invocation). A test that runs only locally is half a test — it
   defends today's commit but not tomorrow's. Skipping this check structurally bypasses
   the test-driven rule for the session's headline artifact.
+- **When a PR *rewrites or extends an existing test file* to cover new behavior, diff the old
+  assertions against the new — an extension must not silently drop the coverage it inherited.**
+  Adding a mode to a component (read-only → editable) often means restructuring its test — a new
+  wrapper (a `QueryClientProvider`), new fixtures, a condensed `renderPanel` helper — and in the
+  rewrite it is easy to *lose* an assertion the old file made (a branch, an edge case, a specific
+  rendered field) while the file still looks fully-populated and passes green. So `git diff` (or
+  read the pre-PR version of) the test file and confirm **every behavior the old file asserted is
+  still asserted** — the new tests are additive, not a replacement that quietly narrows the old
+  coverage. This is a self-review blind spot: the rewrite passes and reads complete, so nothing
+  flags the removed case; the multi-agent `/code-review` is what catches it. (Graph-quality S5b-fe
+  PR #190: extending `EdgeEvidencePanel.test.tsx` from a read-only panel to an editable one dropped
+  two S3b read assertions — the one-to-many multi-source render and the source `paragraph_text`
+  context — both green, both invisible to the self-`/review-pr`; `/code-review` caught the pair.)
 
 ## 7. Portfolio hygiene (root `CLAUDE.md` → Public-portfolio hygiene)
 
