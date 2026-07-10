@@ -18,12 +18,7 @@ import { Link, useParams } from "react-router-dom";
 import { useDebouncedValue } from "../../hooks/useDebouncedValue";
 import { AgentActivityPanel } from "../agent-activity/AgentActivityPanel";
 import { ApiError, useExtractStory } from "../../lib/api/useExtractStory";
-import {
-  storyGraphQueryKey,
-  useStoryGraph,
-  type GraphNode,
-  type GraphScope,
-} from "../../lib/api/useStoryGraph";
+import { storyGraphQueryKey, useStoryGraph, type GraphScope } from "../../lib/api/useStoryGraph";
 import { useEdgeEvidence } from "../../lib/api/useEdgeEvidence";
 import { GraphCanvas } from "./GraphCanvas";
 import { toCytoscapeElements } from "./graphElements";
@@ -35,7 +30,9 @@ import {
   matchNodes,
 } from "./graphFilters";
 import { EdgeEvidencePanel } from "./EdgeEvidencePanel";
-import { NodeDetailsPanel } from "./NodeDetailsPanel";
+import { EntityEditPanel } from "../entity-panel/EntityEditPanel";
+import { UndoButton } from "../entity-panel/UndoButton";
+import { shouldClearSelection } from "./selectionGuard";
 
 function extractMessage(error: unknown): string {
   if (!(error instanceof ApiError)) return "Extraction failed. Please try again.";
@@ -60,6 +57,12 @@ export function GraphViewer() {
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
   const [selectedEdgeId, setSelectedEdgeId] = useState<string | null>(null);
 
+  // Panel-vanish guard (DM-S5-6): hold the node selection while its edit form is dirty, and
+  // keep the just-edited node selected through the post-save graph refetch (an edited type can
+  // fall outside an active type-filter). `editDirty` is lifted from the mounted EntityEditPanel.
+  const [editDirty, setEditDirty] = useState(false);
+  const [justEditedId, setJustEditedId] = useState<string | null>(null);
+
   // §3.4 client-side navigation state (DM-GN-1: all filtering runs over the payload
   // already fetched, no backend round-trip). Empty `selectedTypes` = no type
   // constraint (all types shown); `minDegree` 0 = no density constraint.
@@ -75,6 +78,8 @@ export function GraphViewer() {
   const handleSelectNode = useCallback((nodeId: string) => {
     setSelectedNodeId(nodeId);
     setSelectedEdgeId(null);
+    // A fresh selection starts a fresh interaction — drop any prior just-edited marker.
+    setJustEditedId(null);
   }, []);
   const handleSelectEdge = useCallback((edgeId: string) => {
     setSelectedEdgeId(edgeId);
@@ -91,6 +96,7 @@ export function GraphViewer() {
     setScope(next);
     setSelectedNodeId(null);
     setSelectedEdgeId(null);
+    setJustEditedId(null);
   }
 
   const nodes = useMemo(() => graph.data?.nodes ?? [], [graph.data]);
@@ -158,17 +164,31 @@ export function GraphViewer() {
     setMinDegree((prev) => (prev > maxDegree ? maxDegree : prev));
   }, [maxDegree]);
 
-  // Reactive mirror of handleScopeChange's clear: if a filter hides the selected
-  // node, drop the selection rather than leave the details panel showing a node no
-  // longer on the canvas.
+  // Reactive mirror of handleScopeChange's clear: if a filter hides the selected node, drop
+  // the selection rather than leave the panel showing a node no longer on the canvas — but
+  // honour the DM-S5-6 guard so an in-progress or just-completed edit isn't yanked away.
   useEffect(() => {
-    if (selectedNodeId && !visibleNodeIds.has(selectedNodeId)) setSelectedNodeId(null);
-  }, [selectedNodeId, visibleNodeIds]);
+    if (
+      shouldClearSelection({
+        selectedNodeId,
+        isVisible: !!selectedNodeId && visibleNodeIds.has(selectedNodeId),
+        editDirty,
+        justEditedId,
+      })
+    ) {
+      setSelectedNodeId(null);
+    }
+  }, [selectedNodeId, visibleNodeIds, editDirty, justEditedId]);
   useEffect(() => {
     if (selectedEdgeId && !visibleEdgeIds.has(selectedEdgeId)) setSelectedEdgeId(null);
   }, [selectedEdgeId, visibleEdgeIds]);
 
+  // A user-driven filter change ends the post-edit grace period: the just-edited node is no
+  // longer pinned, so a filter that now hides it dismisses its panel like any other. (Cleared
+  // only on *user* filter actions — never in the refetch-driven prune effects above, which the
+  // post-save refetch itself triggers and must survive.)
   function toggleType(type: string) {
+    setJustEditedId(null);
     setSelectedTypes((prev) => {
       const next = new Set(prev);
       if (next.has(type)) next.delete(type);
@@ -177,16 +197,17 @@ export function GraphViewer() {
     });
   }
 
+  function changeMinDegree(next: number) {
+    setJustEditedId(null);
+    setMinDegree(next);
+  }
+
   function handleClearFilters() {
+    setJustEditedId(null);
     setSelectedTypes(new Set());
     setMinDegree(0);
     setSearchTerm("");
   }
-
-  const selectedNode: GraphNode | null = useMemo(
-    () => graph.data?.nodes.find((n) => n.id === selectedNodeId) ?? null,
-    [graph.data, selectedNodeId],
-  );
 
   function handleExtract() {
     if (!storyId) return;
@@ -286,6 +307,8 @@ export function GraphViewer() {
               Duplicates
             </Link>
           )}
+          {/* Undo the last graph edit (S5a) — story-scoped, mirrors the reader toolbar. */}
+          {storyId && <UndoButton storyId={storyId} />}
           <button
             type="button"
             data-testid="run-extraction"
@@ -354,7 +377,7 @@ export function GraphViewer() {
               min={0}
               max={maxDegree}
               value={minDegree}
-              onChange={(e) => setMinDegree(Number(e.target.value))}
+              onChange={(e) => changeMinDegree(Number(e.target.value))}
               aria-label="Minimum connections"
             />
           </label>
@@ -422,8 +445,8 @@ export function GraphViewer() {
                 />
               ))}
           </div>
-          {/* One details slot: the tapped edge's evidence when an edge is selected,
-              otherwise the node-details panel (which owns the "click a node" prompt). */}
+          {/* One details slot: the tapped edge's evidence when an edge is selected, the
+              editable entity panel when a node is selected (S5a), else the "click a node" prompt. */}
           {graph.isSuccess &&
             nodeCount > 0 &&
             (selectedEdgeId ? (
@@ -434,8 +457,28 @@ export function GraphViewer() {
                 onRetry={() => void edgeEvidence.refetch()}
                 onClose={() => setSelectedEdgeId(null)}
               />
+            ) : selectedNodeId ? (
+              // Key on the selected node so switching entities remounts the panel with fresh
+              // edit/confirm state — a re-target must never carry the prior node's drafts (which
+              // would PATCH the wrong entity) or a primed delete-confirm onto the new node.
+              <EntityEditPanel
+                key={selectedNodeId}
+                storyId={storyId ?? ""}
+                entityId={selectedNodeId}
+                testIdPrefix="node-panel"
+                widthClass="w-72"
+                onClose={() => setSelectedNodeId(null)}
+                onDeleted={() => setSelectedNodeId(null)}
+                onDirtyChange={setEditDirty}
+                onEdited={() => setJustEditedId(selectedNodeId)}
+              />
             ) : (
-              <NodeDetailsPanel node={selectedNode} onClose={() => setSelectedNodeId(null)} />
+              <aside
+                data-testid="node-details-empty"
+                className="w-72 shrink-0 border-l border-gray-200 p-4 text-sm text-gray-500"
+              >
+                Click a node to see its details.
+              </aside>
             ))}
         </div>
 

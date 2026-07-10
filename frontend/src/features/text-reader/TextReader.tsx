@@ -31,7 +31,7 @@ import { ReaderContextMenu } from "./ReaderContextMenu";
 import { ReaderCorrectionPopover } from "./ReaderCorrectionPopover";
 import { ReaderEditor, type ReaderFlash } from "./ReaderEditor";
 import { ReaderEntityPanel } from "./ReaderEntityPanel";
-import { UndoButton } from "./UndoButton";
+import { UndoButton } from "../entity-panel/UndoButton";
 import type { ContextMenuRequest, CorrectionAction, ParagraphSpan } from "./correction";
 import { legendEntries } from "./palette";
 
@@ -296,6 +296,7 @@ export function TextReader() {
       {showPanel && (
         <div className="sticky top-6 max-h-[calc(100vh-3rem)] self-start overflow-y-auto">
           <ReaderEntityPanel
+            key={selectedEntityId}
             storyId={storyId}
             entityId={selectedEntityId}
             paragraphs={paragraphs}
