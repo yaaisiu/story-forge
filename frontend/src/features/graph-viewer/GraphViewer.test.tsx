@@ -375,6 +375,68 @@ describe("GraphViewer", () => {
     await waitFor(() => expect(screen.queryByTestId("edge-evidence")).not.toBeInTheDocument());
   });
 
+  // ── §3.4 in-place edge curation (S5b-fe) ──────────────────────────────────────
+
+  it("holds the edge panel open while its edit form is dirty (DM-S5-6 guard)", async () => {
+    stubFetch(MULTI_GRAPH);
+    renderViewer();
+
+    fireEvent.click(await screen.findByTestId("cy-edge-e1"));
+    fireEvent.click(await screen.findByTestId("edge-panel-edit"));
+    fireEvent.change(screen.getByTestId("edge-panel-predicate"), {
+      target: { value: "RIDES_WITH" },
+    });
+
+    // Filtering to Location de-dangles e1 (its Character endpoint hides) — the dirty edit holds it.
+    fireEvent.click(screen.getByTestId("type-filter-Location"));
+
+    await waitFor(() => expect(screen.queryByTestId("cy-edge-e1")).not.toBeInTheDocument());
+    expect(screen.getByTestId("edge-panel-edit-form")).toBeInTheDocument();
+  });
+
+  it("resets the edit form when a different edge is selected (no stale drafts → wrong-target write)", async () => {
+    stubFetch(MULTI_GRAPH);
+    renderViewer();
+
+    fireEvent.click(await screen.findByTestId("cy-edge-e1"));
+    fireEvent.click(await screen.findByTestId("edge-panel-edit"));
+    fireEvent.change(screen.getByTestId("edge-panel-predicate"), { target: { value: "STALE" } });
+    expect(screen.getByTestId("edge-panel-edit-form")).toBeInTheDocument();
+
+    // Tap e2 → the panel remounts fresh (read mode), so e2's Save can never carry e1's draft.
+    fireEvent.click(screen.getByTestId("cy-edge-e2"));
+
+    await waitFor(() => expect(screen.queryByTestId("edge-panel-edit-form")).toBeNull());
+    expect(await screen.findByTestId("edge-panel-edit")).toBeInTheDocument();
+  });
+
+  it("re-points the selection and flags a fold after a re-keying edit", async () => {
+    // PATCH re-keys e1 and — colliding with the existing e2 — folds, returning e2's id.
+    const fetchMock = vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input);
+      const method = init?.method ?? "GET";
+      if (url.includes("/relations/") && method === "PATCH")
+        return Promise.resolve(jsonResponse(200, { edge_id: "e2", merged_into_existing: true }));
+      if (url.includes("/evidence")) return Promise.resolve(jsonResponse(200, EDGE_EVIDENCE_BODY));
+      if (url.includes("/graph")) return Promise.resolve(jsonResponse(200, MULTI_GRAPH));
+      if (url.includes("/llm/status")) return Promise.resolve(jsonResponse(200, STATUS_BODY));
+      return Promise.reject(new Error(`unexpected url ${url}`));
+    });
+    vi.stubGlobal("fetch", fetchMock);
+    renderViewer();
+
+    fireEvent.click(await screen.findByTestId("cy-edge-e1"));
+    fireEvent.click(await screen.findByTestId("edge-panel-edit"));
+    fireEvent.change(screen.getByTestId("edge-panel-predicate"), {
+      target: { value: "RIDES_WITH" },
+    });
+    fireEvent.click(screen.getByTestId("edge-panel-save"));
+
+    // The panel re-points to the returned edge id (stays open through the refetch) and notes the fold.
+    await waitFor(() => expect(screen.queryByTestId("edge-panel-edit-form")).toBeNull());
+    expect(await screen.findByTestId("edge-panel-merged-warning")).toBeInTheDocument();
+  });
+
   // ── §3.4 client-side navigation (Session 73, S2) ──────────────────────────────
 
   it("derives the type-filter options from the data present (INV-4)", async () => {

@@ -4,14 +4,14 @@ import { shouldClearSelection } from "./selectionGuard";
 
 describe("shouldClearSelection", () => {
   const base = {
-    selectedNodeId: "n1",
+    selectedId: "n1",
     isVisible: false,
     editDirty: false,
     justEditedId: null as string | null,
   };
 
   it("never clears when nothing is selected", () => {
-    expect(shouldClearSelection({ ...base, selectedNodeId: null })).toBe(false);
+    expect(shouldClearSelection({ ...base, selectedId: null })).toBe(false);
   });
 
   it("never clears while the node is still visible", () => {

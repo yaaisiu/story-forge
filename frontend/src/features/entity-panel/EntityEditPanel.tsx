@@ -85,7 +85,7 @@ export function EntityEditPanel({
   return (
     <aside
       data-testid={`${p}-panel`}
-      className={`flex ${widthClass} shrink-0 flex-col gap-3 border-l border-gray-200 p-4 text-sm`}
+      className={`flex min-h-0 ${widthClass} shrink-0 flex-col gap-3 overflow-y-auto border-l border-gray-200 p-4 text-sm`}
     >
       <div className="flex items-start justify-between gap-2">
         <h2 data-testid={`${p}-name`} className="text-base font-semibold text-gray-900">
