@@ -612,6 +612,17 @@ working"). Routed here, not `PLAN_SHORT`, because none gates the current milesto
 - **`_next_generation` is a linear probe.** It queries `is_operation_undone` once per prior undone
   generation of the same targets. Fine at PoC depths; a single `MAX(generation)`-style read (or storing
   the generation explicitly) would make it O(1) and order-independent.
+- **`merge_entities`' edge re-point deletes-old-before-creating-new — the same data-loss window
+  S5b-be's re-key just closed (surfaced Session 82).** `EntityEditService.merge_entities`
+  (`agents/entity_edit.py`) re-points each incident edge as `delete_relation(old)` then
+  `create_relation(new)` (two separate Neo4j transactions), so a store failure *between* them loses that
+  edge entirely — no replacement, and (evidence-last) no undo row. The S5b-be `retarget_relation` had
+  the identical shape until `/code-review` caught it; it was **reordered to create-new-before-delete-old**
+  (a mid-failure then leaves a recoverable duplicate, never a missing edge, and a retry converges). Merge
+  should get the same create-first reordering (a re-point's `new_id != old_id` always holds off the
+  survivor, so the two writes touch distinct edges — the flip is safe). Narrow window, single-user,
+  PoC-acceptable; recorded so the fix lands when merge robustness is next touched. (Session 82 `/code-review`
+  finding on the sibling retarget path; `merge` left as-is to stay surgical.)
 
 ## Automated test tooling — Playwright + Postman (post-PoC)
 
