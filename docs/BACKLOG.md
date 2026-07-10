@@ -37,6 +37,29 @@ needs a decision on *how* (vendor the skills under `.claude/skills/`, document t
 dependency in the README, or a submodule) and a check that nothing in them is plugin-private. Pairs
 with the public-portfolio goal — the repo already dogfoods the architect; the tooling should ship too.
 
+**Scope escalated (Session 83, owner) — extract the whole toolchain as *portable, reusable* tooling
+for his other repos, and make it the *next session's* focus** (after the Graph-quality S5b-fe merge).
+The ask is broader than shipping the skills *with* Story Forge: package the machinery so it can be
+**installed into any of his older repositories** and actually used there. Two asset classes, which
+portable-ize differently:
+
+- **The `meta-architect` plugin** (the `meta-architect:` agent + `decompose`/`review`/`initialize`
+  skills + its doctrine) — already project-agnostic by design (it writes a vault, never touches
+  project-specific policy). The easy one: carve it into its own git repo with a `.claude-plugin/plugin.json`.
+- **The Story-Forge rituals** (`.claude/skills/`: resume-session, wrap-session, retro, review-pr,
+  triage-advisory, add-dependency, pin-image, document-code — plus the `CLAUDE.md` doctrine). The
+  higher-value, harder extraction: several are **coupled to Story-Forge specifics** (triage-advisory's
+  `infra/osv/` paths, add-dependency's 14-day soak, review-pr's spec/plan reads). Extraction = deciding,
+  skill by skill, *what is universal doctrine vs. a Story-Forge parameter*, and genericizing the rest.
+
+Distribution mechanism = Claude Code **plugins + a marketplace** (`.claude-plugin/marketplace.json`):
+`/plugin marketplace add <git-url>` once in any repo, then `/plugin install`, enabled per-repo in
+`.claude/settings.json` + a `CLAUDE.md` doctrine snippet. Sketched next-session shape: (1) carve
+`meta-architect` into its own repo; (2) genericize the reusable rituals into a second "dev-rituals"
+plugin, parameterizing the coupling; (3) a marketplace repo tying them together; (4) trial-install into
+one older repo. (Owner directive, Session 83, 2026-07-10 — this supersedes the narrower Session-76 ask
+above and is the recorded next-session focus; see the handoff block.)
+
 ## LLM task evaluation baselines (chunking, extraction, cascade)
 
 A recurring need surfaced across the Session-33 smoke test: **every LLM-backed task needs a
