@@ -143,11 +143,25 @@ const EDGE_EVIDENCE_BODY = {
   ],
 };
 
-/** A fetch stub that answers /llm/status, /graph, and the per-edge /evidence read. */
+// The editable node panel (S5a) fetches its own entity detail on selection (GET
+// /stories/{id}/entities/{eid}); the stub answers it for any tapped node.
+const ENTITY_DETAIL_BODY = {
+  entity_id: NODE_ID,
+  canonical_name: "Janek",
+  language: "en",
+  type: "Character",
+  aliases: ["młynarz"],
+  properties: {},
+  ego_graph: { neighbours: [], edges: [] },
+};
+
+/** A fetch stub answering /llm/status, /graph, the per-edge /evidence read, and the node
+ * panel's per-entity detail read (order matters: /evidence before /entities). */
 function stubFetch(graphBody: unknown) {
   const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
     const url = String(input);
     if (url.includes("/evidence")) return jsonResponse(200, EDGE_EVIDENCE_BODY);
+    if (url.includes("/entities/")) return jsonResponse(200, ENTITY_DETAIL_BODY);
     if (url.includes("/graph")) return jsonResponse(200, graphBody);
     if (url.includes("/llm/status")) return jsonResponse(200, STATUS_BODY);
     throw new Error(`unexpected url ${url}`);
@@ -276,29 +290,32 @@ describe("GraphViewer", () => {
     expect(screen.getByTestId("scope-project")).toHaveAttribute("aria-pressed", "true");
   });
 
-  it("clears the open node-details panel when the scope is toggled", async () => {
+  it("clears the open node panel when the scope is toggled", async () => {
     stubFetch(POPULATED_GRAPH);
     renderViewer();
 
     fireEvent.click(await screen.findByTestId(`cy-node-${NODE_ID}`));
-    expect(await screen.findByTestId("node-details")).toBeInTheDocument();
+    expect(await screen.findByTestId("node-panel-panel")).toBeInTheDocument();
 
     // A node picked in one scope may not exist in the other — toggling resets the
     // selection rather than leaving a stale, blank panel.
     fireEvent.click(screen.getByTestId("scope-project"));
 
-    await waitFor(() => expect(screen.queryByTestId("node-details")).not.toBeInTheDocument());
+    await waitFor(() => expect(screen.queryByTestId("node-panel-panel")).not.toBeInTheDocument());
   });
 
-  it("opens the node-details panel when a node is tapped", async () => {
+  it("opens the editable node panel when a node is tapped", async () => {
     stubFetch(POPULATED_GRAPH);
     renderViewer();
 
     const nodeButton = await screen.findByTestId(`cy-node-${NODE_ID}`);
     fireEvent.click(nodeButton);
 
-    expect(await screen.findByTestId("node-details")).toBeInTheDocument();
-    expect(screen.getByRole("heading", { name: "Janek" })).toBeInTheDocument();
+    expect(await screen.findByTestId("node-panel-panel")).toBeInTheDocument();
+    // The panel fetches its own detail — the heading reflects the fetched entity.
+    expect(await screen.findByRole("heading", { name: "Janek" })).toBeInTheDocument();
+    // And it surfaces the write affordances (S5a).
+    expect(screen.getByTestId("node-panel-edit")).toBeInTheDocument();
   });
 
   // ── §3.4 edge evidence (Session 76, S3b) ──────────────────────────────────────
@@ -321,15 +338,15 @@ describe("GraphViewer", () => {
 
     // Tap a node → node panel; then tap an edge → edge panel replaces it.
     fireEvent.click(await screen.findByTestId(`cy-node-${CHAR_A}`));
-    expect(await screen.findByTestId("node-details")).toBeInTheDocument();
+    expect(await screen.findByTestId("node-panel-panel")).toBeInTheDocument();
 
     fireEvent.click(screen.getByTestId("cy-edge-e1"));
     expect(await screen.findByTestId("edge-evidence")).toBeInTheDocument();
-    expect(screen.queryByTestId("node-details")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("node-panel-panel")).not.toBeInTheDocument();
 
     // Tapping a node again swaps back to the node panel.
     fireEvent.click(screen.getByTestId(`cy-node-${CHAR_A}`));
-    expect(await screen.findByTestId("node-details")).toBeInTheDocument();
+    expect(await screen.findByTestId("node-panel-panel")).toBeInTheDocument();
     expect(screen.queryByTestId("edge-evidence")).not.toBeInTheDocument();
   });
 
@@ -416,12 +433,40 @@ describe("GraphViewer", () => {
     renderViewer();
 
     fireEvent.click(await screen.findByTestId(`cy-node-${CHAR_A}`));
-    expect(await screen.findByTestId("node-details")).toBeInTheDocument();
+    expect(await screen.findByTestId("node-panel-panel")).toBeInTheDocument();
 
     // Filtering to Location hides the selected Character A → the panel closes.
     fireEvent.click(screen.getByTestId("type-filter-Location"));
 
-    await waitFor(() => expect(screen.queryByTestId("node-details")).not.toBeInTheDocument());
+    await waitFor(() => expect(screen.queryByTestId("node-panel-panel")).not.toBeInTheDocument());
+  });
+
+  // ── §3.4 in-place node curation (S5a) ─────────────────────────────────────────
+
+  it("holds the node panel open while its edit form is dirty (DM-S5-6 guard)", async () => {
+    stubFetch(MULTI_GRAPH);
+    renderViewer();
+
+    fireEvent.click(await screen.findByTestId(`cy-node-${CHAR_A}`));
+    // Enter edit mode and make the form dirty.
+    fireEvent.click(await screen.findByTestId("node-panel-edit"));
+    fireEvent.change(screen.getByTestId("node-panel-name-input"), { target: { value: "Janusz" } });
+
+    // A filter that would normally hide the selected Character A — but the dirty edit holds it.
+    fireEvent.click(screen.getByTestId("type-filter-Location"));
+
+    // The hidden node's canvas button is gone, yet the panel stays open (guard).
+    await waitFor(() => expect(screen.queryByTestId(`cy-node-${CHAR_A}`)).not.toBeInTheDocument());
+    expect(screen.getByTestId("node-panel-panel")).toBeInTheDocument();
+    expect(screen.getByTestId("node-panel-edit-form")).toBeInTheDocument();
+  });
+
+  it("offers undo of the last graph edit from the toolbar", async () => {
+    stubFetch(POPULATED_GRAPH);
+    renderViewer();
+
+    // Story-scoped undo lives in the graph toolbar (mirrors the reader), not the node panel.
+    expect(await screen.findByTestId("undo-button")).toBeInTheDocument();
   });
 
   it("focuses a search match (past the debounce)", async () => {

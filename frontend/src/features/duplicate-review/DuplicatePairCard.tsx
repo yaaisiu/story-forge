@@ -21,12 +21,12 @@ import {
   type DuplicateEntityView,
   type DuplicateSuggestionView,
 } from "../../lib/api/useDuplicateSuggestions";
-import { MergeConflictFields } from "../text-reader/MergeConflictFields";
+import { MergeConflictFields } from "../entity-panel/MergeConflictFields";
 import {
   buildConflictRows,
   resolvedPropertiesFrom,
   type ConflictChoice,
-} from "../text-reader/mergeConflicts";
+} from "../entity-panel/mergeConflicts";
 import { markMentions, mergeVarsFor, scoreLabels, type SurvivorSide } from "./duplicateReview";
 
 interface DuplicatePairCardProps {

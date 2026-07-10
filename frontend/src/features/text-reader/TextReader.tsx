@@ -31,7 +31,7 @@ import { ReaderContextMenu } from "./ReaderContextMenu";
 import { ReaderCorrectionPopover } from "./ReaderCorrectionPopover";
 import { ReaderEditor, type ReaderFlash } from "./ReaderEditor";
 import { ReaderEntityPanel } from "./ReaderEntityPanel";
-import { UndoButton } from "./UndoButton";
+import { UndoButton } from "../entity-panel/UndoButton";
 import type { ContextMenuRequest, CorrectionAction, ParagraphSpan } from "./correction";
 import { legendEntries } from "./palette";
 
