@@ -21,7 +21,7 @@ import { ApiError, useExtractStory } from "../../lib/api/useExtractStory";
 import { storyGraphQueryKey, useStoryGraph, type GraphScope } from "../../lib/api/useStoryGraph";
 import { useEdgeEvidence } from "../../lib/api/useEdgeEvidence";
 import { GraphCanvas } from "./GraphCanvas";
-import { toCytoscapeElements } from "./graphElements";
+import { nodeLabel, toCytoscapeElements } from "./graphElements";
 import {
   distinctTypes,
   elementDegrees,
@@ -63,6 +63,14 @@ export function GraphViewer() {
   const [editDirty, setEditDirty] = useState(false);
   const [justEditedId, setJustEditedId] = useState<string | null>(null);
 
+  // The edge twin of the node guard (S5b-fe): a re-key changes the edge's content id, so after
+  // a saved edit the selection re-points to the *new* id (`justEditedEdgeId`) and the guard holds
+  // it through the refetch that first makes it visible. `edgeJustMerged` surfaces a fold on the
+  // re-pointed panel (the panel remounts on the new id, so the note can't live inside it).
+  const [edgeEditDirty, setEdgeEditDirty] = useState(false);
+  const [justEditedEdgeId, setJustEditedEdgeId] = useState<string | null>(null);
+  const [edgeJustMerged, setEdgeJustMerged] = useState(false);
+
   // §3.4 client-side navigation state (DM-GN-1: all filtering runs over the payload
   // already fetched, no backend round-trip). Empty `selectedTypes` = no type
   // constraint (all types shown); `minDegree` 0 = no density constraint.
@@ -84,6 +92,9 @@ export function GraphViewer() {
   const handleSelectEdge = useCallback((edgeId: string) => {
     setSelectedEdgeId(edgeId);
     setSelectedNodeId(null);
+    // A fresh selection starts a fresh interaction — drop any prior edge edit markers.
+    setJustEditedEdgeId(null);
+    setEdgeJustMerged(false);
   }, []);
 
   // The tapped edge's evidence — fetched per tap, disabled until an edge is selected.
@@ -97,9 +108,26 @@ export function GraphViewer() {
     setSelectedNodeId(null);
     setSelectedEdgeId(null);
     setJustEditedId(null);
+    setJustEditedEdgeId(null);
+    setEdgeJustMerged(false);
   }
 
   const nodes = useMemo(() => graph.data?.nodes ?? [], [graph.data]);
+
+  // The tapped edge (predicate + endpoints), resolved from the fetched payload, and a name
+  // lookup that labels an endpoint exactly as the canvas does (graphElements.nodeLabel). Both
+  // feed the editable edge panel (S5b-fe). `selectedEdge` is briefly undefined in the window
+  // after a re-key re-points to a new id, before the graph refetch lands.
+  const selectedEdge = useMemo(
+    () => graph.data?.edges.find((e) => e.id === selectedEdgeId),
+    [graph.data, selectedEdgeId],
+  );
+  const nodeNameById = useMemo(() => {
+    const names = new Map<string, string>();
+    for (const n of nodes) names.set(n.id, nodeLabel(n));
+    return names;
+  }, [nodes]);
+  const nameOf = useCallback((id: string) => nodeNameById.get(id) ?? id, [nodeNameById]);
 
   // The client-side pipeline: full payload → cytoscape elements → AND-combined
   // type/degree filter → the visible subset GraphCanvas lays out (memoized for a
@@ -170,7 +198,7 @@ export function GraphViewer() {
   useEffect(() => {
     if (
       shouldClearSelection({
-        selectedNodeId,
+        selectedId: selectedNodeId,
         isVisible: !!selectedNodeId && visibleNodeIds.has(selectedNodeId),
         editDirty,
         justEditedId,
@@ -179,16 +207,33 @@ export function GraphViewer() {
       setSelectedNodeId(null);
     }
   }, [selectedNodeId, visibleNodeIds, editDirty, justEditedId]);
+  // The same guard for the edge selection (S5b-fe): a dirty edit or a just-re-keyed edge holds
+  // the selection through the refetch that makes the new content id visible, so the panel
+  // re-resolves instead of blinking away.
   useEffect(() => {
-    if (selectedEdgeId && !visibleEdgeIds.has(selectedEdgeId)) setSelectedEdgeId(null);
-  }, [selectedEdgeId, visibleEdgeIds]);
+    if (
+      shouldClearSelection({
+        selectedId: selectedEdgeId,
+        isVisible: !!selectedEdgeId && visibleEdgeIds.has(selectedEdgeId),
+        editDirty: edgeEditDirty,
+        justEditedId: justEditedEdgeId,
+      })
+    ) {
+      setSelectedEdgeId(null);
+    }
+  }, [selectedEdgeId, visibleEdgeIds, edgeEditDirty, justEditedEdgeId]);
 
   // A user-driven filter change ends the post-edit grace period: the just-edited node is no
   // longer pinned, so a filter that now hides it dismisses its panel like any other. (Cleared
   // only on *user* filter actions — never in the refetch-driven prune effects above, which the
   // post-save refetch itself triggers and must survive.)
-  function toggleType(type: string) {
+  function endEditGrace() {
     setJustEditedId(null);
+    setJustEditedEdgeId(null);
+  }
+
+  function toggleType(type: string) {
+    endEditGrace();
     setSelectedTypes((prev) => {
       const next = new Set(prev);
       if (next.has(type)) next.delete(type);
@@ -198,12 +243,12 @@ export function GraphViewer() {
   }
 
   function changeMinDegree(next: number) {
-    setJustEditedId(null);
+    endEditGrace();
     setMinDegree(next);
   }
 
   function handleClearFilters() {
-    setJustEditedId(null);
+    endEditGrace();
     setSelectedTypes(new Set());
     setMinDegree(0);
     setSearchTerm("");
@@ -450,12 +495,28 @@ export function GraphViewer() {
           {graph.isSuccess &&
             nodeCount > 0 &&
             (selectedEdgeId ? (
+              // Key on the edge id so switching edges (or a re-key re-point) remounts with fresh
+              // edit/confirm state — a Save must never carry the prior edge's drafts (S5a lesson).
               <EdgeEvidencePanel
+                key={selectedEdgeId}
                 edgeId={selectedEdgeId}
+                edge={selectedEdge}
+                nameOf={nameOf}
+                storyId={storyId ?? ""}
                 evidence={edgeEvidence.data}
                 isPending={edgeEvidence.isPending}
                 onRetry={() => void edgeEvidence.refetch()}
                 onClose={() => setSelectedEdgeId(null)}
+                onDeleted={() => setSelectedEdgeId(null)}
+                onDirtyChange={setEdgeEditDirty}
+                onEdited={(newEdgeId, merged) => {
+                  // The re-key minted a new content id: re-point the selection to it (the guard
+                  // holds it through the refetch that first makes it visible) and note a fold.
+                  setSelectedEdgeId(newEdgeId);
+                  setJustEditedEdgeId(newEdgeId);
+                  setEdgeJustMerged(merged);
+                }}
+                justMerged={edgeJustMerged}
               />
             ) : selectedNodeId ? (
               // Key on the selected node so switching entities remounts the panel with fresh
