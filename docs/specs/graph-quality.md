@@ -128,7 +128,13 @@ edge-joining.
   the goal. Human-gated; predicates stay open-world free strings (INV-4). The relation twin of S4's entity
   dedup-suggest; carries the §4 edge handle (DM-GQ-1). Promoted from `docs/BACKLOG.md` (predicate
   proliferation), owner Session 69. Distinct from ADR 0005's exact-triple dedup, which only collapses
-  *identical* triples.
+  *identical* triples. **Scope extended to entity *type* names (owner, Session 81):** the same
+  casing/synonym spread affects the open-world entity **types** (`PERSON`/`Person`,
+  `GROUP`/`group`/`GROUP_OF_PERSONS`, `LOCATION`/`PLACE`/`Place`, `OBJECT`/`ARTIFACT`, …), surfaced
+  by the live type filter after S5a shipped node-type editing. Types are open-world (INV-4), so nothing
+  collapses them automatically. S6 runs one suggest-then-you-decide normalisation pass over **both**
+  predicate names and entity-type labels; the shared vs per-surface machinery is scoped at S6's step-0
+  decompose. (The predicate-only phrasing elsewhere in this doc is reconciled at that decompose.)
 
 - **S7 — Reader as a correction surface for existing entities** *(close the loop)*. Verify and fill gaps
   so the reader's click → side panel + right-click correction (mostly built in M4.S3c, spec §3.5) works
