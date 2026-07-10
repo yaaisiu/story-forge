@@ -344,10 +344,11 @@ async def test_retarget_repredicates_atomically_and_preserves_the_handle() -> No
     assert add.edge_id not in graph.relations
     assert graph.relations[new_id].type == "ON_SHIP"
     assert graph.relations[new_id].edge_uid == handle
-    # graph-first, evidence-last (INV-3): delete old → create new → record the grouped op
+    # graph-first, evidence-last (INV-3); create-new BEFORE delete-old so a mid-failure leaves a
+    # recoverable duplicate, never a missing edge (DM-S5-2) → record the grouped op last
     assert events == [
-        ("delete_relation", add.edge_id),
         ("create_relation", new_id),
+        ("delete_relation", add.edge_id),
         ("record_operation", 1),
     ]
     (rows,) = evidence.operations

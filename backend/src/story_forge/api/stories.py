@@ -874,7 +874,9 @@ class EntityEditResponse(BaseModel):
 
 class AddRelationRequest(BaseModel):
     """Add a relation between two accepted entities (DM-S3a-3). A self-loop (subject == object)
-    is allowed — a manual one is intentional. Re-predicate is a remove + add, client-side."""
+    is allowed — a manual one is intentional. To *edit* an existing edge's predicate or endpoints,
+    use the atomic `PATCH …/relations/{edge_id}` (Graph-quality S5b-be) — not a client-side
+    remove + add, which would drop the edge's `edge_uid` handle (ADR 0011)."""
 
     subject_id: UUID
     predicate: str

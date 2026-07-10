@@ -122,8 +122,14 @@ enforced contract as of this slice — its enforcer and tests exist now (`archit
   answered question, not a surprise: mint-forward, no back-fill. A re-key mints one on the new edge; a
   never-touched legacy edge simply never needs one until a consumer appears.
 - **A re-key is best-effort-reversible, last-write-wins at PoC.** Like `add_relation` / `remove_relation`,
-  a relation-only op carries no entity drift guard; the only post-completion crash window is a missing
-  audit row (the edit landed, unlogged) — the accepted DM-S3a-6 / DM-S5-6 posture for one local author.
+  a relation-only op carries no entity drift guard. The two graph writes run **create-new before
+  delete-old** (not delete-first), so a store failure *between* them leaves a recoverable duplicate
+  (both edges), never a missing edge, and a retry converges — closing the "brief no-edge window" DM-S5-2
+  named as the reason to prefer a server-side op over the client-side remove+add. The residual window is
+  the cross-store one ADR 0007 already accepts: a failure *after* both graph writes and before the
+  Postgres evidence row leaves the re-key **applied yet unlogged** — invisible to undo, and a retry 404s
+  on the now-deleted old edge. That is the accepted DM-S3a-6 / DM-S5-6 posture for one local author, not
+  a mere "missing audit row" — named honestly so the next reader isn't surprised.
 - **No spec amendment.** `docs/specs/graph-quality.md` §3 S5 already scopes edit-predicate / re-target /
   delete, and §4 already reserved the handle (confirmed by reading §3 S5 + §4 at build). This ADR records
   *how* the reserved handle is built, under that scope.

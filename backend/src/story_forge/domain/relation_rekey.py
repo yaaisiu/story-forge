@@ -57,7 +57,14 @@ def plan_relation_rekey(
     *allowed* (a manual self-loop is intentional, unlike a merge's discarded self-loop), so there is
     no discard branch. ``collision_exists`` (an edge is already committed at the new id) is resolved
     by the caller's read to keep this function store-free.
+
+    A blank ``new_predicate`` is rejected here — `model_copy` (below) does not re-run
+    `GraphRelation._type_non_empty`, so without this guard the domain-level non-empty rule
+    `add_relation` gets for free (via `GraphRelation` construction) would be silently absent on the
+    re-key path, letting an empty Neo4j relationship type reach the store.
     """
+    if not new_predicate.strip():
+        raise ValueError("relation predicate must be a non-empty string")
     new_id = relation_edge_id(new_subject_id, new_predicate, new_object_id)
     if new_id == old_edge.id:
         return RelationRekeyPlan(kind="noop", new_edge=None)

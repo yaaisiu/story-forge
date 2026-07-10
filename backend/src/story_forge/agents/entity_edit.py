@@ -399,10 +399,14 @@ class EntityEditService:
         no-op (nothing changed) is idempotent: the unchanged id back, nothing written.
 
         404s a stale edge (`RelationEdgeNotFound`) and a re-target onto a missing endpoint
-        (`EntityNotFound`). Write order is graph-first, evidence-last (INV-3); the only
-        post-completion window is a missing audit row (accepted LWW at PoC — DM-S3a-6 / DM-S5-6).
-        The re-key reuses `create_relation`/`delete_relation` — no new graph-write symbol, so
-        INV-9's grep-guard enumeration is unchanged; only the reachable *path* grows.
+        (`EntityNotFound`). The re-key writes the graph before the evidence (INV-3), with two crash
+        windows — both the accepted single-author LWW posture (DM-S3a-6 / DM-S5-6): **create-new
+        before delete-old** means a store failure *mid*-re-key leaves a recoverable duplicate (both
+        edges), never a missing edge, and a retry converges; but a failure *after* both graph writes
+        and before the evidence row leaves the re-key **applied yet unlogged** — invisible to undo,
+        and a retry 404s on the now-deleted old edge. The re-key reuses `create_relation` /
+        `delete_relation` — no new graph-write symbol, so INV-9's grep-guard enumeration is
+        unchanged; only the reachable *path* grows.
         """
         old = await self._graph.get_relation(project_id, edge_id)
         if old is None:
@@ -411,8 +415,13 @@ class EntityEditService:
         new_predicate = predicate if predicate is not None else old.type
         new_subject_id = subject_id if subject_id is not None else old.subject_id
         new_object_id = object_id if object_id is not None else old.object_id
-        await self._require_entity(project_id, new_subject_id)
-        await self._require_entity(project_id, new_object_id)
+        # Only a *supplied* (changed) endpoint needs an existence check; an omitted one keeps the
+        # old edge's endpoint, which `get_relation` already confirmed present + in-project — so a
+        # re-predicate-only edit does not re-read both endpoints redundantly.
+        if subject_id is not None:
+            await self._require_entity(project_id, new_subject_id)
+        if object_id is not None:
+            await self._require_entity(project_id, new_object_id)
 
         # Preserve the old edge's handle across the re-key; mint one forward if the old edge is a
         # legacy handle-less edge (mint-forward, no backfill — DM-S5-3).
@@ -434,11 +443,13 @@ class EntityEditService:
         if plan.kind == "noop" or plan.new_edge is None:
             return RelationEditResult(edge_id=edge_id, merged_into_existing=False)
 
-        # Graph first: delete the old edge, then create the new one. On a fold the create MERGEs
-        # onto the pre-existing survivor edge, whose own handle wins (`create_relation`'s ON-CREATE
-        # coalesce) — the passed handle is dropped, exactly the survivor rule.
-        await self._graph.delete_relation(old.id)
+        # Graph first: **create the new edge before deleting the old** — so a store failure between
+        # the two writes leaves a recoverable duplicate (both edges present), never a missing edge
+        # (the client-side remove+add's data-loss window, closed server-side — DM-S5-2). On a fold
+        # the create MERGEs onto the pre-existing survivor edge, whose own handle wins (the
+        # ON-CREATE coalesce) — the passed handle is dropped, the survivor rule.
         await self._graph.create_relation(plan.new_edge)
+        await self._graph.delete_relation(old.id)
 
         # Evidence last: one grouped reversible op reusing the merge writer's per-edge op strings
         # (`repoint_relation` / `fold_relation`), so `graph_undo.invert_operation` already reverses

@@ -2262,7 +2262,7 @@
           "object_id"
         ],
         "title": "AddRelationRequest",
-        "description": "Add a relation between two accepted entities (DM-S3a-3). A self-loop (subject == object)\nis allowed \u2014 a manual one is intentional. Re-predicate is a remove + add, client-side."
+        "description": "Add a relation between two accepted entities (DM-S3a-3). A self-loop (subject == object)\nis allowed \u2014 a manual one is intentional. To *edit* an existing edge's predicate or endpoints,\nuse the atomic `PATCH \u2026/relations/{edge_id}` (Graph-quality S5b-be) \u2014 not a client-side\nremove + add, which would drop the edge's `edge_uid` handle (ADR 0011)."
       },
       "AlternativeView": {
         "properties": {

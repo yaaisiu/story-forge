@@ -12,6 +12,8 @@ from __future__ import annotations
 
 from uuid import uuid4
 
+import pytest
+
 from story_forge.domain.candidates import relation_edge_id
 from story_forge.domain.graph import GraphRelation
 from story_forge.domain.relation_rekey import plan_relation_rekey
@@ -151,3 +153,20 @@ def test_a_legacy_handle_less_edge_gets_the_minted_handle_on_the_new_edge() -> N
 
     assert plan.new_edge is not None
     assert plan.new_edge.edge_uid == minted
+
+
+def test_blank_predicate_is_rejected() -> None:
+    # `model_copy` skips GraphRelation's `_type_non_empty` validator, so the planner re-establishes
+    # the domain-level non-empty rule that `add_relation` gets for free on construction.
+    subj, obj = uuid4(), uuid4()
+    edge = _edge(subj, "LOVES", obj)
+
+    with pytest.raises(ValueError, match="non-empty"):
+        plan_relation_rekey(
+            edge,
+            new_predicate="   ",
+            new_subject_id=subj,
+            new_object_id=obj,
+            edge_uid=edge.edge_uid,  # type: ignore[arg-type]
+            collision_exists=False,
+        )
