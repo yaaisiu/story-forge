@@ -461,6 +461,62 @@ describe("GraphViewer", () => {
     expect(screen.getByTestId("node-panel-edit-form")).toBeInTheDocument();
   });
 
+  it("resets the edit form when a different node is selected (no stale drafts → wrong-target write)", async () => {
+    stubFetch(MULTI_GRAPH);
+    renderViewer();
+
+    // Edit node A: enter edit mode and dirty the name.
+    fireEvent.click(await screen.findByTestId(`cy-node-${CHAR_A}`));
+    fireEvent.click(await screen.findByTestId("node-panel-edit"));
+    fireEvent.change(screen.getByTestId("node-panel-name-input"), { target: { value: "Stale" } });
+    expect(screen.getByTestId("node-panel-edit-form")).toBeInTheDocument();
+
+    // Tap node B on the still-visible canvas → the panel remounts fresh (read mode), so B's
+    // Save can never carry A's drafts. The key on the panel is what forces this.
+    fireEvent.click(screen.getByTestId(`cy-node-${LOC_B}`));
+
+    await waitFor(() => expect(screen.queryByTestId("node-panel-edit-form")).toBeNull());
+    expect(await screen.findByTestId("node-panel-edit")).toBeInTheDocument();
+  });
+
+  it("resets a primed delete-confirm when a different node is selected", async () => {
+    stubFetch(MULTI_GRAPH);
+    renderViewer();
+
+    fireEvent.click(await screen.findByTestId(`cy-node-${CHAR_A}`));
+    fireEvent.click(await screen.findByTestId("node-panel-delete"));
+    expect(screen.getByTestId("node-panel-delete-confirm")).toBeInTheDocument();
+
+    // Switching nodes remounts the panel, so the confirm can't fire on the wrong entity.
+    fireEvent.click(screen.getByTestId(`cy-node-${LOC_B}`));
+    await waitFor(() => expect(screen.queryByTestId("node-panel-delete-confirm")).toBeNull());
+  });
+
+  it("ends the just-edited grace when a later filter hides that node", async () => {
+    // GET → detail, PATCH → edited detail, /graph → MULTI_GRAPH throughout.
+    const fetchMock = vi.fn((input: RequestInfo | URL) => {
+      const url = String(input);
+      if (url.includes("/entities/")) return Promise.resolve(jsonResponse(200, ENTITY_DETAIL_BODY));
+      if (url.includes("/graph")) return Promise.resolve(jsonResponse(200, MULTI_GRAPH));
+      if (url.includes("/llm/status")) return Promise.resolve(jsonResponse(200, STATUS_BODY));
+      return Promise.reject(new Error(`unexpected url ${url}`));
+    });
+    vi.stubGlobal("fetch", fetchMock);
+    renderViewer();
+
+    // Edit + save node A → it becomes the just-edited node (guard keeps it through the refetch).
+    fireEvent.click(await screen.findByTestId(`cy-node-${CHAR_A}`));
+    fireEvent.click(await screen.findByTestId("node-panel-edit"));
+    fireEvent.change(screen.getByTestId("node-panel-type-input"), { target: { value: "Ghost" } });
+    fireEvent.click(screen.getByTestId("node-panel-save"));
+    await waitFor(() => expect(screen.queryByTestId("node-panel-edit-form")).toBeNull());
+    expect(screen.getByTestId("node-panel-panel")).toBeInTheDocument();
+
+    // A *later* user filter hiding Character A ends the grace → the stale panel dismisses.
+    fireEvent.click(screen.getByTestId("type-filter-Location"));
+    await waitFor(() => expect(screen.queryByTestId("node-panel-panel")).not.toBeInTheDocument());
+  });
+
   it("offers undo of the last graph edit from the toolbar", async () => {
     stubFetch(POPULATED_GRAPH);
     renderViewer();

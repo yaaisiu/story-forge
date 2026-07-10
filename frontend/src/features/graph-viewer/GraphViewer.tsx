@@ -183,7 +183,12 @@ export function GraphViewer() {
     if (selectedEdgeId && !visibleEdgeIds.has(selectedEdgeId)) setSelectedEdgeId(null);
   }, [selectedEdgeId, visibleEdgeIds]);
 
+  // A user-driven filter change ends the post-edit grace period: the just-edited node is no
+  // longer pinned, so a filter that now hides it dismisses its panel like any other. (Cleared
+  // only on *user* filter actions — never in the refetch-driven prune effects above, which the
+  // post-save refetch itself triggers and must survive.)
   function toggleType(type: string) {
+    setJustEditedId(null);
     setSelectedTypes((prev) => {
       const next = new Set(prev);
       if (next.has(type)) next.delete(type);
@@ -192,7 +197,13 @@ export function GraphViewer() {
     });
   }
 
+  function changeMinDegree(next: number) {
+    setJustEditedId(null);
+    setMinDegree(next);
+  }
+
   function handleClearFilters() {
+    setJustEditedId(null);
     setSelectedTypes(new Set());
     setMinDegree(0);
     setSearchTerm("");
@@ -366,7 +377,7 @@ export function GraphViewer() {
               min={0}
               max={maxDegree}
               value={minDegree}
-              onChange={(e) => setMinDegree(Number(e.target.value))}
+              onChange={(e) => changeMinDegree(Number(e.target.value))}
               aria-label="Minimum connections"
             />
           </label>
@@ -447,7 +458,11 @@ export function GraphViewer() {
                 onClose={() => setSelectedEdgeId(null)}
               />
             ) : selectedNodeId ? (
+              // Key on the selected node so switching entities remounts the panel with fresh
+              // edit/confirm state — a re-target must never carry the prior node's drafts (which
+              // would PATCH the wrong entity) or a primed delete-confirm onto the new node.
               <EntityEditPanel
+                key={selectedNodeId}
                 storyId={storyId ?? ""}
                 entityId={selectedNodeId}
                 testIdPrefix="node-panel"

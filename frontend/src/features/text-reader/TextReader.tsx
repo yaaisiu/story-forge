@@ -296,6 +296,7 @@ export function TextReader() {
       {showPanel && (
         <div className="sticky top-6 max-h-[calc(100vh-3rem)] self-start overflow-y-auto">
           <ReaderEntityPanel
+            key={selectedEntityId}
             storyId={storyId}
             entityId={selectedEntityId}
             paragraphs={paragraphs}
