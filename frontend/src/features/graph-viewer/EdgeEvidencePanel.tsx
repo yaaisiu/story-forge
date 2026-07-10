@@ -54,7 +54,8 @@ interface EdgeEvidencePanelProps {
   justMerged?: boolean;
 }
 
-const PANEL_CLASS = "flex w-72 shrink-0 flex-col gap-3 border-l border-gray-200 p-4 text-sm";
+const PANEL_CLASS =
+  "flex min-h-0 w-72 shrink-0 flex-col gap-3 border-l border-gray-200 p-4 text-sm";
 
 export function EdgeEvidencePanel({
   edgeId,
@@ -253,7 +254,9 @@ export function EdgeEvidencePanel({
           No recorded source (added manually).
         </p>
       ) : (
-        <div className="flex flex-col gap-3">
+        // The source paragraphs can be long — let them scroll inside this region so the header,
+        // relationship, and the curation actions below stay on-screen at any panel height.
+        <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto">
           <p className="text-xs font-medium uppercase tracking-wide text-gray-500">
             Source {sources.length === 1 ? "paragraph" : "paragraphs"}
           </p>
