@@ -60,6 +60,21 @@ plugin, parameterizing the coupling; (3) a marketplace repo tying them together;
 one older repo. (Owner directive, Session 83, 2026-07-10 — this supersedes the narrower Session-76 ask
 above and is the recorded next-session focus; see the handoff block.)
 
+**Design pass DONE (Session 84, 2026-07-13 — [`docs/design/tooling-extraction.md`](design/tooling-extraction.md)).**
+An interview-led design note landed (PR #192): the grounded current state (meta-architect is
+*already* a checked-in plugin SF dogfoods via a local marketplace — the premise above is partly
+stale), a skill-by-skill universal-doctrine-vs-SF-parameter classification (🟢 3 already-generic
+meta-architect trio · 🟡 4 light-param `retro`/`add-dependency`/`pin-image`/`document-code` · 🔴 4
+heavy-rewrite `resume-session`/`wrap-session`/`review-pr`/`triage-advisory`), a new keystone
+`review-and-integrate` skill (the "thread it in deliberately, not blindly" ask), and the owner's
+resolved decisions — **D1** one `dev-rituals` plugin · **D2** one tooling monorepo
+(`claude-dev-tooling`) · **D3** adaptive `review-pr` · **D4** stop at design; extraction is a
+multi-session build. Consumption model resolved (SF vendors its own copies with an upstream
+provenance pointer — closes the Session-76 "how" question). **Remaining = the build**, sliced per
+the note's §9: (1) graduate meta-architect into the monorepo, (2) genericize the rituals, (3) build
+`review-and-integrate`, (4) trial-install, (5) reconcile SF. Each ~one session, in fresh
+conversations.
+
 ## LLM task evaluation baselines (chunking, extraction, cascade)
 
 A recurring need surfaced across the Session-33 smoke test: **every LLM-backed task needs a
