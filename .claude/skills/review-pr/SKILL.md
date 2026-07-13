@@ -73,6 +73,16 @@ path the tests assert — find the cases nobody wrote a test for. Check, concret
   persisted the *changed* merge target onto the row — harmless for the old terminal-noop reader,
   but the new relation-endpoint-resolution reader resolved to the **stale** target → an edge to
   the wrong entity. `/code-review`'s cross-file tracer caught it; the single self-review missed it.)
+  **The copy-across-a-type-boundary variant:** when the reuse is a *copy* of a key/id/seed
+  derivation (a `uuid5` seed, a cache key, a dedup id) to a caller keyed on a **less-constrained
+  type** than the original — UUID/enum/int → free string or user input — re-check the
+  delimiter/escaping assumptions the original *silently* relied on. A separator-joined seed that is
+  collision-free over a constrained key type is not over an unconstrained one, and the copy *looks
+  identical* to the safe original, so a self-review waves it through. (S6a-1 PR #207: `label_dismissal_id`
+  mirrored S4's `dismissal_pair_id` — a `"…|…|…"`-joined `uuid5` seed — but keyed on open-world
+  free-string labels (INV-4) instead of UUIDs, so `{"a|b","c"}` and `{"a","b|c"}` collided on one id
+  and dismissing one suppressed the other; the fix was a JSON-array seed. `/code-review` caught it,
+  the self-`/review-pr` missed it.)
 - **Complete-the-extraction sweep — when a PR extracts/relocates a primitive to be its "single
   home," did *every* existing inline copy get routed through it?** A refactor that pulls a shared
   helper out (a scoring/format/parse expression, a constant, a small algorithm) so there is *one*

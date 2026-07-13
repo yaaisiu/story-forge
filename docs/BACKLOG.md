@@ -308,6 +308,15 @@ deliberate, informed pass, not a rushed hotfix.
   write a one-off backfill that re-encodes each mention's stored `context` and updates
   `entity_mentions.embedding`. Note embeddings add *recall* but don't by themselves suppress the name-scorer
   false positives above (the two fixes are complementary). (Owner-surfaced, Session 79.)
+- **Confirmed for S6 predicate names (Session 92, S6a-1 verify-at-build).** The predicted reuse landed: on
+  the real Oakhaven vocabulary (227 predicates), a bare predicate `IN` `token_set_ratio`-matches **every**
+  predicate containing "in" as a token (`LOCATED_IN`, `DOCKED_IN`, `STORED_IN`, …) at name=100 — the
+  container/subset over-match above, now over labels. `domain/label_synonyms.suggest_label_synonyms` reuses
+  the same `name_match_score`, so the same length/coverage-aware fix applies (it also normalises case/
+  underscores first, which is *separate* — that's needed for `PERSON`/`Person` to match at all, not the
+  over-match). The **embedding rung does earn its place** here though (unlike the S4 NULL-vector graph): on
+  types it uniquely surfaces `LOCATION`↔`PLACE` (cosine 0.878) that fuzzy misses. Tune the predicate
+  precision when the S6b list is live and the owner can see it (same "its own decision + session" posture).
 
 ## Edge re-key orphans its displayed provenance (post-PoC, surfaced S83 `/code-review`)
 
