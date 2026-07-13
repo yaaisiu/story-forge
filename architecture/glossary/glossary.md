@@ -50,3 +50,4 @@ only when real work first surfaces them — and deduped by slug. Count today: **
 | connected components / składowe spójne | A≈B and B≈C — is {A,B,C} one duplicate cluster? | [[connected-components]] |
 | blocking / blokowanie | dedup is O(n²) — how to avoid comparing everything? | [[blocking]] |
 | direct manipulation / bezpośrednia manipulacja | edit the object in place, or in a separate pane? | [[direct-manipulation]] |
+| controlled vocabulary / kontrolowany słownik | curate the labels without closing the set? | [[controlled-vocabulary]] |

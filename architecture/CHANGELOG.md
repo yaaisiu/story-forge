@@ -1,7 +1,7 @@
 ---
 type: changelog
 slug: changelog
-updated: 2026-07-08
+updated: 2026-07-13
 status: living
 related: []
 ---
@@ -982,3 +982,33 @@ can't be re-found by search and un-tagging acts on a highlight with no row to de
   closes **at the S3a build**, not yet) are annotated there. No spec change; no ADR.
 - **Next:** build **S3a** test-first (backend: the `staged_relations`-by-`edge_id` read + `edge_id` index;
   the `CandidateView` enrichment + `target_canonical_name`; OpenAPI regen), then **S3b** frontend.
+
+## 2026-07-13 — Graph-quality S6 decompose (name-normalisation step-0, register OPEN — Session 90)
+
+- **`proposals/graph-name-normalisation.md`** (NEW, `status: proposed`) — the S6 `decompose-requirement`
+  step-0 for `docs/specs/graph-quality.md` §3 **S6** (+ §4, §6): one human-gated *suggest-then-you-decide*
+  naming-normalisation pass over **two** open-world vocabularies — relationship **predicate** names and
+  entity-**type** labels. Nine-layer + nine-station pass, a 0b operation-surface completeness sweep over
+  {predicate-vocab, type-vocab} (closes — the type-relabel is the one net-new writer), Mermaid data-flow,
+  state/invariant analysis (INV-4 upheld/showcased; INV-9 +1 path; INV-10's near-term consumer arrives;
+  INV-3 extended to N-write scale), the "but what if" pass, and the plain-language gaps-for-PO.
+- **Defining finding — answers the task's "one engine or two" at the storage layer:** a predicate **is** the
+  Neo4j *relationship type* inside the content-addressed `relation_edge_id`, so renaming it **re-keys** every
+  bearing edge (reuse the S5b `plan_relation_rekey`, preserve `edge_uid`, fold identical triples — reported,
+  not the goal); an entity type **is** a node *property*, so renaming it is a **bulk `SET n.type`** (no
+  re-key, no handle, no collapse). ⇒ **one shared SUGGEST engine + two forked APPLY paths.** Second finding:
+  the embedding rung matters more than in S4 (synonyms are fuzzy-distant but semantically close), embedding
+  the label string itself, not mention vectors.
+- **Decision register DM-NN-1..6 — OPEN** (owner resolves before code): DM-NN-1 one engine or two (lean:
+  shared suggest / forked apply) · DM-NN-2 rungs + floor (lean: fuzzy + label-embeddings, recall-first, a
+  `name_normalise_suggest_floor` knob) · DM-NN-3 dismissal memory (lean: persist — the S4/ADR-0010 pattern)
+  · DM-NN-4 predicate apply = loop the shipped S5b re-key in one grouped op at N-write scale · DM-NN-5 type
+  apply = one new bulk `SET n.type` relabel · DM-NN-6 dedicated list, be/fe with both surfaces together.
+- **Pedagogy:** added the **[[controlled-vocabulary]]** glossary term (kontrolowany słownik — curate the
+  labels without closing the set; glossary 35→36) + a `learning-log.md` line (one engine or two, answered at
+  the storage layer). **`open-questions.md`** — OQ-34 mirrored (OPEN). **`INDEX.md`** — proposal row + glossary
+  count/list + next-steps item 32, regenerated.
+- **No spec amendment, no ADR** this session (§3 S6 already scopes both predicate + type normalisation after
+  the owner's Session-81 type extension; the predicate re-key/handle is ADR 0011's, the dismissal store is
+  ADR 0010's). **Next:** the owner resolves DM-NN-1..6 (plain-language), then the S6 build starts test-first
+  from the shared pure suggest function, in a fresh conversation.

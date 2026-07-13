@@ -1,7 +1,7 @@
 ---
 type: open-questions
 slug: open-questions
-updated: 2026-07-08
+updated: 2026-07-13
 status: living
 related: ["[[overview]]", "[[project]]", "[[invariants]]", "[[2026-06-02-architecture-review]]", "[[m2s3-extraction-agent]]", "[[2026-06-09-architecture-review]]", "[[2026-06-11-architecture-review]]"]
 ---
@@ -1062,6 +1062,50 @@ S5 build. **Register all OPEN — the owner resolves before code.**
   first, the M4.S3b "delete → §3.5" miscue). **ADR** only on confirmation, **at the S5b build** (the §4
   handle crosses the data-model identity boundary — DM-GQ-1). INV-4 constrains DM-S5-2 (re-predicate edits
   a free-string predicate on *one* edge; graph-wide vocabulary reduction is S6). Open.
+
+### OQ-34 — Graph-quality S6 name-normalisation (graph-name-normalisation) decision register (DM-NN-1..6) — ⚠ OPEN
+Raised by the Graph-quality **S6** `decompose-requirement` step-0 (2026-07-13, `[[graph-name-normalisation]]`).
+S6 is one human-gated **"suggest, then you decide"** naming-normalisation pass over **two** open-world
+vocabularies — relationship **predicate** names (`PASSENGER_ON` → `ON_SHIP`) *and* entity-**type** labels
+(`PERSON`/`Person`, `GROUP`/`group`/`GROUP_OF_PERSONS`, …; scope extended to types by the owner, Session 81).
+An NLP/embedding layer *suggests* synonymous names; the human renames graph-wide; predicates/types stay free
+strings (**INV-4** — nothing auto-collapses); identical-triple collapses on a predicate rename are *reported*,
+never the goal; the rename carries the §4 `edge_uid` handle (**INV-10** — S6 is the handle's near-term
+consumer S5 predicted). **The defining finding (answers the task's "one engine or two" at the storage layer):**
+a predicate **is** the Neo4j *relationship type* inside the content-addressed `relation_edge_id`, so renaming
+it **re-keys every bearing edge** (reuse the S5b `plan_relation_rekey`, preserve `edge_uid`, fold identical
+triples); an entity type **is** a node *property*, so renaming it is a **bulk `SET n.type`** (no re-key, no
+handle, no collapse). So S6 is **one shared SUGGEST engine + two forked APPLY paths** — the *suggest* math and
+review list are genuinely shared, the *apply* forks by storage model. Full Context/Options/Proposal live in the
+proposal's register; listed here so the reader knows they gate the S6 build. **Register all OPEN — the owner
+resolves before code.**
+- **DM-NN-1 — one engine or two? (central):** one fully-shared engine vs two independent vs **shared suggest +
+  forked apply**. *Lean:* (c) shared suggest/forked apply — the storage asymmetry is real; don't hide it behind
+  a leaky abstraction, don't duplicate the shared suggest.
+- **DM-NN-2 — suggest rungs + floor:** fuzzy-only vs **fuzzy + label-string embeddings**, recall-first, a
+  `name_normalise_suggest_floor` knob. *Lean:* fuzzy + embed-the-label (predicate synonyms are fuzzy-*distant*
+  but semantically close — the embedding rung earns its place more than in S4; embeds the label itself, not
+  mention vectors). `verify-at-build` the embedding is meaningful on short symbol-y labels, else fall back to
+  fuzzy + case/underscore normalisation.
+- **DM-NN-3 — dismissal memory (Evidence/Expiry; the S4 DM-CD-3 twin):** persist a dismissed label-pair vs
+  ephemeral. *Lean:* persist (staging-side, INV-9 holds; none-at-PoC retention, reversible) — reuse the S4
+  `duplicate_suggestion_dismissals` pattern (ADR 0010 covers it; **likely no fresh ADR** — confirm at build).
+- **DM-NN-4 — predicate apply at N-write scale:** loop the shipped `plan_relation_rekey` per bearing edge in
+  **one grouped reversible op** preserving each `edge_uid` + fold-report vs a bespoke bulk op. *Lean:* loop the
+  shipped atom. `verify-at-build` the grouped before-image + `undo_last` hold an N-write op as one atom; the new
+  label routes through `_escape_rel_type`; folds captured per the DM-S5-3 survivor rule.
+- **DM-NN-5 — type apply (the one genuinely-new writer):** a new bulk `SET n.type` relabel op vs looping the
+  shipped per-node `update_entity`. *Lean:* a new bulk `SET` op (one grouped reversible op; no re-key/handle/
+  collapse). Grows INV-9's enumeration by one human-reached path (broaden-don't-mint).
+- **DM-NN-6 — surface + slice boundaries:** a dedicated "normalise names" list (reuse the S4 review-queue +
+  shared `useReviewQueue`) vs canvas overlay (→ BACKLOG); be-then-fe with **both** vocabularies together vs
+  split predicate/type into separate slices. *Lean:* dedicated list; be/fe split with both surfaces in one
+  backend slice (the suggest + list are shared).
+- **Lands in:** S6 (likely be+fe split). **No `graph-quality.md` amendment anticipated** (§3 S6 already scopes
+  both predicate + type normalisation after the Session-81 extension; §4 already reserved the handle — read §3
+  S6 + §4 first, the M4.S3b "delete → §3.5" miscue). **No ADR anticipated** (the predicate re-key/handle is
+  ADR 0011's; the dismissal store is ADR 0010's; the type relabel crosses no new data-model boundary) — draft
+  one only if the build surfaces a genuine boundary. Open.
 
 ## Referenced — owned by spec §10 (not duplicated)
 
