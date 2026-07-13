@@ -19,7 +19,20 @@ docker run --rm -v /var/run/docker.sock:/var/run/docker.sock \
   --ignorefile /tmp/ignore <IMAGE>:<TAG>
 ```
 
-**Last reviewed:** 2026-07-09 — added **`CVE-2026-40355`** (`krb5`, HIGH — MIT Kerberos 5
+**Last reviewed:** 2026-07-13 — added the gosu/ollama Go-stdlib **wave 6** (`CVE-2026-39822`,
+`os` — the Go 1.24 `os.Root` API follows a trailing-slash symlink out of its confined root →
+directory traversal; CVSS 7.8, attack vector **LOCAL**). Freshly disclosed against the unchanged
+`pgvector/pgvector:0.8.2-pg17-trixie` (gosu, Go 1.24.6) and `ollama` (server binary, Go 1.26.0)
+pins — pure treadmill, reddened the `security` gate on an unrelated docs/tooling PR (#194). Fixed
+in Go 1.25.12 / 1.26.5; only an upstream image rebuild on a patched Go toolchain clears it (same
+compile-time-toolchain class as waves 1–5). Unreachable here: the CVE's attack vector is **local**
+(needs an actor to plant a symlink and induce an `os.Root` open with a trailing slash), gosu opens
+no untrusted paths via os.Root, and this deployment is 127.0.0.1-bound, single trusted user,
+non-root, backend-only client — so there is no untrusted actor. Owner-approved HIGH waiver (§6.7).
+Both image entries ride **one PR** (the CVE reds two required-gate scans that mutually block).
+Verified locally with dockerized `aquasec/trivy:0.70.0`: neo4j / pgvector / ollama all clean with
+the updated waivers. **Drop when** upstream rebuilds gosu **and** ollama on Go ≥1.25.12 / ≥1.26.5.
+**Prior (2026-07-09):** added **`CVE-2026-40355`** (`krb5`, HIGH — MIT Kerberos 5
 NULL-pointer dereference → DoS) to the pgvector OS block; freshly disclosed against the unchanged
 `pgvector/pgvector:0.8.2-pg17-trixie` pin (pure treadmill, reddened the scheduled `security` gate
 on `main`). Sibling of the already-waived `CVE-2026-40356` — same krb5 linked libs, same
@@ -198,6 +211,7 @@ parsing — all of these sit in unreachable code. Same class as the netty waiver
 | CVE-2026-39826 | HIGH | html/template (XSS via `<script>` with empty/whitespace `type`) | 1.25.10 / 1.26.3 — added 2026-05-27 (wave 3) |
 | CVE-2026-42504 | HIGH | mime (quadratic `WordDecoder.DecodeHeader` on crafted encoded-words → CPU DoS; CWE-407, GO-2026-5038) | 1.25.11 / 1.26.4 — added 2026-06-08 (wave 4) |
 | CVE-2026-27145 | HIGH | crypto/x509 (`VerifyHostname` → `matchHostnames` hostname-match correctness) | 1.25.11 / 1.26.4 — added 2026-06-23 (wave 5); gosu opens no TLS / verifies no certs → `VerifyHostname` never called |
+| CVE-2026-39822 | HIGH | os (`os.Root` follows a trailing-slash symlink out of the confined root → directory traversal; CVSS 7.8, AV:L local) | 1.25.12 / 1.26.5 — added 2026-07-13 (wave 6); gosu opens no untrusted paths via os.Root; local AV, 127.0.0.1 single trusted user → unreachable |
 
 ## ollama — `ollama/ollama:0.24.0` (scanned upstream; consumed via `infra/ollama/` wrapper)
 
@@ -244,6 +258,7 @@ Rows below; rationale per CVE in `infra/trivy/ollama.trivyignore` wave-6 block.
 | CVE-2026-39826 | html/template | HIGH | XSS via `<script>` with empty/whitespace `type` (added 2026-05-27 wave 3) | Go 1.25.10 / 1.26.3 | ollama returns JSON; renders no HTML templates |
 | CVE-2026-42504 | mime | HIGH | quadratic `WordDecoder.DecodeHeader` on crafted encoded-words → CPU DoS (CWE-407, GO-2026-5038; added 2026-06-08 wave 4) | Go 1.25.11 / 1.26.4 | DoS reachable only via crafted MIME headers; 127.0.0.1, backend is the only trusted client |
 | CVE-2026-27145 | crypto/x509 | HIGH | `VerifyHostname` → `matchHostnames` hostname-match correctness (not RCE; added 2026-06-23) | Go 1.25.11 / 1.26.4 | cert-validation correctness; outbound TLS (to Ollama Cloud) only, needs active MITM |
+| CVE-2026-39822 | os | HIGH | `os.Root` follows a trailing-slash symlink out of the confined root → directory traversal (CVSS 7.8, AV:L local; added 2026-07-13) | Go 1.25.12 / 1.26.5 | local attack vector; 127.0.0.1 single trusted user, backend the only client → no untrusted actor to plant the symlink |
 | CVE-2026-39827 | x/crypto/ssh | HIGH | authenticated SSH client repeatedly opening channels → DoS (wave 6, added 2026-06-23) | x/crypto 0.52.0 | ollama runs no SSH server / opens no SSH client → unreachable |
 | CVE-2026-39828 | x/crypto/ssh | HIGH | SSH denial of service (wave 6) | x/crypto 0.52.0 | ollama runs no SSH → unreachable |
 | CVE-2026-39829 | x/crypto/ssh | HIGH | SSH denial of service (wave 6) | x/crypto 0.52.0 | ollama runs no SSH → unreachable |

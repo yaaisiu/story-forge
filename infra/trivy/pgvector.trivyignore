@@ -215,3 +215,15 @@ CVE-2026-42504
 # VerifyHostname is never called — the vulnerable path is unreachable. Only an
 # upstream gosu rebuild on a patched Go toolchain clears it (same as waves 1–4).
 CVE-2026-27145
+
+# ─── Sixth wave (surfaced by the Trivy DB 2026-07-13, same gosu binary) ───
+# CVE-2026-39822 — os (HIGH): the Go 1.24 `os.Root` API improperly follows a
+# symlink out of the confined root when the final path component is a symlink and
+# the path ends in "/" (`root.Open("symlink/")` escapes) → directory traversal.
+# CVSS 7.8, attack vector LOCAL (AV:L) — needs a local actor to plant the symlink
+# and induce the process to open it via os.Root. gosu is a setuid step-down
+# wrapper that drops root and exec()s Postgres; it opens no untrusted paths through
+# os.Root, and this deployment is 127.0.0.1-bound, single trusted user, non-root —
+# so the vulnerable path is unreachable. Fixed in Go 1.25.12 / 1.26.5; gosu ships
+# Go 1.24.6. Only an upstream gosu rebuild on a patched Go toolchain clears it.
+CVE-2026-39822
