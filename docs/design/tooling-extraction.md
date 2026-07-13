@@ -1,7 +1,7 @@
 # Design note — extracting the Story Forge tooling as portable plugins
 
 > **Status:** design pass, awaiting owner sign-off. **Nothing moves until this is approved.**
-> Author: session 84 (2026-07-10). Owner directive (BACKLOG "Distribute the meta-architect
+> Author: session 84 (2026-07-13). Owner directive (BACKLOG "Distribute the meta-architect
 > skills", Session-83 escalation). This is a *design + packaging* unit, not a test-first code
 > build.
 
@@ -90,8 +90,8 @@ parameter, and what is deeply SF-coupled. Grounded in a full read of every SKILL
 | **triage-advisory** | 🔴 heavy | the *lifecycle concept*: fix-first → time-boxed waiver → drop-revisit (no ignore forgotten) | every concrete step — OSV+Trivy+npm-audit stack, pinned scanner versions, `infra/` waiver registers, the soak numbers, the two sibling skills |
 
 **Reading of the table:** the **meta-architect trio graduates as-is** ("move the folder"). The
-**three light-param skills** (`retro`, `add-dependency`, `pin-image`, `document-code` — four,
-really) need a small config surface: *soak days + waiver/register paths + verify hook + doc
+**four light-param skills** (`retro`, `add-dependency`, `pin-image`, `document-code`) need a small
+config surface: *soak days + waiver/register paths + verify hook + doc
 homes*. The **four heavy skills** are **not a parameterization but a rewrite** — separate a
 portable *skeleton* from a project-specific *config + lens* layer. Two structural consequences:
 
@@ -102,8 +102,6 @@ portable *skeleton* from a project-specific *config + lens* layer. Two structura
 - They also carry the **most SF-earned anecdotal lessons** (dozens of `Session N` / `PR #N`
   references). Those are transferable as *patterns* but not literal steps — the generic version
   keeps the pattern, drops the anecdote (or moves it to an SF-only appendix).
-
-
 
 **Parameterization mechanism (proposal):** the SF-specific values a genericized skill needs
 (plan-file paths, spec path, the dependency-soak window, the security-gate tool + ignore-file
@@ -182,8 +180,8 @@ in a repo that also takes the session loop.
 
 ## 9. Proposed sequencing (build happens in later sessions, after design sign-off)
 
-1. **Graduate `meta-architect`** to its own repo/marketplace + update SF's settings + supersede
-   ADR 0002. (Lowest-risk; already plugin-shaped.)
+1. **Graduate `meta-architect`** into the monorepo + its marketplace + update SF's settings +
+   supersede ADR 0002. (Lowest-risk; already plugin-shaped.)
 2. **Genericize the rituals** into `dev-rituals` — skill by skill per the §5 table, with the
    per-repo config mechanism. The bulk of the work.
 3. **Build the `review-and-integrate` skill** (§6).
