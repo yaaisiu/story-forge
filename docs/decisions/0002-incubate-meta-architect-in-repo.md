@@ -1,6 +1,7 @@
 # ADR 0002 — Incubate the meta-architect plugin in-repo
 
-**Status:** Accepted
+**Status:** Accepted — the plugin **graduated** to its own repo 2026-07-13 (see the graduation
+update below); Story Forge keeps a vendored copy, so the in-repo-folder decision still holds.
 **Date:** 2026-06-01
 **Related spec section:** n/a — dev tooling, intentionally *not* in the product spec (see Decision)
 
@@ -83,3 +84,37 @@ owner's call, to keep the roll unit bounded). Reconciled homes: `docs/AGENTS.md 
 `CLAUDE.md`, `architecture/AGENTS.md` "Status of the workflow integration". The vault *notes* that
 still frame the integration as fully deferred (`open-questions.md`, `INDEX.md`, `PROJECT.md`,
 `learning-log.md`) are writer-restricted and get reconciled at that next sweep.
+
+## Update — 2026-07-13 (Session 85): the plugin graduated to its own repo
+
+The "graduate later" plan in Decision §1 and the Consequences ("we built and dogfooded our
+architect here, then extracted it") is now executed. `meta-architect` has been extracted into a
+standalone public tooling monorepo, **[`claude-dev-tooling`](https://github.com/yaaisiu/claude-dev-tooling)**
+(working name; owner: yaaisiu), which hosts the plugin plus a single root
+`.claude-plugin/marketplace.json`. A future `dev-rituals` plugin (the genericized `.claude/skills/`
+rituals) will join the same monorepo. This is slice 1 of the owner-directed tooling-extraction unit
+designed in **`docs/design/tooling-extraction.md`** (Session 84).
+
+**This is a graduation, not a reversal — SF keeps a vendored copy.** Per the design note's §7
+consumption model, Story Forge does **not** switch to marketplace-installing the plugin. It keeps
+this `meta-architect/` directory as a **vendored copy**, consumed via the unchanged local
+`directory` marketplace (`extraKnownMarketplaces.meta-architect-local` → `./meta-architect`), and
+re-syncs from upstream **deliberately**, never by an automatic pull. Rationale: the canonical copy
+will be generalized for any workflow, and SF (its most demanding user) carries SF-specific tuning —
+auto-flowing upstream changes would risk breaking the repo. This resolves the standing Session-76
+"how does SF keep consuming these once extracted" question: vendor + record provenance.
+
+So `.claude/settings.json` is **functionally unchanged** by this slice. What changed in SF:
+
+- Added `meta-architect/UPSTREAM.md` — the provenance pointer (upstream URL, vendored version
+  `0.1.0`, date, and the deliberate-re-sync policy).
+- Updated `meta-architect/README.md` "Status" and `meta-architect/.claude-plugin/marketplace.json`
+  "description" from "incubating / before extraction" to "graduated; vendored copy".
+- This ADR update.
+
+Deferred to later extraction slices (per the design note §9): genericize the rituals into
+`dev-rituals` (slice 2), build the keystone `review-and-integrate` skill (slice 3), trial-install
+into an older repo (slice 4), and the full SF reconciliation onto the consumption model incl.
+`docs/BACKLOG.md`/plan updates (slice 5). The design note also flags one seam for slice 3:
+`review-architecture`'s report needs a *consumer* in any repo that installs it (in SF that is
+`/resume-session §3c`); `review-and-integrate` should wire that forcing-function.
