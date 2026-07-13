@@ -261,7 +261,8 @@ only on acceptance/build.
   method.** The predicate rename reuses the *existing* `create_relation`/`delete_relation` writers (no new
   graph-write symbol — the S5b re-key precedent), reached from a new human endpoint. The type rename is a
   **new bulk writer path** (`SET n.type`) on the existing `EntityEditService` node-writer, reached only
-  from a new human endpoint — the ADR-0005/0006 *broaden-don't-mint* precedent (the ninth witnessed path).
+  from a new human endpoint — the ADR-0005/0006 *broaden-don't-mint* precedent (another witnessed path; the
+  exact ordinal is the build's to assign — `invariants.md` names instances through the seventh today).
   Confirm at build the grep guard widens to the new bulk-relabel Cypher.
 - **INV-10 (an edge's handle survives re-key) — the near-term consumer arrives.** S5 reserved `edge_uid`
   and predicted "S6 also re-keys edges → a real consumer" ([[graph-canvas-editing]] DM-S5-3). S6's predicate
