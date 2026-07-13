@@ -1,7 +1,8 @@
 # Design note — extracting the Story Forge tooling as portable plugins
 
-> **Status:** APPROVED (Session 84); build underway. **Slice 1 done** — Session 85, `meta-architect`
-> graduated to `yaaisiu/claude-dev-tooling` (PRs #194 + #195). Author: session 84 (2026-07-13). Owner
+> **Status:** APPROVED (Session 84); build underway. **Slices 1–2 done** — Session 85 `meta-architect`
+> graduated to `yaaisiu/claude-dev-tooling` (PRs #194 + #195); Session 86 the `dev-rituals` plugin
+> genericized + shipped (monorepo PR #1). Author: session 84 (2026-07-13). Owner
 > directive (BACKLOG "Distribute the meta-architect skills", Session-83 escalation). This is a
 > *design + packaging* unit, not a test-first code build.
 >
