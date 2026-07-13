@@ -1,9 +1,16 @@
 # Design note — extracting the Story Forge tooling as portable plugins
 
-> **Status:** design pass, awaiting owner sign-off. **Nothing moves until this is approved.**
-> Author: session 84 (2026-07-13). Owner directive (BACKLOG "Distribute the meta-architect
-> skills", Session-83 escalation). This is a *design + packaging* unit, not a test-first code
-> build.
+> **Status:** APPROVED (Session 84); build underway. **Slice 1 done** — Session 85, `meta-architect`
+> graduated to `yaaisiu/claude-dev-tooling` (PRs #194 + #195). Author: session 84 (2026-07-13). Owner
+> directive (BACKLOG "Distribute the meta-architect skills", Session-83 escalation). This is a
+> *design + packaging* unit, not a test-first code build.
+>
+> **Refinement — 2026-07-13 (Session 85, owner):** for the **session-workflow rituals**, Story Forge
+> **keeps its own bespoke `.claude/skills/` permanently and is NOT migrated onto the exported
+> `dev-rituals`** (path A). The generic `dev-rituals` plugin is built **for the owner's other repos**;
+> SF genericizes *from* its skills as source material but its working copies are never touched or
+> replaced. This narrows §7 (SF vendors **`meta-architect` only**, not the rituals) and shrinks §9
+> slice 5 (no SF rituals migration). See the §7 and §9 update notes below.
 
 ## 1. Why
 
@@ -148,6 +155,13 @@ Concretely:
   no reason to fork), unless/until they need to adapt — at which point they vendor + record
   provenance the same way.
 
+> **Update — 2026-07-13 (Session 85, owner refinement):** the "SF keeps in-repo copies" bullet
+> above applies to **`meta-architect` only** (done in slice 1 — a vendored copy consumed via the
+> local marketplace, with `UPSTREAM.md` provenance). For the **rituals**, SF does **not** vendor a
+> copy at all: it **keeps its existing bespoke `.claude/skills/` untouched**, and the exported
+> `dev-rituals` plugin is built purely for other repos. So there is no vendored-rituals copy or
+> rituals-provenance pointer in SF — the loose skills stay exactly as they are.
+
 Rationale for not marketplace-installing into SF directly: the generic plugins will be
 generalized for *any* workflow, and SF has accumulated SF-specific tuning; letting upstream
 changes flow in automatically risks breaking the repo that is these tools' most demanding user.
@@ -187,8 +201,12 @@ in a repo that also takes the session loop.
 3. **Build the `review-and-integrate` skill** (§6).
 4. **Trial-install into one older repo** (§2 acceptance test — does "apply the SF treatment"
    actually work end to end?).
-5. **Reconcile SF** onto the consumption model (§7) + update BACKLOG/plan/ADR.
+5. **Reconcile SF** onto the consumption model (§7) + update BACKLOG/plan/ADR. **(Refined S85:
+   this no longer includes migrating SF's rituals — under path A, SF keeps its bespoke
+   `.claude/skills/`. Slice 5 shrinks to closing BACKLOG/plan + the design-note tidy; the
+   `meta-architect` half was already reconciled in slice 1.)**
 
-Throughout: **`/resume-session` and `/wrap-session` must stay functional in *this* repo during
-and after the extraction** (the unit moves the very skills the session ritual depends on — be
-deliberate).
+Throughout: **SF's own `.claude/skills/` are never touched by this extraction** (path A, Session 85).
+Slice 2 genericizes *from* copies of them into the `dev-rituals` plugin; `/resume-session` and
+`/wrap-session` keep running from SF's untouched working copies, so the "keep the rituals functional"
+risk is handled by simply not modifying them.
