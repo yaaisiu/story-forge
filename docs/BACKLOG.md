@@ -73,11 +73,31 @@ multi-session build. Consumption model resolved (SF vendors its own copies with 
 provenance pointer — closes the Session-76 "how" question). **Remaining = the build**, sliced per
 the note's §9: (1) graduate meta-architect into the monorepo, (2) genericize the rituals, (3) build
 `review-and-integrate`, (4) trial-install, (5) reconcile SF. Each ~one session, in fresh
-conversations. **Slice 1 DONE (Session 85, 2026-07-13, PRs #194 + #195):** `meta-architect`
-graduated to the live public monorepo [`yaaisiu/claude-dev-tooling`](https://github.com/yaaisiu/claude-dev-tooling)
-(plugin + root marketplace); SF vendors its copy with `meta-architect/UPSTREAM.md` provenance,
-settings unchanged, ADR 0002 extended. Next up: slice 2 (`dev-rituals`). Full BACKLOG/plan
-reconciliation of this item lands at slice 5.
+conversations. **✅ EXTRACTION COMPLETE (Session 89, 2026-07-13) — all five §9 slices shipped.** The toolchain
+now lives as portable Claude Code plugins in the public monorepo
+[`yaaisiu/claude-dev-tooling`](https://github.com/yaaisiu/claude-dev-tooling); "apply the SF
+treatment" is a one-command install trial-validated end-to-end. The five build slices:
+
+- **Slice 1 DONE (Session 85, PRs #194 + #195):** `meta-architect` graduated into the monorepo
+  (plugin + root marketplace); SF **vendors** its in-repo copy with `meta-architect/UPSTREAM.md`
+  provenance, settings unchanged, ADR 0002 extended (kept Accepted — the vendored copy holds it).
+- **Slice 2 DONE (Session 86, monorepo PR #1):** the 8 rituals genericized as the `dev-rituals`
+  plugin (portable skeleton + per-repo `.claude/dev-rituals.config.json` profile, every field
+  defaulted; `review-pr` degrades gracefully per D3), listed in the root `marketplace.json`.
+- **Slice 3 DONE (Session 87, monorepo PR #2):** the keystone `review-and-integrate` skill — scans
+  a target repo, recommends a fitting ritual set, and wires it in on owner selection (modelled on
+  `initialize-project-architecture`, human-in-the-loop, idempotent).
+- **Slice 4 DONE (Session 88, monorepo PRs #3 + #4):** the trial-install acceptance test against the
+  owner's `image-metadata-extractor` — green end-to-end (the seeded handoff read back through
+  `/resume-session` with zero drift); five findings sharpened the skill, headline **overlap ≠
+  redundancy** (the skill correctly *refused* a wrong `git rm`-the-bloat instruction).
+- **Slice 5 DONE (Session 89, this PR):** SF-side reconcile bookkeeping — this closure, the
+  design-note "build complete" banner, and the plan confirmation.
+
+**Path A (owner, Session 85):** SF **keeps its own bespoke `.claude/skills/` permanently untouched**;
+the `dev-rituals` plugin is built for the owner's *other* repos, genericized *from* copies of SF's
+skills. Only `meta-architect` is vendored back into SF (slice 1). No further SF work — the item is
+closed. Full arc in `docs/design/tooling-extraction.md` + `docs/PLAN_SHORT.md` Decided S84→S89.
 
 ## LLM task evaluation baselines (chunking, extraction, cascade)
 

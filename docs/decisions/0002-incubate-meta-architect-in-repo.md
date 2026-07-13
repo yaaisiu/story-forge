@@ -118,3 +118,15 @@ into an older repo (slice 4), and the full SF reconciliation onto the consumptio
 `docs/BACKLOG.md`/plan updates (slice 5). The design note also flags one seam for slice 3:
 `review-architecture`'s report needs a *consumer* in any repo that installs it (in SF that is
 `/resume-session §3c`); `review-and-integrate` should wire that forcing-function.
+
+## Update — 2026-07-13 (Session 89): the extraction is complete (all five slices shipped)
+
+The slices deferred by the Session-85 update above all landed (slice 2 → S86, slice 3 → S87,
+slice 4 → S88, slice 5 → S89), so "apply the Story-Forge treatment" is now a one-command install
+from the [`claude-dev-tooling`](https://github.com/yaaisiu/claude-dev-tooling) monorepo, trial-validated
+end-to-end. This ADR is unchanged in substance — the graduation it records (Accepted; SF keeps a
+vendored `meta-architect/` copy) still holds. Live status and the full arc are in
+**`docs/design/tooling-extraction.md`** (banner: BUILD COMPLETE) and `docs/PLAN_SHORT.md`
+Decided/Done S84→S89; the closed BACKLOG item ("Distribute the meta-architect skills") carries the
+per-slice summary. **Path A (owner, S85) held throughout:** SF's own `.claude/skills/` rituals were
+never touched — only `meta-architect` is vendored back into SF.
