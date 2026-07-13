@@ -20,7 +20,7 @@ from typing import Protocol
 from uuid import UUID
 
 from story_forge.adapters.neo4j_repo import Neo4jRepo
-from story_forge.domain.label_synonyms import LabelCount, LabelVocabularyEntry
+from story_forge.domain.label_synonyms import LabelVocabularyEntry
 
 
 class LabelEncoder(Protocol):
@@ -44,21 +44,20 @@ class LabelVocabularyReader:
             self._neo4j.list_predicate_vocabulary(project_id),
             self._neo4j.list_type_vocabulary(project_id),
         )
-        predicate_entries, type_entries = await asyncio.gather(
-            self._to_entries(predicates),
-            self._to_entries(types),
+        # Encode *all* labels in ONE off-thread pass. Two concurrent `to_thread` encodes would
+        # race `EmbeddingAgent._model()`'s unguarded lazy init on the first request and load the
+        # ~2 GB model twice; a single pass loads it once. Blocking + CPU-bound, so off the loop.
+        counts = [*predicates, *types]
+        embeddings = (
+            await asyncio.to_thread(self._encode_labels, [c.label for c in counts])
+            if counts
+            else []
         )
-        return predicate_entries, type_entries
-
-    async def _to_entries(self, counts: list[LabelCount]) -> list[LabelVocabularyEntry]:
-        if not counts:
-            return []
-        # Encoding the ~2 GB model is CPU-bound and blocking — run it off the event loop.
-        embeddings = await asyncio.to_thread(self._encode_labels, [c.label for c in counts])
-        return [
+        entries = [
             LabelVocabularyEntry(label=c.label, count=c.count, embedding=embedding)
             for c, embedding in zip(counts, embeddings, strict=True)
         ]
+        return entries[: len(predicates)], entries[len(predicates) :]
 
     def _encode_labels(self, labels: list[str]) -> list[list[float]]:
         return [self._encoder.encode(label) for label in labels]

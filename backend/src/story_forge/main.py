@@ -104,6 +104,11 @@ _neo4j_repo = Neo4jRepo(
     )
 )
 _candidate_store = PostgresCandidateStore()
+# One EmbeddingAgent shared by every surface that encodes (the staging cascade + the S6
+# name-normalisation reader). The agent lazily loads a ~2 GB sentence-transformers model and
+# caches it on the instance, so a *second* instance would load a second full copy (~4 GB
+# resident) the moment both surfaces are exercised — an OOM risk on a modest host. Share one.
+_embedding_agent = EmbeddingAgent()
 # Shared across the read path (the §3.4 graph viewer) and the accept path (the review service).
 app.state.neo4j_repo = _neo4j_repo
 app.state.candidate_store = _candidate_store
@@ -114,13 +119,13 @@ app.state.duplicate_dismissal_store = PostgresDuplicateDismissalStore()
 # Name-normalisation surface (graph-quality S6a): a reader that assembles the two label
 # vocabularies (predicate names + entity-type labels, with counts + label-string embeddings) for
 # the synonym self-join, and the staging-side dismissed-label-pair store (INV-9 holds — never a
-# graph write). The concrete `EmbeddingAgent` meets the reader here at the composition root; the
+# graph write). The shared `EmbeddingAgent` meets the reader here at the composition root; the
 # reader itself types against the `LabelEncoder` Protocol.
-app.state.label_vocabulary_reader = LabelVocabularyReader(_neo4j_repo, EmbeddingAgent())
+app.state.label_vocabulary_reader = LabelVocabularyReader(_neo4j_repo, _embedding_agent)
 app.state.label_dismissal_store = PostgresLabelDismissalStore()
 app.state.extraction_coordinator = ExtractionCoordinator(
     ExtractionAgent(_extraction_router),
-    CandidateStager(EmbeddingAgent(), MatchingAgent(), JudgeAgent(_extraction_router)),
+    CandidateStager(_embedding_agent, MatchingAgent(), JudgeAgent(_extraction_router)),
     _candidate_store,
     AcceptedEntityReader(_neo4j_repo),
 )

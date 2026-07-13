@@ -160,3 +160,15 @@ def test_dismissal_id_order_project_and_surface_independent() -> None:
     assert label_dismissal_id(_PROJECT, "predicate", "PERSON", "Person") != label_dismissal_id(
         _PROJECT, "type", "PERSON", "Person"
     )
+
+
+def test_dismissal_id_does_not_collide_on_a_separator_in_a_label() -> None:
+    # Labels are open-world free strings (INV-4): a '|' inside a label must not let two
+    # different pairs share an id. {"a|b", "c"} and {"a", "b|c"} are distinct pairs.
+    assert label_dismissal_id(_PROJECT, "type", "a|b", "c") != label_dismissal_id(
+        _PROJECT, "type", "a", "b|c"
+    )
+    # And a label containing the JSON separator/quote is still unambiguous.
+    assert label_dismissal_id(_PROJECT, "type", 'x", "y', "z") != label_dismissal_id(
+        _PROJECT, "type", "x", 'y", "z'
+    )

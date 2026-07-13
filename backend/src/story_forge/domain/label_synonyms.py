@@ -37,6 +37,7 @@ Pure and deterministic (no I/O, no LLM), reusing the `name_match_score` (RapidFu
 
 from __future__ import annotations
 
+import json
 from collections.abc import Sequence
 from dataclasses import dataclass
 from uuid import UUID, uuid5
@@ -108,9 +109,16 @@ def label_dismissal_id(project_id: UUID, surface: str, a: str, b: str) -> UUID:
     dismissed type pair never suppresses an identically-spelled predicate pair. The
     dismissal store's primary key doubles as an idempotency key (`ON CONFLICT (id) DO
     NOTHING`) and the suggestion read suppresses a dismissed pair by recomputing the id.
+
+    The seed is a JSON array of the components, not a `|`-joined string: labels are
+    open-world free strings (INV-4), so a `|` inside a label would let `{"a|b", "c"}` and
+    `{"a", "b|c"}` collide on one id (JSON escaping makes the encoding unambiguous). The S4
+    `dismissal_pair_id` joins UUIDs, which cannot contain the separator, so it does not need
+    this — a label pair does.
     """
     lo, hi = canonical_label_pair(a, b)
-    return uuid5(_LABEL_PAIR_NS, f"{project_id}|{surface}|{lo}|{hi}")
+    seed = json.dumps([str(project_id), surface, lo, hi], ensure_ascii=False)
+    return uuid5(_LABEL_PAIR_NS, seed)
 
 
 def _normalise_label(label: str) -> str:

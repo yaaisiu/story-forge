@@ -165,7 +165,7 @@ class Neo4jRepo:
         `DISTINCT`-and-count over nodes — the input to the type half of the synonym self-join.
         """
         records, _, _ = await self._driver.execute_query(
-            "MATCH (e:Entity {project_id: $pid}) "
+            "MATCH (e:Entity {project_id: $pid}) WHERE e.type IS NOT NULL "
             "RETURN e.type AS label, count(e) AS n ORDER BY n DESC, label",
             pid=str(project_id),
         )

@@ -394,6 +394,28 @@ async def test_list_type_vocabulary_counts_distinct_types(
         await repo.delete_project_graph(other_project)
 
 
+async def test_list_type_vocabulary_excludes_null_type_nodes(
+    graph: tuple[Neo4jRepo, UUID],
+) -> None:
+    """A legacy/malformed node with no `type` property is filtered, not surfaced as a null label.
+
+    `create_entity` always sets `type`, so this manufactures the malformed node with raw Cypher;
+    without the `WHERE e.type IS NOT NULL` guard the read would emit `LabelCount(label=None)` and
+    the downstream normalise/encode would crash on `None`.
+    """
+    repo, project_id = graph
+    await repo.create_entity(
+        GraphEntity(type="PERSON", canonical_name_pl="A", project_id=project_id)
+    )
+    await repo._driver.execute_query(
+        "CREATE (e:Entity {id: $id, project_id: $pid})",
+        id=str(uuid4()),
+        pid=str(project_id),
+    )
+    vocab = await repo.list_type_vocabulary(project_id)
+    assert [lc.label for lc in vocab] == ["PERSON"]
+
+
 async def test_list_predicate_vocabulary_counts_distinct_predicates(
     graph: tuple[Neo4jRepo, UUID],
 ) -> None:
