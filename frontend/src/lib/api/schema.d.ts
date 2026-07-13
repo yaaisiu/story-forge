@@ -500,6 +500,59 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/stories/{story_id}/label-vocabulary": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Label Synonyms
+         * @description Synonym suggestions over a story's predicate + entity-type vocabularies (graph-quality S6).
+         *
+         *     Assembles both distinct-label vocabularies (with counts + label-string embeddings), runs the
+         *     pure self-join per surface (normalised name + embedding, floored at
+         *     `name_normalise_suggest_floor` / the Stage-2 cosine bar), and drops any pair the author has
+         *     dismissed. Ranked strongest-first per surface. **Suggests only — writes no graph** (INV-1/
+         *     INV-4); the human renames graph-wide (S6a-2) or dismisses. Vocabulary + dismissal reads are
+         *     one project-scoped batch; a store outage is a declared 503.
+         */
+        get: operations["list_label_synonyms_stories__story_id__label_vocabulary_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/stories/{story_id}/label-vocabulary/dismiss": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Dismiss Label Synonym
+         * @description Record a 'not synonyms' so the label pair is not re-suggested (DM-NN-3). Idempotent.
+         */
+        post: operations["dismiss_label_synonym_stories__story_id__label_vocabulary_dismiss_post"];
+        /**
+         * Undismiss Label Synonym
+         * @description Un-dismiss a label pair so it can be suggested again (reversibility, DM-NN-3).
+         *
+         *     Silent no-op if the pair was not dismissed.
+         */
+        delete: operations["undismiss_label_synonym_stories__story_id__label_vocabulary_dismiss_delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/stories/{story_id}/candidates/{candidate_id}/accept": {
         parameters: {
             query?: never;
@@ -862,6 +915,21 @@ export interface components {
             entity_id_b: string;
         };
         /**
+         * DismissLabelRequest
+         * @description The label pair marked (or un-marked) as 'not synonyms' — unordered, on a surface.
+         */
+        DismissLabelRequest: {
+            /**
+             * Surface
+             * @enum {string}
+             */
+            surface: "predicate" | "type";
+            /** Label A */
+            label_a: string;
+            /** Label B */
+            label_b: string;
+        };
+        /**
          * DuplicateEntityView
          * @description One side of a suggested duplicate pair, enriched for verification (S3/DM-EE-3 context).
          *
@@ -1200,6 +1268,44 @@ export interface components {
         HTTPValidationError: {
             /** Detail */
             detail?: components["schemas"]["ValidationError"][];
+        };
+        /**
+         * LabelSynonymView
+         * @description One suggested synonymous label pair within a surface: the two labels + why + counts.
+         *
+         *     `label_lo`/`label_hi` are the pair in canonical order; `count_lo`/`count_hi` are their edge
+         *     (predicate) or node (type) counts in that same order, so the author can normalise toward the
+         *     dominant form. `cosine_score` is None when neither label carried a usable embedding
+         *     (name-only). Suggests only — the human renames graph-wide (S6a-2) or dismisses.
+         */
+        LabelSynonymView: {
+            /** Label Lo */
+            label_lo: string;
+            /** Label Hi */
+            label_hi: string;
+            /** Count Lo */
+            count_lo: number;
+            /** Count Hi */
+            count_hi: number;
+            /** Name Score */
+            name_score: number;
+            /** Cosine Score */
+            cosine_score: number | null;
+            /** Combined Score */
+            combined_score: number;
+        };
+        /**
+         * LabelVocabularyResponse
+         * @description A story's ranked synonym suggestions over both vocabularies (dismissed pairs suppressed).
+         *
+         *     The two surfaces are returned separately because a predicate is never a synonym of a type
+         *     (they are stored differently and renamed by different apply paths — DM-NN-1).
+         */
+        LabelVocabularyResponse: {
+            /** Predicate Suggestions */
+            predicate_suggestions: components["schemas"]["LabelSynonymView"][];
+            /** Type Suggestions */
+            type_suggestions: components["schemas"]["LabelSynonymView"][];
         };
         /**
          * LastCall
@@ -2882,6 +2988,157 @@ export interface operations {
         requestBody: {
             content: {
                 "application/json": components["schemas"]["DismissDuplicateRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Story not found. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+            /** @description The dismissal store is unavailable. */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    list_label_synonyms_stories__story_id__label_vocabulary_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                story_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LabelVocabularyResponse"];
+                };
+            };
+            /** @description Story not found. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+            /** @description A data store is unavailable. */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    dismiss_label_synonym_stories__story_id__label_vocabulary_dismiss_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                story_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DismissLabelRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Story not found. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+            /** @description The dismissal store is unavailable. */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    undismiss_label_synonym_stories__story_id__label_vocabulary_dismiss_delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                story_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DismissLabelRequest"];
             };
         };
         responses: {

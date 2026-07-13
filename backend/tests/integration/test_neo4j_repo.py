@@ -366,6 +366,88 @@ async def test_manual_self_loop_relation_is_written(graph: tuple[Neo4jRepo, UUID
     assert await repo.get_relations(project_id) == [loop]
 
 
+async def test_list_type_vocabulary_counts_distinct_types(
+    graph: tuple[Neo4jRepo, UUID],
+) -> None:
+    """S6a type vocabulary: distinct `e.type` labels with node counts, project-scoped.
+
+    Casing/synonym variants stay distinct labels (INV-4 — nothing auto-collapses); the
+    synonym self-join is what proposes merging them.
+    """
+    repo, project_id = graph
+    for type_ in ("PERSON", "PERSON", "Person", "LOCATION"):
+        await repo.create_entity(
+            GraphEntity(type=type_, canonical_name_pl="x", project_id=project_id)
+        )
+    # A node in another project must not leak into the count.
+    other_project = uuid4()
+    await repo.create_entity(
+        GraphEntity(type="PERSON", canonical_name_pl="y", project_id=other_project)
+    )
+    try:
+        vocab = await repo.list_type_vocabulary(project_id)
+        counts = {lc.label: lc.count for lc in vocab}
+        assert counts == {"PERSON": 2, "Person": 1, "LOCATION": 1}
+        # Ordered by count desc — the dominant label leads.
+        assert vocab[0].label == "PERSON"
+    finally:
+        await repo.delete_project_graph(other_project)
+
+
+async def test_list_type_vocabulary_excludes_null_type_nodes(
+    graph: tuple[Neo4jRepo, UUID],
+) -> None:
+    """A legacy/malformed node with no `type` property is filtered, not surfaced as a null label.
+
+    `create_entity` always sets `type`, so this manufactures the malformed node with raw Cypher;
+    without the `WHERE e.type IS NOT NULL` guard the read would emit `LabelCount(label=None)` and
+    the downstream normalise/encode would crash on `None`.
+    """
+    repo, project_id = graph
+    await repo.create_entity(
+        GraphEntity(type="PERSON", canonical_name_pl="A", project_id=project_id)
+    )
+    await repo._driver.execute_query(
+        "CREATE (e:Entity {id: $id, project_id: $pid})",
+        id=str(uuid4()),
+        pid=str(project_id),
+    )
+    vocab = await repo.list_type_vocabulary(project_id)
+    assert [lc.label for lc in vocab] == ["PERSON"]
+
+
+async def test_list_predicate_vocabulary_counts_distinct_predicates(
+    graph: tuple[Neo4jRepo, UUID],
+) -> None:
+    """S6a predicate vocabulary: distinct `type(r)` names with edge counts, project-scoped."""
+    repo, project_id = graph
+    a = GraphEntity(type="Character", canonical_name_pl="A", project_id=project_id)
+    b = GraphEntity(type="Character", canonical_name_pl="B", project_id=project_id)
+    c = GraphEntity(type="Character", canonical_name_pl="C", project_id=project_id)
+    for entity in (a, b, c):
+        await repo.create_entity(entity)
+    edges = [
+        GraphRelation(type="PASSENGER_ON", subject_id=a.id, object_id=b.id, confidence=0.9),
+        GraphRelation(type="PASSENGER_ON", subject_id=a.id, object_id=c.id, confidence=0.9),
+        GraphRelation(type="ON_SHIP", subject_id=b.id, object_id=c.id, confidence=0.9),
+    ]
+    for edge in edges:
+        await repo.create_relation(edge)
+
+    vocab = await repo.list_predicate_vocabulary(project_id)
+    counts = {lc.label: lc.count for lc in vocab}
+    assert counts == {"PASSENGER_ON": 2, "ON_SHIP": 1}
+    assert vocab[0].label == "PASSENGER_ON"  # count desc
+
+
+async def test_vocabularies_empty_for_a_project_with_no_graph(
+    graph: tuple[Neo4jRepo, UUID],
+) -> None:
+    repo, project_id = graph
+    assert await repo.list_type_vocabulary(project_id) == []
+    assert await repo.list_predicate_vocabulary(project_id) == []
+
+
 async def test_get_neighbourhood_excludes_cross_project_neighbour(
     graph: tuple[Neo4jRepo, UUID],
 ) -> None:

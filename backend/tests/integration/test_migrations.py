@@ -22,6 +22,7 @@ EXPECTED_TABLES = {
     "entity_mentions",
     "mention_suppressions",
     "duplicate_suggestion_dismissals",
+    "label_pair_dismissals",
 }
 
 
@@ -95,6 +96,27 @@ async def test_duplicate_suggestion_dismissals_schema(db_conn: psycopg.AsyncConn
         "project_id",
         "entity_id_lo",
         "entity_id_hi",
+        "created_at",
+    }
+    assert all(v == "NO" for v in nullability.values())
+
+
+@pytest.mark.integration
+async def test_label_pair_dismissals_schema(db_conn: psycopg.AsyncConnection) -> None:
+    # Graph-quality S6a (DM-NN-3): staging-side label-pair-dismissal store, ADR 0010's sibling
+    # at label granularity — id PK (app-supplied uuid5, no default), project_id + surface + both
+    # label strings NOT NULL and un-FK'd, plus a created_at. All columns NOT NULL.
+    cur = await db_conn.execute(
+        "SELECT column_name, is_nullable FROM information_schema.columns "
+        "WHERE table_name = 'label_pair_dismissals'"
+    )
+    nullability = dict(await cur.fetchall())
+    assert set(nullability) == {
+        "id",
+        "project_id",
+        "surface",
+        "label_lo",
+        "label_hi",
         "created_at",
     }
     assert all(v == "NO" for v in nullability.values())

@@ -133,6 +133,13 @@ class Settings(BaseSettings):
         "auto-merges (INV-1); embedding similarity reuses match_stage2_cosine_merge. "
         "Register DM-CD-2.",
     )
+    name_normalise_suggest_floor: float = Field(
+        default=60.0,
+        description="Graph-quality S6 label-synonym self-join: normalised-name score (0–100) "
+        "at/above which two labels (predicate names / entity-type labels) are surfaced as a "
+        "likely-synonym pair for review. Recall-first — nothing auto-renames (INV-1/INV-4); the "
+        "label-string embedding rung reuses match_stage2_cosine_merge. Register DM-NN-2.",
+    )
 
     # --- Uploads ---
     upload_dir: Path = Field(

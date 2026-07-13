@@ -32,6 +32,7 @@ from uuid import UUID
 from neo4j import AsyncDriver, AsyncGraphDatabase, Record
 
 from story_forge.domain.graph import GraphEntity, GraphRelation
+from story_forge.domain.label_synonyms import LabelCount
 
 
 def _opt_str(value: UUID | None) -> str | None:
@@ -157,6 +158,19 @@ class Neo4jRepo:
         )
         return int(records[0]["n"])
 
+    async def list_type_vocabulary(self, project_id: UUID) -> list[LabelCount]:
+        """The distinct entity-*type* labels for a project, with node counts (graph-quality S6a).
+
+        A type is a node *property* (`e.type`, INV-4 free string), so the vocabulary is a
+        `DISTINCT`-and-count over nodes — the input to the type half of the synonym self-join.
+        """
+        records, _, _ = await self._driver.execute_query(
+            "MATCH (e:Entity {project_id: $pid}) WHERE e.type IS NOT NULL "
+            "RETURN e.type AS label, count(e) AS n ORDER BY n DESC, label",
+            pid=str(project_id),
+        )
+        return [LabelCount(label=record["label"], count=int(record["n"])) for record in records]
+
     # --- Relations ---------------------------------------------------------
 
     async def create_relation(self, relation: GraphRelation) -> None:
@@ -196,6 +210,20 @@ class Neo4jRepo:
             pid=str(project_id),
         )
         return [self._to_relation(record) for record in records]
+
+    async def list_predicate_vocabulary(self, project_id: UUID) -> list[LabelCount]:
+        """The distinct relationship-*predicate* names for a project, with edge counts (S6a).
+
+        A predicate is the Neo4j relationship *type* (`type(r)`, INV-4 free string), so the
+        vocabulary is a `DISTINCT`-and-count over edges — the input to the predicate half of the
+        synonym self-join.
+        """
+        records, _, _ = await self._driver.execute_query(
+            "MATCH (s:Entity {project_id: $pid})-[r]->(o:Entity {project_id: $pid}) "
+            "RETURN type(r) AS label, count(r) AS n ORDER BY n DESC, label",
+            pid=str(project_id),
+        )
+        return [LabelCount(label=record["label"], count=int(record["n"])) for record in records]
 
     async def get_relation(self, project_id: UUID, edge_id: UUID) -> GraphRelation | None:
         """A single edge by id, scoped to a project (both endpoints in `project_id`) — the
