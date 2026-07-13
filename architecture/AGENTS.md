@@ -73,6 +73,14 @@ Start at **`INDEX.md`** — the regenerated map of the whole vault. From there:
 - **When the vault drifts from reality, that's a bug to file, not a fact to trust** — the
   `review-architecture` sweep exists to catch exactly that; its latest `reports/` entry says how
   honest the vault currently is.
+- **In a `proposals/` decompose, don't assert an exact *forward* invariant-enumeration ordinal** —
+  e.g. "the ninth witnessed instance" of INV-9's human-reached-writer paths (`invariants.md`
+  numbers them). At decompose time that count is a `verify-at-build`-class claim about *future*
+  build state: the build assigns the real ordinal, and slices reorder. Phrase it non-numerically
+  ("another witnessed path; the build assigns the ordinal") and let the build (or a later
+  `review-architecture` sweep) fill the number. (Earned S5→S6: the S5 proposal guessed "eighth"
+  and it landed *seventh*; the S6 proposal's "ninth" was caught by `/review-pr` and softened — a
+  wrong count in a portfolio design doc reads as a real error to a stranger.)
 
 ## Status of the workflow integration (read this before assuming a ritual runs the architect)
 
