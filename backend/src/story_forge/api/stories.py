@@ -108,7 +108,6 @@ from story_forge.domain.highlights import (
 )
 from story_forge.domain.label_synonyms import (
     LabelSynonymSuggestion,
-    LabelVocabularyEntry,
     label_dismissal_id,
     suggest_label_synonyms,
 )
@@ -1980,7 +1979,14 @@ async def list_label_synonyms(
     # Each self-join is a pure, CPU-bound pass over a small vocabulary (tens of labels); run them
     # off the event loop for consistency with the S4 self-join. No blocking/LSH lever is needed at
     # this scale — the vocabulary is tens of labels (proposal Layer 9).
-    predicate_pairs, type_pairs = await _suggest_both(predicate_entries, type_entries)
+    floors = {
+        "name_floor": settings.name_normalise_suggest_floor,
+        "cosine_floor": settings.match_stage2_cosine_merge,
+    }
+    predicate_pairs, type_pairs = await asyncio.gather(
+        asyncio.to_thread(suggest_label_synonyms, predicate_entries, **floors),
+        asyncio.to_thread(suggest_label_synonyms, type_entries, **floors),
+    )
     return LabelVocabularyResponse(
         predicate_suggestions=_label_synonym_views(
             predicate_pairs, dismissed, project_id=story.project_id, surface="predicate"
@@ -1988,25 +1994,6 @@ async def list_label_synonyms(
         type_suggestions=_label_synonym_views(
             type_pairs, dismissed, project_id=story.project_id, surface="type"
         ),
-    )
-
-
-async def _suggest_both(
-    predicate_entries: list[LabelVocabularyEntry],
-    type_entries: list[LabelVocabularyEntry],
-) -> tuple[list[LabelSynonymSuggestion], list[LabelSynonymSuggestion]]:
-    """Run the pure self-join over each vocabulary off the event loop, concurrently."""
-
-    def run(entries: list[LabelVocabularyEntry]) -> list[LabelSynonymSuggestion]:
-        return suggest_label_synonyms(
-            entries,
-            name_floor=settings.name_normalise_suggest_floor,
-            cosine_floor=settings.match_stage2_cosine_merge,
-        )
-
-    return await asyncio.gather(
-        asyncio.to_thread(run, predicate_entries),
-        asyncio.to_thread(run, type_entries),
     )
 
 
