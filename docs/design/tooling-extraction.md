@@ -1,10 +1,13 @@
 # Design note — extracting the Story Forge tooling as portable plugins
 
-> **Status:** APPROVED (Session 84); build underway. **Slices 1–2 done** — Session 85 `meta-architect`
-> graduated to `yaaisiu/claude-dev-tooling` (PRs #194 + #195); Session 86 the `dev-rituals` plugin
-> genericized + shipped (monorepo PR #1). Author: session 84 (2026-07-13). Owner
-> directive (BACKLOG "Distribute the meta-architect skills", Session-83 escalation). This is a
-> *design + packaging* unit, not a test-first code build.
+> **Status:** APPROVED (Session 84); **BUILD COMPLETE (Session 89) — all five §9 slices shipped.**
+> S85 `meta-architect` graduated to `yaaisiu/claude-dev-tooling` (PRs #194 + #195); S86 the
+> `dev-rituals` plugin genericized + shipped (monorepo PR #1); S87 the keystone `review-and-integrate`
+> skill built (monorepo PR #2); S88 the trial-install acceptance test passed green end-to-end
+> (monorepo PRs #3 + #4); S89 the SF-side reconcile (this note tidied, BACKLOG item closed, plan
+> confirmed). Author: session 84 (2026-07-13). Owner directive (BACKLOG "Distribute the
+> meta-architect skills", Session-83 escalation). This was a *design + packaging* unit, not a
+> test-first code build.
 >
 > **Refinement — 2026-07-13 (Session 85, owner):** for the **session-workflow rituals**, Story Forge
 > **keeps its own bespoke `.claude/skills/` permanently and is NOT migrated onto the exported
@@ -193,7 +196,12 @@ that installs it needs *something* to consume the architecture report, or findin
 `review-and-integrate` skill (§6) should wire that forcing-function when it enables meta-architect
 in a repo that also takes the session loop.
 
-## 9. Proposed sequencing (build happens in later sessions, after design sign-off)
+## 9. Sequencing — ✅ ALL SLICES SHIPPED (Sessions 85–89)
+
+> **Build complete (Session 89).** The five slices below were built one-per-session in fresh
+> conversations, exactly as sequenced: slice 1 → S85, slice 2 → S86, slice 3 → S87, slice 4 → S88,
+> slice 5 → S89. The tense below is left as originally written (the plan of record); the per-slice
+> outcomes live in `docs/PLAN_SHORT.md` Decided/Done S85→S89 and the closed BACKLOG item.
 
 1. **Graduate `meta-architect`** into the monorepo + its marketplace + update SF's settings +
    supersede ADR 0002. (Lowest-risk; already plugin-shaped.)
