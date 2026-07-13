@@ -73,7 +73,11 @@ multi-session build. Consumption model resolved (SF vendors its own copies with 
 provenance pointer — closes the Session-76 "how" question). **Remaining = the build**, sliced per
 the note's §9: (1) graduate meta-architect into the monorepo, (2) genericize the rituals, (3) build
 `review-and-integrate`, (4) trial-install, (5) reconcile SF. Each ~one session, in fresh
-conversations.
+conversations. **Slice 1 DONE (Session 85, 2026-07-13, PRs #194 + #195):** `meta-architect`
+graduated to the live public monorepo [`yaaisiu/claude-dev-tooling`](https://github.com/yaaisiu/claude-dev-tooling)
+(plugin + root marketplace); SF vendors its copy with `meta-architect/UPSTREAM.md` provenance,
+settings unchanged, ADR 0002 extended. Next up: slice 2 (`dev-rituals`). Full BACKLOG/plan
+reconciliation of this item lands at slice 5.
 
 ## LLM task evaluation baselines (chunking, extraction, cascade)
 
