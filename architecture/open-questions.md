@@ -1063,7 +1063,16 @@ S5 build. **Register all OPEN — the owner resolves before code.**
   handle crosses the data-model identity boundary — DM-GQ-1). INV-4 constrains DM-S5-2 (re-predicate edits
   a free-string predicate on *one* edge; graph-wide vocabulary reduction is S6). Open.
 
-### OQ-34 — Graph-quality S6 name-normalisation (graph-name-normalisation) decision register (DM-NN-1..6) — ⚠ OPEN
+### ~~OQ-34 — Graph-quality S6 name-normalisation (graph-name-normalisation) decision register (DM-NN-1..6)~~ ✅ RESOLVED 2026-07-13 (Session 91, owner — each as proposed)
+**Resolved 2026-07-13, Session 91 (authoritative in `docs/PLAN_SHORT.md` Decided S91; full resolution in
+`[[graph-name-normalisation]]`).** All six calls landed on the proposed lean: **DM-NN-1** → (c) shared
+suggest / forked apply · **DM-NN-2** → fuzzy + label-string embeddings, recall-first, `name_normalise_suggest_floor`
+knob · **DM-NN-3** → persist dismissals (reuse S4 / ADR 0010; no fresh ADR) · **DM-NN-4** → loop the shipped
+`plan_relation_rekey` graph-wide in one grouped op, preserve `edge_uid`, fold-report · **DM-NN-5** → a new bulk
+`SET n.type` relabel op (INV-9 +1 path) · **DM-NN-6** → dedicated `/stories/:id/normalise-names` list, both
+vocabularies together, backend-first. Next: the S6a build (fresh conversation). The forward framing is kept
+below for history.
+
 Raised by the Graph-quality **S6** `decompose-requirement` step-0 (2026-07-13, `[[graph-name-normalisation]]`).
 S6 is one human-gated **"suggest, then you decide"** naming-normalisation pass over **two** open-world
 vocabularies — relationship **predicate** names (`PASSENGER_ON` → `ON_SHIP`) *and* entity-**type** labels
