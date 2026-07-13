@@ -117,6 +117,16 @@ CVE-2026-42504
 # exploit; cert-validation correctness, not RCE. (Surfaced by the Trivy DB 2026-06-23;
 # pre-empted here — same sub-1.25.11 Go that waved CVE-2026-42504 in this binary.)
 CVE-2026-27145
+# CVE-2026-39822 — os (HIGH): the Go 1.24 `os.Root` API improperly follows a symlink
+# out of the confined root when the final path component is a symlink and the path
+# ends in "/" → directory traversal. CVSS 7.8, attack vector LOCAL (AV:L) — needs a
+# local actor to plant the symlink inside a root ollama opens. This deployment is
+# 127.0.0.1-bound, single trusted user, non-root, with the Story Forge backend as the
+# only client — there is no untrusted local actor to plant such a symlink, so the path
+# is unreachable here. Fixed Go 1.25.12 / 1.26.5; the ollama binary ships Go 1.26.0.
+# Surfaced by the Trivy DB 2026-07-13; only an upstream ollama rebuild on a patched Go
+# toolchain clears it. (Sibling of the gosu waiver of the same CVE in pgvector.)
+CVE-2026-39822
 
 # ─── Wave 6: golang.org/x/crypto + golang.org/x/net modules (surfaced by the
 #     Trivy DB 2026-06-23; unmasked once the stdlib CVE-2026-27145 above cleared,
