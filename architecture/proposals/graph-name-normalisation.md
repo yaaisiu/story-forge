@@ -2,7 +2,7 @@
 type: proposal
 slug: graph-name-normalisation
 updated: 2026-07-13
-status: proposed
+status: accepted
 related:
   - "[[graph-curation-surface]]"
   - "[[graph-canvas-editing]]"
@@ -24,7 +24,34 @@ related:
 
 # Graph-quality S6 — predicate- AND entity-type-name normalisation + synonym suggestion
 
-> **Status: PROPOSED — register OPEN (DM-NN-1..6 / OQ-34). The owner resolves before any S6 code.**
+> **✅ Status: ACCEPTED — register RESOLVED with the owner (2026-07-13, Session 91).** Authoritative home
+> for the resolution: `docs/PLAN_SHORT.md` Decided (Session 91). The forward-design body below is kept
+> intact (public-portfolio history — append the resolution, don't delete the thinking). Mirrored to
+> [[open-questions]] OQ-34 (struck). All six calls landed on the proposed lean.
+>
+> **Resolutions (owner, 2026-07-13):**
+> - **DM-NN-1 (engine shape) → (c) shared suggest, forked apply.** One synonym-suggest engine + one review
+>   list over both vocabularies; two thin apply paths (predicate re-key vs type relabel). *Rejected:* (a)
+>   leaky one-engine, (b) two duplicated engines.
+> - **DM-NN-2 (rungs + floor) → fuzzy + label-string embeddings, recall-first.** Both spelling and meaning
+>   (local `EmbeddingAgent.encode` on the label string), surface borderline pairs, a spec-defaulted
+>   `name_normalise_suggest_floor` knob; deterministic-only. `verify-at-build` stands (short-label embeddings
+>   may embed noisily → fall back to fuzzy + morphological normalisation if cosine doesn't separate synonyms).
+>   *Rejected:* fuzzy-only; tighter precision floor.
+> - **DM-NN-3 (dismissal memory) → (b) persist dismissals.** Reversible, reusing the S4 store pattern (ADR
+>   0010); no fresh ADR expected (reuse the table with a surface/kind discriminator or a sibling by the same
+>   design — a build call, not a new data-model boundary). *Rejected:* (a) ephemeral, (c) materialize.
+> - **DM-NN-4 (predicate apply) → (a) loop the shipped S5b re-key in one grouped op.** Graph-wide over every
+>   bearing edge, preserve `edge_uid` (INV-10), one grouped reversible before-image (INV-3), identical-triple
+>   folds **counted and reported** ("merged 2 edges"), never the goal. *Rejected:* (b) bespoke single-Cypher.
+> - **DM-NN-5 (type apply) → (a) new bulk `SET n.type` relabel.** The one net-new writer, grouped-reversible;
+>   no re-key/handle/collapse. Grows INV-9's human-reached-writer enumeration by one path. *Rejected:* (b)
+>   loop the per-node edit.
+> - **DM-NN-6 (surface + slice) → (a/i) dedicated list, both vocabularies together, backend-first.** A new
+>   `/stories/:id/normalise-names` list (reusing `useReviewQueue`); S6a backend (both reads + shared suggest +
+>   dismissal store + both apply ops) then S6b frontend list. *Rejected:* (ii) split predicate/type into
+>   separate slices; (b) canvas annotation (→ BACKLOG).
+>
 > Step-0 forward design for `docs/specs/graph-quality.md` §3 **S6** (+ §4 the reserved edge handle, §6).
 > S6 is **branchy** — it normalises **two** open-world vocabularies (relationship predicates *and* entity
 > types) — so it opens with this decompose, not a build. The deliverable is *this note* (data-flow,
@@ -277,7 +304,7 @@ only on acceptance/build.
 
 ---
 
-## Decision register (OPEN — DM-NN-1..6; mirrored to [[open-questions]] OQ-34)
+## Decision register (✅ RESOLVED 2026-07-13 — DM-NN-1..6; mirrored to [[open-questions]] OQ-34)
 
 > Each entry: **Context / Options / My proposal / Open.** I *propose*; the owner *resolves*.
 > `verify-at-build` marks any call resting on un-inspected behaviour. **Plain-language versions are in
@@ -285,6 +312,9 @@ only on acceptance/build.
 > (root `CLAUDE.md` communication rule).
 
 ### DM-NN-1 — One engine or two? The shared-vs-per-surface machinery **(the central call the task names)**
+> **✅ Decision (owner, Session 91): (c) shared suggest, forked apply.** One pure suggest function + one
+> review list over both vocabularies; two thin apply paths (predicate re-key reusing S5b; type bulk relabel).
+> *Rejected:* (a) leaky one-engine that hides the storage asymmetry, (b) two duplicated engines.
 - **Context.** S6 normalises two vocabularies. The task asks whether that is *one engine* or *two*. The
   code-level survey (framing finding) shows an asymmetry: the **suggest** half is genuinely identical for
   both (name-similarity over a set of label strings — same fuzzy + embedding math, a different vocabulary
@@ -303,6 +333,11 @@ only on acceptance/build.
 - **Open.** Owner: shared-suggest/forked-apply (my lean **c**) vs one engine (a) vs two (b)?
 
 ### DM-NN-2 — Suggest rungs + floor: fuzzy-only vs fuzzy + **label-string** embeddings
+> **✅ Decision (owner, Session 91): fuzzy + label-string embeddings, recall-first.** Both rungs (spelling +
+> local `EmbeddingAgent.encode` on the label), surface borderline pairs, a spec-defaulted
+> `name_normalise_suggest_floor` knob; deterministic-only. The `verify-at-build` stands — if short-label
+> cosine doesn't separate synonyms on the real vocabulary, fall back to fuzzy + morphological normalisation.
+> *Rejected:* fuzzy-only (misses token-disjoint synonyms); a tighter precision floor.
 - **Context.** S4 (entity dedup) floored recall-first on fuzzy **+** entity *mention-vector* cosine. S6's
   unit is a **label string**, and its synonyms are frequently **fuzzy-distant but semantically close**
   (`PASSENGER_ON`↔`ON_SHIP` share no tokens; `LOCATION`↔`PLACE` share none) — so a fuzzy-only rung would
@@ -326,6 +361,10 @@ only on acceptance/build.
   tighter?
 
 ### DM-NN-3 — Dismissal memory for a rejected rename suggestion **(the Evidence/Expiry-station call)**
+> **✅ Decision (owner, Session 91): (b) persist dismissals.** Reversible, mirroring S4 exactly (staging-side,
+> INV-9 holds; un-dismiss affordance). No fresh ADR expected — ADR 0010 already records the pattern; the
+> build reuses the table with a surface/kind discriminator or adds a sibling by the same design (a build
+> call, not a new data-model boundary). *Rejected:* (a) ephemeral, (c) materialize the full queue.
 - **Context.** The direct twin of S4's DM-CD-3. A dismissed synonym suggestion ("`SHIP` and `VESSEL` are
   genuinely different in my world") reappears every open unless the "no" is recorded. The project already
   set the precedent that remembering a human's "no" is a feature ([[intra-batch-dedup|DM-rej]]; S4's
@@ -344,6 +383,11 @@ only on acceptance/build.
   (confirm at build) — no fresh ADR expected, but say so explicitly.
 
 ### DM-NN-4 — Predicate apply: graph-wide edge re-key reusing S5b, at N-write scale
+> **✅ Decision (owner, Session 91): (a) loop the shipped `plan_relation_rekey` in one grouped op.** Graph-wide
+> over every bearing edge, preserve `edge_uid` (INV-10), one grouped reversible before-image spanning all N
+> edges (INV-3), identical-triple folds **counted and reported** ("merged 2 edges"), never the goal. The
+> `verify-at-build` items stand (N-write grouped undo; `_escape_rel_type` on the new label; folds when Q
+> pre-exists). *Rejected:* (b) a bespoke single-Cypher bulk re-key.
 - **Context.** Renaming a predicate P→Q re-keys **every** edge bearing P (the framing finding). The per-edge
   atom already ships (`plan_relation_rekey` → `retarget_relation`, S5b): delete-old + create-new, preserve
   `edge_uid`, fold a collision. S6 applies it **graph-wide in one operation** — the new weight is *scale*,
@@ -364,6 +408,10 @@ only on acceptance/build.
   are build-time; recorded so the before-image-completeness question isn't decided silently.)
 
 ### DM-NN-5 — Type apply: the one genuinely-new writer — a bulk node-property relabel
+> **✅ Decision (owner, Session 91): (a) a new bulk `SET n.type` relabel op.** One grouped reversible op on
+> `EntityEditService` (before-image records each node's old type), reached from a new human endpoint; no
+> re-key/handle/collapse. Grows INV-9's human-reached-writer enumeration by one path (the build assigns the
+> ordinal; widen the grep guard to the new bulk-relabel Cypher). *Rejected:* (b) looping the per-node edit.
 - **Context.** Renaming a type A→B is a bulk `SET n.type = B WHERE n.type = A` over nodes (the framing
   finding) — **no** re-key, **no** handle, **no** collapse (two nodes sharing a type don't merge). It is the
   graph-wide analogue of the shipped per-node `update_entity` field-edit, and the *only* net-new graph
@@ -382,6 +430,11 @@ only on acceptance/build.
 - **Open.** Owner: a new bulk `SET` relabel op (my lean **a**) vs looping the shipped per-node edit (b)?
 
 ### DM-NN-6 — Surface + slice boundaries (dedicated list; be/fe and/or predicate/type split)
+> **✅ Decision (owner, Session 91): (a/i) dedicated list, both vocabularies together, backend-first.** A new
+> `/stories/:id/normalise-names` list (reusing the S4b `useReviewQueue` + merge-context pattern); **S6a**
+> backend (both vocabulary reads + shared suggest fn + dismissal store + both apply ops) then **S6b** frontend
+> list rendering both predicate and type synonym groups from one shape. *Rejected:* (ii) split predicate/type
+> into separate slices; (b) canvas annotation (→ `docs/BACKLOG.md`).
 - **Context.** S6 = two new vocabulary reads + the shared suggest fn + the dismissal store + the two apply
   ops on the backend, and a review list on the frontend — the same shape S3/S4/S5 split cleanly. The review
   surface reuses the S4 review-queue + merge-context pattern (a dedicated list, DM-CD-4 precedent), not the
@@ -478,12 +531,12 @@ only on acceptance/build.
 
 ---
 
-## Hand-off (register OPEN — the owner resolves DM-NN-1..6 before any S6 code)
+## Hand-off (✅ register RESOLVED Session 91 — next is the S6a build, a fresh conversation)
 
-Per the **spec- and test-driven** rule, the register is resolved with the owner **before** the build. The
-big shape (naming normalisation not edge-joining, human-gated suggest, the reserved handle) is already
-settled in [[graph-curation-surface]] (DM-GQ-1/2) and [[graph-canvas-editing]] (the S5b re-key); this
-register is the S6 build-detail only.
+The register was resolved with the owner **before** the build (spec- and test-driven), 2026-07-13, Session
+91 — all six calls on the proposed lean (see the banner + register). The big shape (naming normalisation not
+edge-joining, human-gated suggest, the reserved handle) was already settled in [[graph-curation-surface]]
+(DM-GQ-1/2) and [[graph-canvas-editing]] (the S5b re-key); this register settled the S6 build-detail only.
 
 **Spec:** **no `docs/specs/graph-quality.md` amendment expected** — §3 S6 already scopes normalisation over
 *both* predicate names and entity-type labels (the owner extended it to types, Session 81) and §4 already
@@ -503,8 +556,9 @@ cosine; the S4 `duplicate_clusters` analogue over labels), then the two `DISTINC
 graph-wide `plan_relation_rekey` loop in one grouped op preserving `edge_uid` + fold-report; type: the bulk
 relabel op) + OpenAPI regen, then the frontend normalise list feeding both (reusing `useReviewQueue`).
 
-**On acceptance:** reconcile this note to *resolved* (flip `status`, rewrite each register entry
-`My proposal → Decision`, deactivate rejected options across the body + the Mermaid diagram); strike OQ-34
-in [[open-questions]]; record the resolutions in `docs/PLAN_SHORT.md` Decided; and at the S6 build fold the
-graph-wide re-key path (INV-10 consumer) + the new bulk-relabel writer path into [[invariants]] INV-9/INV-10
-+ the [[controlled-vocabulary]] glossary term into the vault.
+**On acceptance (✅ done Session 91):** this note reconciled to *resolved* (`status: accepted`, each register
+entry carries its `✅ Decision`, the Mermaid already depicts the chosen shared-suggest/forked-apply flow so no
+rejected branch needed deactivating); OQ-34 struck in [[open-questions]]; the resolutions recorded in
+`docs/PLAN_SHORT.md` Decided (Session 91). **Deferred to the S6 build:** fold the graph-wide re-key path
+(INV-10 consumer) + the new bulk-relabel writer path into [[invariants]] INV-9/INV-10, and wire
+[[controlled-vocabulary]] as the build lands.
