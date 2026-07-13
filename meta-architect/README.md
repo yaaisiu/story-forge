@@ -6,13 +6,16 @@
 > And it **teaches** architectural vocabulary and reasoning as a side-effect of doing real
 > work, because the artefacts it leaves behind are meant to make you a better architect.
 
-## Status — incubating
+## Status — graduated (this is Story Forge's vendored copy)
 
-This plugin is currently **incubated inside the Story Forge repository** while we use it,
-learn from it, and refine it. It is built as a self-contained plugin directory
-(`meta-architect/`) so that "graduating" it later is just moving the folder to its own repo —
-no rewrite. See [`decisions/`](./decisions) for the design decisions taken so far, and
-Story Forge's `docs/decisions/0002-incubate-meta-architect-in-repo.md` for *why* it lives here.
+This plugin was **incubated inside the Story Forge repository** — used, refined, and stress-tested
+here — and has now **graduated** to its own distributable home,
+[`claude-dev-tooling`](https://github.com/yaaisiu/claude-dev-tooling). This `meta-architect/`
+directory is Story Forge's **vendored copy**, which SF consumes in-place and re-syncs deliberately
+rather than auto-installing (see [`UPSTREAM.md`](./UPSTREAM.md)). It was always built as a
+self-contained plugin directory, so graduating was just moving the folder — no rewrite. See
+[`decisions/`](./decisions) for the plugin's own design decisions, and
+`docs/decisions/0002-incubate-meta-architect-in-repo.md` for the incubation-and-graduation record.
 
 ## Philosophy
 

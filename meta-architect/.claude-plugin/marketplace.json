@@ -1,6 +1,6 @@
 {
   "name": "meta-architect-local",
-  "description": "Local incubation marketplace for the meta-architect plugin while it lives inside Story Forge, before extraction to its own repository.",
+  "description": "Local directory marketplace for Story Forge's vendored copy of the meta-architect plugin. The plugin has graduated to https://github.com/yaaisiu/claude-dev-tooling; SF consumes this copy in-place and re-syncs deliberately (see ../UPSTREAM.md).",
   "owner": {
     "name": "yasiu"
   },
