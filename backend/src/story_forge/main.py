@@ -10,6 +10,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from neo4j import AsyncGraphDatabase
 
 from story_forge.adapters.accepted_entity_reader import AcceptedEntityReader
+from story_forge.adapters.label_vocabulary_reader import LabelVocabularyReader
 from story_forge.adapters.llm.base import LLMProvider, ModelTier
 from story_forge.adapters.llm.ollama import OllamaProvider
 from story_forge.adapters.llm.postgres_cost_store import PostgresCostStore
@@ -20,6 +21,7 @@ from story_forge.adapters.postgres_duplicate_dismissal_store import (
     PostgresDuplicateDismissalStore,
 )
 from story_forge.adapters.postgres_edit_store import PostgresEditStore
+from story_forge.adapters.postgres_label_dismissal_store import PostgresLabelDismissalStore
 from story_forge.adapters.postgres_mention_store import PostgresMentionStore
 from story_forge.adapters.postgres_relation_store import PostgresRelationStore
 from story_forge.agents.candidate_rematch import ReMatchService
@@ -109,6 +111,13 @@ app.state.candidate_store = _candidate_store
 # for the self-join, and the staging-side dismissed-pair store (INV-9 holds — never a graph write).
 app.state.accepted_reader = AcceptedEntityReader(_neo4j_repo)
 app.state.duplicate_dismissal_store = PostgresDuplicateDismissalStore()
+# Name-normalisation surface (graph-quality S6a): a reader that assembles the two label
+# vocabularies (predicate names + entity-type labels, with counts + label-string embeddings) for
+# the synonym self-join, and the staging-side dismissed-label-pair store (INV-9 holds — never a
+# graph write). The concrete `EmbeddingAgent` meets the reader here at the composition root; the
+# reader itself types against the `LabelEncoder` Protocol.
+app.state.label_vocabulary_reader = LabelVocabularyReader(_neo4j_repo, EmbeddingAgent())
+app.state.label_dismissal_store = PostgresLabelDismissalStore()
 app.state.extraction_coordinator = ExtractionCoordinator(
     ExtractionAgent(_extraction_router),
     CandidateStager(EmbeddingAgent(), MatchingAgent(), JudgeAgent(_extraction_router)),

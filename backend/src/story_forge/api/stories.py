@@ -23,12 +23,14 @@ from pydantic import BaseModel, field_validator, model_validator
 
 from story_forge.adapters.accepted_entity_reader import AcceptedEntityReader
 from story_forge.adapters.db import get_connection
+from story_forge.adapters.label_vocabulary_reader import LabelVocabularyReader
 from story_forge.adapters.llm.base import ProviderResponseError
 from story_forge.adapters.neo4j_repo import Neo4jRepo
 from story_forge.adapters.postgres_candidate_store import PostgresCandidateStore
 from story_forge.adapters.postgres_duplicate_dismissal_store import (
     PostgresDuplicateDismissalStore,
 )
+from story_forge.adapters.postgres_label_dismissal_store import PostgresLabelDismissalStore
 from story_forge.adapters.postgres_relation_store import PostgresRelationStore
 from story_forge.adapters.postgres_repo import (
     get_project,
@@ -103,6 +105,12 @@ from story_forge.domain.highlights import (
     Suppression,
     reconcile_highlights,
     validate_manual_span,
+)
+from story_forge.domain.label_synonyms import (
+    LabelSynonymSuggestion,
+    LabelVocabularyEntry,
+    label_dismissal_id,
+    suggest_label_synonyms,
 )
 from story_forge.domain.language import detect_language
 from story_forge.domain.models import Paragraph, Project, Story
@@ -1851,6 +1859,204 @@ async def undismiss_duplicate_suggestion(
         raise HTTPException(status_code=404, detail="story not found")
     try:
         await store.delete(story.project_id, body.entity_id_a, body.entity_id_b)
+    except OperationalError as exc:
+        raise HTTPException(status_code=503, detail="the dismissal store is unavailable") from exc
+
+
+# --- Name-normalisation surface (graph-quality S6a) -------------------------
+
+LabelSurface = Literal["predicate", "type"]
+
+
+def get_label_vocabulary_reader(request: Request) -> LabelVocabularyReader:
+    """The app-lifetime label-vocabulary reader wired in `main.py` (S6a)."""
+    reader: LabelVocabularyReader = request.app.state.label_vocabulary_reader
+    return reader
+
+
+def get_label_dismissal_store(request: Request) -> PostgresLabelDismissalStore:
+    """The app-lifetime dismissed-label-pair store wired in `main.py` (DM-NN-3)."""
+    store: PostgresLabelDismissalStore = request.app.state.label_dismissal_store
+    return store
+
+
+class LabelSynonymView(BaseModel):
+    """One suggested synonymous label pair within a surface: the two labels + why + counts.
+
+    `label_lo`/`label_hi` are the pair in canonical order; `count_lo`/`count_hi` are their edge
+    (predicate) or node (type) counts in that same order, so the author can normalise toward the
+    dominant form. `cosine_score` is None when neither label carried a usable embedding
+    (name-only). Suggests only — the human renames graph-wide (S6a-2) or dismisses.
+    """
+
+    label_lo: str
+    label_hi: str
+    count_lo: int
+    count_hi: int
+    name_score: float
+    cosine_score: float | None
+    combined_score: float
+
+
+class LabelVocabularyResponse(BaseModel):
+    """A story's ranked synonym suggestions over both vocabularies (dismissed pairs suppressed).
+
+    The two surfaces are returned separately because a predicate is never a synonym of a type
+    (they are stored differently and renamed by different apply paths — DM-NN-1).
+    """
+
+    predicate_suggestions: list[LabelSynonymView]
+    type_suggestions: list[LabelSynonymView]
+
+
+class DismissLabelRequest(BaseModel):
+    """The label pair marked (or un-marked) as 'not synonyms' — unordered, on a surface."""
+
+    surface: LabelSurface
+    label_a: str
+    label_b: str
+
+
+def _label_synonym_views(
+    pairs: list[LabelSynonymSuggestion],
+    dismissed: set[UUID],
+    *,
+    project_id: UUID,
+    surface: LabelSurface,
+) -> list[LabelSynonymView]:
+    """Project the ranked pairs to views, dropping any the author has dismissed on this surface."""
+    views: list[LabelSynonymView] = []
+    for pair in pairs:
+        if label_dismissal_id(project_id, surface, pair.label_lo, pair.label_hi) in dismissed:
+            continue
+        views.append(
+            LabelSynonymView(
+                label_lo=pair.label_lo,
+                label_hi=pair.label_hi,
+                count_lo=pair.count_lo,
+                count_hi=pair.count_hi,
+                name_score=pair.name_score,
+                cosine_score=pair.cosine_score,
+                combined_score=pair.combined_score,
+            )
+        )
+    return views
+
+
+@router.get(
+    "/{story_id}/label-vocabulary",
+    responses={
+        404: {"model": ErrorResponse, "description": "Story not found."},
+        503: {"model": ErrorResponse, "description": "A data store is unavailable."},
+    },
+)
+async def list_label_synonyms(
+    story_id: UUID,
+    conn: Annotated[AsyncConnection, Depends(get_connection)],
+    reader: Annotated[LabelVocabularyReader, Depends(get_label_vocabulary_reader)],
+    store: Annotated[PostgresLabelDismissalStore, Depends(get_label_dismissal_store)],
+) -> LabelVocabularyResponse:
+    """Synonym suggestions over a story's predicate + entity-type vocabularies (graph-quality S6).
+
+    Assembles both distinct-label vocabularies (with counts + label-string embeddings), runs the
+    pure self-join per surface (normalised name + embedding, floored at
+    `name_normalise_suggest_floor` / the Stage-2 cosine bar), and drops any pair the author has
+    dismissed. Ranked strongest-first per surface. **Suggests only — writes no graph** (INV-1/
+    INV-4); the human renames graph-wide (S6a-2) or dismisses. Vocabulary + dismissal reads are
+    one project-scoped batch; a store outage is a declared 503.
+    """
+    try:
+        story = await get_story(conn, story_id)
+        if story is None:
+            raise HTTPException(status_code=404, detail="story not found")
+        # The vocabularies (Neo4j + local encode) and the dismissal set (Postgres) are independent
+        # reads over separate connections — fetch them concurrently.
+        (predicate_entries, type_entries), dismissed = await asyncio.gather(
+            reader.load_vocabulary(story.project_id),
+            store.list_pair_ids(story.project_id),
+        )
+    except (OperationalError, ServiceUnavailable) as exc:
+        raise HTTPException(status_code=503, detail="a data store is unavailable") from exc
+    # Each self-join is a pure, CPU-bound pass over a small vocabulary (tens of labels); run them
+    # off the event loop for consistency with the S4 self-join. No blocking/LSH lever is needed at
+    # this scale — the vocabulary is tens of labels (proposal Layer 9).
+    predicate_pairs, type_pairs = await _suggest_both(predicate_entries, type_entries)
+    return LabelVocabularyResponse(
+        predicate_suggestions=_label_synonym_views(
+            predicate_pairs, dismissed, project_id=story.project_id, surface="predicate"
+        ),
+        type_suggestions=_label_synonym_views(
+            type_pairs, dismissed, project_id=story.project_id, surface="type"
+        ),
+    )
+
+
+async def _suggest_both(
+    predicate_entries: list[LabelVocabularyEntry],
+    type_entries: list[LabelVocabularyEntry],
+) -> tuple[list[LabelSynonymSuggestion], list[LabelSynonymSuggestion]]:
+    """Run the pure self-join over each vocabulary off the event loop, concurrently."""
+
+    def run(entries: list[LabelVocabularyEntry]) -> list[LabelSynonymSuggestion]:
+        return suggest_label_synonyms(
+            entries,
+            name_floor=settings.name_normalise_suggest_floor,
+            cosine_floor=settings.match_stage2_cosine_merge,
+        )
+
+    return await asyncio.gather(
+        asyncio.to_thread(run, predicate_entries),
+        asyncio.to_thread(run, type_entries),
+    )
+
+
+@router.post(
+    "/{story_id}/label-vocabulary/dismiss",
+    status_code=204,
+    responses={
+        404: {"model": ErrorResponse, "description": "Story not found."},
+        503: {"model": ErrorResponse, "description": "The dismissal store is unavailable."},
+    },
+)
+async def dismiss_label_synonym(
+    story_id: UUID,
+    body: DismissLabelRequest,
+    conn: Annotated[AsyncConnection, Depends(get_connection)],
+    store: Annotated[PostgresLabelDismissalStore, Depends(get_label_dismissal_store)],
+) -> None:
+    """Record a 'not synonyms' so the label pair is not re-suggested (DM-NN-3). Idempotent."""
+    try:
+        story = await get_story(conn, story_id)
+        if story is None:
+            raise HTTPException(status_code=404, detail="story not found")
+        await store.insert(story.project_id, body.surface, body.label_a, body.label_b)
+    except OperationalError as exc:
+        raise HTTPException(status_code=503, detail="the dismissal store is unavailable") from exc
+
+
+@router.delete(
+    "/{story_id}/label-vocabulary/dismiss",
+    status_code=204,
+    responses={
+        404: {"model": ErrorResponse, "description": "Story not found."},
+        503: {"model": ErrorResponse, "description": "The dismissal store is unavailable."},
+    },
+)
+async def undismiss_label_synonym(
+    story_id: UUID,
+    body: DismissLabelRequest,
+    conn: Annotated[AsyncConnection, Depends(get_connection)],
+    store: Annotated[PostgresLabelDismissalStore, Depends(get_label_dismissal_store)],
+) -> None:
+    """Un-dismiss a label pair so it can be suggested again (reversibility, DM-NN-3).
+
+    Silent no-op if the pair was not dismissed.
+    """
+    try:
+        story = await get_story(conn, story_id)
+        if story is None:
+            raise HTTPException(status_code=404, detail="story not found")
+        await store.delete(story.project_id, body.surface, body.label_a, body.label_b)
     except OperationalError as exc:
         raise HTTPException(status_code=503, detail="the dismissal store is unavailable") from exc
 

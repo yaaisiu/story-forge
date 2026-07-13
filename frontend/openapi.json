@@ -1718,6 +1718,202 @@
         }
       }
     },
+    "/stories/{story_id}/label-vocabulary": {
+      "get": {
+        "tags": [
+          "stories"
+        ],
+        "summary": "List Label Synonyms",
+        "description": "Synonym suggestions over a story's predicate + entity-type vocabularies (graph-quality S6).\n\nAssembles both distinct-label vocabularies (with counts + label-string embeddings), runs the\npure self-join per surface (normalised name + embedding, floored at\n`name_normalise_suggest_floor` / the Stage-2 cosine bar), and drops any pair the author has\ndismissed. Ranked strongest-first per surface. **Suggests only \u2014 writes no graph** (INV-1/\nINV-4); the human renames graph-wide (S6a-2) or dismisses. Vocabulary + dismissal reads are\none project-scoped batch; a store outage is a declared 503.",
+        "operationId": "list_label_synonyms_stories__story_id__label_vocabulary_get",
+        "parameters": [
+          {
+            "name": "story_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Story Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LabelVocabularyResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Story not found.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "A data store is unavailable.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/stories/{story_id}/label-vocabulary/dismiss": {
+      "post": {
+        "tags": [
+          "stories"
+        ],
+        "summary": "Dismiss Label Synonym",
+        "description": "Record a 'not synonyms' so the label pair is not re-suggested (DM-NN-3). Idempotent.",
+        "operationId": "dismiss_label_synonym_stories__story_id__label_vocabulary_dismiss_post",
+        "parameters": [
+          {
+            "name": "story_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Story Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DismissLabelRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "404": {
+            "description": "Story not found.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "The dismissal store is unavailable.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "stories"
+        ],
+        "summary": "Undismiss Label Synonym",
+        "description": "Un-dismiss a label pair so it can be suggested again (reversibility, DM-NN-3).\n\nSilent no-op if the pair was not dismissed.",
+        "operationId": "undismiss_label_synonym_stories__story_id__label_vocabulary_dismiss_delete",
+        "parameters": [
+          {
+            "name": "story_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Story Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DismissLabelRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "404": {
+            "description": "Story not found.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "The dismissal store is unavailable.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/stories/{story_id}/candidates/{candidate_id}/accept": {
       "post": {
         "tags": [
@@ -2560,6 +2756,34 @@
         "title": "DismissDuplicateRequest",
         "description": "The pair the author marked (or un-marked) as 'not a duplicate' \u2014 unordered."
       },
+      "DismissLabelRequest": {
+        "properties": {
+          "surface": {
+            "type": "string",
+            "enum": [
+              "predicate",
+              "type"
+            ],
+            "title": "Surface"
+          },
+          "label_a": {
+            "type": "string",
+            "title": "Label A"
+          },
+          "label_b": {
+            "type": "string",
+            "title": "Label B"
+          }
+        },
+        "type": "object",
+        "required": [
+          "surface",
+          "label_a",
+          "label_b"
+        ],
+        "title": "DismissLabelRequest",
+        "description": "The label pair marked (or un-marked) as 'not synonyms' \u2014 unordered, on a surface."
+      },
       "DuplicateEntityView": {
         "properties": {
           "entity_id": {
@@ -3239,6 +3463,82 @@
         },
         "type": "object",
         "title": "HTTPValidationError"
+      },
+      "LabelSynonymView": {
+        "properties": {
+          "label_lo": {
+            "type": "string",
+            "title": "Label Lo"
+          },
+          "label_hi": {
+            "type": "string",
+            "title": "Label Hi"
+          },
+          "count_lo": {
+            "type": "integer",
+            "title": "Count Lo"
+          },
+          "count_hi": {
+            "type": "integer",
+            "title": "Count Hi"
+          },
+          "name_score": {
+            "type": "number",
+            "title": "Name Score"
+          },
+          "cosine_score": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cosine Score"
+          },
+          "combined_score": {
+            "type": "number",
+            "title": "Combined Score"
+          }
+        },
+        "type": "object",
+        "required": [
+          "label_lo",
+          "label_hi",
+          "count_lo",
+          "count_hi",
+          "name_score",
+          "cosine_score",
+          "combined_score"
+        ],
+        "title": "LabelSynonymView",
+        "description": "One suggested synonymous label pair within a surface: the two labels + why + counts.\n\n`label_lo`/`label_hi` are the pair in canonical order; `count_lo`/`count_hi` are their edge\n(predicate) or node (type) counts in that same order, so the author can normalise toward the\ndominant form. `cosine_score` is None when neither label carried a usable embedding\n(name-only). Suggests only \u2014 the human renames graph-wide (S6a-2) or dismisses."
+      },
+      "LabelVocabularyResponse": {
+        "properties": {
+          "predicate_suggestions": {
+            "items": {
+              "$ref": "#/components/schemas/LabelSynonymView"
+            },
+            "type": "array",
+            "title": "Predicate Suggestions"
+          },
+          "type_suggestions": {
+            "items": {
+              "$ref": "#/components/schemas/LabelSynonymView"
+            },
+            "type": "array",
+            "title": "Type Suggestions"
+          }
+        },
+        "type": "object",
+        "required": [
+          "predicate_suggestions",
+          "type_suggestions"
+        ],
+        "title": "LabelVocabularyResponse",
+        "description": "A story's ranked synonym suggestions over both vocabularies (dismissed pairs suppressed).\n\nThe two surfaces are returned separately because a predicate is never a synonym of a type\n(they are stored differently and renamed by different apply paths \u2014 DM-NN-1)."
       },
       "LastCall": {
         "properties": {
