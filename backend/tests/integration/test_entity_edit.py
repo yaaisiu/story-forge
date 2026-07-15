@@ -481,3 +481,114 @@ async def test_undo_preview_reports_without_applying(live: _Live) -> None:
     assert still is not None and still.type == "Deity"
     # and the operation is still live (a real undo afterwards works)
     assert (await live.service.undo_last(live.project_id)).applied is True
+
+
+async def test_rename_predicate_re_keys_all_bearing_edges_then_undo(live: _Live) -> None:
+    """Verify-at-build (DM-NN-4): a graph-wide predicate rename re-keys EVERY bearing edge in one
+    grouped op, preserving each `edge_uid` (INV-10), and `undo_last` restores the whole N-edge
+    operation as one atom (the graph-wide analogue of S5b's one-edge / merge's fan-out proofs)."""
+    janek = GraphEntity(type="Character", canonical_name_pl="Janek", project_id=live.project_id)
+    maria = GraphEntity(type="Character", canonical_name_pl="Maria", project_id=live.project_id)
+    zofia = GraphEntity(type="Character", canonical_name_pl="Zofia", project_id=live.project_id)
+    for e in (janek, maria, zofia):
+        await live.graph.create_entity(e)
+    p1 = await live.service.add_relation(live.project_id, janek.id, "PASSENGER_ON", maria.id)
+    p2 = await live.service.add_relation(live.project_id, janek.id, "PASSENGER_ON", zofia.id)
+    keep = await live.service.add_relation(live.project_id, maria.id, "LOVES", zofia.id)
+    h1 = (await live.graph.get_relation(live.project_id, p1.edge_id)).edge_uid  # type: ignore[union-attr]
+
+    summary = await live.service.rename_predicate(live.project_id, "PASSENGER_ON", "ON_SHIP")
+
+    assert (summary.renamed_count, summary.folded_count) == (2, 0)
+    n1 = relation_edge_id(janek.id, "ON_SHIP", maria.id)
+    n2 = relation_edge_id(janek.id, "ON_SHIP", zofia.id)
+    by_id = {r.id: r for r in await live.graph.get_relations(live.project_id)}
+    assert set(by_id) == {n1, n2, keep.edge_id}  # both re-keyed, the LOVES edge untouched
+    assert by_id[n1].type == "ON_SHIP" and by_id[n1].edge_uid == h1
+
+    await live.service.undo_last(live.project_id)
+
+    restored = {r.id: r for r in await live.graph.get_relations(live.project_id)}
+    assert set(restored) == {p1.edge_id, p2.edge_id, keep.edge_id}
+    assert restored[p1.edge_id].type == "PASSENGER_ON"
+    assert restored[p1.edge_id].edge_uid == h1
+
+
+async def test_rename_predicate_folds_a_pre_existing_target_then_undo_unfolds(live: _Live) -> None:
+    """Verify-at-build (DM-NN-4, the fold): a bearing edge whose renamed id already exists folds
+    onto that survivor (reported, never the goal); the survivor keeps its handle, undo un-folds."""
+    janek = GraphEntity(type="Character", canonical_name_pl="Janek", project_id=live.project_id)
+    maria = GraphEntity(type="Character", canonical_name_pl="Maria", project_id=live.project_id)
+    await live.graph.create_entity(janek)
+    await live.graph.create_entity(maria)
+    doomed = await live.service.add_relation(live.project_id, janek.id, "PASSENGER_ON", maria.id)
+    survivor = await live.service.add_relation(live.project_id, janek.id, "ON_SHIP", maria.id)
+    survivor_handle = (await live.graph.get_relation(live.project_id, survivor.edge_id)).edge_uid  # type: ignore[union-attr]
+
+    summary = await live.service.rename_predicate(live.project_id, "PASSENGER_ON", "ON_SHIP")
+
+    assert (summary.renamed_count, summary.folded_count) == (0, 1)
+    ids = {r.id for r in await live.graph.get_relations(live.project_id)}
+    assert ids == {survivor.edge_id}  # doomed folded away; only the survivor remains
+    kept = await live.graph.get_relation(live.project_id, survivor.edge_id)
+    assert kept is not None and kept.edge_uid == survivor_handle  # survivor keeps its own handle
+
+    await live.service.undo_last(live.project_id)
+
+    ids = {r.id for r in await live.graph.get_relations(live.project_id)}
+    assert ids == {doomed.edge_id, survivor.edge_id}  # the folded edge is back
+
+
+async def test_rename_predicate_to_a_cypher_hostile_label_is_injection_safe(live: _Live) -> None:
+    """Verify-at-build (DM-NN-4): the new predicate becomes a Neo4j relationship *type*
+    (interpolated, not parameter-bound), so a backtick-bearing label must be `_escape_rel_type`-
+    quoted — inherited via `create_relation`. Renaming to it succeeds and reads back verbatim."""
+    janek = GraphEntity(type="Character", canonical_name_pl="Janek", project_id=live.project_id)
+    maria = GraphEntity(type="Character", canonical_name_pl="Maria", project_id=live.project_id)
+    await live.graph.create_entity(janek)
+    await live.graph.create_entity(maria)
+    await live.service.add_relation(live.project_id, janek.id, "PASSENGER_ON", maria.id)
+    hostile = "ON`SHIP`]->()"  # backticks would break out of the quoted rel type if unescaped
+
+    summary = await live.service.rename_predicate(live.project_id, "PASSENGER_ON", hostile)
+
+    assert summary.renamed_count == 1
+    (edge,) = await live.graph.get_relations(live.project_id)
+    assert edge.type == hostile  # the type round-trips exactly, nothing injected
+
+
+async def test_relabel_entity_type_re_types_matching_nodes_then_undo(live: _Live) -> None:
+    """Verify-at-build (DM-NN-5): a bulk type relabel re-sets every matching node's `type`, records
+    a complete before-image, and `undo_last` restores every node's original type exactly."""
+    a1 = GraphEntity(type="Person", canonical_name_pl="Janek", project_id=live.project_id)
+    a2 = GraphEntity(type="Person", canonical_name_pl="Maria", project_id=live.project_id)
+    other = GraphEntity(type="Location", canonical_name_pl="Młyn", project_id=live.project_id)
+    for e in (a1, a2, other):
+        await live.graph.create_entity(e)
+
+    summary = await live.service.relabel_entity_type(live.project_id, "Person", "PERSON")
+
+    assert summary.relabelled_count == 2
+    types = {e.id: e.type for e in await live.graph.list_entities(live.project_id)}
+    assert types == {a1.id: "PERSON", a2.id: "PERSON", other.id: "Location"}
+
+    await live.service.undo_last(live.project_id)
+
+    restored = {e.id: e.type for e in await live.graph.list_entities(live.project_id)}
+    assert restored == {a1.id: "Person", a2.id: "Person", other.id: "Location"}
+
+
+async def test_relabel_entity_type_to_a_pre_existing_type_never_collapses(live: _Live) -> None:
+    """Verify-at-build (DM-NN-5, the asymmetry): relabelling A→B where B already exists does NOT
+    merge — the ex-A node and the pre-existing B node coexist as independent nodes both typed B."""
+    was_place = GraphEntity(type="Place", canonical_name_pl="Oakhaven", project_id=live.project_id)
+    already_loc = GraphEntity(type="LOCATION", canonical_name_pl="Młyn", project_id=live.project_id)
+    await live.graph.create_entity(was_place)
+    await live.graph.create_entity(already_loc)
+
+    summary = await live.service.relabel_entity_type(live.project_id, "Place", "LOCATION")
+
+    assert summary.relabelled_count == 1
+    entities = await live.graph.list_entities(live.project_id)
+    assert len(entities) == 2  # nothing collapsed
+    assert {e.type for e in entities} == {"LOCATION"}

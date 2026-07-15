@@ -49,6 +49,18 @@ class FakeGraph:
         self.entities[entity.id] = entity
         self._events.append(("update_entity", entity.id))
 
+    async def relabel_entity_type(
+        self, project_id: UUID, from_type: str, to_type: str
+    ) -> list[UUID]:
+        # Bulk `SET n.type` over in-project nodes of `from_type`; return the relabelled ids.
+        relabelled: list[UUID] = []
+        for eid, entity in self.entities.items():
+            if entity.project_id == project_id and entity.type == from_type:
+                self.entities[eid] = entity.model_copy(update={"type": to_type})
+                relabelled.append(eid)
+        self._events.append(("relabel_entity_type", (from_type, to_type)))
+        return relabelled
+
     async def get_relation(self, project_id: UUID, edge_id: UUID) -> GraphRelation | None:
         relation = self.relations.get(edge_id)
         if relation is None:
@@ -60,6 +72,17 @@ class FakeGraph:
         if subject.project_id != project_id or object_.project_id != project_id:
             return None
         return relation
+
+    async def get_relations(self, project_id: UUID) -> list[GraphRelation]:
+        relations: list[GraphRelation] = []
+        for relation in self.relations.values():
+            subject = self.entities.get(relation.subject_id)
+            object_ = self.entities.get(relation.object_id)
+            if subject is None or object_ is None:
+                continue
+            if subject.project_id == project_id and object_.project_id == project_id:
+                relations.append(relation)
+        return relations
 
     async def create_relation(self, relation: GraphRelation) -> None:
         # MERGE ... ON CREATE SET: an edge already at this id is not clobbered (the coalesce that
@@ -483,6 +506,202 @@ async def test_every_op_a_retarget_records_is_invertible() -> None:
 
     for rows in evidence.operations:
         invert_operation(rows)  # type: ignore[arg-type]  # must not raise UndoNotInvertible
+
+
+# --- graph-wide predicate rename (S6a-2, DM-NN-4) --------------------------
+
+
+async def test_rename_predicate_re_keys_every_bearing_edge_as_one_grouped_op() -> None:
+    service, graph, evidence, _mentions, events = _service()
+    janek, maria, zofia = _entity(), _entity(canonical_name_pl="M"), _entity(canonical_name_pl="Z")
+    for e in (janek, maria, zofia):
+        graph.entities[e.id] = e
+    p1 = await service.add_relation(PROJECT, janek.id, "PASSENGER_ON", maria.id)
+    p2 = await service.add_relation(PROJECT, janek.id, "PASSENGER_ON", zofia.id)
+    other = await service.add_relation(PROJECT, maria.id, "LOVES", zofia.id)
+    h1, h2 = graph.relations[p1.edge_id].edge_uid, graph.relations[p2.edge_id].edge_uid
+    events.clear()
+
+    summary = await service.rename_predicate(PROJECT, "PASSENGER_ON", "ON_SHIP")
+
+    assert (summary.renamed_count, summary.folded_count) == (2, 0)
+    # both bearing edges re-keyed with handle preserved; the LOVES edge is untouched
+    n1 = relation_edge_id(janek.id, "ON_SHIP", maria.id)
+    n2 = relation_edge_id(janek.id, "ON_SHIP", zofia.id)
+    assert p1.edge_id not in graph.relations and p2.edge_id not in graph.relations
+    assert graph.relations[n1].edge_uid == h1 and graph.relations[n2].edge_uid == h2
+    assert other.edge_id in graph.relations
+    # exactly ONE grouped operation, two rows, create-before-delete per edge, evidence last
+    assert events == [
+        ("create_relation", n1),
+        ("delete_relation", p1.edge_id),
+        ("create_relation", n2),
+        ("delete_relation", p2.edge_id),
+        ("record_operation", 2),
+    ]
+    (rows,) = evidence.operations
+    assert len({r.operation_id for r in rows}) == 1  # type: ignore[attr-defined]
+    assert all(r.op_kind == "rename_predicate" for r in rows)  # type: ignore[attr-defined]
+    assert all(r.op == "repoint_relation" for r in rows)  # type: ignore[attr-defined]
+
+
+async def test_rename_predicate_folds_onto_a_pre_existing_target_and_reports_count() -> None:
+    service, graph, evidence, _mentions, _events = _service()
+    janek, maria = _entity(), _entity(canonical_name_pl="M")
+    graph.entities[janek.id] = janek
+    graph.entities[maria.id] = maria
+    doomed = await service.add_relation(PROJECT, janek.id, "PASSENGER_ON", maria.id)
+    survivor = await service.add_relation(PROJECT, janek.id, "ON_SHIP", maria.id)
+    survivor_handle = graph.relations[survivor.edge_id].edge_uid
+
+    summary = await service.rename_predicate(PROJECT, "PASSENGER_ON", "ON_SHIP")
+
+    assert (summary.renamed_count, summary.folded_count) == (0, 1)
+    assert doomed.edge_id not in graph.relations
+    # the survivor is untouched and keeps its OWN handle (ON-CREATE coalesce)
+    assert graph.relations[survivor.edge_id].edge_uid == survivor_handle
+    (rows,) = evidence.operations
+    assert rows[0].op == "fold_relation"  # type: ignore[attr-defined]
+    # the folded count rides the undo description (see-what-I-undo)
+    assert "merged 1 edge" in rows[0].description  # type: ignore[attr-defined]
+
+
+async def test_rename_predicate_no_bearing_edges_writes_nothing() -> None:
+    service, graph, evidence, _mentions, events = _service()
+    janek, maria = _entity(), _entity(canonical_name_pl="M")
+    graph.entities[janek.id] = janek
+    graph.entities[maria.id] = maria
+    await service.add_relation(PROJECT, janek.id, "LOVES", maria.id)
+    events.clear()
+
+    summary = await service.rename_predicate(PROJECT, "PASSENGER_ON", "ON_SHIP")
+
+    assert (summary.renamed_count, summary.folded_count) == (0, 0)
+    assert events == []
+    assert evidence.operations == []
+
+
+async def test_rename_predicate_blank_target_is_rejected() -> None:
+    service, _graph, _evidence, _mentions, _events = _service()
+    with pytest.raises(ValueError, match="non-empty"):
+        await service.rename_predicate(PROJECT, "PASSENGER_ON", "   ")
+
+
+async def test_undo_rename_predicate_restores_every_edge() -> None:
+    service, graph, evidence, _mentions, _events = _service()
+    janek, maria, zofia = _entity(), _entity(canonical_name_pl="M"), _entity(canonical_name_pl="Z")
+    for e in (janek, maria, zofia):
+        graph.entities[e.id] = e
+    p1 = await service.add_relation(PROJECT, janek.id, "PASSENGER_ON", maria.id)
+    p2 = await service.add_relation(PROJECT, janek.id, "PASSENGER_ON", zofia.id)
+    h1 = graph.relations[p1.edge_id].edge_uid
+    await service.rename_predicate(PROJECT, "PASSENGER_ON", "ON_SHIP")
+
+    await _undo(service, evidence.operations[-1])
+
+    # every edge is back at its old predicate + handle; no ON_SHIP edge remains
+    assert relation_edge_id(janek.id, "ON_SHIP", maria.id) not in graph.relations
+    assert p1.edge_id in graph.relations and p2.edge_id in graph.relations
+    assert graph.relations[p1.edge_id].type == "PASSENGER_ON"
+    assert graph.relations[p1.edge_id].edge_uid == h1
+
+
+async def test_every_op_a_rename_predicate_records_is_invertible() -> None:
+    # Writer↔inverter contract from REAL rows (PR-#108): a graph-wide rename mixes repoint + fold
+    # rows in one op; `invert_operation` must reverse the whole batch without UndoNotInvertible.
+    service, graph, evidence, _mentions, _events = _service()
+    janek, maria, zofia = _entity(), _entity(canonical_name_pl="M"), _entity(canonical_name_pl="Z")
+    for e in (janek, maria, zofia):
+        graph.entities[e.id] = e
+    await service.add_relation(PROJECT, janek.id, "PASSENGER_ON", maria.id)  # → repoint
+    await service.add_relation(PROJECT, janek.id, "PASSENGER_ON", zofia.id)  # → repoint
+    await service.add_relation(PROJECT, janek.id, "ON_SHIP", zofia.id)  # fold target for the 2nd
+    await service.rename_predicate(PROJECT, "PASSENGER_ON", "ON_SHIP")
+
+    for rows in evidence.operations:
+        invert_operation(rows)  # type: ignore[arg-type]
+
+
+# --- graph-wide entity-type relabel (S6a-2, DM-NN-5) -----------------------
+
+
+async def test_relabel_type_re_sets_matching_nodes_as_one_grouped_op() -> None:
+    service, graph, evidence, _mentions, events = _service()
+    a1 = _entity(type="Person", canonical_name_pl="Janek")
+    a2 = _entity(type="Person", canonical_name_pl="Maria")
+    other = _entity(type="Location", canonical_name_pl="Młyn")
+    for e in (a1, a2, other):
+        graph.entities[e.id] = e
+
+    summary = await service.relabel_entity_type(PROJECT, "Person", "PERSON")
+
+    assert summary.relabelled_count == 2
+    assert graph.entities[a1.id].type == "PERSON" and graph.entities[a2.id].type == "PERSON"
+    assert graph.entities[other.id].type == "Location"  # untouched
+    # the bulk write precedes the grouped evidence row (INV-3 order)
+    assert events[0] == ("relabel_entity_type", ("Person", "PERSON"))
+    assert events[-1] == ("record_operation", 2)
+    (rows,) = evidence.operations
+    assert len({r.operation_id for r in rows}) == 1  # type: ignore[attr-defined]
+    assert all(r.op_kind == "relabel_type" and r.op == "edit_fields" for r in rows)  # type: ignore[attr-defined]
+    assert all(r.before == {"type": "Person"} for r in rows)  # type: ignore[attr-defined]
+    assert all(r.after == {"type": "PERSON"} for r in rows)  # type: ignore[attr-defined]
+
+
+async def test_relabel_type_no_matching_nodes_writes_nothing() -> None:
+    service, graph, evidence, _mentions, events = _service()
+    e = _entity(type="Person")
+    graph.entities[e.id] = e
+    events.clear()
+
+    summary = await service.relabel_entity_type(PROJECT, "MISSING", "PERSON")
+
+    assert summary.relabelled_count == 0
+    assert evidence.operations == []
+
+
+async def test_relabel_type_same_from_and_to_writes_nothing() -> None:
+    service, graph, evidence, _mentions, events = _service()
+    e = _entity(type="Person")
+    graph.entities[e.id] = e
+    events.clear()
+
+    summary = await service.relabel_entity_type(PROJECT, "Person", "Person")
+
+    assert summary.relabelled_count == 0
+    assert events == []
+    assert evidence.operations == []
+
+
+async def test_relabel_type_blank_target_is_rejected() -> None:
+    service, _graph, _evidence, _mentions, _events = _service()
+    with pytest.raises(ValueError, match="non-empty"):
+        await service.relabel_entity_type(PROJECT, "Person", "  ")
+
+
+async def test_undo_relabel_type_restores_every_node_type() -> None:
+    service, graph, evidence, _mentions, _events = _service()
+    a1 = _entity(type="Person", canonical_name_pl="Janek")
+    a2 = _entity(type="Person", canonical_name_pl="Maria")
+    graph.entities[a1.id] = a1
+    graph.entities[a2.id] = a2
+    await service.relabel_entity_type(PROJECT, "Person", "PERSON")
+
+    await _undo(service, evidence.operations[-1])
+
+    assert graph.entities[a1.id].type == "Person" and graph.entities[a2.id].type == "Person"
+
+
+async def test_every_op_a_relabel_type_records_is_invertible() -> None:
+    service, graph, evidence, _mentions, _events = _service()
+    a1 = _entity(type="Person")
+    a2 = _entity(type="Person", canonical_name_pl="M")
+    graph.entities[a1.id] = a1
+    graph.entities[a2.id] = a2
+    await service.relabel_entity_type(PROJECT, "Person", "PERSON")
+
+    for rows in evidence.operations:
+        invert_operation(rows)  # type: ignore[arg-type]
 
 
 # --- merge (M4.S3b) --------------------------------------------------------
