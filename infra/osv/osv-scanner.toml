@@ -27,3 +27,12 @@
 [[IgnoredVulns]]
 id = "GHSA-rrmf-rvhw-rf47"   # CVE-2025-3000 / PYSEC-2025-194 / BIT-pytorch-2025-3000 (MEDIUM, CVSS 5.3)
 reason = "torch.jit.script memory corruption; unreachable (inference-only encode), no fix — see infra/osv/WAIVERS.md"
+
+# setuptools sdist MANIFEST.in Unicode-normalization bypass (transitive via
+# spacy/thinc/torch). Fixed in 83.0.0 but not yet soaked (pub 2026-07-04); bump
+# when it clears the 14-day soak. Unreachable — we never build a source
+# distribution, and the bug is macOS-APFS/HFS+ only. Full rationale in WAIVERS.md.
+[[IgnoredVulns]]
+id = "GHSA-h35f-9h28-mq5c"   # CVE-2026-59890 / PYSEC-2026-3447 (MEDIUM, CVSS 6.1)
+ignoreUntil = 2026-07-19     # floor = 83.0.0 pub 2026-07-04 + 15d; re-reds to force the drop
+reason = "setuptools sdist MANIFEST.in NFD/NFC exclude bypass (macOS-only); unreachable (we build no sdist); fix 83.0.0 soaks 2026-07-18 — see infra/osv/WAIVERS.md"

@@ -39,7 +39,12 @@ docker run --rm -v "$PWD/backend:/src:ro" \
   scan source -L /src/uv.lock --config=/cfg/osv.toml
 ```
 
-**Last reviewed:** 2026-07-06 — **dropped the pydantic-settings waiver**: bumped
+**Last reviewed:** 2026-07-15 — **added the setuptools waiver** (GHSA-h35f-9h28-mq5c /
+CVE-2026-59890 / PYSEC-2026-3447, MEDIUM 6.1): the scheduled `main` run reddened on this
+freshly-surfaced advisory (published 2026-07-08) against unchanged deps. Fixed in 83.0.0
+(pub 2026-07-04) but **not yet soaked** on the resume date (11 days < 14), so a time-boxed
+waiver with `ignoreUntil = 2026-07-19` (floor = pub + 15) — drop by bumping once it soaks
+(2026-07-18). Prior (2026-07-06) — **dropped the pydantic-settings waiver**: bumped
 `pydantic-settings` 2.14.0 → 2.14.2 (its floor, 2026-07-04, reached; the `ignoreUntil`
 had expired and re-red the gate), clearing GHSA-4xgf-cpjx-pc3j (MEDIUM 5.3); removed the
 `[[IgnoredVulns]]` block + this section. Prior (2026-06-27): **dropped the starlette waiver**:
@@ -52,6 +57,23 @@ soak, advisory GHSA-v9pg-7xvm-68hf gone.
 ---
 
 ## Active waivers
+
+### setuptools — `setuptools==81.0.0` (transitive, added 2026-07-15)
+
+Scoped file: `infra/osv/osv-scanner.toml` (`[[IgnoredVulns]]`, `ignoreUntil = 2026-07-19`).
+Class: **sdist-packing exclusion bypass** — `setuptools`' `FileList` applies `MANIFEST.in`
+exclude/global-exclude/recursive-exclude/prune directives by matching compiled globs against
+on-disk names **without Unicode normalization**, so on macOS APFS/HFS+ an NFD file name can
+bypass an NFC exclusion rule and be packed into a source distribution. `setuptools` is a
+**transitive** dependency (pulled by `spacy`/`thinc`/`torch`; not declared in
+`backend/pyproject.toml`). **Drop when:** 83.0.0 clears its 14-day soak — it was published
+2026-07-04, so the floor is **2026-07-19** (pub + 15); on/after that date bump the transitive
+pin via `/add-dependency` (or a `constraint`), then delete the toml block + this row. The
+`ignoreUntil` re-reds CI on 2026-07-19 as the backstop.
+
+| CVE / advisory | Severity | Class | Why not reachable here |
+|---|---|---|---|
+| GHSA-h35f-9h28-mq5c (CVE-2026-59890, PYSEC-2026-3447) | MEDIUM (CVSS 6.1) | `MANIFEST.in` NFD/NFC exclude bypass when building an sdist | The bug only triggers when **running `setuptools sdist`** (building a source distribution) **on macOS APFS/HFS+**. Story Forge is a local web app — it never packages/publishes a source distribution of itself or anything, and deploys on Linux/WSL with a single trusted local user. There is no sdist build and no untrusted file-name source, so the affected code path is never reached. A fixed version (83.0.0) exists; this waiver is purely the 14-day soak wait, not an unfixable case. |
 
 ### torch — `torch==2.12.0` (M3.S2, added 2026-06-12)
 
