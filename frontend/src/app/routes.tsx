@@ -12,6 +12,7 @@ import { OutlineEditor } from "../features/chunking/OutlineEditor";
 import { DuplicatesQueue } from "../features/duplicate-review/DuplicatesQueue";
 import { ReviewQueue } from "../features/extraction-review/ReviewQueue";
 import { ProjectPicker } from "../features/projects/ProjectPicker";
+import { NormaliseNamesQueue } from "../features/normalise-names/NormaliseNamesQueue";
 import { RelationQueue } from "../features/relation-review/RelationQueue";
 import { TextReader } from "../features/text-reader/TextReader";
 import { UploadScreen } from "../features/upload/UploadScreen";
@@ -56,6 +57,9 @@ export function AppRoutes() {
       {/* Graph-quality S4b: work down the likely-duplicate entity pairs suggested over the
           accepted graph — accept (→ the existing merge) or dismiss each (human-gated). */}
       <Route path="/stories/:storyId/duplicates" element={<DuplicatesQueue />} />
+      {/* Graph-quality S6b: work down the suggested synonymous predicate/type label pairs —
+          rename one form into the other graph-wide or dismiss each (human-gated). */}
+      <Route path="/stories/:storyId/normalise-names" element={<NormaliseNamesQueue />} />
     </Routes>
   );
 }
