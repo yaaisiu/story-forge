@@ -54,6 +54,7 @@ from story_forge.domain.graph_undo import (
     invert_operation,
 )
 from story_forge.domain.models import EntityMention, MentionSuppression
+from story_forge.domain.predicate_rename import plan_predicate_rename
 from story_forge.domain.relation_rekey import plan_relation_rekey
 
 # A manually-asserted edge carries full confidence (a human stated it, not a model).
@@ -83,7 +84,11 @@ class EntityGraphEditor(Protocol):
     async def get_entity(self, entity_id: UUID) -> GraphEntity | None: ...
     async def create_entity(self, entity: GraphEntity) -> None: ...
     async def update_entity(self, entity: GraphEntity) -> None: ...
+    async def relabel_entity_type(
+        self, project_id: UUID, from_type: str, to_type: str
+    ) -> list[UUID]: ...
     async def get_relation(self, project_id: UUID, edge_id: UUID) -> GraphRelation | None: ...
+    async def get_relations(self, project_id: UUID) -> list[GraphRelation]: ...
     async def create_relation(self, relation: GraphRelation) -> None: ...
     async def delete_relation(self, edge_id: UUID) -> None: ...
     async def get_neighbourhood(
@@ -161,6 +166,24 @@ class RelationEditResult:
 
 
 @dataclass(frozen=True)
+class PredicateRenameSummary:
+    """Outcome of a graph-wide predicate rename (S6a-2, DM-NN-4) — the counts the normalise-names
+    list reports: edges re-keyed to a genuinely new Q edge (`renamed_count`) and edges folded onto a
+    pre-existing Q edge (`folded_count`, "merged N edges" — reported, never the goal)."""
+
+    renamed_count: int
+    folded_count: int
+
+
+@dataclass(frozen=True)
+class TypeRelabelSummary:
+    """Outcome of a graph-wide entity-type relabel (S6a-2, DM-NN-5) — the number of nodes whose
+    `type` property was re-set (no fold: nodes sharing a type stay independent)."""
+
+    relabelled_count: int
+
+
+@dataclass(frozen=True)
 class MergeSummary:
     """Outcome of a merge — the survivor's id + the counts the side panel reports to the author
     (re-pointed/folded edges, dropped self-loops, mentions moved; DM-S3b-3)."""
@@ -210,6 +233,19 @@ def _retarget_description(old: GraphRelation, new: GraphRelation) -> str:
     if old.type != new.type:
         return f"re-predicated an edge '{old.type}' → '{new.type}'"
     return f"re-targeted a '{old.type}' edge"
+
+
+def _rename_predicate_description(from_predicate: str, to_predicate: str, folded: int) -> str:
+    """The human label a graph-wide predicate rename's undo affordance previews (DM-S3b-1)."""
+    label = f"renamed predicate '{from_predicate}' → '{to_predicate}'"
+    if folded:
+        label += f" (merged {folded} edge{'s' if folded != 1 else ''})"
+    return label
+
+
+def _relabel_type_description(from_type: str, to_type: str) -> str:
+    """The human label a graph-wide entity-type relabel's undo affordance previews (DM-S3b-1)."""
+    return f"relabelled type '{from_type}' → '{to_type}'"
 
 
 def _mention_payload(
@@ -479,6 +515,140 @@ class EntityEditService:
         return RelationEditResult(
             edge_id=plan.new_edge.id, merged_into_existing=plan.kind == "fold"
         )
+
+    async def rename_predicate(
+        self, project_id: UUID, from_predicate: str, to_predicate: str
+    ) -> PredicateRenameSummary:
+        """Rename a predicate graph-wide P→Q as one grouped reversible operation (S6a-2, DM-NN-4).
+
+        The graph-wide generalisation of `retarget_relation`: re-key **every** edge bearing P,
+        preserving each `edge_uid` (INV-10) and folding any edge whose renamed id already exists
+        onto that survivor (reported via `folded_count`, never the goal). It reuses
+        `plan_relation_rekey` per bearing edge (via the pure `plan_predicate_rename`) and the same
+        `repoint_relation` / `fold_relation` evidence op-strings, so `graph_undo.invert_operation`
+        reverses the whole N-edge operation with **no new inverter branch**, and it reuses
+        `create_relation` / `delete_relation` — **no new graph-write symbol, INV-9's grep-guard
+        enumeration unchanged** (only the reachable *path* grows; S6 is the graph-wide consumer
+        INV-10 anticipated).
+
+        Per edge the graph is written **create-new before delete-old** (a store failure mid-op
+        leaves a recoverable duplicate, never a missing edge — the accepted single-author LWW
+        window, DM-S3a-6, now spanning N edges; a retry converges since re-keying an already-Q edge
+        is a no-op), and the grouped before-image is recorded **atomically last** (INV-3), as every
+        grouped op does (merge, delete). That last step widens one accepted window: a store failure
+        *after* some edges re-keyed but *before* `record_operation` leaves those re-keys applied yet
+        **unlogged** — invisible to undo; a retry re-keys and logs only the still-P edges, so the
+        graph converges to Q but the undo history does not cover the first batch. This is the same
+        evidence-last posture as the merge/delete fan-out, at larger N — accepted under the
+        single-author LWW window (the proposal's "name the wider window", DM-NN-4), not eliminated.
+        A rename with no bearing edges (or from == to) writes nothing (planner guards a blank).
+        """
+        edges = await self._graph.get_relations(project_id)
+        # Resolve each bearing edge's handle up-front (mint-forward for a legacy handle-less edge —
+        # minting is impure, so it stays out of the pure planner; DM-S5-3).
+        handles = {
+            edge.id: (edge.edge_uid or uuid4()) for edge in edges if edge.type == from_predicate
+        }
+        plan = plan_predicate_rename(
+            edges, handles, from_predicate=from_predicate, to_predicate=to_predicate
+        )
+        if not plan.steps:
+            return PredicateRenameSummary(renamed_count=0, folded_count=0)
+
+        specs: list[dict[str, object]] = []
+        for step in plan.steps:
+            # On a fold the create MERGEs onto the pre-existing survivor edge, whose own handle wins
+            # (the ON-CREATE coalesce) — mirroring `retarget_relation`, per edge.
+            await self._graph.create_relation(step.new_edge)
+            await self._graph.delete_relation(step.old_edge.id)
+            specs.append(
+                {
+                    "target_id": step.old_edge.id,
+                    "target_kind": "relation",
+                    "op": f"{step.kind}_relation",
+                    "before": step.old_edge.model_dump(mode="json"),
+                    "after": step.new_edge.model_dump(mode="json"),
+                }
+            )
+
+        base_seed = f"rename_predicate:{project_id}:{from_predicate}:{to_predicate}"
+        generation = await self._next_generation(base_seed)
+        await self._evidence.record_operation(
+            self._grouped(
+                project_id,
+                op_kind="rename_predicate",
+                description=_rename_predicate_description(
+                    from_predicate, to_predicate, plan.folded_count
+                ),
+                base_seed=base_seed,
+                generation=generation,
+                specs=specs,
+            )
+        )
+        return PredicateRenameSummary(
+            renamed_count=plan.renamed_count, folded_count=plan.folded_count
+        )
+
+    async def relabel_entity_type(
+        self, project_id: UUID, from_type: str, to_type: str
+    ) -> TypeRelabelSummary:
+        """Relabel an entity type graph-wide A→B as one grouped reversible operation (S6a-2, NN-5).
+
+        The type apply op — the **one net-new graph writer** in S6. A type is a node *property*
+        (INV-4 free string), so this is a bulk `SET n.type` over the matched nodes: **no re-key, no
+        `edge_uid` handle, no collapse** (two nodes sharing a type stay independent — the apply-fork
+        asymmetry vs a predicate rename). The forward write is the new `relabel_entity_type` graph
+        writer (INV-9 enumeration grows by one path); undo reuses the existing `edit_fields` inverse
+        (`RestoreEntityFields` restores each node's `type` on the *current* node via `model_copy`,
+        so other fields are untouched), so no new inverter branch. Every relabelled node had
+        `from_type`, so its before-image is uniform (`{"type": from_type}`) and undo is exact.
+
+        Undo's *drift guard* is single-valued (`invert_operation` keeps one `DriftCheck` — designed
+        for a singleton `edit_fields`), so a bulk relabel's undo guards one representative node and
+        restores the rest best-effort — the inverter's stated posture. Under single-author LIFO undo
+        (DM-S3a-6) this is sound: to undo the relabel it must be the live top of the stack, so every
+        op above it (any delete or re-edit of a relabelled node) is already undone, leaving all
+        affected nodes present and at `to_type` — the representative node is neither absent
+        (no false 409) nor drifted (no silent clobber). A stronger per-node guard
+        would need `InversePlan` to carry N drift checks — a shared-machinery change out of scope
+        here that would apply equally to the existing merge/delete grouped ops.
+
+        A relabel matching no node writes nothing; from == to is skipped (nothing to normalise).
+        """
+        if not to_type.strip():
+            raise ValueError("entity type must be a non-empty string")
+        if from_type == to_type:
+            return TypeRelabelSummary(relabelled_count=0)
+
+        relabelled = await self._graph.relabel_entity_type(project_id, from_type, to_type)
+        if not relabelled:
+            return TypeRelabelSummary(relabelled_count=0)
+
+        before = {"type": from_type}
+        after = {"type": to_type}
+        specs: list[dict[str, object]] = [
+            {
+                "target_id": entity_id,
+                "target_kind": "entity",
+                "op": "edit_fields",
+                "before": before,
+                "after": after,
+            }
+            for entity_id in relabelled
+        ]
+        base_seed = f"relabel_type:{project_id}:{from_type}:{to_type}"
+        generation = await self._next_generation(base_seed)
+        await self._evidence.record_operation(
+            self._grouped(
+                project_id,
+                op_kind="relabel_type",
+                description=_relabel_type_description(from_type, to_type),
+                base_seed=base_seed,
+                generation=generation,
+                specs=specs,
+            )
+        )
+        return TypeRelabelSummary(relabelled_count=len(relabelled))
 
     async def merge_entities(
         self,

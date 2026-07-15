@@ -205,9 +205,9 @@ precedent: ADR 0006, DM-S3a-1.)
   `RelationReviewService` (staged edges, `agents/relation_review.py`), and — from M4.S3a —
   `EntityEditService` (committed-node edits + manual edge add/remove, `agents/entity_edit.py`). Guard:
   a reviewer can grep for `create_entity` / `add_alias` / `create_relation` / `update_entity` /
-  `delete_relation` / `delete_entity` and find them reachable only from a human-reached handler — a
-  future contributor "optimising" a confident auto-merge, an auto-edge, or an auto-edit into a direct
-  write would violate this, not improve it.
+  `relabel_entity_type` / `delete_relation` / `delete_entity` and find them reachable only from a
+  human-reached handler — a future contributor "optimising" a confident auto-merge, an auto-edge, an
+  auto-edit, or an auto-relabel into a direct write would violate this, not improve it.
 - **Second witnessed instance (M3.S4e, edges).** INV-9 always said "node *or edge*"; until S4e no
   code wrote an edge at all (`create_relation` had zero callers). S4e makes the edge case real:
   `RelationReviewService` is the sole edge writer, reached only from the human decide endpoint;
@@ -279,6 +279,18 @@ precedent: ADR 0006, DM-S3a-1.)
   is unchanged and the enumeration grows by a *path*, not a writer class. The re-key is recorded as one
   grouped, reversible `graph_edits` operation (INV-3) and preserves the §4 handle (INV-10). See ADR
   0011, [[graph-canvas-editing]] register.
+- **Eighth witnessed instance (Graph-quality S6a-2, graph-wide name normalisation).** Two apply ops,
+  each reached only from `POST …/label-vocabulary/rename`. The **predicate rename**
+  (`EntityEditService.rename_predicate`) re-keys *every* edge bearing a predicate in one grouped op —
+  reusing the **existing** `create_relation` / `delete_relation` writers (the graph-wide generalisation
+  of the seventh instance), so it **adds no new graph-writing symbol** and grows the enumeration by a
+  *path*. The **type relabel** (`EntityEditService.relabel_entity_type`) is the exception: it is the
+  **one genuinely-new graph-writer** — a bulk `SET n.type` (`Neo4jRepo.relabel_entity_type`) over the
+  matched nodes, reached only from the same human endpoint — so the grep-guard set grows by that one
+  symbol (added above). Both record one grouped, reversible `graph_edits` operation (INV-3); the
+  predicate rename preserves each `edge_uid` (INV-10, its first realized consumer). Undo reuses the
+  existing `repoint_relation` / `fold_relation` / `edit_fields` inverses (no new inverter branch). See
+  ADR 0011, [[graph-name-normalisation]] register, DM-NN-4 / DM-NN-5.
 
 ### INV-10 — An edge's surrogate handle survives re-point, re-predicate, and merge
 A committed edge carries a stable, opaque surrogate handle (`edge_uid`, an `uuid4`) **independent of
@@ -302,5 +314,7 @@ edge keeps its own handle and the folded edge's rides the before-image (so undo 
   overwrites), and the `retarget` + undo round-trips in `test_entity_edit`.
 - **Why it matters:** a content-addressed id *is* the edge's content, so it cannot carry identity that
   must outlive an edit. Reserving the handle now — before any consumer reads it — is "design the
-  constraint, defer the feature": S6 (graph-wide predicate rename) re-keys edges too, so the handle has
-  a near-term consumer. See [[surrogate-key]], [[reification]], [[graph-operation]].
+  constraint, defer the feature": the graph-wide predicate rename (S6a-2, `rename_predicate`) re-keys
+  every bearing edge and preserves each handle across the re-key — the first realized consumer,
+  witnessed by the `rename_predicate` + undo round-trips in `test_entity_edit`. See [[surrogate-key]],
+  [[reification]], [[graph-operation]].

@@ -17,6 +17,7 @@ import psycopg
 import pytest
 import pytest_asyncio
 from httpx import ASGITransport, AsyncClient
+from neo4j.exceptions import ServiceUnavailable
 
 from story_forge.adapters.db import get_connection
 from story_forge.adapters.postgres_repo import insert_project, insert_story
@@ -25,9 +26,11 @@ from story_forge.agents.entity_edit import (
     EntityNotFound,
     MergeSummary,
     NothingToUndo,
+    PredicateRenameSummary,
     RelationEdgeNotFound,
     RelationEditResult,
     SelfMergeError,
+    TypeRelabelSummary,
     UndoConflict,
     UndoResult,
 )
@@ -52,6 +55,8 @@ class _StubEdit:
         merge: MergeSummary | None = None,
         delete: DeleteSummary | None = None,
         undo: UndoResult | None = None,
+        predicate_rename: PredicateRenameSummary | None = None,
+        type_relabel: TypeRelabelSummary | None = None,
         raises: Exception | None = None,
     ) -> None:
         self._entity = entity
@@ -59,6 +64,8 @@ class _StubEdit:
         self._merge = merge
         self._delete = delete
         self._undo = undo
+        self._predicate_rename = predicate_rename
+        self._type_relabel = type_relabel
         self._raises = raises
         self.calls: list[tuple[str, tuple[object, ...]]] = []
 
@@ -128,6 +135,24 @@ class _StubEdit:
             raise self._raises
         assert self._undo is not None
         return self._undo
+
+    async def rename_predicate(
+        self, project_id: UUID, from_predicate: str, to_predicate: str
+    ) -> PredicateRenameSummary:
+        self.calls.append(("rename_predicate", (project_id, from_predicate, to_predicate)))
+        if self._raises is not None:
+            raise self._raises
+        assert self._predicate_rename is not None
+        return self._predicate_rename
+
+    async def relabel_entity_type(
+        self, project_id: UUID, from_type: str, to_type: str
+    ) -> TypeRelabelSummary:
+        self.calls.append(("relabel_entity_type", (project_id, from_type, to_type)))
+        if self._raises is not None:
+            raise self._raises
+        assert self._type_relabel is not None
+        return self._type_relabel
 
 
 async def _make_story(conn: psycopg.AsyncConnection) -> Story:
@@ -595,3 +620,105 @@ async def test_undo_unknown_story_is_404(make_client: object) -> None:
     client: AsyncClient = make_client(service)  # type: ignore[operator]
     resp = await client.post(f"/stories/{uuid4()}/graph-edits/undo")
     assert resp.status_code == 404, resp.text
+
+
+# --- name normalisation apply (S6a-2) --------------------------------------
+
+
+async def test_rename_predicate_returns_the_counts(
+    make_client: object, db_conn: psycopg.AsyncConnection
+) -> None:
+    story = await _make_story(db_conn)
+    service = _StubEdit(predicate_rename=PredicateRenameSummary(renamed_count=5, folded_count=2))
+    client: AsyncClient = make_client(service)  # type: ignore[operator]
+
+    resp = await client.post(
+        f"/stories/{story.id}/label-vocabulary/rename",
+        json={"surface": "predicate", "from_label": "PASSENGER_ON", "to_label": "ON_SHIP"},
+    )
+
+    assert resp.status_code == 200, resp.text
+    assert resp.json() == {"surface": "predicate", "renamed_count": 5, "folded_count": 2}
+    assert service.calls[0] == (
+        "rename_predicate",
+        (story.project_id, "PASSENGER_ON", "ON_SHIP"),
+    )
+
+
+async def test_relabel_type_returns_the_count_with_zero_folds(
+    make_client: object, db_conn: psycopg.AsyncConnection
+) -> None:
+    story = await _make_story(db_conn)
+    service = _StubEdit(type_relabel=TypeRelabelSummary(relabelled_count=3))
+    client: AsyncClient = make_client(service)  # type: ignore[operator]
+
+    resp = await client.post(
+        f"/stories/{story.id}/label-vocabulary/rename",
+        json={"surface": "type", "from_label": "Person", "to_label": "PERSON"},
+    )
+
+    assert resp.status_code == 200, resp.text
+    # a type relabel never merges nodes, so folded_count is always 0
+    assert resp.json() == {"surface": "type", "renamed_count": 3, "folded_count": 0}
+    assert service.calls[0] == ("relabel_entity_type", (story.project_id, "Person", "PERSON"))
+
+
+async def test_rename_strips_to_label_but_keeps_from_label_verbatim(
+    make_client: object, db_conn: psycopg.AsyncConnection
+) -> None:
+    # `from_label` must reach the service **verbatim** — a stored label can carry surrounding
+    # whitespace (the read half normalises only for comparison), so stripping it would make the
+    # rename silently miss exactly the messy label it targets. `to_label` (the new form) is trimmed.
+    story = await _make_story(db_conn)
+    service = _StubEdit(predicate_rename=PredicateRenameSummary(renamed_count=1, folded_count=0))
+    client: AsyncClient = make_client(service)  # type: ignore[operator]
+
+    resp = await client.post(
+        f"/stories/{story.id}/label-vocabulary/rename",
+        json={"surface": "predicate", "from_label": " PASSENGER_ON", "to_label": " ON_SHIP "},
+    )
+
+    assert resp.status_code == 200, resp.text
+    # from_label preserved as-typed (leading space kept), to_label stripped
+    assert service.calls[0] == ("rename_predicate", (story.project_id, " PASSENGER_ON", "ON_SHIP"))
+
+
+async def test_rename_blank_label_is_422(
+    make_client: object, db_conn: psycopg.AsyncConnection
+) -> None:
+    story = await _make_story(db_conn)
+    service = _StubEdit()
+    client: AsyncClient = make_client(service)  # type: ignore[operator]
+
+    resp = await client.post(
+        f"/stories/{story.id}/label-vocabulary/rename",
+        json={"surface": "type", "from_label": "Person", "to_label": "   "},
+    )
+
+    assert resp.status_code == 422, resp.text
+    assert service.calls == []  # rejected before reaching the service
+
+
+async def test_rename_unknown_story_is_404(make_client: object) -> None:
+    service = _StubEdit()
+    client: AsyncClient = make_client(service)  # type: ignore[operator]
+    resp = await client.post(
+        f"/stories/{uuid4()}/label-vocabulary/rename",
+        json={"surface": "predicate", "from_label": "A", "to_label": "B"},
+    )
+    assert resp.status_code == 404, resp.text
+
+
+async def test_rename_store_outage_is_503(
+    make_client: object, db_conn: psycopg.AsyncConnection
+) -> None:
+    story = await _make_story(db_conn)
+    service = _StubEdit(raises=ServiceUnavailable("neo4j down"))
+    client: AsyncClient = make_client(service)  # type: ignore[operator]
+
+    resp = await client.post(
+        f"/stories/{story.id}/label-vocabulary/rename",
+        json={"surface": "predicate", "from_label": "A", "to_label": "B"},
+    )
+
+    assert resp.status_code == 503, resp.text

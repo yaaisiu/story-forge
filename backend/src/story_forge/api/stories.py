@@ -1916,6 +1916,44 @@ class DismissLabelRequest(BaseModel):
     label_b: str
 
 
+class RenameLabelRequest(BaseModel):
+    """A graph-wide rename of one label on a surface: `from_label` → `to_label` (S6a-2, NN-4/5)."""
+
+    surface: LabelSurface
+    from_label: str
+    to_label: str
+
+    @field_validator("from_label")
+    @classmethod
+    def _from_label_present(cls, value: str) -> str:
+        # `from_label` must match the stored label **verbatim** — a stored predicate/type can carry
+        # surrounding whitespace (the S6a-1 read half normalises only for *comparison*, not the
+        # stored form), so stripping it here would make the rename silently miss exactly the messy
+        # label it targets. Reject a blank, but preserve the value as-typed.
+        if not value.strip():
+            raise ValueError("label must be a non-empty string")
+        return value
+
+    @field_validator("to_label")
+    @classmethod
+    def _to_label_non_empty(cls, value: str) -> str:
+        # The new canonical form: strip it so the author can't bake stray whitespace into it.
+        stripped = value.strip()
+        if not stripped:
+            raise ValueError("label must be a non-empty string")
+        return stripped
+
+
+class RenameSummaryResponse(BaseModel):
+    """The outcome the normalise-names list shows after a rename (S6a-2). `folded_count` is the
+    number of edges a predicate rename collapsed onto a pre-existing target (the reported
+    side-effect, never the goal) — always 0 for a type relabel, which never merges nodes."""
+
+    surface: LabelSurface
+    renamed_count: int
+    folded_count: int
+
+
 def _label_synonym_views(
     pairs: list[LabelSynonymSuggestion],
     dismissed: set[UUID],
@@ -2046,6 +2084,51 @@ async def undismiss_label_synonym(
         await store.delete(story.project_id, body.surface, body.label_a, body.label_b)
     except OperationalError as exc:
         raise HTTPException(status_code=503, detail="the dismissal store is unavailable") from exc
+
+
+@router.post(
+    "/{story_id}/label-vocabulary/rename",
+    responses={
+        404: {"model": ErrorResponse, "description": "Story not found."},
+        503: {"model": ErrorResponse, "description": "A data store is unavailable."},
+    },
+)
+async def rename_label(
+    story_id: UUID,
+    body: RenameLabelRequest,
+    conn: Annotated[AsyncConnection, Depends(get_connection)],
+    edit: Annotated[EntityEditService, Depends(get_entity_edit)],
+) -> RenameSummaryResponse:
+    """Rename a label graph-wide on its surface (S6a-2, DM-NN-4/5) — human-gated (INV-1/INV-9),
+    reversible via the graph-edit undo log (INV-3).
+
+    A **predicate** rename re-keys every bearing edge in one grouped op (preserving each `edge_uid`,
+    INV-10; folding identical triples, reported via `folded_count`); a **type** rename is a bulk
+    `SET n.type` relabel that never merges nodes (`folded_count` always 0). A label nothing bears
+    renames nothing (0/0). `get_story` runs inside the declared-503 guard so a store outage on the
+    lookup maps to 503, not a bare 500 (the S82 edit-route pattern the read routes already follow).
+    """
+    try:
+        story = await get_story(conn, story_id)
+        if story is None:
+            raise HTTPException(status_code=404, detail="story not found")
+        if body.surface == "predicate":
+            renamed = await edit.rename_predicate(story.project_id, body.from_label, body.to_label)
+            summary = RenameSummaryResponse(
+                surface="predicate",
+                renamed_count=renamed.renamed_count,
+                folded_count=renamed.folded_count,
+            )
+        else:
+            relabelled = await edit.relabel_entity_type(
+                story.project_id, body.from_label, body.to_label
+            )
+            summary = RenameSummaryResponse(
+                surface="type", renamed_count=relabelled.relabelled_count, folded_count=0
+            )
+    except (OperationalError, ServiceUnavailable) as exc:
+        raise HTTPException(status_code=503, detail="a data store is unavailable") from exc
+    return summary
 
 
 class AcceptRequest(BaseModel):

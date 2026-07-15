@@ -1914,6 +1914,80 @@
         }
       }
     },
+    "/stories/{story_id}/label-vocabulary/rename": {
+      "post": {
+        "tags": [
+          "stories"
+        ],
+        "summary": "Rename Label",
+        "description": "Rename a label graph-wide on its surface (S6a-2, DM-NN-4/5) \u2014 human-gated (INV-1/INV-9),\nreversible via the graph-edit undo log (INV-3).\n\nA **predicate** rename re-keys every bearing edge in one grouped op (preserving each `edge_uid`,\nINV-10; folding identical triples, reported via `folded_count`); a **type** rename is a bulk\n`SET n.type` relabel that never merges nodes (`folded_count` always 0). A label nothing bears\nrenames nothing (0/0). `get_story` runs inside the declared-503 guard so a store outage on the\nlookup maps to 503, not a bare 500 (the S82 edit-route pattern the read routes already follow).",
+        "operationId": "rename_label_stories__story_id__label_vocabulary_rename_post",
+        "parameters": [
+          {
+            "name": "story_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Story Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RenameLabelRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RenameSummaryResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Story not found.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "A data store is unavailable.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/stories/{story_id}/candidates/{candidate_id}/accept": {
       "post": {
         "tags": [
@@ -4073,6 +4147,62 @@
         ],
         "title": "RelationsResponse",
         "description": "A story's committable relations (both endpoints resolved) \u2014 the decide queue."
+      },
+      "RenameLabelRequest": {
+        "properties": {
+          "surface": {
+            "type": "string",
+            "enum": [
+              "predicate",
+              "type"
+            ],
+            "title": "Surface"
+          },
+          "from_label": {
+            "type": "string",
+            "title": "From Label"
+          },
+          "to_label": {
+            "type": "string",
+            "title": "To Label"
+          }
+        },
+        "type": "object",
+        "required": [
+          "surface",
+          "from_label",
+          "to_label"
+        ],
+        "title": "RenameLabelRequest",
+        "description": "A graph-wide rename of one label on a surface: `from_label` \u2192 `to_label` (S6a-2, NN-4/5)."
+      },
+      "RenameSummaryResponse": {
+        "properties": {
+          "surface": {
+            "type": "string",
+            "enum": [
+              "predicate",
+              "type"
+            ],
+            "title": "Surface"
+          },
+          "renamed_count": {
+            "type": "integer",
+            "title": "Renamed Count"
+          },
+          "folded_count": {
+            "type": "integer",
+            "title": "Folded Count"
+          }
+        },
+        "type": "object",
+        "required": [
+          "surface",
+          "renamed_count",
+          "folded_count"
+        ],
+        "title": "RenameSummaryResponse",
+        "description": "The outcome the normalise-names list shows after a rename (S6a-2). `folded_count` is the\nnumber of edges a predicate rename collapsed onto a pre-existing target (the reported\nside-effect, never the goal) \u2014 always 0 for a type relabel, which never merges nodes."
       },
       "RetargetRelationRequest": {
         "properties": {

@@ -134,6 +134,30 @@ class Neo4jRepo:
             properties_json=json.dumps(entity.properties, ensure_ascii=False),
         )
 
+    async def relabel_entity_type(
+        self, project_id: UUID, from_type: str, to_type: str
+    ) -> list[UUID]:
+        """Bulk-relabel every entity of type `from_type` to `to_type` (graph-quality S6a-2, NN-5).
+
+        The type apply op — the one net-new graph writer in S6. A type is a node *property*
+        (`e.type`, INV-4 free string, not a label — see `create_entity`), so a graph-wide type
+        rename is a single `SET n.type` over the matched nodes: no re-key, no `edge_uid` handle, no
+        collapse (two nodes sharing a type stay independent — the apply-fork asymmetry vs a
+        predicate rename). Returns the ids of the relabelled nodes so the caller records an exact
+        before-image for undo; every matched node had `from_type`, so that before-image is uniform
+        (`{"type": from_type}`). The type value is parameter-bound (no Cypher interpolation), so —
+        unlike a relationship type — there is no injection surface. Idempotent: a node already at
+        `to_type` no longer matches `from_type`, so a retry relabels nothing new.
+        """
+        records, _, _ = await self._driver.execute_query(
+            "MATCH (e:Entity {project_id: $pid}) WHERE e.type = $from_type "
+            "SET e.type = $to_type RETURN e.id AS id",
+            pid=str(project_id),
+            from_type=from_type,
+            to_type=to_type,
+        )
+        return [UUID(record["id"]) for record in records]
+
     async def get_entity(self, entity_id: UUID) -> GraphEntity | None:
         records, _, _ = await self._driver.execute_query(
             "MATCH (e:Entity {id: $id}) RETURN properties(e) AS props",

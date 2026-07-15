@@ -476,3 +476,58 @@ async def test_get_neighbourhood_excludes_cross_project_neighbour(
         assert neighbour_ids == {same.id}  # foreign neighbour excluded
     finally:
         await repo.delete_project_graph(other_project)  # the fixture only cleans `project_id`
+
+
+async def test_relabel_entity_type_relabels_matching_nodes_and_returns_their_ids(
+    graph: tuple[Neo4jRepo, UUID],
+) -> None:
+    """The type apply op (S6a-2, DM-NN-5): a bulk `SET n.type` relabels every node of the old
+    type, returns exactly those ids (for the caller's before-image), and leaves other types and
+    other projects alone. No `edge_uid`/re-key involved — this is the property path."""
+    repo, project_id = graph
+    a1 = GraphEntity(type="Person", canonical_name_pl="Janek", project_id=project_id)
+    a2 = GraphEntity(type="Person", canonical_name_pl="Maria", project_id=project_id)
+    other = GraphEntity(type="Location", canonical_name_pl="Młyn", project_id=project_id)
+    for entity in (a1, a2, other):
+        await repo.create_entity(entity)
+
+    relabelled = await repo.relabel_entity_type(project_id, "Person", "PERSON")
+
+    assert set(relabelled) == {a1.id, a2.id}
+    got = {e.id: e.type for e in await repo.list_entities(project_id)}
+    assert got == {a1.id: "PERSON", a2.id: "PERSON", other.id: "Location"}
+
+
+async def test_relabel_entity_type_never_collapses_nodes_sharing_the_new_type(
+    graph: tuple[Neo4jRepo, UUID],
+) -> None:
+    """The apply-fork asymmetry vs a predicate rename: relabelling A→B where B already exists does
+    NOT merge — the ex-A node and the pre-existing B node coexist as independent nodes typed B."""
+    repo, project_id = graph
+    was_a = GraphEntity(type="Place", canonical_name_pl="Oakhaven", project_id=project_id)
+    already_b = GraphEntity(type="LOCATION", canonical_name_pl="Młyn", project_id=project_id)
+    await repo.create_entity(was_a)
+    await repo.create_entity(already_b)
+
+    relabelled = await repo.relabel_entity_type(project_id, "Place", "LOCATION")
+
+    assert relabelled == [was_a.id]  # only the ex-Place node
+    entities = await repo.list_entities(project_id)
+    assert len(entities) == 2  # nothing collapsed
+    assert {e.type for e in entities} == {"LOCATION"}
+
+
+async def test_relabel_entity_type_is_a_noop_when_nothing_matches(
+    graph: tuple[Neo4jRepo, UUID],
+) -> None:
+    """Relabelling a type no node bears returns an empty id list and changes nothing (idempotent
+    retry: a node already at the target no longer matches the source)."""
+    repo, project_id = graph
+    entity = GraphEntity(type="Person", canonical_name_pl="Janek", project_id=project_id)
+    await repo.create_entity(entity)
+
+    relabelled = await repo.relabel_entity_type(project_id, "MISSING", "PERSON")
+
+    assert relabelled == []
+    (only,) = await repo.list_entities(project_id)
+    assert only.type == "Person"

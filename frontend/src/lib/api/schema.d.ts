@@ -553,6 +553,33 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/stories/{story_id}/label-vocabulary/rename": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Rename Label
+         * @description Rename a label graph-wide on its surface (S6a-2, DM-NN-4/5) — human-gated (INV-1/INV-9),
+         *     reversible via the graph-edit undo log (INV-3).
+         *
+         *     A **predicate** rename re-keys every bearing edge in one grouped op (preserving each `edge_uid`,
+         *     INV-10; folding identical triples, reported via `folded_count`); a **type** rename is a bulk
+         *     `SET n.type` relabel that never merges nodes (`folded_count` always 0). A label nothing bears
+         *     renames nothing (0/0). `get_story` runs inside the declared-503 guard so a store outage on the
+         *     lookup maps to 503, not a bare 500 (the S82 edit-route pattern the read routes already follow).
+         */
+        post: operations["rename_label_stories__story_id__label_vocabulary_rename_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/stories/{story_id}/candidates/{candidate_id}/accept": {
         parameters: {
             query?: never;
@@ -1592,6 +1619,38 @@ export interface components {
         RelationsResponse: {
             /** Relations */
             relations: components["schemas"]["RelationView"][];
+        };
+        /**
+         * RenameLabelRequest
+         * @description A graph-wide rename of one label on a surface: `from_label` → `to_label` (S6a-2, NN-4/5).
+         */
+        RenameLabelRequest: {
+            /**
+             * Surface
+             * @enum {string}
+             */
+            surface: "predicate" | "type";
+            /** From Label */
+            from_label: string;
+            /** To Label */
+            to_label: string;
+        };
+        /**
+         * RenameSummaryResponse
+         * @description The outcome the normalise-names list shows after a rename (S6a-2). `folded_count` is the
+         *     number of edges a predicate rename collapsed onto a pre-existing target (the reported
+         *     side-effect, never the goal) — always 0 for a type relabel, which never merges nodes.
+         */
+        RenameSummaryResponse: {
+            /**
+             * Surface
+             * @enum {string}
+             */
+            surface: "predicate" | "type";
+            /** Renamed Count */
+            renamed_count: number;
+            /** Folded Count */
+            folded_count: number;
         };
         /**
          * RetargetRelationRequest
@@ -3168,6 +3227,59 @@ export interface operations {
                 };
             };
             /** @description The dismissal store is unavailable. */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    rename_label_stories__story_id__label_vocabulary_rename_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                story_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RenameLabelRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RenameSummaryResponse"];
+                };
+            };
+            /** @description Story not found. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+            /** @description A data store is unavailable. */
             503: {
                 headers: {
                     [name: string]: unknown;
