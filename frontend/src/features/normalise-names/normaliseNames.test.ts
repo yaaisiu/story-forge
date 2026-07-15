@@ -2,6 +2,7 @@
 
 import { describe, expect, it } from "vitest";
 
+import { ApiError } from "../../lib/api/client";
 import type { LabelSynonymView, LabelVocabularyResponse } from "../../lib/api/useLabelVocabulary";
 import {
   armRename,
@@ -11,6 +12,7 @@ import {
   reduceNormaliseKey,
   renameSummaryMessage,
   scoreLabels,
+  vocabularyErrorMessage,
   type LabelPairItem,
 } from "./normaliseNames";
 
@@ -151,6 +153,24 @@ describe("renameSummaryMessage", () => {
         "Location",
       ),
     ).toBe("Renamed 4 entities from “Place” to “Location”.");
+  });
+});
+
+describe("vocabularyErrorMessage", () => {
+  it("maps the routes' declared statuses and falls back safely", () => {
+    expect(vocabularyErrorMessage(new ApiError(404, "story not found", null))).toBe(
+      "This story no longer exists.",
+    );
+    expect(vocabularyErrorMessage(new ApiError(503, "a data store is unavailable", null))).toBe(
+      "The label-vocabulary data is temporarily unavailable — try again shortly.",
+    );
+    // A never-declared status falls through to the detail.
+    expect(vocabularyErrorMessage(new ApiError(400, "bad", null))).toBe("bad");
+  });
+
+  it("gives a non-empty message for a thrown (non-ApiError) fetch failure", () => {
+    expect(vocabularyErrorMessage(new TypeError("Failed to fetch"))).toBe("Please try again.");
+    expect(vocabularyErrorMessage(undefined)).toBe("Please try again.");
   });
 });
 

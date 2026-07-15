@@ -212,6 +212,22 @@ describe("NormaliseNamesQueue", () => {
     );
   });
 
+  it("shows only the most recent action's banner (a dismiss clears a prior rename status)", () => {
+    h.data.value = {
+      predicate_suggestions: [synonym("LOCATED_AT", "LOCATED_IN"), synonym("PART_OF", "MEMBER_OF")],
+      type_suggestions: [],
+    };
+    renderQueue();
+
+    fireEvent.click(screen.getAllByTestId("stub-rename")[0]!);
+    expect(screen.getByTestId("normalise-renamed")).toBeInTheDocument();
+
+    // Dismissing afterwards clears the stale rename banner and shows the dismiss Undo instead.
+    fireEvent.click(screen.getAllByTestId("stub-dismiss")[1]!);
+    expect(screen.queryByTestId("normalise-renamed")).not.toBeInTheDocument();
+    expect(screen.getByTestId("normalise-undo")).toBeInTheDocument();
+  });
+
   it("surfaces a failed Undo and keeps the banner so it can be retried", () => {
     h.undismissFails.value = true;
     h.data.value = {

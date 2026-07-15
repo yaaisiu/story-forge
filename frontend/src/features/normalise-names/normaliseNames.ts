@@ -7,11 +7,13 @@
 // live here as pure, unit-tested functions. The rename itself calls the existing endpoint graph-wide
 // (INV-1/INV-9 — suggests only, the human commits).
 
+import { ApiError } from "../../lib/api/client";
 import type { LabelSynonymView, LabelVocabularyResponse } from "../../lib/api/useLabelVocabulary";
 import type { RenameSummaryResponse } from "../../lib/api/useRenameLabel";
 
-/** The two vocabularies a label can belong to. A predicate is never a synonym of a type. */
-export type Surface = "predicate" | "type";
+/** The two vocabularies a label can belong to. A predicate is never a synonym of a type. Derived
+ * from the schema so a future third surface is a type error here, not a silent gap. */
+export type Surface = RenameSummaryResponse["surface"];
 
 /** One synonym pair tagged with its vocabulary surface, for the shared flat cursor. */
 export interface LabelPairItem {
@@ -119,6 +121,18 @@ export function renameSummaryMessage(
       ? `, folding ${summary.folded_count} duplicate ${summary.folded_count === 1 ? "edge" : "edges"}`
       : "";
   return `${base}${folded}.`;
+}
+
+/** Human-readable message for any label-vocabulary error — the list load, a rename, or a
+ * dismiss/un-dismiss. Status meanings are read off api/stories.py: these routes raise 404 (story)
+ * and 503 (a data store), never 409/400; a thrown fetch (backend unreachable) is the non-ApiError
+ * case, so `.detail` must never be read blind. Shared by the queue and the card. */
+export function vocabularyErrorMessage(error: unknown): string {
+  if (!(error instanceof ApiError)) return "Please try again.";
+  if (error.status === 404) return "This story no longer exists.";
+  if (error.status === 503)
+    return "The label-vocabulary data is temporarily unavailable — try again shortly.";
+  return error.detail || `Request failed (HTTP ${error.status}).`;
 }
 
 function clamp(index: number, length: number): number {

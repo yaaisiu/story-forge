@@ -8,13 +8,14 @@
 import { fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
+import { ApiError } from "../../lib/api/client";
 import { LabelPairCard } from "./LabelPairCard";
 import type { LabelPairItem } from "./normaliseNames";
 
 const h = vi.hoisted(() => ({
   renameMutate: vi.fn(),
   renameReset: vi.fn(),
-  renameError: { value: null as { detail: string } | null },
+  renameError: { value: null as unknown },
   renamePending: { value: false },
 }));
 
@@ -121,11 +122,21 @@ describe("LabelPairCard", () => {
     });
   });
 
-  it("dispatches dismiss and surfaces a rename error", () => {
-    h.renameError.value = { detail: "a data store is unavailable" };
+  it("dispatches dismiss and surfaces a mapped rename error", () => {
+    h.renameError.value = new ApiError(503, "a data store is unavailable", null);
     const { onDismiss } = renderCard();
     fireEvent.click(screen.getByTestId("label-dismiss"));
     expect(onDismiss).toHaveBeenCalledTimes(1);
-    expect(screen.getByTestId("rename-error")).toHaveTextContent("a data store is unavailable");
+    expect(screen.getByTestId("rename-error")).toHaveTextContent(
+      "The label-vocabulary data is temporarily unavailable — try again shortly.",
+    );
+  });
+
+  it("shows a non-empty message when the rename fails with a thrown (non-ApiError) fetch", () => {
+    // A network-level failure gives React Query a raw TypeError (no `.detail`); the banner must
+    // still read something, not render empty (code-review finding).
+    h.renameError.value = new TypeError("Failed to fetch");
+    renderCard();
+    expect(screen.getByTestId("rename-error")).toHaveTextContent("Please try again.");
   });
 });

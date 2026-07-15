@@ -15,7 +15,6 @@ import { useState } from "react";
 
 import { Link, useParams } from "react-router-dom";
 
-import { ApiError } from "../../lib/api/client";
 import { useLabelVocabulary } from "../../lib/api/useLabelVocabulary";
 import { useDismissLabel, useUndismissLabel } from "../../lib/api/useDismissLabel";
 import { useReviewQueue } from "../../hooks/useReviewQueue";
@@ -25,21 +24,11 @@ import {
   pairKey,
   reduceNormaliseKey,
   renameSummaryMessage,
+  vocabularyErrorMessage,
   type LabelPairItem,
   type NavState,
   type NormaliseIntent,
 } from "./normaliseNames";
-
-function vocabularyMessage(error: unknown): string {
-  // Maps both the list-load error and the dismiss/un-dismiss error. Status meanings are read off
-  // api/stories.py: the label-vocabulary routes raise 404 (story) and 503 (a data store), never
-  // 409/400. A thrown fetch (backend unreachable) is the non-ApiError case.
-  if (!(error instanceof ApiError)) return "Please try again.";
-  if (error.status === 404) return "This story no longer exists.";
-  if (error.status === 503)
-    return "The label-vocabulary data is temporarily unavailable — try again shortly.";
-  return error.detail || `Request failed (HTTP ${error.status}).`;
-}
 
 function pairLabels(item: LabelPairItem): string {
   return `${item.pair.label_lo} & ${item.pair.label_hi}`;
@@ -117,8 +106,19 @@ export function NormaliseNamesQueue() {
     if (!target) return;
     dismiss.mutate(
       { surface: target.surface, labelA: target.pair.label_lo, labelB: target.pair.label_hi },
-      { onSuccess: () => setLastDismissed(target) },
+      {
+        onSuccess: () => {
+          // Only the most recent action's banner should show — clear a lingering rename status.
+          setLastRename(null);
+          setLastDismissed(target);
+        },
+      },
     );
+  }
+
+  function handleRenamed(outcome: RenameOutcome) {
+    setLastDismissed(null);
+    setLastRename(outcome);
   }
 
   const { state: nav, setState: setNav } = useReviewQueue<LabelPairItem, NavState, NormaliseIntent>(
@@ -157,7 +157,7 @@ export function NormaliseNamesQueue() {
     return (
       <main className="p-6">
         <p data-testid="normalise-error" role="alert" className="text-sm text-red-700">
-          Couldn&rsquo;t load synonym suggestions. {vocabularyMessage(vocabulary.error)}
+          Couldn&rsquo;t load synonym suggestions. {vocabularyErrorMessage(vocabulary.error)}
         </p>
       </main>
     );
@@ -225,13 +225,13 @@ export function NormaliseNamesQueue() {
 
       {dismiss.isError && (
         <p data-testid="normalise-dismiss-error" role="alert" className="text-sm text-red-700">
-          {vocabularyMessage(dismiss.error)}
+          {vocabularyErrorMessage(dismiss.error)}
         </p>
       )}
 
       {undismiss.isError && (
         <p data-testid="normalise-undismiss-error" role="alert" className="text-sm text-red-700">
-          Couldn&rsquo;t undo the dismissal. {vocabularyMessage(undismiss.error)}
+          Couldn&rsquo;t undo the dismissal. {vocabularyErrorMessage(undismiss.error)}
         </p>
       )}
 
@@ -248,7 +248,7 @@ export function NormaliseNamesQueue() {
             entries={predicates}
             selectedIndex={selectedIndex}
             onSelect={(index) => setNav({ selectedIndex: index })}
-            onRenamed={setLastRename}
+            onRenamed={handleRenamed}
             onDismiss={dismissAt}
             dismiss={dismiss}
           />
@@ -259,7 +259,7 @@ export function NormaliseNamesQueue() {
             entries={types}
             selectedIndex={selectedIndex}
             onSelect={(index) => setNav({ selectedIndex: index })}
-            onRenamed={setLastRename}
+            onRenamed={handleRenamed}
             onDismiss={dismissAt}
             dismiss={dismiss}
           />

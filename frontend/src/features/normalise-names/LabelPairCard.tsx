@@ -13,7 +13,13 @@
 import { useState } from "react";
 
 import { useRenameLabel, type RenameSummaryResponse } from "../../lib/api/useRenameLabel";
-import { armRename, armedRenameHint, scoreLabels, type LabelPairItem } from "./normaliseNames";
+import {
+  armRename,
+  armedRenameHint,
+  scoreLabels,
+  vocabularyErrorMessage,
+  type LabelPairItem,
+} from "./normaliseNames";
 
 /** What a committed rename tells the queue to surface after this card unmounts on refetch. */
 export interface RenameOutcome {
@@ -148,7 +154,7 @@ export function LabelPairCard({
 
       {rename.isError && (
         <p data-testid="rename-error" role="alert" className="text-xs text-red-700">
-          {rename.error.detail}
+          {vocabularyErrorMessage(rename.error)}
         </p>
       )}
 
