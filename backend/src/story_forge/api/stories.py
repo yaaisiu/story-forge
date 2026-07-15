@@ -1923,9 +1923,21 @@ class RenameLabelRequest(BaseModel):
     from_label: str
     to_label: str
 
-    @field_validator("from_label", "to_label")
+    @field_validator("from_label")
     @classmethod
-    def _non_empty(cls, value: str) -> str:
+    def _from_label_present(cls, value: str) -> str:
+        # `from_label` must match the stored label **verbatim** — a stored predicate/type can carry
+        # surrounding whitespace (the S6a-1 read half normalises only for *comparison*, not the
+        # stored form), so stripping it here would make the rename silently miss exactly the messy
+        # label it targets. Reject a blank, but preserve the value as-typed.
+        if not value.strip():
+            raise ValueError("label must be a non-empty string")
+        return value
+
+    @field_validator("to_label")
+    @classmethod
+    def _to_label_non_empty(cls, value: str) -> str:
+        # The new canonical form: strip it so the author can't bake stray whitespace into it.
         stripped = value.strip()
         if not stripped:
             raise ValueError("label must be a non-empty string")

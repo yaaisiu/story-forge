@@ -663,20 +663,24 @@ async def test_relabel_type_returns_the_count_with_zero_folds(
     assert service.calls[0] == ("relabel_entity_type", (story.project_id, "Person", "PERSON"))
 
 
-async def test_rename_strips_label_whitespace(
+async def test_rename_strips_to_label_but_keeps_from_label_verbatim(
     make_client: object, db_conn: psycopg.AsyncConnection
 ) -> None:
+    # `from_label` must reach the service **verbatim** — a stored label can carry surrounding
+    # whitespace (the read half normalises only for comparison), so stripping it would make the
+    # rename silently miss exactly the messy label it targets. `to_label` (the new form) is trimmed.
     story = await _make_story(db_conn)
     service = _StubEdit(predicate_rename=PredicateRenameSummary(renamed_count=1, folded_count=0))
     client: AsyncClient = make_client(service)  # type: ignore[operator]
 
     resp = await client.post(
         f"/stories/{story.id}/label-vocabulary/rename",
-        json={"surface": "predicate", "from_label": "  PASSENGER_ON ", "to_label": " ON_SHIP "},
+        json={"surface": "predicate", "from_label": " PASSENGER_ON", "to_label": " ON_SHIP "},
     )
 
     assert resp.status_code == 200, resp.text
-    assert service.calls[0] == ("rename_predicate", (story.project_id, "PASSENGER_ON", "ON_SHIP"))
+    # from_label preserved as-typed (leading space kept), to_label stripped
+    assert service.calls[0] == ("rename_predicate", (story.project_id, " PASSENGER_ON", "ON_SHIP"))
 
 
 async def test_rename_blank_label_is_422(

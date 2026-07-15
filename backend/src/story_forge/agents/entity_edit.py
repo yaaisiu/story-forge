@@ -534,12 +534,15 @@ class EntityEditService:
         Per edge the graph is written **create-new before delete-old** (a store failure mid-op
         leaves a recoverable duplicate, never a missing edge — the accepted single-author LWW
         window, DM-S3a-6, now spanning N edges; a retry converges since re-keying an already-Q edge
-        is a no-op), and the whole before-image row batch is written last (INV-3). A rename with no
-        bearing edges — or from == to — writes nothing.
+        is a no-op), and the grouped before-image is recorded **atomically last** (INV-3), as every
+        grouped op does (merge, delete). That last step widens one accepted window: a store failure
+        *after* some edges re-keyed but *before* `record_operation` leaves those re-keys applied yet
+        **unlogged** — invisible to undo; a retry re-keys and logs only the still-P edges, so the
+        graph converges to Q but the undo history does not cover the first batch. This is the same
+        evidence-last posture as the merge/delete fan-out, at larger N — accepted under the
+        single-author LWW window (the proposal's "name the wider window", DM-NN-4), not eliminated.
+        A rename with no bearing edges (or from == to) writes nothing (planner guards a blank).
         """
-        if not to_predicate.strip():
-            raise ValueError("relation predicate must be a non-empty string")
-
         edges = await self._graph.get_relations(project_id)
         # Resolve each bearing edge's handle up-front (mint-forward for a legacy handle-less edge —
         # minting is impure, so it stays out of the pure planner; DM-S5-3).
@@ -602,9 +605,13 @@ class EntityEditService:
 
         Undo's *drift guard* is single-valued (`invert_operation` keeps one `DriftCheck` — designed
         for a singleton `edit_fields`), so a bulk relabel's undo guards one representative node and
-        restores the rest best-effort — the inverter's stated best-effort posture, sound under the
-        single-author LWW window (DM-S3a-6): to undo the relabel it must be the live top of the
-        stack, i.e. the graph is back at its post-relabel state.
+        restores the rest best-effort — the inverter's stated posture. Under single-author LIFO undo
+        (DM-S3a-6) this is sound: to undo the relabel it must be the live top of the stack, so every
+        op above it (any delete or re-edit of a relabelled node) is already undone, leaving all
+        affected nodes present and at `to_type` — the representative node is neither absent
+        (no false 409) nor drifted (no silent clobber). A stronger per-node guard
+        would need `InversePlan` to carry N drift checks — a shared-machinery change out of scope
+        here that would apply equally to the existing merge/delete grouped ops.
 
         A relabel matching no node writes nothing; from == to is skipped (nothing to normalise).
         """
