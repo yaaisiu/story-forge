@@ -99,6 +99,36 @@ the `dev-rituals` plugin is built for the owner's *other* repos, genericized *fr
 skills. Only `meta-architect` is vendored back into SF (slice 1). No further SF work — the item is
 closed. Full arc in `docs/design/tooling-extraction.md` + `docs/PLAN_SHORT.md` Decided S84→S89.
 
+### The `dev-rituals` copy-model is wrong — we need a *generator*, not a plugin that owns the skills (owner, Session 93)
+
+Using the shipped `dev-rituals` plugin revealed that its distribution model defeats the one property
+that makes the SF skillset actually valuable: **self-improvement in a loop.** The plugin ships the
+rituals as **plugin-owned skills** + a per-repo `.claude/dev-rituals.config.json` for knobs. In a
+target repo the skill *bodies* live in the plugin's install directory, not in the repo — so they are
+effectively **read-only there**. That kills the living loop: `/retro` can't read a session's friction
+and **rewrite the skill in place** the way it does in SF (where the skills are the repo's own files
+and their git history records how each ritual evolved). A consumer repo gets **frozen copies + a
+config file**, not a skillset that learns the project's habits and diverges the way SF's did.
+(`meta-architect` does *not* have this problem — it's genuinely project-agnostic, writes into a vault,
+and doesn't need to learn the repo's habits; hence "for the architect it may be working.")
+
+**The reframe: flip the plugin from a *container of skills* to a *generator of skills.*** The tool
+should **ingest** our reference skillset (SF's `.claude/skills/` + the `CLAUDE.md` doctrine), **analyse**
+the target repo (stack, CI, test runner, existing rituals), and **scaffold native, repo-owned skills
+into that repo's `.claude/skills/`** — tuned to that project. From then on the skills are the repo's
+*own* files: `/retro` can evolve them, the repo's git history records the evolution, and each project's
+ritual set diverges the way SF's has. The plugin becomes a **bootstrapper** (and optionally an
+upgrade-advisor that diffs a repo's skills against the reference), **not the runtime home of the skills.**
+
+Key point worth preserving: **"self-improving, working in loops" is a property of *where the files
+live*, not a feature you can bolt onto a plugin.** Skills owned by the plugin are structurally
+un-improvable-in-place; that's the whole argument for the rewrite. Shape is closer to
+`meta-architect:initialize-project-architecture` than to `dev-rituals` — a one-shot, human-in-the-loop,
+**idempotent scaffold whose output is code the target repo owns**. It supersedes / reframes what the
+`review-and-integrate` skill does today (that one wires the *plugin* in; this one writes skills *out*).
+Lives in the `claude-dev-tooling` monorepo, not SF. **After the current Graph-quality plan**, per the
+owner. (Owner ask, Session 93, 2026-07-15.)
+
 ## LLM task evaluation baselines (chunking, extraction, cascade)
 
 A recurring need surfaced across the Session-33 smoke test: **every LLM-backed task needs a
