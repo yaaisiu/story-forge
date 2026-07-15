@@ -11,7 +11,10 @@ import { renderHook, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { ApiError } from "./client";
+import { entityDetailStoryKey } from "./useEntityDetail";
 import { labelVocabularyQueryKey } from "./useLabelVocabulary";
+import { readerQueryKey } from "./useReader";
+import { storyGraphQueryKey } from "./useStoryGraph";
 import { useRenameLabel } from "./useRenameLabel";
 
 const STORY_ID = "00000000-0000-0000-0000-000000000002";
@@ -78,7 +81,12 @@ describe("useRenameLabel", () => {
       renamed_count: 3,
       folded_count: 1,
     });
+    // The rename wrote the graph, so it invalidates its own list AND the graph-write caches
+    // (mirroring useMergeEntities) so the graph/reader/detail views don't serve stale data.
     expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: labelVocabularyQueryKey(STORY_ID) });
+    expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: storyGraphQueryKey(STORY_ID) });
+    expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: readerQueryKey(STORY_ID) });
+    expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: entityDetailStoryKey(STORY_ID) });
   });
 
   it("surfaces a failure as a typed ApiError", async () => {

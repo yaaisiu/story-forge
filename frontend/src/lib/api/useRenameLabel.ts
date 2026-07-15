@@ -5,8 +5,11 @@
 // relabels every node of that type (never merges nodes, `folded_count` always 0). Human-gated
 // (INV-1/INV-9), reversible via the graph-edit undo log (INV-3). `from_label` is sent VERBATIM — the
 // backend matches the stored label exactly (S95 strip-bug fix), so callers must not trim it. Returns
-// the summary so the card can report how many edges/nodes were renamed and folded. Invalidates the
-// vocabulary list so the resolved pair drops.
+// the summary so the card can report how many edges/nodes were renamed and folded.
+//
+// A rename is a graph write, so — like useMergeEntities — it dirties more than its own list: the
+// story graph (edge predicates / node types), the reader (an entity's type), and every entity-detail
+// bundle (the type shown in the panel). onSuccess invalidates all of those plus the vocabulary list.
 //
 // Conventions (frontend/src/lib/api/CLAUDE.md): one file per logical operation, `useMutation` only,
 // and a mutation invalidates every cache its write dirties.
@@ -14,7 +17,10 @@
 import { useMutation, useQueryClient, type UseMutationResult } from "@tanstack/react-query";
 
 import { ApiError, postJsonBody } from "./client";
+import { entityDetailStoryKey } from "./useEntityDetail";
 import { labelVocabularyQueryKey } from "./useLabelVocabulary";
+import { readerQueryKey } from "./useReader";
+import { storyGraphQueryKey } from "./useStoryGraph";
 import type { components } from "./schema";
 
 export { ApiError } from "./client";
@@ -45,6 +51,11 @@ export function useRenameLabel(
       }),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: labelVocabularyQueryKey(storyId) });
+      // The rename wrote the graph — refresh the views that render its edges/types, mirroring
+      // useMergeEntities (the other graph-write hook).
+      void queryClient.invalidateQueries({ queryKey: storyGraphQueryKey(storyId) });
+      void queryClient.invalidateQueries({ queryKey: readerQueryKey(storyId) });
+      void queryClient.invalidateQueries({ queryKey: entityDetailStoryKey(storyId) });
     },
   });
 }
