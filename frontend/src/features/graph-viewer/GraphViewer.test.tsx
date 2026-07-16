@@ -263,6 +263,14 @@ describe("GraphViewer", () => {
     expect(link).toHaveAttribute("href", `/stories/${STORY_ID}/duplicates`);
   });
 
+  it("links to the story's normalise-names list (the S6 naming-normalisation gate)", async () => {
+    stubFetch(EMPTY_GRAPH);
+    renderViewer();
+
+    const link = await screen.findByTestId("normalise-names-link");
+    expect(link).toHaveAttribute("href", `/stories/${STORY_ID}/normalise-names`);
+  });
+
   it("defaults to the story scope and refetches scope=project when toggled", async () => {
     const graphUrls: string[] = [];
     const fetchMock = vi.fn(async (input: RequestInfo | URL) => {

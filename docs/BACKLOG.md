@@ -700,6 +700,21 @@ Surfaced by the slice's multi-agent `/code-review` (PR #130) and consciously def
 When picked up: add an `allStoryGraphsKey()` (or invalidate `["story-graph"]`) at the graph-writing
 hooks and update their invalidation assertions.
 
+## Frontend review-queue shared primitives — extract `clamp` (post-PoC, surfaced S96 `/code-review`)
+
+The four review-list features each carry a private, byte-identical `clamp(index, length)` bounds
+helper in their pure-logic module: `relation-review/relationQueue.ts`, `extraction-review/reviewQueue.ts`,
+`duplicate-review/duplicateReview.ts`, and now `normalise-names/normaliseNames.ts`. Four copies of a
+3-line function crossed the rule-of-three at S6b, so they should collapse to **one** shared helper
+(natural home: `frontend/src/hooks/` beside `useReviewQueue`, or a small `lib/` util) that all four
+cursors import — a fix to one (e.g. a negative-length guard) then can't leave the other three wrong.
+Deferred out of S6b's surgical scope because the extraction touches three sibling feature modules the
+PR didn't otherwise change. Two lighter siblings noted at the same review but **not** yet worth
+extracting: `scoreLabels` (2 copies, below rule-of-three) and the per-feature `vocabularyErrorMessage`/
+`duplicatesMessage` status mappers (kept per-feature on purpose — `frontend/src/lib/api/AGENTS.md`
+"derive an HTTP status's meaning from the route, not a sibling"). When picked up: add the shared
+`clamp`, route all four modules through it, update their unit tests.
+
 ## Undo / delete robustness — V1 hardening (deferred from M4.S3b-be2, Session 42)
 
 The general undo executor (M4.S3b-be2, PR #105) is **correct and reversible for the single local
