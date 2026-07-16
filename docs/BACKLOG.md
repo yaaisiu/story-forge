@@ -355,7 +355,7 @@ deliberate, informed pass, not a rushed hotfix.
   **Live-observed at S6b (Session 96):** confirmed on the real Oakhaven graph — a bare `IN` (1 use)
   scores name-match **100** against `STORED_IN`, `STORES_IN`, and the rest of the `…_IN` family (a short
   label is a token-subset of every longer one containing it), so the embedding score (0.50–0.61) is the
-  only separating signal and the list is noisy/untrustworthy. **✅ Resolved — S6c (Session 97, PR #TBD).**
+  only separating signal and the list is noisy/untrustworthy. **✅ Resolved — S6c (Session 97, PR #216).**
   The label self-join now scores with a **subset-INtolerant** `label_match_score`
   (`domain/name_similarity.py`, RapidFuzz `token_sort_ratio`) instead of the subset-tolerant
   `name_match_score` (`token_set_ratio`): a bare `IN` vs `STORED_IN` drops from 100 to ~36 (below the 60
