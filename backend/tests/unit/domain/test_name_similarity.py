@@ -64,6 +64,16 @@ def test_label_match_score_is_symmetric() -> None:
     )
 
 
+def test_label_match_score_empty_scores_zero_not_a_false_match() -> None:
+    # A degenerate label that normalises to empty (junk like "_" / whitespace-only) must
+    # match nothing. RapidFuzz scores token_sort_ratio("", "") at 100 (two "identical"
+    # empty strings), which would surface two empty-normalising labels as a spurious
+    # top-ranked synonym — so guard it to 0.0, mirroring name_match_score's empty contract.
+    assert label_match_score("", "") == 0.0
+    assert label_match_score("", "person") == 0.0
+    assert label_match_score("person", "") == 0.0
+
+
 def test_cosine_identical_and_orthogonal() -> None:
     assert cosine_similarity([1.0, 2.0, 3.0], [1.0, 2.0, 3.0]) == pytest.approx(1.0)
     assert cosine_similarity([1.0, 0.0], [0.0, 1.0]) == pytest.approx(0.0)

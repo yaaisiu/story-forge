@@ -52,7 +52,14 @@ def label_match_score(a: str, b: str) -> float:
     scores ~36 — while staying order-insensitive, so casing/separator/spelling variants
     (`stored in` vs `stores in`) still score high. Both labels are expected to be already
     normalised (case-folded, separator-split) by the caller.
+
+    A degenerate label that normalises to empty (junk like `_` or whitespace-only) matches
+    nothing — `token_sort_ratio("", "")` is 100 (two "identical" empty strings), which would
+    otherwise surface two empty-normalising labels as a spurious top-ranked synonym, so the
+    empty case is guarded to 0.0 (mirroring `name_match_score`'s empty-forms → 0.0 contract).
     """
+    if not a or not b:
+        return 0.0
     return fuzz.token_sort_ratio(a, b)
 
 

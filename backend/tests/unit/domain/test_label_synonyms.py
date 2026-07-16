@@ -89,6 +89,13 @@ def test_subset_label_still_reachable_via_embedding_rung() -> None:
     assert out[0].name_score < 60.0  # the fuzzy rung did not carry it
 
 
+def test_empty_normalising_labels_not_suggested() -> None:
+    # Junk labels that both normalise to empty ("_" / "__" → "") must not be paired: the
+    # subset-intolerant scorer would otherwise score two empty strings 100 (S6c guard).
+    out = suggest_label_synonyms([_entry("_"), _entry("__")], name_floor=60.0, cosine_floor=0.85)
+    assert out == []
+
+
 def test_embedding_qualifies_pair_the_names_miss() -> None:
     # Token-disjoint synonyms (fuzzy score stays far below floor even normalised) but
     # near-identical label embeddings → qualify on the embedding rung alone.

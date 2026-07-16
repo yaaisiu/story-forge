@@ -363,6 +363,13 @@ deliberate, informed pass, not a rushed hotfix.
   true synonym the name rung now misses. The **shared `name_match_score` was deliberately left unchanged**
   — the subset-tolerance is a *wanted* signal for entity names (the honorific `Bronek` ↔ `Stary Bronek`) in
   the intake matcher and S4 dedup (see the first bullet above). Fix is at the label layer only.
+  **Accepted tradeoff (`/code-review`, S6c):** the name rung now trades some *recall* for precision — a
+  genuine label synonym whose two labels are in a pure token-subset relation (e.g. `OWNS` ↔ `OWNS_PROPERTY`)
+  drops below the name floor and, on a graph extracted **without** embeddings (the name-only degraded mode,
+  tracked in the next item), is no longer surfaced. This is the intended precision/recall choice — the
+  embedding rung is the backstop when present. A *shared-content-word* subset (`STORED` ↔ `STORED_IN`, ~80)
+  stays above the floor and still surfaces — that is a plausible real synonym, not the bare-connective flood
+  S6c targeted.
 
 ## S6 label-vocabulary route — degrade to name-only when the embedding model is absent (post-PoC, surfaced S96 smoke)
 
