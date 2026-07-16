@@ -347,6 +347,28 @@ deliberate, informed pass, not a rushed hotfix.
   over-match). The **embedding rung does earn its place** here though (unlike the S4 NULL-vector graph): on
   types it uniquely surfaces `LOCATION`↔`PLACE` (cosine 0.878) that fuzzy misses. Tune the predicate
   precision when the S6b list is live and the owner can see it (same "its own decision + session" posture).
+  **Live-observed at S6b (Session 96):** confirmed on the real Oakhaven graph — a bare `IN` (1 use)
+  scores name-match **100** against `STORED_IN`, `STORES_IN`, and the rest of the `…_IN` family (a short
+  label is a token-subset of every longer one containing it), so the embedding score (0.50–0.61) is the
+  only separating signal and the list is noisy/untrustworthy. **Promoted to a planned slice — S6c** (a
+  focused backend tune of the label self-join, test-first): suppress the subset/substring over-match so a
+  short label that is merely a token-subset of a longer one no longer scores 100. Tracked in
+  `docs/PLAN_SHORT.md` S6c.
+
+## S6 label-vocabulary route — degrade to name-only when the embedding model is absent (post-PoC, surfaced S96 smoke)
+
+`GET /stories/{id}/label-vocabulary` encodes the label *strings* live via the local embedding model
+(`LabelVocabularyReader` → `EmbeddingAgent`). If the `embeddings` dependency group isn't installed, the
+encode raises `ModuleNotFoundError: No module named 'sentence_transformers'` and the route returns a bare
+**500** (the S96 browser smoke hit exactly this). That's defensible — the embedding cascade is a documented
+run prerequisite (`backend/AGENTS.md`, now naming `--group embeddings`), so a missing model is an
+environment misconfiguration, not a transient store outage. But the route *could* be more robust: catch a
+missing/failed encoder and **degrade to a name-only vocabulary** (the fuzzy rung alone, `cosine_score:
+null` — the shape the frontend already renders as "name-only"), the same recall-first posture DM-NN-2 took
+for labels that embed noisily. Weigh against keeping the 500 honest (a silent name-only degrade could mask
+a genuinely broken embedding stack in a real deployment). Small backend change to the reader/route; revisit
+if the missing-model 500 bites again or when the embedding stack is next hardened. (Owner-noted follow-up,
+Session 96.)
 
 ## Edge re-key orphans its displayed provenance (post-PoC, surfaced S83 `/code-review`)
 

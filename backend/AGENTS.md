@@ -130,8 +130,14 @@ cd backend
 uv sync
 # PreNER (spaCy) needs the pretrained model wheels, which are ~950 MB and live in
 # the optional `models` dependency group — NOT installed by default (keeps CI lean;
-# the model-loading tests auto-skip without them). Install them for any real run:
-uv sync --group models
+# the model-loading tests auto-skip without them). The embedding cascade — Stage-2
+# matching, S4 duplicate-suggestions, and S6 label-vocabulary — needs a SEPARATE
+# `embeddings` group (`sentence-transformers` + ~2 GB torch), also not installed by
+# default. Install both for any real run that extracts, matches, or curates the graph:
+uv sync --group models --group embeddings
+# (A run that only touches an embedding-free path can use just `--group models`; but the
+# label-vocabulary / duplicate-suggestion endpoints 500 with `No module named
+# 'sentence_transformers'` if `embeddings` is missing — Session 96 lost a smoke to this.)
 # First run only — migrate the dev DB. Tests use a throwaway DB (Session 1's
 # conftest fixture), so this gap is invisible until a real request hits an
 # unmigrated `storyforge` DB and 500s with `relation "..." does not exist`.
@@ -191,7 +197,7 @@ Each prints `OK` on a 200 + parseable body, `FAIL: …` otherwise, and skips cle
 
 ```bash
 docker compose up -d                                              # neo4j + postgres
-cd backend && uv sync --group models && uv run alembic upgrade head
+cd backend && uv sync --group models --group embeddings && uv run alembic upgrade head
 uv run uvicorn story_forge.main:app --port 8000 2>&1 | tee /tmp/sf-smoke.log
 # In another shell: upload a short text → POST /stories/{id}/structure →
 # POST /stories/{id}/extract → GET /stories/{id}/graph; confirm entities appear and
