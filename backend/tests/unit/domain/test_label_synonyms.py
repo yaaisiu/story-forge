@@ -65,6 +65,37 @@ def test_unrelated_labels_not_suggested() -> None:
     assert out == []
 
 
+def test_subset_label_not_over_matched_by_name_rung() -> None:
+    # Graph-quality S6c: a short label that is only a token-subset of a longer one
+    # ("IN" inside "STORED_IN") must not score 100 on the name rung. With no embedding,
+    # the pair now falls below the name floor and is not suggested — the `…_IN` family no
+    # longer floods the list around a bare `IN`.
+    out = suggest_label_synonyms(
+        [_entry("IN"), _entry("STORED_IN")], name_floor=60.0, cosine_floor=0.85
+    )
+    assert out == []
+
+
+def test_subset_label_still_reachable_via_embedding_rung() -> None:
+    # Recall-first OR is intact: the name rung dropping a subset pair does not stop the
+    # embedding rung from surfacing it when the label vectors agree.
+    out = suggest_label_synonyms(
+        [_entry("IN", embedding=[1.0, 0.0]), _entry("STORED_IN", embedding=[1.0, 0.0])],
+        name_floor=60.0,
+        cosine_floor=0.85,
+    )
+    assert len(out) == 1
+    assert out[0].cosine_score == 1.0
+    assert out[0].name_score < 60.0  # the fuzzy rung did not carry it
+
+
+def test_empty_normalising_labels_not_suggested() -> None:
+    # Junk labels that both normalise to empty ("_" / "__" → "") must not be paired: the
+    # subset-intolerant scorer would otherwise score two empty strings 100 (S6c guard).
+    out = suggest_label_synonyms([_entry("_"), _entry("__")], name_floor=60.0, cosine_floor=0.85)
+    assert out == []
+
+
 def test_embedding_qualifies_pair_the_names_miss() -> None:
     # Token-disjoint synonyms (fuzzy score stays far below floor even normalised) but
     # near-identical label embeddings → qualify on the embedding rung alone.

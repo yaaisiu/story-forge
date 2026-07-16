@@ -13,7 +13,7 @@ Two vocabularies are normalised, each with its own call to `suggest_label_synony
 They are never cross-compared (a predicate is not a synonym of a type), so the caller runs
 one self-join per surface and stamps the surface onto the results + dismissal keys.
 
-Pure and deterministic (no I/O, no LLM), reusing the `name_match_score` (RapidFuzz) and
+Pure and deterministic (no I/O, no LLM), reusing the `label_match_score` (RapidFuzz) and
 `cosine_similarity` (embeddings) primitives from `name_similarity.py`. Decisions it encodes
 (register DM-NN-1/2, INV-4):
 
@@ -21,11 +21,18 @@ Pure and deterministic (no I/O, no LLM), reusing the `name_match_score` (RapidFu
   label-string embedding cosine above a floor; nothing auto-renames, so a false positive
   costs one dismiss click while a missed synonym stays hidden. The name floor is the
   tunable `name_normalise_suggest_floor`; the embedding floor reuses the Stage-2 cosine bar.
-- **Fuzzy rung is normalised** — RapidFuzz `token_set_ratio` is case- and separator-
-  sensitive (`PERSON` vs `Person` scores ~17, `GROUP` vs `group` scores 0), yet these
-  casing/separator variants are exactly the type-vocabulary noise S6 must catch. So the
-  fuzzy rung compares **case-folded, separator-split** labels (`PERSON`→`person`,
-  `PASSENGER_ON`→`passenger on`); the raw label is kept for display + dismissal keying.
+- **Fuzzy rung is normalised** — the raw label is case- and separator-sensitive (`PERSON`
+  vs `Person` scores ~17, `GROUP` vs `group` scores 0), yet these casing/separator variants
+  are exactly the type-vocabulary noise S6 must catch. So the fuzzy rung compares
+  **case-folded, separator-split** labels (`PERSON`→`person`, `PASSENGER_ON`→`passenger on`);
+  the raw label is kept for display + dismissal keying.
+- **Fuzzy rung is subset-INtolerant** (`label_match_score`, S6c) — it scores with
+  `token_sort_ratio`, not the subset-tolerant `token_set_ratio` of `name_match_score`. A
+  bare `IN` is a token-subset of `STORED_IN`, `STORES_IN`, and the whole `…_IN` family, and
+  `token_set_ratio` would score every one of them 100 (a short label is a subset of every
+  longer one that contains it), flooding the list. `token_sort_ratio` is length-aware — the
+  subset noise drops below the floor — while genuine variants (`STORED_IN`↔`STORES_IN`) stay
+  high, and the embedding rung still carries any true synonym the name rung now misses.
 - **Embedding rung is the label string itself** — encoded by the caller via
   `EmbeddingAgent.encode` (not mention vectors, unlike S4). It carries the token-disjoint
   synonyms fuzzy can't reach (`LOCATION`↔`PLACE`, `PASSENGER_ON`↔`ON_SHIP`). An entry with
@@ -42,7 +49,7 @@ from collections.abc import Sequence
 from dataclasses import dataclass
 from uuid import UUID, uuid5
 
-from story_forge.domain.name_similarity import cosine_similarity, name_match_score
+from story_forge.domain.name_similarity import cosine_similarity, label_match_score
 
 # Namespace for the deterministic dismissed-label-pair id (the project's uuid5 idiom; the
 # label-surface analogue of `_DEDUP_PAIR_NS` in `domain/duplicate_clusters.py`).
@@ -147,7 +154,7 @@ def suggest_label_synonyms(
     ranked: list[tuple[float, float, LabelSynonymSuggestion]] = []
     for i, a in enumerate(entries):
         for b in entries[i + 1 :]:
-            name_score = name_match_score(_normalise_label(a.label), [_normalise_label(b.label)])
+            name_score = label_match_score(_normalise_label(a.label), _normalise_label(b.label))
             cosine = _pair_cosine(a.embedding, b.embedding)
             qualifies = name_score >= name_floor or (cosine is not None and cosine >= cosine_floor)
             if not qualifies:

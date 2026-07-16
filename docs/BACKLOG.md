@@ -326,8 +326,13 @@ deliberate, informed pass, not a rushed hotfix.
   `token_set_ratio` with a length/coverage-aware score (blend with `token_sort_ratio`/`WRatio`, or penalise
   a lone-shared-token match) so a container/contained or single-shared-word pair can't reach the floor.
   **Caveat — this scorer is shared with the intake cascade matcher** (`agents/matching_agent.py`), so a
-  change affects auto-merge/matching at extraction time too, and S6's predicate-name suggest will reuse the
-  same pattern — so it wants its own decision + session, not a spot fix. (Owner-surfaced, Session 79.)
+  change affects auto-merge/matching at extraction time too — where the subset-tolerance is a *wanted*
+  signal (the honorific `Bronek` ↔ `Stary Bronek`, spec §3.3). So a fix here must NOT naively swap the
+  shared `token_set_ratio`; it needs a length/coverage-aware score applied *at the S4 self-join layer* only,
+  leaving intake matching intact. (Owner-surfaced, Session 79.) **Update (S6c, Session 97):** the *label*
+  over-match was resolved this way — a subset-intolerant `label_match_score` at the label layer, the shared
+  `name_match_score` untouched (see the S6-label bullet below). This **entity/S4** side stays open; the same
+  layer-local approach applies (penalise at `duplicate_clusters._best_name_score`, not in the primitive).
 - **No mention embeddings for graphs extracted without the `models` group.** This Oakhaven graph's 512
   `entity_mentions` all have `embedding = NULL`, so every suggestion falls back to name-only and the Stage-2
   cosine signal that would counter the name over-match is entirely absent. This is **documented, intended
@@ -350,10 +355,21 @@ deliberate, informed pass, not a rushed hotfix.
   **Live-observed at S6b (Session 96):** confirmed on the real Oakhaven graph — a bare `IN` (1 use)
   scores name-match **100** against `STORED_IN`, `STORES_IN`, and the rest of the `…_IN` family (a short
   label is a token-subset of every longer one containing it), so the embedding score (0.50–0.61) is the
-  only separating signal and the list is noisy/untrustworthy. **Promoted to a planned slice — S6c** (a
-  focused backend tune of the label self-join, test-first): suppress the subset/substring over-match so a
-  short label that is merely a token-subset of a longer one no longer scores 100. Tracked in
-  `docs/PLAN_SHORT.md` S6c.
+  only separating signal and the list is noisy/untrustworthy. **✅ Resolved — S6c (Session 97, PR #216).**
+  The label self-join now scores with a **subset-INtolerant** `label_match_score`
+  (`domain/name_similarity.py`, RapidFuzz `token_sort_ratio`) instead of the subset-tolerant
+  `name_match_score` (`token_set_ratio`): a bare `IN` vs `STORED_IN` drops from 100 to ~36 (below the 60
+  floor) while genuine variants (`STORED_IN`↔`STORES_IN`) stay high, and the embedding rung still carries any
+  true synonym the name rung now misses. The **shared `name_match_score` was deliberately left unchanged**
+  — the subset-tolerance is a *wanted* signal for entity names (the honorific `Bronek` ↔ `Stary Bronek`) in
+  the intake matcher and S4 dedup (see the first bullet above). Fix is at the label layer only.
+  **Accepted tradeoff (`/code-review`, S6c):** the name rung now trades some *recall* for precision — a
+  genuine label synonym whose two labels are in a pure token-subset relation (e.g. `OWNS` ↔ `OWNS_PROPERTY`)
+  drops below the name floor and, on a graph extracted **without** embeddings (the name-only degraded mode,
+  tracked in the next item), is no longer surfaced. This is the intended precision/recall choice — the
+  embedding rung is the backstop when present. A *shared-content-word* subset (`STORED` ↔ `STORED_IN`, ~80)
+  stays above the floor and still surfaces — that is a plausible real synonym, not the bare-connective flood
+  S6c targeted.
 
 ## S6 label-vocabulary route — degrade to name-only when the embedding model is absent (post-PoC, surfaced S96 smoke)
 
