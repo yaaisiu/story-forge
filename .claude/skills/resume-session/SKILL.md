@@ -133,6 +133,17 @@ homes" asserts more completeness than a grep can give; the extra homes hide behi
 (Earned Session 49: the handoff named 6 world-graph spec homes from a keyword grep; the actual
 reconciliation needed 11 — the broad sweep re-found the other 5 before any edit.)
 
+**The same "possibly-incomplete list" caution covers a handoff's "shared with X" note about a
+*code primitive*, not just doc-reconciliation homes.** When the task is to *change* (or decide
+*where* to change) a shared helper/primitive and the handoff flags it as "shared with X", treat
+that as a keyword-derived, possibly-incomplete consumer list: **grep every consumer of the symbol
+yourself before surfacing a where-to-change decision to the owner** — the full blast radius *is* the
+decision, so a decision put before that grep is put on incomplete facts. (Earned Session 97: the
+handoff flagged the `name_match_score` scorer as "shared with S4 dedup"; a `grep -rn name_match_score`
+found a *third* consumer — the live extraction Stage-1 matcher, spec §3.3, where the behaviour being
+changed is a *wanted* feature — which flipped the recommended fix layer. Surfacing the layer choice
+before that grep turned one owner decision into two.)
+
 ## 5. Report and confirm direction
 
 Give the user a short brief:
