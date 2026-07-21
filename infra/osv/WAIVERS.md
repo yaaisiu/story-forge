@@ -39,12 +39,20 @@ docker run --rm -v "$PWD/backend:/src:ro" \
   scan source -L /src/uv.lock --config=/cfg/osv.toml
 ```
 
-**Last reviewed:** 2026-07-15 — **added the setuptools waiver** (GHSA-h35f-9h28-mq5c /
+**Last reviewed:** 2026-07-21 — **extended the setuptools waiver** `ignoreUntil` 2026-07-19 →
+**2026-07-23**. The 2026-07-19 floor passed and the scheduled `main` run re-reddened on the
+advisory, as designed — but the drop turned out **blocked**: the fix `setuptools==83.0.0` (soaked)
+is forbidden by `torch==2.12.0`, which caps `setuptools<82` (`uv lock` fails on the conflict).
+Only **torch 2.13.0** relaxes it (`setuptools>=77.0.3`, no cap), and 2.13.0 (pub 2026-07-08)
+does not clear its own 14-day soak until **2026-07-23** (floor = pub + 15). Bumping torch early
+was rejected — the `check_dependency_age.py` gate has no per-dep exception, so it would just swap
+the OSV red for an age red. So a short, condition-honest extension to torch 2.13.0's soak floor;
+on/after 2026-07-23 drop via a combined `torch 2.12.0 → 2.13.0` + `setuptools==83.0.0` bump.
+Prior (2026-07-15) — **added the setuptools waiver** (GHSA-h35f-9h28-mq5c /
 CVE-2026-59890 / PYSEC-2026-3447, MEDIUM 6.1): the scheduled `main` run reddened on this
 freshly-surfaced advisory (published 2026-07-08) against unchanged deps. Fixed in 83.0.0
 (pub 2026-07-04) but **not yet soaked** on the resume date (11 days < 14), so a time-boxed
-waiver with `ignoreUntil = 2026-07-19` (floor = pub + 15) — drop by bumping once it soaks
-(2026-07-18). Prior (2026-07-06) — **dropped the pydantic-settings waiver**: bumped
+waiver with `ignoreUntil = 2026-07-19` (floor = pub + 15). Prior (2026-07-06) — **dropped the pydantic-settings waiver**: bumped
 `pydantic-settings` 2.14.0 → 2.14.2 (its floor, 2026-07-04, reached; the `ignoreUntil`
 had expired and re-red the gate), clearing GHSA-4xgf-cpjx-pc3j (MEDIUM 5.3); removed the
 `[[IgnoredVulns]]` block + this section. Prior (2026-06-27): **dropped the starlette waiver**:
@@ -58,18 +66,23 @@ soak, advisory GHSA-v9pg-7xvm-68hf gone.
 
 ## Active waivers
 
-### setuptools — `setuptools==81.0.0` (transitive, added 2026-07-15)
+### setuptools — `setuptools==81.0.0` (transitive, added 2026-07-15; extended 2026-07-21)
 
-Scoped file: `infra/osv/osv-scanner.toml` (`[[IgnoredVulns]]`, `ignoreUntil = 2026-07-19`).
+Scoped file: `infra/osv/osv-scanner.toml` (`[[IgnoredVulns]]`, `ignoreUntil = 2026-07-23`).
 Class: **sdist-packing exclusion bypass** — `setuptools`' `FileList` applies `MANIFEST.in`
 exclude/global-exclude/recursive-exclude/prune directives by matching compiled globs against
 on-disk names **without Unicode normalization**, so on macOS APFS/HFS+ an NFD file name can
 bypass an NFC exclusion rule and be packed into a source distribution. `setuptools` is a
 **transitive** dependency (pulled by `spacy`/`thinc`/`torch`; not declared in
-`backend/pyproject.toml`). **Drop when:** 83.0.0 clears its 14-day soak — it was published
-2026-07-04, so the floor is **2026-07-19** (pub + 15); on/after that date bump the transitive
-pin via `/add-dependency` (or a `constraint`), then delete the toml block + this row. The
-`ignoreUntil` re-reds CI on 2026-07-19 as the backstop.
+`backend/pyproject.toml`). **Drop when:** the fix `setuptools==83.0.0` is already soaked (pub
+2026-07-04), but the drop is **blocked by `torch==2.12.0`**, which caps `setuptools<82` — `uv
+lock` fails on the conflict. Only **torch 2.13.0** relaxes it (`setuptools>=77.0.3`, no cap),
+and 2.13.0 (pub 2026-07-08) clears its own 14-day soak on **2026-07-23** (floor = pub + 15).
+So on/after 2026-07-23 do a **combined** bump — `torch 2.12.0 → 2.13.0` (in the `embeddings`
+group) **and** an explicit `setuptools==83.0.0` pin — via `/add-dependency`, then delete the
+toml block + this row. (Bumping torch before its soak was rejected: `check_dependency_age.py`
+has no per-dep exception, so it would only swap the OSV red for an age red.) The `ignoreUntil`
+re-reds CI on 2026-07-23 as the backstop.
 
 | CVE / advisory | Severity | Class | Why not reachable here |
 |---|---|---|---|
