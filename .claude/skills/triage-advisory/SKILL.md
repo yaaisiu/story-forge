@@ -71,8 +71,18 @@ For every advisory the scan reports:
 2. **Is a fixed version soaked?** (package ≥14 days on PyPI/npm; image tag ≥7 days). If yes →
    **fix it**: `/add-dependency` for a package bump, `/pin-image` for an image. Prefer the
    highest soaked version that clears the advisory; check it introduces no *new* advisory.
-   A "fix" that needs a parent's range relaxed (e.g. fastapi↔starlette) — confirm the parent
-   allows it.
+   A "fix" that needs a parent's range relaxed (e.g. fastapi↔starlette, or torch↔setuptools) —
+   confirm the parent allows it **and that the parent version which allows it is itself soaked.**
+   **The age-gate (`check_dependency_age.py`) has no per-dependency exception** — a hard
+   `released ≤ today−14d` with no waiver hook — so *any* bump under the 14-day soak (the target
+   dep **or** an unblocking parent you must move) **cannot green CI**: it only swaps the advisory
+   red for an **age red**, and commits a §6.7 soak violation besides. So when the only fix path is
+   an *unsoaked* bump, do not offer or attempt it — the green options are exactly **wait-for-soak**
+   (then bump) or **waive** (time-boxed to the soak floor). "Bump it young now" is never a path to
+   green. (Earned Session 98: a soaked child fix — setuptools 83.0.0 — was blocked by `torch==2.12.0`'s
+   `setuptools<82` cap, and the only parent that relaxes it, torch 2.13.0, was 12/14 days old; offering
+   the young torch bump as a live option cost a wasted owner decision before the age-gate reality
+   retracted it.)
 3. **No soaked fix?** Only then a **time-boxed waiver**. It needs *both*: assessed
    **unreachability** in this deployment (127.0.0.1-bound, single trusted user, non-root,
    no public TLS, or the affected API is never called) **and** a **dated drop-when** = when
