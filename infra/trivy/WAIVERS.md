@@ -19,7 +19,17 @@ docker run --rm -v /var/run/docker.sock:/var/run/docker.sock \
   --ignorefile /tmp/ignore <IMAGE>:<TAG>
 ```
 
-**Last reviewed:** 2026-07-13 — added the gosu/ollama Go-stdlib **wave 6** (`CVE-2026-39822`,
+**Last reviewed:** 2026-07-21 — added the ollama `golang.org/x/image` **wave 7**
+(`CVE-2026-46602` + `CVE-2026-46604`, both HIGH — TIFF-decoder DoS: no tile-size limit → OOM,
+and a panic on an invalid image; fixed in x/image 0.43.0). Compiled into the `ollama/ollama:0.24.0`
+server binary (x/image v0.22.0); only an upstream rebuild clears them. Unmasked once a backend OSV
+setuptools red cleared and the sequential `security` job reached the ollama scan for the first time
+in days (OSV runs before Trivy, so its failure had masked this scan). Unreachable: the TIFF decoder
+is hit only by decoding a crafted TIFF fed to a multimodal model, and on 127.0.0.1 single-trusted-user
+the only actor who could supply one is the local user (self-inflicted). Owner-approved HIGH waiver
+(§6.7). Rides **one PR** with the setuptools OSV waiver extension — both red the required `security`
+gate and mutually block. **Drop when** an upstream ollama rebuild ships x/image ≥0.43.0.
+**Prior (2026-07-13):** added the gosu/ollama Go-stdlib **wave 6** (`CVE-2026-39822`,
 `os` — the Go 1.24 `os.Root` API follows a trailing-slash symlink out of its confined root →
 directory traversal; CVSS 7.8, attack vector **LOCAL**). Freshly disclosed against the unchanged
 `pgvector/pgvector:0.8.2-pg17-trixie` (gosu, Go 1.24.6) and `ollama` (server binary, Go 1.26.0)
@@ -227,7 +237,19 @@ Reachability: ollama is 127.0.0.1-bound, single trusted user, backend is the onl
 client; CVEs are mostly DoS (self-inflicted only) plus a few outbound-TLS
 cert-validation issues (need MITM). **Drop when** upstream rebuilds ollama on
 patched Go **and** on the patched `golang.org/x/crypto` (≥0.52.0) /
-`golang.org/x/net` (≥0.55.0) modules.
+`golang.org/x/net` (≥0.55.0) / `golang.org/x/image` (≥0.43.0) modules.
+
+**Wave 7 (2026-07-21):** 2 freshly-disclosed HIGHs in the compiled-in
+`golang.org/x/image` module (v0.22.0) — both TIFF-decoder resource-exhaustion bugs
+(`CVE-2026-46602` no tile-size limit → OOM; `CVE-2026-46604` panic on an invalid image).
+Unmasked once the backend OSV setuptools red cleared and the sequential `security` job
+reached this scan for the first time in days (the OSV step runs before the Trivy steps,
+so its failure had masked the ollama scan). Unreachable here: the TIFF decoder is hit
+only by decoding a crafted TIFF fed to a multimodal model, and on a 127.0.0.1 single-
+trusted-user deployment the only actor who could supply one is the trusted local user.
+Fixed in x/image 0.43.0; only an upstream ollama rebuild ships it. Owner-approved HIGH
+waiver (§6.7). Rides the same PR as the setuptools OSV waiver extension because both
+red the required `security` gate and mutually block (root `AGENTS.md` Merge flow).
 
 **Wave 6 (2026-06-23; +1 on 2026-06-27):** 15 freshly-disclosed HIGHs in the compiled-in
 `golang.org/x/crypto/ssh` (9, incl. `ssh/agent` CVE-2026-39832 surfaced 2026-06-27) and
@@ -275,3 +297,5 @@ Rows below; rationale per CVE in `infra/trivy/ollama.trivyignore` wave-6 block.
 | CVE-2026-39821 | x/net/idna | HIGH | privilege escalation via incorrect Punycode label processing (wave 6) | x/net 0.55.0 | outbound TLS hostname only, needs attacker-controlled IDN hostname supplied by the trusted local user |
 | CVE-2026-42502 | x/net/html | HIGH | arbitrary HTML via `Render` (wave 6) | x/net 0.55.0 | renders no HTML → unreachable |
 | CVE-2026-42506 | x/net/html | HIGH | arbitrary HTML via `Render` (wave 6) | x/net 0.55.0 | renders no HTML → unreachable |
+| CVE-2026-46602 | x/image (image/tiff) | HIGH | TIFF decoder sets no limit on tile size → excessive memory allocation (DoS; GHSA-pwfv-328h-75x9; wave 7, added 2026-07-21) | x/image 0.43.0 | reachable only by decoding a crafted TIFF fed to a multimodal model; 127.0.0.1 single trusted user → only the trusted local user could supply one, self-inflicted |
+| CVE-2026-46604 | x/image (image/tiff) | HIGH | TIFF decoder panics on an invalid image (DoS; sibling of CVE-2026-46602; wave 7, added 2026-07-21) | x/image 0.43.0 | reachable only by decoding a crafted TIFF fed to a multimodal model; 127.0.0.1 single trusted user → self-inflicted only |

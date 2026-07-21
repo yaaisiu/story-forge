@@ -189,3 +189,22 @@ CVE-2026-39821
 CVE-2026-42502
 # CVE-2026-42506 — net/html: arbitrary HTML rendered via Render. Unreachable (no HTML).
 CVE-2026-42506
+
+# ─── golang.org/x/image module (fixed 0.43.0; surfaced by the Trivy DB 2026-07-21,
+#     unmasked once the backend OSV setuptools red cleared and the sequential
+#     security job reached this scan for the first time in days) ───
+#
+# The compiled-in `golang.org/x/image` module (v0.22.0) in the ollama server binary.
+# Both are TIFF-decoder resource-exhaustion bugs (DoS, not RCE), reachable only by
+# decoding a crafted TIFF fed to a multimodal model. ollama is 127.0.0.1-bound, single
+# trusted user, with the Story Forge backend as its only client — the only actor who
+# could supply such a TIFF is the trusted local user, who would only affect themselves.
+# Only an upstream ollama rebuild on x/image ≥0.43.0 clears them; no ollama tag we pin
+# fixes a compiled-in dependency. (CVE-2026-46602 = GHSA-pwfv-328h-75x9; verified vs the
+# GitHub Advisory DB + Trivy's golang.org/x/image attribution.)
+# CVE-2026-46602 — image/tiff: the decoder sets no limit on the size of tiles in tiled
+# images → excessive memory allocation (DoS).
+CVE-2026-46602
+# CVE-2026-46604 — image/tiff: the decoder can panic when decoding an invalid image
+# (DoS). Sibling of CVE-2026-46602; same module + fix (x/image 0.43.0).
+CVE-2026-46604
