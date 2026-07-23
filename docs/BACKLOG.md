@@ -738,6 +738,26 @@ Surfaced by the slice's multi-agent `/code-review` (PR #130) and consciously def
 When picked up: add an `allStoryGraphsKey()` (or invalidate `["story-graph"]`) at the graph-writing
 hooks and update their invalidation assertions.
 
+## Normalise-names queue — refetch lag after a rename (post-PoC, surfaced S7 browser walk, Session 100)
+
+Committing a rename in `/stories/:id/normalise-names` leaves a visible pause before the queue
+repaints without the renamed pair. `useRenameLabel` invalidates the label vocabulary, and the
+refetch re-runs the whole suggest pass server-side: `GET …/label-vocabulary` recomputes the
+**two-rung self-join over the entire vocabulary** — RapidFuzz over every label pair *plus* a
+sentence-transformer encode of each label (`domain/label_synonyms.py`, `adapters/label_vocabulary_reader.py`).
+On the real Oakhaven graph that is 264 predicate pairs + 36 type pairs from a 227-predicate /
+45-type vocabulary, so every single rename pays for a full re-encode + re-join of everything.
+**Correct but wasteful** — nothing is stale or wrong, it is purely latency, and the author feels it
+once per decision on a 300-item queue. Owner called it acceptable for now (S7 walk).
+
+When picked up, the cheap wins in order: (a) **cache the label embeddings** keyed by the label
+string — labels are free strings but the vocabulary changes by one entry per rename, so almost
+every encode is recomputing an identical vector; (b) **optimistically drop the renamed pair from
+the list** client-side so the queue repaints instantly and the refetch only reconciles; (c) only if
+those are not enough, make the suggest pass **incremental** (a rename removes one label and merges
+its counts into another — the pairs not involving either label cannot change). (a)+(b) are small
+and independent; (c) is a real redesign of the read half and probably not worth it.
+
 ## Frontend review-queue shared primitives — extract `clamp` (post-PoC, surfaced S96 `/code-review`)
 
 The four review-list features each carry a private, byte-identical `clamp(index, length)` bounds
