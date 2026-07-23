@@ -175,7 +175,8 @@ export function DuplicatesQueue() {
         <EmptyQueueNext
           testId="duplicates-empty"
           message="No possible duplicates — the accepted entities all look distinct."
-          to={`/stories/${storyId}/normalise-names`}
+          storyId={storyId}
+          next="normalise-names"
           label="Normalise names"
         />
       ) : (

@@ -104,7 +104,8 @@ export function ReviewQueue() {
         <EmptyQueueNext
           testId="queue-empty"
           message="Nothing to review — every candidate has been decided."
-          to={`/stories/${storyId}/relations`}
+          storyId={storyId}
+          next="relations"
           label="Decide relations"
         />
       ) : (

@@ -118,7 +118,8 @@ export function RelationQueue() {
         <EmptyQueueNext
           testId="relations-empty"
           message="No relations to decide — every committable relation has been resolved."
-          to={`/stories/${storyId}/duplicates`}
+          storyId={storyId}
+          next="duplicates"
           label="Review possible duplicates"
         />
       ) : (

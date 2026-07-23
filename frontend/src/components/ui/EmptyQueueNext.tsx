@@ -13,27 +13,33 @@ import { Link } from "react-router-dom";
 interface EmptyQueueNextProps {
   /** Why the queue is empty, in the feature's own words. */
   message: string;
-  /** Where to go next in the curation flow. */
-  to: string;
+  /** The story whose flow we're in; absent (an unmatched route) degrades to message-only. */
+  storyId: string | undefined;
+  /** The next surface's route segment, e.g. "duplicates". */
+  next: string;
   /** The call to action, e.g. "Review possible duplicates". */
   label: string;
-  /** Distinguishes the three queues' empty states in tests (the pre-S7 test ids are kept). */
+  /** Distinguishes the queues' empty states in tests (the pre-S7 test ids are kept). */
   testId: string;
 }
 
-export function EmptyQueueNext({ message, to, label, testId }: EmptyQueueNextProps) {
+export function EmptyQueueNext({ message, storyId, next, label, testId }: EmptyQueueNextProps) {
   return (
     <div className="flex flex-col items-start gap-2">
       <p data-testid={testId} className="text-sm text-gray-500">
         {message}
       </p>
-      <Link
-        to={to}
-        data-testid={`${testId}-next`}
-        className="rounded border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
-      >
-        {label} →
-      </Link>
+      {/* The URL is built here so the one `storyId` guard covers every call site — matching how
+          each queue already gates its own header link on `{storyId && …}`. */}
+      {storyId && (
+        <Link
+          to={`/stories/${storyId}/${next}`}
+          data-testid={`${testId}-next`}
+          className="rounded border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
+        >
+          {label} →
+        </Link>
+      )}
     </div>
   );
 }

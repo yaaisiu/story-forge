@@ -242,7 +242,8 @@ export function NormaliseNamesQueue() {
         <EmptyQueueNext
           testId="normalise-empty"
           message="No synonym suggestions — the predicate and type names all look distinct."
-          to={`/stories/${storyId}/graph`}
+          storyId={storyId}
+          next="graph"
           label="See the knowledge graph"
         />
       ) : (

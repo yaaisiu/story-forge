@@ -96,7 +96,10 @@ def summarise_relations(
     # three slots on one neighbour ("→ HUNTS Locke / ← CAUGHT Locke / ← POINTS_AT Locke") says one
     # thing three times while hiding who else the entity touches. Where a pair has several edges,
     # the alphabetically-first predicate represents it — arbitrary but deterministic.
-    best: dict[UUID, dict[UUID, tuple[str, RelationSummaryLine]]] = {}
+    # The rank is a *tuple*, not a joined string: predicates are open-world free strings (INV-4),
+    # and a separator-joined key over an unconstrained type has to defend its delimiter. Tuples
+    # compare element-wise, so there is no separator to collide on.
+    best: dict[UUID, dict[UUID, tuple[tuple[str, str], RelationSummaryLine]]] = {}
     for relation in visible.values():
         endpoints: tuple[tuple[UUID, UUID, Literal["out", "in"]], ...] = (
             (relation.subject_id, relation.object_id, "out"),
@@ -104,7 +107,7 @@ def summarise_relations(
         )
         for focal_id, far_id, direction in endpoints:
             candidate = (
-                f"{relation.type}\x00{relation.id}",
+                (relation.type, str(relation.id)),
                 RelationSummaryLine(
                     direction=direction,
                     predicate=relation.type,
