@@ -19,7 +19,20 @@ docker run --rm -v /var/run/docker.sock:/var/run/docker.sock \
   --ignorefile /tmp/ignore <IMAGE>:<TAG>
 ```
 
-**Last reviewed:** 2026-07-21 — added the ollama `golang.org/x/image` **wave 7**
+**Last reviewed:** 2026-07-23 — **bumped neo4j `5.26.25` → `5.26.27` (pub 2026-07-01, 22 days
+soaked) and took the long-pending netty partial-drop in full.** The bump moves netty
+`4.1.132.Final` → `4.1.135.Final`, which **fixes all six** previously-waived netty CVEs
+(`CVE-2026-42583/42584/42587`, `CVE-2026-44249/45416/50010`) — their `.trivyignore` entries and
+register rows are **deleted**, not carried. A raw scan diff of `.25` vs `.27` confirms the bump
+introduces **no** new findings. Separately, a fresh wave published 2026-07-21/22 surfaced **six
+new HIGHs** in jars Neo4j bundles that **no released tag fixes** (`.27` and even `.28` from
+2026-07-22 both lag): four netty (`CVE-2026-59901` Bzip2 event-loop hang; `CVE-2026-55831`,
+`CVE-2026-55833`, `CVE-2026-56745` — all three in the **SPDY** codec, a protocol Neo4j does not
+implement), one jetty (`CVE-2026-10050`, Digest-auth bypass via ISO-8859-1 lossy encoding), and
+one jackson-core (`GHSA-r7wm-3cxj-wff9`, async-parser `maxNumberLength` bypass). All six are
+owner-approved HIGH waivers (§6.7) with per-CVE reachability notes. This work rides **one PR**
+with the backend OSV setuptools/torch drop — both red the required `security` gate and would
+otherwise mutually block. **Prior (2026-07-21):** added the ollama `golang.org/x/image` **wave 7**
 (`CVE-2026-46602` + `CVE-2026-46604`, both HIGH — TIFF-decoder DoS: no tile-size limit → OOM,
 and a panic on an invalid image; fixed in x/image 0.43.0). Compiled into the `ollama/ollama:0.24.0`
 server binary (x/image v0.22.0); only an upstream rebuild clears them. Unmasked once a backend OSV
@@ -94,28 +107,63 @@ drop-when extended to cover x/crypto ≥0.52.0 / x/net ≥0.55.0 (upstream ollam
 
 ---
 
-## neo4j — `neo4j:5.26.25-community-ubi10`
+## neo4j — `neo4j:5.26.27-community-ubi10`
 
 Scoped file: `infra/trivy/neo4j.trivyignore` · Issue #2 · added 2026-05-21
-(extended 2026-06-10: +CVE-2026-44249, +CVE-2026-45416; 2026-06-16: +CVE-2026-50010).
-Class: **bundled** netty jars Neo4j ships itself (no base variant fixes them).
-**Drop when:** a Neo4j 5.26.x patch bundles netty ≥ 4.1.135.Final (the 4.1.x fix
-for the 2026-06-10/2026-06-16 additions; the first three were fixed in 4.1.133.Final,
-2026-05-04). None is data-disclosure/RCE on a 127.0.0.1 single-user deployment.
-**Partial-drop opportunity (noted 2026-06-19, not yet taken):** the soaked
-`neo4j:5.26.26-community-ubi10` (pushed 2026-06-06) ships netty **4.1.133.Final**,
-which fixes the first three (CVE-2026-42583/42584/42587) — a future `/pin-image` bump
-to a soaked tag could drop those three waivers; the other three still need 4.1.135.
-Revisit with the netty/shiro waivers at the next neo4j tag bump.
+(extended 2026-06-10, 2026-06-16, 2026-06-19, 2026-06-24; **six netty waivers dropped
+2026-07-23** by the `5.26.25` → `5.26.27` bump — see **Last reviewed**).
+Class: **bundled** jars Neo4j ships itself (netty, jetty, jackson, shiro) — identical
+across every base variant, fixable only by a new Neo4j release that reships the jar.
+The UBI-10 base itself reports **0** OS CVEs, so nothing here is an OS waiver.
+
+### Bundled netty — wave published 2026-07-21/22, added 2026-07-23
+
+The six netty CVEs waived from 2026-05-21 to 2026-07-23 are **gone** — `5.26.27` bundles
+netty `4.1.135.Final`, which fixes them (this is the "partial-drop opportunity" noted
+2026-06-19, taken in full rather than partially, because `.27` reached `4.1.135` and not
+just the `4.1.133` that `.26` offered). The four below are a **different, newer** wave that
+`4.1.135` does **not** fix. **Fix-first not possible:** all four need netty ≥ 4.1.136.Final;
+neo4j `.27` ships 4.1.135 and `.28` (2026-07-22) has not caught up either.
+**Drop when:** a soaked (≥ 7-day) Neo4j 5.26.x patch bundles netty ≥ 4.1.136.Final
+(re-scan to confirm all four are gone); checked at each neo4j tag bump.
 
 | CVE | Pkg | Sev | Class | Fixed in | Why acceptable here |
 |---|---|---|---|---|---|
-| CVE-2026-42583 | netty-codec | HIGH | DoS (LZ4 mem exhaustion) | netty 4.1.133.Final | resource-exhaustion only |
-| CVE-2026-42584 | netty-codec-http | HIGH | HTTP client-codec desync | netty 4.1.133.Final | needs Neo4j as outbound HTTP client — never exercised |
-| CVE-2026-42587 | netty-codec-http | HIGH | DoS (decompression bomb) | netty 4.1.133.Final | resource-exhaustion only |
-| CVE-2026-44249 | netty-handler | HIGH | IPv6 subnet-filter bypass (access-control) | netty 4.1.135.Final | netty IP-filtering not used as a boundary; 127.0.0.1 bind is |
-| CVE-2026-45416 | netty-handler | HIGH | DoS (SNI 16 MiB pre-alloc) | netty 4.1.135.Final | no public TLS surface; loopback, trusted client only |
-| CVE-2026-50010 | netty-handler | HIGH | TLS hostname-verification bypass (MITM; GHSA-c653-97m9-rcg9) | netty 4.1.135.Final | no public TLS surface; loopback, single trusted client — no untrusted TLS peer to impersonate |
+| CVE-2026-59901 | netty-codec | HIGH | DoS (Bzip2 RLE infinite loop → event-loop hang) | netty 4.1.136.Final | needs a bzip2 stream through a pipeline with the compression codec installed; Bolt/HTTP negotiate no bzip2, so the handler is never present |
+| CVE-2026-55831 | netty-codec-http | HIGH | DoS (SPDY SETTINGS → unbounded map) | netty 4.1.136.Final | **SPDY codec never installed** — Neo4j does not implement SPDY |
+| CVE-2026-55833 | netty-codec-http | HIGH | DoS (SPDY zlib inflation past maxHeaderSize) | netty 4.1.136.Final | **SPDY codec never installed** — Neo4j does not implement SPDY |
+| CVE-2026-56745 | netty-codec-http | HIGH | DoS (SpdyHttpDecoder ByteBuf leak on RST_STREAM) | netty 4.1.136.Final | **SPDY codec never installed** — Neo4j does not implement SPDY |
+
+### Bundled Eclipse Jetty (Neo4j's HTTP server stack) — added 2026-07-23
+
+**Not reachable here:** the flaw is in Jetty's **Digest** authentication, which hashes
+credentials as ISO-8859-1 and so collapses every character above U+00FF to `?`. This
+deployment never uses Digest auth — Neo4j Community authenticates through its own native
+realm (`NEO4J_AUTH` basic auth on a 127.0.0.1 listener), configures no Jetty Digest
+authenticator, and performs no outbound Digest client auth. The attack also presupposes an
+untrusted client that knows a victim username; there is one local trusted user.
+**Fix-first not possible yet:** needs jetty ≥ 12.1.10 (or ≥ 12.0.36 on 12.0.x); `.27` and
+`.28` both bundle 12.1.8. **Drop when:** a soaked (≥ 7-day) Neo4j 5.26.x patch bundles
+jetty ≥ 12.1.10; checked at each neo4j tag bump.
+
+| CVE | Pkg | Sev | Class | Fixed in | Why acceptable here |
+|---|---|---|---|---|---|
+| CVE-2026-10050 | org.eclipse.jetty:jetty-security, org.eclipse.jetty.ee8:jetty-ee8-security | HIGH | Auth bypass (Digest ISO-8859-1 lossy encoding → hash collision) | jetty 12.1.10 / 12.0.36 | Digest auth not configured; Community uses native `NEO4J_AUTH` basic auth; loopback, single trusted user |
+
+### Bundled Jackson core (streaming JSON parser) — added 2026-07-23
+
+**Not reachable here:** the bypass needs **untrusted** JSON fed to Jackson's async
+(non-blocking) parser, where digits split across many small chunks evade the
+`maxNumberLength` guard. Neo4j is 127.0.0.1-bound with the Story Forge backend as its only
+client, and queries ride **Bolt** (binary), not JSON. Resource exhaustion only — no data
+disclosure, no RCE. (Distinct from the `jackson-databind` pair below: different jar,
+different bug class.) **Fix-first not possible yet:** needs jackson-core ≥ 2.21.4; `.27`
+bundles 2.21.1 + 2.21.3. **Drop when:** a soaked (≥ 7-day) Neo4j 5.26.x patch bundles
+jackson-core ≥ 2.21.4; checked at each neo4j tag bump.
+
+| CVE | Pkg | Sev | Class | Fixed in | Why acceptable here |
+|---|---|---|---|---|---|
+| GHSA-r7wm-3cxj-wff9 (no CVE id) | com.fasterxml.jackson.core:jackson-core | HIGH | DoS (async-parser `maxNumberLength` bypass via chunked digits) | jackson-core 2.21.4 / 2.18.8 / 2.22.1 | no untrusted JSON reaches Neo4j; Bolt is binary; loopback, single trusted client |
 
 ### Bundled Apache Shiro (Neo4j's auth framework) — added 2026-06-19
 
@@ -126,8 +174,8 @@ the `.25` pin** (the Trivy DB learned of the CVE on 2026-06-19), unrelated to th
 unescaped DN construction), and **Neo4j LDAP/AD auth is Enterprise-only** — this is Neo4j
 **Community**, native auth realm only, so `DefaultLdapRealm` is never instantiated and no
 DN is built from user input (defence in depth: 127.0.0.1, single trusted user, native
-`NEO4J_AUTH`). **Fix-first not possible yet:** neo4j `5.26.26` (soaked) and `.27` (unsoaked)
-both still bundle shiro-core 2.1.0 (verified by local Trivy scan 2026-06-19).
+`NEO4J_AUTH`). **Fix-first not possible yet:** the now-pinned `5.26.27` still bundles shiro-core 2.1.0,
+as does `.28` (verified by local Trivy scan 2026-07-23; first observed 2026-06-19).
 **Drop when:** a soaked (≥ 7-day) Neo4j 5.26.x patch bundles shiro-core ≥ 2.2.1 (re-scan to
 confirm the CVE is gone); checked at each neo4j tag bump.
 
@@ -141,8 +189,9 @@ Class: **bundled** Jackson `jackson-databind` jars Neo4j ships (like the netty/s
 above; no base variant fixes them). A sibling pair (GHSA-j3rv-43j4-c7qm), both HIGH, both
 published 2026-06-23, surfaced on the `main` push the next day (the Trivy DB learned of them
 between PR #125's branch scan and the merge push — pure treadmill, unrelated to that docs PR).
-Trivy finds them in **two** bundled jars: `jackson-databind-2.21.1.jar` (2.21.1) and the copy
-shaded into `parquet-jackson-1.17.0.jar` (2.19.2) — both in the `>= 2.19.0, <= 2.21.3` range.
+Trivy finds them in **two** bundled jars — on the current `5.26.27` pin, versions 2.21.1 and
+2.21.3 (on the previous `.25` pin it was 2.21.1 and the 2.19.2 copy shaded into
+`parquet-jackson-1.17.0.jar`) — all in the `>= 2.19.0, <= 2.21.3` range.
 **Not reachable here:** both are deserialization-allowlist bypasses that require deserializing
 **untrusted** JSON into a vulnerable type with polymorphic/default typing enabled. Neo4j
 Community here is 127.0.0.1-bound, single trusted user, non-root; the backend is its only

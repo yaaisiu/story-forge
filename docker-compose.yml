@@ -5,16 +5,17 @@
 #   - All services run on a private bridge network; no `network_mode: host`.
 #   - `no-new-privileges` is enforced on every container.
 #   - Image tags are pinned to specific patches:
-#       * neo4j:5.26.25-community-ubi10 — 5.26 is Neo4j's LTS line; patch .25
-#         was first cut weeks before this pin (Docker Hub's `last_updated` of
-#         2026-05-08 reflects a base-OS rebuild, not first publication). The
-#         `-bullseye` variant was dropped at .25 (last bullseye is 5.26.24).
+#       * neo4j:5.26.27-community-ubi10 — 5.26 is Neo4j's LTS line; patch .27
+#         was published 2026-07-01, comfortably past the §6.7 7-day image soak
+#         when pinned on 2026-07-23. Bumped from .25 to pick up netty
+#         4.1.135.Final, which *fixes* the six netty CVEs .25 had to waive.
 #         We pin the Red Hat UBI-10 variant over `-trixie`: Trivy shows the
 #         Debian-13 base carrying 14 HIGH/CRITICAL OS-package CVEs (incl. 2
 #         CRITICAL gnutls), while UBI-10 shows 0 — Red Hat ships the patched
-#         packages. Both variants still carry 3 HIGH netty CVEs bundled by
-#         Neo4j itself (no base variant can fix those); those are waived with
-#         justification in infra/trivy/neo4j.trivyignore. (Issue #2.)
+#         packages. Residual HIGHs are all in jars Neo4j bundles itself (netty,
+#         jetty, jackson, shiro) which no base variant or released tag can fix;
+#         those are waived with justification in infra/trivy/neo4j.trivyignore.
+#         (Issue #2.)
 #       * pgvector/pgvector:0.8.2-pg17-trixie — CVE-fix release over 0.8.1;
 #         all pgvector tags were rebuilt 2026-05-15 (6 days old at pin time, a
 #         §6.7 age-bend taken by explicit decision for a CVE-fix release — see
@@ -48,7 +49,7 @@ services:
   # Neo4j Community — knowledge graph
   # -------------------------------------------------------------------------
   neo4j:
-    image: neo4j:5.26.25-community-ubi10
+    image: neo4j:5.26.27-community-ubi10
     container_name: storyforge-neo4j
     restart: unless-stopped
     networks: [storyforge_net]
@@ -90,7 +91,7 @@ services:
   # init.cypher uses IF NOT EXISTS so re-runs are idempotent.
   # -------------------------------------------------------------------------
   neo4j-init:
-    image: neo4j:5.26.25-community-ubi10
+    image: neo4j:5.26.27-community-ubi10
     container_name: storyforge-neo4j-init
     networks: [storyforge_net]
     depends_on:
