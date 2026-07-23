@@ -99,6 +99,13 @@ At its second roll it gets a **binary** decision, and the reviewer must pick one
 - **Move it to `docs/BACKLOG.md`** — it is honestly post-PoC; route it there per
   the BACKLOG header's routing rule and strike it here with a pointer.
 
+**If the incoming milestone isn't chosen yet, BACKLOG is the branch** — don't let the missing
+milestone become a third free carry. The item is reconsidered when the milestone is planned,
+which is what `docs/BACKLOG.md` already promises ("reviewed at milestone rolls; promoted when
+picked up"). That is the *stronger* reconsideration, not a weaker one: a standing carry-forward
+never got reviewed at all. (Hit on the rule's first run, Session 101 — the Graph-quality roll
+closed with the next milestone deliberately unchosen, so all ten aged items took this branch.)
+
 There is no third option for that age band. The reason is evidence, not tidiness:
 by the Graph-quality roll **nine** items were 2+ rolls old and untouched, every one
 carrying the same escape hatch — *"fix when the relevant code is next touched."*

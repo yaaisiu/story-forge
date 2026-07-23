@@ -66,8 +66,10 @@ features — to make the public repo read cleanly to an outside visitor:
 > skill earns its place — the milestone is frontend-curation-heavy; `meta-architect:decompose-requirement`
 > covers its branchy S0). The original framing is kept below for the record. ~~**Still pending:** the
 > milestone **roll** (opens it in `PLAN_SHORT.md`) and the **S61 plan-trim prep** — separate units.~~
-> ✅ Both done: the S61 plan-trim prep landed Session 67; the milestone **roll** landed Session 68
-> (Graph-quality is now the current milestone in `PLAN_SHORT.md`).
+> ✅ Both done: the S61 plan-trim prep landed Session 67; the milestone **roll** landed Session 68.
+> **Graph quality then ran Sessions 68–100 and closed at the Session-101 roll** — its full record is in
+> [`docs/PLAN_ARCHIVE.md`](PLAN_ARCHIVE.md). A **second prep gate of the same shape is now due**: the
+> next milestone is deliberately unchosen, and choosing it has a recorded prerequisite (below).
 
 Before committing to the next build work (i.e. before the Graph-quality milestone below), run a
 deliberate **cleaning / preparation pass** — the PoC's spec and plans were written for the PoC and
@@ -80,7 +82,7 @@ what to do next* on a clean, current foundation rather than drifting into the ne
 docs. Sequence it after the Public-readiness pass completes; slice it when picked up. (Recorded so
 the next planning conversation can't miss it; the public-readiness pass stays the current focus.)
 
-## Graph quality & cleanliness — curate the graph you have (◀ CURRENT MILESTONE — opened Session 68; before V2)
+## Graph quality & cleanliness — curate the graph you have (✅ COMPLETE — S0–S7, Sessions 68–100; rolled to archive Session 101)
 
 Then make the graph *trustworthy* before building writing features on top of it (owner: "a sprint
 or two for graph clarity"). **Scoped at the Session-66 preparation gate** into a focused milestone —
@@ -109,6 +111,30 @@ extraction/cascade **eval baseline** + spaCy-PreNER eval, and relation deep-mode
 (**modality / arity / eventive-vs-stative + timeline ordering**) beyond the **§4 edge-addressability
 call** (resolved Session 69 — reserve a stable edge handle now, build the modelling later). Also tracked:
 the deferred app capabilities this exposed — **re-structure / delete-story**.
+
+## ◀ THE FORK — next milestone, deliberately unchosen (opened at the Session-101 roll)
+
+Graph quality is done, and the roadmap now reaches a genuine **fork**: go **deeper on extraction**
+(the deferred pass just above — re-extraction, the eval baseline, relation deep-modelling) or move to
+**V2 Editing** (below). Both are legitimate next milestones; nothing in the roadmap decides between them.
+
+**The choice has a recorded prerequisite: run fresh sample stories/articles end-to-end first.** The
+working Oakhaven graph has been hand-curated across Graph-quality S4–S7 and therefore no longer shows
+what the **pipeline** produces unaided — deciding the fork from it would read the wrong evidence. If
+extraction is materially worse than the curated graph suggests, the extraction pass wins; if it holds up,
+V2 wins. That run is a session of its own and comes *before* the fork is locked.
+
+Two `docs/BACKLOG.md` items are flagged as **promotion candidates** for whichever branch wins, both
+surfaced by real use in Session 100: the **normalise-names cards show no evidence** behind their labels
+(a suggestion the author cannot evaluate is a human gate in name only — the Graph-quality thesis left
+unapplied to its own S6 slice; the Session-101 architecture sweep independently reached the same finding
+and supports promotion), and **24 % of the graph is isolated** (39 of 161 entities; two thirds at degree
+≤ 1) with no bulk triage surface.
+
+**Sizing note (Session-101 milestone-roll retro).** Graph quality was **8 slices but 33 sessions** — the
+slice sizing was sound; the ~40 % that went to security-treadmill maintenance and one out-of-sequence
+tooling detour was not planned for. Size the next milestone with that overhead in view, and keep it small
+enough that its own Decided/Done log never approaches the `PLAN_SHORT.md` read limit (`docs/AGENTS.md` §7).
 
 ## V2 — Editing
 
