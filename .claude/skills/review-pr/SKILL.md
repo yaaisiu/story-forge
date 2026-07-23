@@ -83,6 +83,23 @@ path the tests assert — find the cases nobody wrote a test for. Check, concret
   free-string labels (INV-4) instead of UUIDs, so `{"a|b","c"}` and `{"a","b|c"}` collided on one id
   and dismissing one suppressed the other; the fix was a JSON-array seed. `/code-review` caught it,
   the self-`/review-pr` missed it.)
+- **Same-concept sweep — a fix that corrects a *conceptual* confusion must sweep its own unit for
+  the other places that concept appears.** The two sweeps below are about a thing reused across
+  *call sites*; this one is about a single idea expressed **more than once inside one function or
+  module**, where fixing the occurrence you can see leaves its twin untouched. The tell is a fix
+  whose description is a *distinction* rather than a location: edges vs nodes, count vs identity,
+  index vs item, codepoints vs code units, ids vs names, one unit of time vs another. When the diff
+  makes such a correction, **grep the same unit for every other expression of that same
+  distinction** before calling it fixed — including the parts that merely *depend on* it, like a
+  sort key, a total, or a downstream assumption about **timing** the change alters. A fix that
+  targets the visible symptom of a category error is a half-fix, and the surviving half sits in the
+  one place a reviewer is least likely to look twice: right beside the code that was just corrected
+  and blessed. (Graph-quality S7: the reader tooltip collapsed to one line per *neighbour* after a
+  live check showed a single hub taking all three slots — but `degree` six lines above still counted
+  incident *edges*, so a dead end joined by four parallel edges outranked a genuine hub. Both the
+  self-`/review-pr` and the test written to guard that ordering passed; the multi-agent
+  `/code-review` caught it. The same session, the perf follow-up made a list refresh ~300× faster
+  without asking what depended on the old timing, turning a latent positional-cursor bug acute.)
 - **Complete-the-extraction sweep — when a PR extracts/relocates a primitive to be its "single
   home," did *every* existing inline copy get routed through it?** A refactor that pulls a shared
   helper out (a scoring/format/parse expression, a constant, a small algorithm) so there is *one*

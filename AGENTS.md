@@ -114,6 +114,16 @@ Per feature (and at session close): feature branch → **open a PR so CI actuall
 - After finishing a unit of work: short summary (what was done, what tests pass, what's next, what's blocked).
 - When the spec is wrong or contradictory: flag it before working around it.
 - Long stretches without check-in are a smell. If you've been working for 30+ minutes without confirming direction, stop and confirm.
+- **When I report something as slow, measure it before deciding how bad it is.** A passing annoyance
+  and a stall that breaks the whole app read *identically* in my words — I describe the symptom, not
+  the magnitude, because I have no reason to time it. So don't classify severity, pick a fix, or route
+  it to `docs/BACKLOG.md` off my phrasing: take the thirty seconds to measure first, then decide. The
+  measurement also usually names the fix, which prose never does. (Earned Session 100: I called the
+  normalise-names queue "takes a moment"; it was a ~14 s request that queued refetches until the
+  browser ran out of connections and every other page starved behind them. It was filed as post-PoC
+  polish on the strength of my four words, and one `curl -w '%{time_total}'` reclassified it as
+  blocking. The same rule cuts the other way — a measurement showing "actually fine" saves building
+  something.)
 - **One unit of work per conversation — pause at unit boundaries.** Prefer to land a single unit (a decompose, a build slice, a merge) and **stop**, surfacing it for me to start the next in a fresh conversation — *even when you're authorized to proceed and could chain straight into the next unit.* Within a unit, "proceed when you have enough info" still holds; the pause is at the *boundary between* units, not mid-task. Chaining several units in one conversation costs clarity; a clean boundary lets me review and re-orient. When a unit is done, surface it and ask before opening the next — don't assume momentum is consent. (Earned Session 50: I nearly ran decompose → build → merge in one conversation; the owner prefers separate conversations for clarity.) **`/wrap-session` is *not* one of these units — it is the closing bookkeeping of the session it wraps, and runs in the *same* conversation as that work, never deferred to a fresh one.** It needs the session's live context to write an honest Done line + handoff; deferring it leaves the next `/resume-session` reading a stale handoff. The "fresh conversation" pause is for the next *build* unit, not for closing the current session. (Earned Session 73: I framed the wrap as a separate unit to defer to a new conversation; the owner corrected that the wrap always belongs to its session.)
 
 ## Where knowledge lives — document in the repo, not in agent memory
