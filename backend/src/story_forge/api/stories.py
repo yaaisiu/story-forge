@@ -794,6 +794,10 @@ async def get_story_reader(
     # `/graph` does) feeds a single pass that summarises every entity — no per-entity query.
     # Names are resolved here because `canonical_for_language` lives in `agents/`, which the
     # pure `domain` summariser must not import.
+    # Deliberately **project**-scoped, not story-scoped (owner, 2026-07-23; spec §3.5). The §3.4
+    # graph route filters the same read to the story (DM-MS-2); the tooltip does not, because
+    # summarising an entity's role across every story is the point of a shared world graph. A
+    # neighbour named in the summary may therefore not appear in the story being read.
     names_by_entity = {e.id: canonical_for_language(e, language) for e in entities}
     relations = await repo.get_relations(story.project_id)
     # `only=appeared` — build summaries for the entities the catalog actually carries; ranking is

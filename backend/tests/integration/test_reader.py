@@ -369,3 +369,35 @@ async def test_reader_summary_caps_at_three_relations_and_counts_the_rest(
     entry = next(e for e in resp.json()["entities"] if e["entity_id"] == str(janek.id))
     assert len(entry["relations"]) == 3
     assert entry["relation_overflow"] == 2
+
+
+async def test_reader_summary_spans_the_project_not_just_the_story(
+    make_client: object, db_conn: psycopg.AsyncConnection
+) -> None:
+    # Spec §3.5, owner decision 2026-07-23: the tooltip summary is deliberately **project**-scoped
+    # even though the §3.4 graph view defaults to story scope (DM-MS-2) — summarising an entity's
+    # role across every story is the point of a shared world graph. Pinned so the divergence from
+    # /graph reads as intent, not as an oversight a later reviewer "fixes".
+    story, (para,) = await _make_paragraphs(db_conn, "Janek met Maria.")
+    janek = GraphEntity(type="Character", canonical_name_pl="Janek", project_id=story.project_id)
+    maria = GraphEntity(type="Character", canonical_name_pl="Maria", project_id=story.project_id)
+    # Belongs to the same project but is never mentioned in this story's prose.
+    elsewhere = GraphEntity(
+        type="Character", canonical_name_pl="Bronisław", project_id=story.project_id
+    )
+    await _mention(db_conn, para, janek)
+    await _mention(db_conn, para, maria)
+    relations = [
+        GraphRelation(type="KILLS", subject_id=janek.id, object_id=elsewhere.id, confidence=0.9),
+    ]
+    client: AsyncClient = make_client(  # type: ignore[operator]
+        _StubRepo([janek, maria, elsewhere], relations)
+    )
+
+    resp = await client.get(f"/stories/{story.id}/reader")
+
+    assert resp.status_code == 200, resp.text
+    entry = next(e for e in resp.json()["entities"] if e["entity_id"] == str(janek.id))
+    assert entry["relations"] == [
+        {"direction": "out", "predicate": "KILLS", "neighbour_name": "Bronisław"},
+    ]

@@ -223,7 +223,11 @@ Visualization requirements:
   surface, with a `+N more` line when it has more. **One line per distinct neighbour** — where a
   pair is joined by several edges one represents them, so a single hub can't occupy every slot and
   hide who else the entity touches. The summary is **derived at read time** from the accepted
-  graph — entities carry no stored `description` field, and none is authored or LLM-generated
+  graph — entities carry no stored `description` field, and none is authored or LLM-generated.
+  **Scope: the whole project graph, deliberately** (owner, 2026-07-23) — unlike the §3.4 graph
+  view, which defaults to `scope=story` (DM-MS-2), the tooltip summarises an entity's role across
+  *every* story in the project, because that cross-story reach is the point of a shared world
+  graph. A neighbour named here may therefore not appear in the story being read
 - Click on a highlighted entity → opens side panel with a local graph around that entity
 - Manual tagging available (select text → "this is an entity of type X" → add to graph)
 - Manual correction: right-click on a highlight → "not this entity" / "not an entity" / "change boundaries"
