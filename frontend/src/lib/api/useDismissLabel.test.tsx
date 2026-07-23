@@ -23,7 +23,7 @@ function buildHarness() {
   const wrapper = function Wrapper({ children }: { children: ReactNode }) {
     return <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>;
   };
-  return { wrapper, invalidateSpy, queryClient };
+  return { wrapper, invalidateSpy };
 }
 
 function emptyResponse(status: number): Response {
@@ -87,36 +87,5 @@ describe("useUndismissLabel", () => {
       },
     );
     expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: labelVocabularyQueryKey(STORY_ID) });
-  });
-
-  it("optimistically drops only the dismissed pair, leaving each label's other pairings", async () => {
-    // Unlike a rename, both labels survive a dismissal — pins the hook's wiring to `dropPair`.
-    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response(null, { status: 204 })));
-    const { wrapper, queryClient } = buildHarness();
-    const suggestion = (lo: string, hi: string) => ({
-      label_lo: lo,
-      label_hi: hi,
-      count_lo: 1,
-      count_hi: 2,
-      name_score: 90,
-      cosine_score: 0.9,
-      combined_score: 0.9,
-    });
-    queryClient.setQueryData(labelVocabularyQueryKey(STORY_ID), {
-      predicate_suggestions: [
-        suggestion("LOCATED_AT", "LOCATED_IN"),
-        suggestion("LOCATED_AT", "SITUATED_IN"),
-      ],
-      type_suggestions: [],
-    });
-
-    const { result } = renderHook(() => useDismissLabel(STORY_ID), { wrapper });
-    result.current.mutate({ surface: "predicate", labelA: "LOCATED_AT", labelB: "LOCATED_IN" });
-    await waitFor(() => expect(result.current.isSuccess).toBe(true));
-
-    const cached = queryClient.getQueryData(labelVocabularyQueryKey(STORY_ID)) as {
-      predicate_suggestions: { label_hi: string }[];
-    };
-    expect(cached.predicate_suggestions.map((s) => s.label_hi)).toEqual(["SITUATED_IN"]);
   });
 });

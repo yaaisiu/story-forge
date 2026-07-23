@@ -43,6 +43,11 @@ class LabelVocabularyReader:
         # label → vector, for the app's lifetime. A label's embedding depends on nothing but the
         # string, so it can never go stale; see `_encode_labels` for why this is load-bearing.
         self._embeddings: dict[str, list[float]] = {}
+        # Serialises the encode step across *requests*. `asyncio.gather` only ever made the two
+        # vocabulary reads concurrent within one request; two concurrent requests on a cold cache
+        # would each hop to a worker thread and each trip `EmbeddingAgent._model()`'s unguarded
+        # lazy init, loading the ~2 GB model twice (an OOM on an 8 GB dev host).
+        self._encode_lock = asyncio.Lock()
 
     async def load_vocabulary(
         self, project_id: UUID
@@ -52,14 +57,20 @@ class LabelVocabularyReader:
             self._neo4j.list_predicate_vocabulary(project_id),
             self._neo4j.list_type_vocabulary(project_id),
         )
-        # Encode in ONE off-thread pass, and only what isn't cached. Two concurrent `to_thread`
-        # encodes would race `EmbeddingAgent._model()`'s unguarded lazy init on the first request
-        # and load the ~2 GB model twice; a single pass loads it once. Blocking + CPU-bound, so
-        # off the loop. When every label is cached there is nothing to encode and no thread hop.
+        # Encode in ONE off-thread pass, and only what isn't cached — blocking + CPU-bound, so off
+        # the loop. When every label is already cached there is nothing to encode and no thread hop
+        # at all, which is the common case after the first load.
         counts = [*predicates, *types]
-        missing = list(dict.fromkeys(c.label for c in counts if c.label not in self._embeddings))
-        if missing:
-            await asyncio.to_thread(self._encode_labels, missing)
+        if any(c.label not in self._embeddings for c in counts):
+            # Under the lock, so concurrent requests on a cold cache can't each start a model load
+            # (see `_encode_lock`). Re-check `missing` *inside* it: whoever waited may find the
+            # labels already encoded by the holder and skip the thread hop entirely.
+            async with self._encode_lock:
+                missing = list(
+                    dict.fromkeys(c.label for c in counts if c.label not in self._embeddings)
+                )
+                if missing:
+                    await asyncio.to_thread(self._encode_labels, missing)
         embeddings = [self._embeddings[c.label] for c in counts]
         entries = [
             LabelVocabularyEntry(label=c.label, count=c.count, embedding=embedding)
@@ -78,9 +89,16 @@ class LabelVocabularyReader:
         changes the vocabulary by about one label, so with the cache the next load encodes one
         label instead of 272.
 
-        Unbounded by design: a label's vector depends only on its string, so an entry is never
-        invalid, and the key space is the project's label vocabulary — hundreds of short strings,
-        and a rename *consumes* an existing label rather than inventing one.
+        Unbounded, and the real bound is wider than one project: the reader is constructed once in
+        `main.py` and held on `app.state`, so this dict accumulates the union of **every project's**
+        predicate and type labels for the process lifetime — plus every label ever renamed *away*,
+        since nothing evicts. Working a 300-item queue therefore leaves a few hundred dead keys
+        behind. That is accepted rather than overlooked: an entry is never *invalid* (a vector
+        depends only on its string, which is also why the key is the bare label and sharing across
+        projects is correct), and at ~25 KB per vector a few thousand labels is a few tens of MB
+        against a process already holding a ~2 GB model. Revisit if a corpus ever pushes the label
+        vocabulary into the tens of thousands — an LRU is the obvious answer, not per-project keys,
+        which would forfeit the sharing this exists for.
         """
         for label in labels:
             self._embeddings[label] = self._encoder.encode(label)

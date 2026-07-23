@@ -12,8 +12,7 @@
 import { useMutation, useQueryClient, type UseMutationResult } from "@tanstack/react-query";
 
 import { ApiError, delJsonBody, postJsonBody } from "./client";
-import { dropPair } from "./labelVocabularyCache";
-import { labelVocabularyQueryKey, type LabelVocabularyResponse } from "./useLabelVocabulary";
+import { labelVocabularyQueryKey } from "./useLabelVocabulary";
 import type { components } from "./schema";
 
 export { ApiError } from "./client";
@@ -38,14 +37,7 @@ export function useDismissLabel(
   const queryClient = useQueryClient();
   return useMutation<null, ApiError, DismissLabelVars>({
     mutationFn: (vars) => postJsonBody<null>(DISMISS_PATH(storyId), requestBody(vars)),
-    onSuccess: (_data, { surface, labelA, labelB }) => {
-      // Drop the row now so the queue repaints immediately; the refetch below re-derives the
-      // list (a ~1.7 s whole-vocabulary recompute) and remains authoritative. Only this pair
-      // goes — both labels survive a dismissal, so their other pairings are untouched.
-      queryClient.setQueryData<LabelVocabularyResponse>(
-        labelVocabularyQueryKey(storyId),
-        (current) => dropPair(current, surface, labelA, labelB),
-      );
+    onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: labelVocabularyQueryKey(storyId) });
     },
   });

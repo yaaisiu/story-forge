@@ -822,13 +822,48 @@ gate as S4, and a suggestion the author can't evaluate is a gate in name only.
 
 ## ~~Normalise-names queue — refetch lag after a rename~~ ✅ FIXED 2026-07-23 (Session 100)
 
-> **Resolved the same session it was raised.** The owner was about to work the 300-item queue, so
-> this went from "post-PoC polish" to blocking real use. Both cheap fixes landed: the reader now
+> **Resolved the same session it was raised** — by the backend half only. The owner was about to
+> work the 300-item queue, so this went from "post-PoC polish" to blocking real use. The reader now
 > **caches label embeddings by string** (`LabelVocabularyReader`), taking one vocabulary load from
-> **~14–18 s to ~1.7 s** on the real Oakhaven graph, and the rename/dismiss hooks now **drop the
-> decided rows from the cache optimistically** (`lib/api/labelVocabularyCache.ts`) so the queue
-> repaints instantly instead of waiting on that refetch. Option (c) — an incremental suggest pass —
-> stays unbuilt and unneeded. Original analysis kept below.
+> **~14–18 s to ~1.7 s** on the real Oakhaven graph. That removes the app-wide starvation, which
+> was the actual harm. Option (c) — an incremental suggest pass — stays unbuilt and unneeded.
+> Original analysis kept below.
+>
+> **The optimistic-drop half was built and then reverted** (see the follow-up item directly below):
+> `/code-review` found it introduced a worse bug than the latency it removed.
+
+## Instant queue repaint needs an identity-anchored cursor first (surfaced S7 walk `/code-review`, Session 100)
+
+Removing a decided row from the cached list the moment its mutation succeeds (rather than when the
+refetch lands) makes the review queues feel instant. It was **built and reverted** the same session
+because, on its own, it is unsafe — and the reason generalises to all four review queues.
+
+**`useReviewQueue`'s cursor is a bare index that is only clamped, never re-anchored.** When the
+list shrinks, every row below the removed one shifts up, and the cursor keeps pointing at a
+*position*, not at the item it was on. Before the optimistic drop the list only shrank when the
+refetch landed — 14–18 s later, long after the author had stopped reacting — so the hazard was
+latent. Dropping the row ~50 ms after the keypress moves it into the middle of rapid keyboard work,
+which is exactly how these queues are worked: press `D`, press `J` before the response lands, and
+the highlight silently jumps a row, so the next `D` persists a "not synonyms" decision against a
+pair the author never looked at, while the pair they *did* mean to reach is skipped. Reversible via
+the single-slot Undo banner — which by then names the wrong pair.
+
+Three smaller consequences, all fixed by the same groundwork: the drop fires on **any 2xx**,
+including renames the backend no-ops because it strips `to_label` while preserving `from_label`
+verbatim (the S95 guard) — so on exactly the whitespace pairs S6 exists to catch, rows vanish and
+flicker back. Surviving rows keep **stale use-counts**, so the armed-rename hint can quote a number
+wrong by a factor of four on the one screen whose contract is "nothing changes until you press
+Rename". And **un-dismiss** stays invalidate-only, so Undo looks like a no-op next to an instant
+dismiss.
+
+**When picked up, do the cursor first.** Give `useReviewQueue` an optional item-identity function
+and re-anchor `selectedIndex` to the previously-selected item when the list changes (falling back
+to clamping when it's gone). That is a genuine improvement for all four queues — the same
+shift-under-the-cursor exists today on every refetch, just rarely enough not to have bitten. Only
+then re-add the optimistic drop, with: a guard on the response (skip the drop when
+`renamed_count == 0`), count reconciliation on surviving rows or no count edit at all, and a
+matching optimistic re-insert for un-dismiss. The reverted implementation and its tests are in the
+git history of `fix/normalise-names-refetch-cost` if useful.
 
 Committing a rename in `/stories/:id/normalise-names` leaves a visible pause before the queue
 repaints without the renamed pair. `useRenameLabel` invalidates the label vocabulary, and the

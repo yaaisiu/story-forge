@@ -8,6 +8,7 @@ cover: labels/counts carried through, each label encoded, and an empty surface s
 
 from __future__ import annotations
 
+import asyncio
 from uuid import UUID, uuid4
 
 from story_forge.adapters.label_vocabulary_reader import LabelVocabularyReader
@@ -122,3 +123,37 @@ async def test_a_repeated_label_within_one_load_is_encoded_once() -> None:
     assert encoder.seen == ["GUARD"]
     assert predicates[0].embedding == types[0].embedding
     assert (predicates[0].count, types[0].count) == (2, 7)
+
+
+async def test_the_cache_is_shared_across_projects_not_scoped_to_one() -> None:
+    # The reader is app-lifetime, and the key is the bare label *by design*: an embedding depends
+    # only on the string, so two projects using "PERSON" need the same vector. Pinned because the
+    # tempting "safety" refactor — keying on (project_id, label) — would pass every other test here
+    # while silently restoring the ~14 s load for anyone working a second project.
+    shared = LabelCount("PERSON", 4)
+    neo4j = _FakeNeo4j(predicates=[], types=[shared])
+    encoder = _FakeEncoder()
+    reader = LabelVocabularyReader(neo4j, encoder)  # type: ignore[arg-type]
+
+    _, first_types = await reader.load_vocabulary(uuid4())
+    _, second_types = await reader.load_vocabulary(uuid4())  # a DIFFERENT project
+
+    assert encoder.seen == ["PERSON"]
+    assert first_types[0].embedding == second_types[0].embedding
+
+
+async def test_concurrent_cold_loads_encode_each_label_once() -> None:
+    # Two requests arriving on a cold cache must not both start an encode — each would trip
+    # EmbeddingAgent's unguarded lazy model init and load ~2 GB twice. The lock serialises them and
+    # the second re-checks, so it finds the work already done.
+    neo4j = _FakeNeo4j(predicates=[LabelCount("HUNTS", 1)], types=[LabelCount("PERSON", 2)])
+    encoder = _FakeEncoder()
+    reader = LabelVocabularyReader(neo4j, encoder)  # type: ignore[arg-type]
+
+    await asyncio.gather(
+        reader.load_vocabulary(uuid4()),
+        reader.load_vocabulary(uuid4()),
+        reader.load_vocabulary(uuid4()),
+    )
+
+    assert sorted(encoder.seen) == ["HUNTS", "PERSON"]
