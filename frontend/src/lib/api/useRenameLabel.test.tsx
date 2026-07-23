@@ -2,7 +2,8 @@
 //
 // Pins: it POSTs { surface, from_label, to_label } to /label-vocabulary/rename, sending from_label
 // VERBATIM (S95 strip-bug guard); it resolves the renamed/folded summary; it invalidates the
-// vocabulary list; a failure bubbles as a typed ApiError (404/503).
+// vocabulary list AND optimistically drops every pair naming the renamed-away label so the queue
+// repaints without waiting for the ~1.7 s refetch; a failure bubbles as a typed ApiError (404/503).
 
 import type { ReactNode } from "react";
 
@@ -27,7 +28,7 @@ function buildHarness() {
   const wrapper = function Wrapper({ children }: { children: ReactNode }) {
     return <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>;
   };
-  return { wrapper, invalidateSpy };
+  return { wrapper, invalidateSpy, queryClient };
 }
 
 function jsonResponse(status: number, body: unknown): Response {
@@ -102,5 +103,42 @@ describe("useRenameLabel", () => {
     await waitFor(() => expect(result.current.isError).toBe(true));
     expect(result.current.error).toBeInstanceOf(ApiError);
     expect(result.current.error?.status).toBe(503);
+  });
+
+  it("optimistically drops every cached pair naming the renamed-away label", async () => {
+    // The queue must repaint immediately — the invalidation's refetch is a whole-vocabulary
+    // recompute. Pins the hook's wiring to `dropPairsInvolving`, not just the helper itself.
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValue(
+        jsonResponse(200, { surface: "predicate", renamed_count: 3, folded_count: 0 }),
+      );
+    vi.stubGlobal("fetch", fetchMock);
+    const { wrapper, queryClient } = buildHarness();
+    const suggestion = (lo: string, hi: string) => ({
+      label_lo: lo,
+      label_hi: hi,
+      count_lo: 1,
+      count_hi: 2,
+      name_score: 90,
+      cosine_score: 0.9,
+      combined_score: 0.9,
+    });
+    queryClient.setQueryData(labelVocabularyQueryKey(STORY_ID), {
+      predicate_suggestions: [suggestion("STANDS_ON", "STAND_ON"), suggestion("HUNTS", "CHASES")],
+      type_suggestions: [suggestion("PERSON", "Person")],
+    });
+
+    const { result } = renderHook(() => useRenameLabel(STORY_ID), { wrapper });
+    result.current.mutate({ surface: "predicate", fromLabel: "STANDS_ON", toLabel: "STAND_ON" });
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+
+    const cached = queryClient.getQueryData(labelVocabularyQueryKey(STORY_ID)) as {
+      predicate_suggestions: { label_lo: string }[];
+      type_suggestions: unknown[];
+    };
+    expect(cached.predicate_suggestions.map((s) => s.label_lo)).toEqual(["HUNTS"]);
+    // The other surface is untouched.
+    expect(cached.type_suggestions).toHaveLength(1);
   });
 });

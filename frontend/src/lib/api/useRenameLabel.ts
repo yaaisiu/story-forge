@@ -17,8 +17,9 @@
 import { useMutation, useQueryClient, type UseMutationResult } from "@tanstack/react-query";
 
 import { ApiError, postJsonBody } from "./client";
+import { dropPairsInvolving } from "./labelVocabularyCache";
 import { entityDetailStoryKey } from "./useEntityDetail";
-import { labelVocabularyQueryKey } from "./useLabelVocabulary";
+import { labelVocabularyQueryKey, type LabelVocabularyResponse } from "./useLabelVocabulary";
 import { readerQueryKey } from "./useReader";
 import { storyGraphQueryKey } from "./useStoryGraph";
 import type { components } from "./schema";
@@ -49,7 +50,14 @@ export function useRenameLabel(
         from_label: fromLabel,
         to_label: toLabel,
       }),
-    onSuccess: () => {
+    onSuccess: (_data, { surface, fromLabel }) => {
+      // Repaint the queue now: the refetch below is a whole-vocabulary recompute (~1.7 s), and
+      // waiting for it stalls the list after every decision. `fromLabel` no longer exists after
+      // the rename, so every pair naming it is gone; the refetch still reconciles the counts.
+      queryClient.setQueryData<LabelVocabularyResponse>(
+        labelVocabularyQueryKey(storyId),
+        (current) => dropPairsInvolving(current, surface, fromLabel),
+      );
       void queryClient.invalidateQueries({ queryKey: labelVocabularyQueryKey(storyId) });
       // The rename wrote the graph — refresh the views that render its edges/types, mirroring
       // useMergeEntities (the other graph-write hook).

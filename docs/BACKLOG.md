@@ -738,7 +738,15 @@ Surfaced by the slice's multi-agent `/code-review` (PR #130) and consciously def
 When picked up: add an `allStoryGraphsKey()` (or invalidate `["story-graph"]`) at the graph-writing
 hooks and update their invalidation assertions.
 
-## Normalise-names queue — refetch lag after a rename (post-PoC, surfaced S7 browser walk, Session 100)
+## ~~Normalise-names queue — refetch lag after a rename~~ ✅ FIXED 2026-07-23 (Session 100)
+
+> **Resolved the same session it was raised.** The owner was about to work the 300-item queue, so
+> this went from "post-PoC polish" to blocking real use. Both cheap fixes landed: the reader now
+> **caches label embeddings by string** (`LabelVocabularyReader`), taking one vocabulary load from
+> **~14–18 s to ~1.7 s** on the real Oakhaven graph, and the rename/dismiss hooks now **drop the
+> decided rows from the cache optimistically** (`lib/api/labelVocabularyCache.ts`) so the queue
+> repaints instantly instead of waiting on that refetch. Option (c) — an incremental suggest pass —
+> stays unbuilt and unneeded. Original analysis kept below.
 
 Committing a rename in `/stories/:id/normalise-names` leaves a visible pause before the queue
 repaints without the renamed pair. `useRenameLabel` invalidates the label vocabulary, and the
