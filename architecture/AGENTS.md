@@ -30,7 +30,8 @@ Start at **`INDEX.md`** — the regenerated map of the whole vault. From there:
 - **`PROJECT.md`** — the stable inputs: identity, personas/trust, business drivers, and the
   **source-of-truth registry** (the single most useful table — where each kind of fact authoritatively lives).
 - **`overview.md`** — the nine-layer system-altitude analysis, grounded in the as-built present.
-- **`invariants.md`** — the rules that must never break (INV-1…INV-9; INV-8 retired at M3.S4a) and **where each is
+- **`invariants.md`** — the rules that must never break (INV-1…INV-10; INV-8 retired at M3.S4a, INV-10
+  minted at Graph-quality S5b-be) and **where each is
   enforced** vs. where the guard is still planned. Read this before touching the LLM/agent/graph
   layers; it tells you which guarantees you're on the hook for.
 - **`open-questions.md`** — framed-but-unresolved decisions (OQ-N) + the operator's next-step

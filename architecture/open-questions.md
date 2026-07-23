@@ -1145,9 +1145,11 @@ against; the rest are open here because nothing else owns them.
   `invariants.md` was corrected in the sweep; the other 12 were left rather than guessed at. **Next move:**
   decide whether `updated:` stays a real signal (then make the bump a checked step wherever a note is
   edited outside a sweep) or is demoted to coarse (then say so, and treat git as the freshness source).
-- **S-1 · `architecture/AGENTS.md` still says "INV-1…INV-9"**; INV-10 shipped at Graph-quality S5b-be.
+- ~~**S-1 · `architecture/AGENTS.md` still says "INV-1…INV-9"**; INV-10 shipped at Graph-quality S5b-be.
   A one-token fix — but **the architect skills cannot make it**: that file is a host-repo convention file,
-  read-only to them by its own rule. Needs a human or a non-architect agent.
+  read-only to them by its own rule. Needs a human or a non-architect agent.~~ ✅ **Fixed 2026-07-23, same
+  session** — corrected to "INV-1…INV-10" in the main loop (outside the architect's guardrail), as a
+  targeted hand-edit of the kind `architecture/AGENTS.md` itself sanctions.
 - **T-1 · `components/` is empty after 100 sessions** — the vault has never used the per-component
   altitude. Possibly correct, but it is an unnamed empty box. **Next move:** either name the
   non-applicability in `architecture/AGENTS.md`, or populate the two that would pay — `LLMRouter`
