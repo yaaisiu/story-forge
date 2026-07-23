@@ -39,7 +39,16 @@ docker run --rm -v "$PWD/backend:/src:ro" \
   scan source -L /src/uv.lock --config=/cfg/osv.toml
 ```
 
-**Last reviewed:** 2026-07-21 — **extended the setuptools waiver** `ignoreUntil` 2026-07-19 →
+**Last reviewed:** 2026-07-23 — **dropped BOTH remaining waivers; this register is now empty.**
+The setuptools `ignoreUntil = 2026-07-23` expired and re-reddened the scheduled `main` run exactly
+as designed, and this time the drop was **unblocked**: `torch 2.13.0` (pub 2026-07-08T16:01:59Z)
+cleared its 14-day soak that morning, so the planned **combined bump** landed — `torch 2.12.0 →
+2.13.0` (which relaxes the `setuptools<82` cap) plus `setuptools 81.0.0 → 83.0.0` in `uv.lock` —
+clearing **GHSA-h35f-9h28-mq5c**. The same bump also retired the **torch** waiver as a bonus:
+`torch 2.13.0` is the first release outside **GHSA-rrmf-rvhw-rf47**'s range (OSV reports no known
+vulnerability for 2.13.0), so the "affects all versions, no fixed version" condition that justified
+that waiver no longer holds. A re-scan of `backend/uv.lock` with an **empty** waiver config reports
+`No issues found`. Prior (2026-07-21) — **extended the setuptools waiver** `ignoreUntil` 2026-07-19 →
 **2026-07-23**. The 2026-07-19 floor passed and the scheduled `main` run re-reddened on the
 advisory, as designed — but the drop turned out **blocked**: the fix `setuptools==83.0.0` (soaked)
 is forbidden by `torch==2.12.0`, which caps `setuptools<82` (`uv lock` fails on the conflict).
@@ -66,40 +75,14 @@ soak, advisory GHSA-v9pg-7xvm-68hf gone.
 
 ## Active waivers
 
-### setuptools — `setuptools==81.0.0` (transitive, added 2026-07-15; extended 2026-07-21)
+_None._ Every advisory this gate has ever raised was ultimately resolved by a **fix**
+(a soaked version bump), not a permanent ignore — the two longest-lived waivers,
+`setuptools` GHSA-h35f-9h28-mq5c and `torch` GHSA-rrmf-rvhw-rf47, were both dropped on
+2026-07-23 (see **Last reviewed** above). `infra/osv/osv-scanner.toml` therefore carries
+no `[[IgnoredVulns]]` blocks, and the gate runs fully strict against `backend/uv.lock`.
 
-Scoped file: `infra/osv/osv-scanner.toml` (`[[IgnoredVulns]]`, `ignoreUntil = 2026-07-23`).
-Class: **sdist-packing exclusion bypass** — `setuptools`' `FileList` applies `MANIFEST.in`
-exclude/global-exclude/recursive-exclude/prune directives by matching compiled globs against
-on-disk names **without Unicode normalization**, so on macOS APFS/HFS+ an NFD file name can
-bypass an NFC exclusion rule and be packed into a source distribution. `setuptools` is a
-**transitive** dependency (pulled by `spacy`/`thinc`/`torch`; not declared in
-`backend/pyproject.toml`). **Drop when:** the fix `setuptools==83.0.0` is already soaked (pub
-2026-07-04), but the drop is **blocked by `torch==2.12.0`**, which caps `setuptools<82` — `uv
-lock` fails on the conflict. Only **torch 2.13.0** relaxes it (`setuptools>=77.0.3`, no cap),
-and 2.13.0 (pub 2026-07-08) clears its own 14-day soak on **2026-07-23** (floor = pub + 15).
-So on/after 2026-07-23 do a **combined** bump — `torch 2.12.0 → 2.13.0` (in the `embeddings`
-group) **and** an explicit `setuptools==83.0.0` pin — via `/add-dependency`, then delete the
-toml block + this row. (Bumping torch before its soak was rejected: `check_dependency_age.py`
-has no per-dep exception, so it would only swap the OSV red for an age red.) The `ignoreUntil`
-re-reds CI on 2026-07-23 as the backstop.
-
-| CVE / advisory | Severity | Class | Why not reachable here |
-|---|---|---|---|
-| GHSA-h35f-9h28-mq5c (CVE-2026-59890, PYSEC-2026-3447) | MEDIUM (CVSS 6.1) | `MANIFEST.in` NFD/NFC exclude bypass when building an sdist | The bug only triggers when **running `setuptools sdist`** (building a source distribution) **on macOS APFS/HFS+**. Story Forge is a local web app — it never packages/publishes a source distribution of itself or anything, and deploys on Linux/WSL with a single trusted local user. There is no sdist build and no untrusted file-name source, so the affected code path is never reached. A fixed version (83.0.0) exists; this waiver is purely the 14-day soak wait, not an unfixable case. |
-
-### torch — `torch==2.12.0` (M3.S2, added 2026-06-12)
-
-Scoped file: `infra/osv/osv-scanner.toml` (`[[IgnoredVulns]]`).
-Class: **memory corruption via `torch.jit.script`** (local, attacker-controlled
-script input). **Drop when:** a fixed torch version is published and clears the
-14-day soak — bump via `/add-dependency`, then delete the toml block + this row.
-(`torch` lives in the optional `embeddings` dependency group, but `uv.lock` locks
-group deps too, so the SCA gate scans it regardless of the lean default install.)
-
-| CVE / advisory | Severity | Class | Why not reachable here |
-|---|---|---|---|
-| GHSA-rrmf-rvhw-rf47 (CVE-2025-3000, PYSEC-2025-194) | MEDIUM (CVSS 5.3) | `torch.jit.script` memory corruption | The embedding stack (sentence-transformers) only runs **inference** — `model.encode(...)`. We never call `torch.jit.script`, the sole affected API. The advisory affects **all** versions ≤2.12.0 with **no fixed version**, so a bump cannot resolve it; it is unfixable-by-pin and unreachable, the two conditions a waiver requires. |
+When the next advisory surfaces, `/triage-advisory` adds its row here and the matching
+block there — the two must always mirror each other.
 
 _Historical note: the advisory that motivated this gate — `starlette` 1.0.0,
 GHSA-86qp-5c8j-p5mr / PYSEC-2026-161, MEDIUM — was resolved by an explicit

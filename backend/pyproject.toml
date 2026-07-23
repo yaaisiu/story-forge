@@ -79,15 +79,16 @@ models = [
 # (see tests/unit/agents/test_embedding_agent.py). Run `uv sync --group embeddings`
 # locally to exercise EmbeddingAgent. Ordinary exact PyPI pins under the 14-day soak +
 # OSV gate (check_dependency_age.py scans dependency-groups; osv-scanner scans uv.lock,
-# which DOES include group deps). NOTE: `torch` carries GHSA-rrmf-rvhw-rf47
-# (CVE-2025-3000, MEDIUM CVSS 5.3) — a `torch.jit.script` memory-corruption, no fix,
-# unreachable here (inference-only `encode`, never `jit.script`). It is waived in the
-# scoped infra/osv/osv-scanner.toml (register: infra/osv/WAIVERS.md), per spec §6.7.
+# which DOES include group deps). `torch` was pinned at 2.12.0 under a waiver for
+# GHSA-rrmf-rvhw-rf47 (`torch.jit.script` memory corruption, no fixed version at the
+# time); 2.13.0 is the first release outside that advisory's range, so the waiver was
+# dropped when this pin moved (2026-07-23). 2.13.0 also relaxes torch's `setuptools<82`
+# cap, which is what let `setuptools` reach 83.0.0 and clear GHSA-h35f-9h28-mq5c.
 # The model *weights* are pinned separately by commit SHA via the §6.7 HuggingFace-model
 # channel (scripts/pin_hf_model.py), not here. spec §6.7.
 embeddings = [
   "sentence-transformers==5.5.1",
-  "torch==2.12.0",
+  "torch==2.13.0",
   "transformers==5.9.0",
   "huggingface-hub==1.17.0",
 ]
