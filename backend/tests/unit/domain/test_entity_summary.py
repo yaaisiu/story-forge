@@ -1,10 +1,12 @@
 """Unit tests for the reader tooltip's graph-derived relation summary (S7, spec §3.5).
 
-The tooltip shows up to three of an entity's relations, ordered so the *structurally
-significant* links surface first: by the neighbour's connection count, most-connected first
-(spec §3.5). These tests encode that ordering, its tiebreaks, the fail-closed posture
-inherited from `domain/neighbourhood.py` (self-loops and dangling endpoints are omitted,
-never rendered into the void), and the overflow count.
+The tooltip shows up to three of an entity's connections, one line per distinct neighbour,
+ordered so the *structurally significant* links surface first: by the neighbour's connection
+count — its number of distinct neighbours, **not** its edge count — most-connected first
+(spec §3.5). These tests encode that ordering, its tiebreaks, the fail-closed posture inherited
+from `domain/neighbourhood.py` (self-loops, unnameable endpoints, and edges the reader can't see
+are omitted rather than rendered into the void, and don't inflate anyone's rank), and the
+overflow count, which counts unshown neighbours rather than unshown edges.
 """
 
 from __future__ import annotations
@@ -196,10 +198,37 @@ def test_several_edges_to_one_neighbour_collapse_to_a_single_line() -> None:
 
     summary = summarise_relations(relations, NAMES)[BRONISLAW]
 
-    assert [line.neighbour_name for line in summary.lines] == ["Oakhaven", "Janek"]
+    # Two neighbours, two lines — the three Oakhaven edges collapse to one. Both neighbours are
+    # dead ends (one distinct neighbour each), so the predicate tiebreak decides the order: the
+    # parallel edges must NOT buy Oakhaven a better rank, which is the bug this pins.
+    assert [line.neighbour_name for line in summary.lines] == ["Janek", "Oakhaven"]
     # The kept edge for a neighbour is its alphabetically-first predicate — deterministic.
-    assert summary.lines[0].predicate == "CAUGHT"
+    assert [line.predicate for line in summary.lines] == ["BROTHER_OF", "CAUGHT"]
     assert summary.overflow == 0
+
+
+def test_parallel_edges_do_not_outrank_a_genuinely_better_connected_neighbour() -> None:
+    # The `/code-review` catch: ranking by incident *edge* count while the display collapses to
+    # one line per neighbour let a dead end joined by several parallel edges beat a real hub.
+    # Karczma touches only Bronisław (4 parallel edges); Janek touches three different entities.
+    extra_a = UUID("00000000-0000-4000-8000-00000000000a")
+    extra_b = UUID("00000000-0000-4000-8000-00000000000b")
+    karczma = UUID("00000000-0000-4000-8000-000000000005")
+    names = {**NAMES, karczma: "Karczma", extra_a: "Postać A", extra_b: "Postać B"}
+    relations = [
+        _rel(BRONISLAW, "ZZ_A", karczma),
+        _rel(BRONISLAW, "ZZ_B", karczma),
+        _rel(BRONISLAW, "ZZ_C", karczma),
+        _rel(BRONISLAW, "ZZ_D", karczma),
+        _rel(BRONISLAW, "AA_KNOWS", JANEK),
+        _rel(JANEK, "KNOWS", extra_a),
+        _rel(JANEK, "KNOWS", extra_b),
+    ]
+
+    lines = summarise_relations(relations, names)[BRONISLAW].lines
+
+    # Janek (3 distinct neighbours) must lead Karczma (1), despite Karczma's 4 parallel edges.
+    assert [line.neighbour_name for line in lines] == ["Janek", "Karczma"]
 
 
 def test_overflow_counts_unshown_neighbours_not_unshown_edges() -> None:
@@ -220,3 +249,58 @@ def test_overflow_counts_unshown_neighbours_not_unshown_edges() -> None:
     assert len(summary.lines) == 3
     # Four distinct neighbours, three shown → one hidden (not "two hidden edges").
     assert summary.overflow == 1
+
+
+def test_an_entity_with_no_canonical_name_is_omitted_not_rendered_blank() -> None:
+    # `/code-review` catch: `GraphEntity` permits both canonical names to be None, and the
+    # caller's resolver maps that to "" — so a key-presence guard let the edge through and the
+    # tooltip rendered "→ KNOWS " with nothing after the predicate.
+    nameless = UUID("00000000-0000-4000-8000-00000000000c")
+    names = {**NAMES, nameless: ""}
+    relations = [_rel(BRONISLAW, "LIVES_IN", OAKHAVEN), _rel(BRONISLAW, "KNOWS", nameless)]
+
+    summaries = summarise_relations(relations, names)
+
+    assert [line.neighbour_name for line in summaries[BRONISLAW].lines] == ["Oakhaven"]
+    assert summaries[BRONISLAW].overflow == 0
+    assert nameless not in summaries
+
+
+def test_a_nameless_neighbour_does_not_inflate_another_neighbours_rank() -> None:
+    # The nameless node must not count toward degree either, or it could push a real, named
+    # connection out of the three-line budget.
+    nameless = UUID("00000000-0000-4000-8000-00000000000d")
+    names = {**NAMES, nameless: ""}
+    relations = [
+        _rel(BRONISLAW, "CARRIES", AMULET),
+        _rel(BRONISLAW, "LIVES_IN", OAKHAVEN),
+        # These would give Oakhaven a degree of 3 if the nameless node counted.
+        _rel(OAKHAVEN, "NEAR", nameless),
+        _rel(OAKHAVEN, "OVER", nameless),
+    ]
+
+    lines = summarise_relations(relations, names)[BRONISLAW].lines
+
+    # Both real neighbours are degree 1, so the predicate tiebreak decides — not Oakhaven's
+    # phantom connections.
+    assert [line.predicate for line in lines] == ["CARRIES", "LIVES_IN"]
+
+
+def test_only_narrows_which_entities_get_a_summary_without_changing_the_ranking() -> None:
+    # The reader catalogues only entities that appear in the prose, so building the rest is
+    # discarded work — but the *ranking* must still see the whole graph, or a neighbour's
+    # significance would depend on which subset happens to be displayed.
+    relations = [
+        _rel(BRONISLAW, "CARRIES", AMULET),
+        _rel(BRONISLAW, "LIVES_IN", OAKHAVEN),
+        # These make Oakhaven a hub; Oakhaven itself is not in `only`.
+        _rel(OAKHAVEN, "HOLDS", JANEK),
+        _rel(OAKHAVEN, "NEAR", AMULET),
+    ]
+
+    summaries = summarise_relations(relations, NAMES, only={BRONISLAW})
+
+    assert set(summaries) == {BRONISLAW}
+    # Oakhaven still leads on its whole-graph degree (3) over Amulet (2), even though Oakhaven
+    # got no summary of its own.
+    assert [line.neighbour_name for line in summaries[BRONISLAW].lines] == ["Oakhaven", "Amulet"]

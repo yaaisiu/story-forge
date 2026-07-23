@@ -129,6 +129,7 @@ describe("DuplicatesQueue", () => {
     h.items = [];
     renderQueue();
     expect(screen.getByTestId("duplicates-empty")).toBeInTheDocument();
+    expect(screen.getByTestId("duplicates-empty-next")).toBeInTheDocument();
   });
 
   it("renders one card per suggestion and counts the remaining pairs", () => {

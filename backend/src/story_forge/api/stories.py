@@ -660,9 +660,11 @@ class ReaderEntity(BaseModel):
     """Tooltip data for an entity that appears in the reader (spec §3.5).
 
     Name + type + aliases, plus the **graph-derived summary** §3.5 specifies in place of a
-    stored description: up to three of the entity's relations, most-connected neighbour first,
-    with `relation_overflow` counting the rest ("+N more"). Derived at read time by
-    `domain.entity_summary` — no stored description field, nothing LLM-generated.
+    stored description: up to three of the entity's connections, most-connected neighbour first.
+    One line per distinct *neighbour* — so `relation_overflow` counts unshown **neighbours**, not
+    unshown edges ("+N more" means "N more connections"; an entity with 3 neighbours joined by 30
+    edges reports 0). Derived at read time by `domain.entity_summary` — no stored description
+    field, nothing LLM-generated.
     """
 
     entity_id: UUID
@@ -794,7 +796,9 @@ async def get_story_reader(
     # pure `domain` summariser must not import.
     names_by_entity = {e.id: canonical_for_language(e, language) for e in entities}
     relations = await repo.get_relations(story.project_id)
-    summaries = summarise_relations(relations, names_by_entity)
+    # `only=appeared` — build summaries for the entities the catalog actually carries; ranking is
+    # still computed over the whole project graph, so a neighbour's significance is unaffected.
+    summaries = summarise_relations(relations, names_by_entity, only=appeared)
 
     catalog = [
         ReaderEntity(

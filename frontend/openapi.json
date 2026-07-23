@@ -3914,7 +3914,7 @@
           "aliases"
         ],
         "title": "ReaderEntity",
-        "description": "Tooltip data for an entity that appears in the reader (spec \u00a73.5).\n\nName + type + aliases, plus the **graph-derived summary** \u00a73.5 specifies in place of a\nstored description: up to three of the entity's relations, most-connected neighbour first,\nwith `relation_overflow` counting the rest (\"+N more\"). Derived at read time by\n`domain.entity_summary` \u2014 no stored description field, nothing LLM-generated."
+        "description": "Tooltip data for an entity that appears in the reader (spec \u00a73.5).\n\nName + type + aliases, plus the **graph-derived summary** \u00a73.5 specifies in place of a\nstored description: up to three of the entity's connections, most-connected neighbour first.\nOne line per distinct *neighbour* \u2014 so `relation_overflow` counts unshown **neighbours**, not\nunshown edges (\"+N more\" means \"N more connections\"; an entity with 3 neighbours joined by 30\nedges reports 0). Derived at read time by `domain.entity_summary` \u2014 no stored description\nfield, nothing LLM-generated."
       },
       "ReaderHighlight": {
         "properties": {

@@ -101,6 +101,8 @@ describe("ReviewQueue", () => {
     renderQueue();
 
     expect(await screen.findByTestId("queue-empty")).toBeInTheDocument();
+    // S7: an emptied queue offers the next curation step instead of dead-ending.
+    expect(screen.getByTestId("queue-empty-next")).toBeInTheDocument();
   });
 
   it("shows an error state when the queue fetch fails", async () => {
@@ -122,12 +124,15 @@ describe("ReviewQueue", () => {
 
     renderQueue();
     await screen.findAllByTestId("candidate-card");
+    // S7: the position indicator is wired to the queue's cursor and total, and tracks J/K.
+    expect(screen.getByTestId("queue-progress")).toHaveTextContent("1 of 2 remaining");
 
     fireEvent.keyDown(screen.getByTestId("review-queue"), { key: "j" });
 
     const cards = screen.getAllByTestId("candidate-card");
     expect(cards[0]).toHaveAttribute("data-selected", "false");
     expect(cards[1]).toHaveAttribute("data-selected", "true");
+    expect(screen.getByTestId("queue-progress")).toHaveTextContent("2 of 2 remaining");
   });
 
   it("A accepts the selected candidate's cascade proposal", async () => {

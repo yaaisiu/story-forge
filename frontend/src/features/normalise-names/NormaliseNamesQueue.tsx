@@ -184,9 +184,9 @@ export function NormaliseNamesQueue() {
             </span>
           </h1>
           <p className="text-sm text-gray-600">
-            {items.length} pair{items.length === 1 ? "" : "s"} left to review. Labels that look like
-            the same thing — keep one form and rename the other into it graph-wide, or dismiss the
-            pair. Nothing changes until you press Rename. Keys: J/K move · D dismiss.
+            Labels that look like the same thing — keep one form and rename the other into it
+            graph-wide, or dismiss the pair. Nothing changes until you press Rename. Keys: J/K move
+            · D dismiss.
           </p>
           <QueueProgress selectedIndex={selectedIndex} total={items.length} />
         </div>

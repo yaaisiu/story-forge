@@ -123,9 +123,8 @@ export function DuplicatesQueue() {
             </span>
           </h1>
           <p className="text-sm text-gray-600">
-            {items.length} pair{items.length === 1 ? "" : "s"} left to review. Entities that look
-            like the same thing — pick which one to keep and merge, or dismiss the pair. Nothing is
-            merged until you decide. Keys: J/K move · D dismiss.
+            Entities that look like the same thing — pick which one to keep and merge, or dismiss
+            the pair. Nothing is merged until you decide. Keys: J/K move · D dismiss.
           </p>
           <QueueProgress selectedIndex={selectedIndex} total={items.length} />
         </div>

@@ -2,9 +2,10 @@
 //
 // Pins (mirroring useReviewCandidate.test.tsx): a commit POSTs
 // /relations/{id}/decide with {action:"commit"} and invalidates BOTH the queue (so the
-// decided relation drops off) and the story graph (so the new edge appears in the §3.4
-// viewer); a reject POSTs {action:"reject"} and invalidates ONLY the queue, never the
-// graph (a reject writes no edge); a 409 stale-endpoint surfaces as a typed ApiError.
+// decided relation drops off), the story graph (so the new edge appears in the §3.4
+// viewer) and the reader (whose §3.5 tooltip summary is derived from the project's edges);
+// a reject POSTs {action:"reject"} and invalidates ONLY the queue, never the graph or the
+// reader (a reject writes no edge); a 409 stale-endpoint surfaces as a typed ApiError.
 
 import type { ReactNode } from "react";
 
@@ -13,6 +14,7 @@ import { renderHook, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { ApiError, useDecideRelation } from "./useDecideRelation";
+import { readerQueryKey } from "./useReader";
 import { relationsQueryKey } from "./useRelations";
 import { storyGraphQueryKey } from "./useStoryGraph";
 
@@ -46,7 +48,7 @@ afterEach(() => {
 });
 
 describe("useDecideRelation", () => {
-  it("commit POSTs {action:commit} and invalidates queue + graph", async () => {
+  it("commit POSTs {action:commit} and invalidates queue + graph + reader", async () => {
     const decision = {
       relation_id: RELATION_ID,
       status: "written",
@@ -70,9 +72,11 @@ describe("useDecideRelation", () => {
 
     expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: relationsQueryKey(STORY_ID) });
     expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: storyGraphQueryKey(STORY_ID) });
+    // The reader's tooltip summary reads the project's edges (S7), so a commit dirties it too.
+    expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: readerQueryKey(STORY_ID) });
   });
 
-  it("reject POSTs {action:reject} and refreshes only the queue, not the graph", async () => {
+  it("reject POSTs {action:reject} and refreshes only the queue, not the graph or reader", async () => {
     const decision = {
       relation_id: RELATION_ID,
       status: "rejected",
@@ -95,6 +99,7 @@ describe("useDecideRelation", () => {
     // A reject writes no edge — only the queue needs refreshing.
     expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: relationsQueryKey(STORY_ID) });
     expect(invalidateSpy).not.toHaveBeenCalledWith({ queryKey: storyGraphQueryKey(STORY_ID) });
+    expect(invalidateSpy).not.toHaveBeenCalledWith({ queryKey: readerQueryKey(STORY_ID) });
   });
 
   it("rejects with a typed ApiError on 409 (stale endpoint)", async () => {

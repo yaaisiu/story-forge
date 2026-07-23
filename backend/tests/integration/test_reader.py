@@ -54,13 +54,20 @@ class _StubRepo:
         self._entities = entities
         self._relations = relations or []
         self.asked_project: UUID | None = None
+        self.asked_relations_project: UUID | None = None
 
     async def list_entities(self, project_id: UUID) -> list[GraphEntity]:
         self.asked_project = project_id
         return self._entities
 
     async def get_relations(self, project_id: UUID) -> list[GraphRelation]:
-        """Feeds the §3.5 graph-derived tooltip summary (S7)."""
+        """Feeds the §3.5 graph-derived tooltip summary (S7).
+
+        Records the scope it was asked for: passing `story_id` here instead of the project id
+        would silently empty every tooltip summary in production (Neo4j matches no project) while
+        leaving the suite green, so a test pins it.
+        """
+        self.asked_relations_project = project_id
         return self._relations
 
 
@@ -298,36 +305,45 @@ async def test_reader_subtracts_a_suppressed_search_hit(
 async def test_reader_catalog_carries_the_graph_derived_relation_summary(
     make_client: object, db_conn: psycopg.AsyncConnection
 ) -> None:
-    # Spec §3.5: the tooltip's summary is derived from the accepted graph at read time, ordered
-    # by the neighbour's connection count so the hub link leads. Karczma is the hub here (2
-    # edges) and Maria a leaf (1), so Janek's summary must lead with Karczma despite the
-    # predicate tiebreak ordering them the other way.
+    # Spec §3.5: the summary is derived from the accepted graph at read time, ordered by the
+    # neighbour's connection count so the hub link leads.
+    #
+    # The ordering must be decided by *degree*, not by the predicate tiebreak, or this test would
+    # still pass with the degree term deleted from the sort key (it did, before `/code-review`
+    # caught it). So: Maria is a hub with 3 distinct neighbours; Karczma is a dead end whose only
+    # neighbour is Janek. The predicate tiebreak alone would put DRINKS_AT/Karczma first —
+    # degree is the only thing that can put Maria ahead of it.
     story, (para,) = await _make_paragraphs(db_conn, "Janek met Maria.")
     janek = GraphEntity(type="Character", canonical_name_pl="Janek", project_id=story.project_id)
     maria = GraphEntity(type="Character", canonical_name_pl="Maria", project_id=story.project_id)
     karczma = GraphEntity(type="Place", canonical_name_pl="Karczma", project_id=story.project_id)
+    kot = GraphEntity(type="Animal", canonical_name_pl="Kot", project_id=story.project_id)
+    pies = GraphEntity(type="Animal", canonical_name_pl="Pies", project_id=story.project_id)
     await _mention(db_conn, para, janek)
     await _mention(db_conn, para, maria)
     relations = [
         GraphRelation(type="LOVES", subject_id=janek.id, object_id=maria.id, confidence=0.9),
         GraphRelation(type="DRINKS_AT", subject_id=janek.id, object_id=karczma.id, confidence=0.9),
-        GraphRelation(type="WORKS_AT", subject_id=maria.id, object_id=karczma.id, confidence=0.9),
+        # Maria's other two neighbours — these are what make her the hub (3 vs Karczma's 1).
+        GraphRelation(type="FEEDS", subject_id=maria.id, object_id=kot.id, confidence=0.9),
+        GraphRelation(type="WALKS", subject_id=maria.id, object_id=pies.id, confidence=0.9),
     ]
-    client: AsyncClient = make_client(  # type: ignore[operator]
-        _StubRepo([janek, maria, karczma], relations)
-    )
+    stub = _StubRepo([janek, maria, karczma, kot, pies], relations)
+    client: AsyncClient = make_client(stub)  # type: ignore[operator]
 
     resp = await client.get(f"/stories/{story.id}/reader")
 
     assert resp.status_code == 200, resp.text
     catalog = {e["entity_id"]: e for e in resp.json()["entities"]}
-    # Karczma never appears in the prose, so it is not in the catalog — but it still counts as a
-    # neighbour in the summary of the entities that do appear.
+    # Only entities that appear in the prose are catalogued — but the others still count as
+    # neighbours in the summaries of the ones that do.
     assert set(catalog) == {str(janek.id), str(maria.id)}
     assert catalog[str(janek.id)]["relations"] == [
-        {"direction": "out", "predicate": "DRINKS_AT", "neighbour_name": "Karczma"},
         {"direction": "out", "predicate": "LOVES", "neighbour_name": "Maria"},
+        {"direction": "out", "predicate": "DRINKS_AT", "neighbour_name": "Karczma"},
     ]
+    # The new relation read is scoped by the §6.4 tenancy key, like the entity read beside it.
+    assert stub.asked_relations_project == story.project_id
     assert catalog[str(janek.id)]["relation_overflow"] == 0
 
 

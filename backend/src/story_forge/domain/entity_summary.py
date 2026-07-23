@@ -24,15 +24,15 @@ caller (naming is language-dependent and `canonical_for_language` lives in `agen
 
 Failure posture is **omit, don't guess** (the same rule `build_ego_graph` follows): a **self-loop**
 is a merge artifact, never a real "relates to itself", so it is dropped; an edge whose far endpoint
-is absent from `names` (deleted or merged away) is skipped rather than rendered into the void —
-and, so the ordering reflects only what the reader can actually see, such an edge does not count
-toward any neighbour's connection count either.
+cannot be *named* — absent from `names` because it was deleted or merged away, or present but
+nameless (`GraphEntity` permits both canonical names to be None, which the caller resolves to "")
+— is skipped rather than rendered into the void. And, so the ordering reflects only what the
+reader can actually see, such an edge does not count toward any neighbour's connection count.
 """
 
 from __future__ import annotations
 
-from collections import Counter
-from collections.abc import Mapping, Sequence
+from collections.abc import Collection, Mapping, Sequence
 from typing import Literal
 from uuid import UUID
 
@@ -57,7 +57,12 @@ class RelationSummaryLine(BaseModel):
 
 
 class EntityRelationSummary(BaseModel):
-    """An entity's tooltip summary: the kept lines plus how many relations were left out."""
+    """An entity's tooltip summary: the kept lines plus how many *neighbours* were left out.
+
+    `overflow` counts unshown **neighbours**, not unshown edges — one line represents one
+    neighbour however many edges join the pair, so an entity with 3 neighbours and 30 edges
+    reports `overflow=0`, not 27.
+    """
 
     lines: list[RelationSummaryLine] = Field(default_factory=list)
     overflow: int = 0
@@ -67,12 +72,20 @@ def summarise_relations(
     relations: Sequence[GraphRelation],
     names: Mapping[UUID, str],
     limit: int = DEFAULT_SUMMARY_LIMIT,
+    *,
+    only: Collection[UUID] | None = None,
 ) -> dict[UUID, EntityRelationSummary]:
-    """Summarise every entity's relations for the reader tooltip, in one pass.
+    """Summarise entities' relations for the reader tooltip, in one pass.
 
     `relations` is the project's whole edge list; `names` maps entity id → the display name the
     caller resolved. Returns a mapping of entity id → summary, containing an entry only for
     entities with at least one *visible* relation (an entity with none needs no summary).
+
+    `only` narrows which entities get a summary built — the reader catalogues just the entities
+    that actually appear in the prose, so building the rest is discarded work. It does **not**
+    narrow the graph the ranking is computed over: degree is always counted across every visible
+    edge, because a neighbour's significance comes from the whole graph, not from the subset
+    being displayed.
     """
     # Keep only what the reader can actually see, de-duplicated by edge id (`GraphRelation.id`
     # is uuid5 of the triple, so the same triple read twice is one edge).
@@ -80,16 +93,25 @@ def summarise_relations(
     for relation in relations:
         if relation.subject_id == relation.object_id:
             continue  # self-loop — a merge artifact, never a real neighbour
-        if relation.subject_id not in names or relation.object_id not in names:
-            continue  # an endpoint we cannot name — omit rather than render into the void
+        # An endpoint we cannot *name* — omit rather than render into the void. Truthiness, not
+        # key presence: `GraphEntity` permits both canonical names to be None, and the caller's
+        # resolver returns "" for that entity, which would otherwise render "→ LIVES_IN " with a
+        # blank after the predicate *and* count toward every other neighbour's rank.
+        if not names.get(relation.subject_id) or not names.get(relation.object_id):
+            continue
         visible.setdefault(relation.id, relation)
 
-    # Connection count per entity, over the *visible* edges only — an edge the reader can't see
-    # must not make a neighbour look better-connected than it is.
-    degree: Counter[UUID] = Counter()
+    # Connection count per entity = its number of **distinct neighbours**, over the *visible*
+    # edges only. Counting incident *edges* here would contradict the one-line-per-neighbour
+    # display below: a dead-end neighbour joined by four parallel edges would score 4 and outrank
+    # a genuine hub joined to three different entities, which is precisely backwards from the
+    # "most structurally significant links surface" the spec promises. An edge the reader can't
+    # see must not make a neighbour look better-connected than it is either.
+    neighbours_of: dict[UUID, set[UUID]] = {}
     for relation in visible.values():
-        degree[relation.subject_id] += 1
-        degree[relation.object_id] += 1
+        neighbours_of.setdefault(relation.subject_id, set()).add(relation.object_id)
+        neighbours_of.setdefault(relation.object_id, set()).add(relation.subject_id)
+    degree = {entity_id: len(peers) for entity_id, peers in neighbours_of.items()}
 
     # Each edge contributes a line to *both* its endpoints, oriented from each one's point of view.
     # **One line per distinct neighbour**: a pair can be joined by several edges, and spending all
@@ -122,6 +144,8 @@ def summarise_relations(
     # (predicate → neighbour name → neighbour id) so the tooltip never reshuffles between reads.
     summaries: dict[UUID, EntityRelationSummary] = {}
     for entity_id, by_neighbour in best.items():
+        if only is not None and entity_id not in only:
+            continue
         ordered = sorted(
             by_neighbour.items(),
             key=lambda item: (
