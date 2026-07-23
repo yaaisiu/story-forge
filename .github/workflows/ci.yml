@@ -112,7 +112,7 @@ jobs:
       # Telemetry is disabled to match the §6.7 compose config (and the metrics
       # setting that crash-looped Community is deliberately absent — see compose).
       neo4j:
-        image: neo4j:5.26.25-community-ubi10
+        image: neo4j:5.26.27-community-ubi10
         env:
           NEO4J_AUTH: neo4j/ci_only_throwaway_pw
           NEO4J_ACCEPT_LICENSE_AGREEMENT: "yes"
@@ -241,11 +241,12 @@ jobs:
       - name: Trivy scan — neo4j
         uses: aquasecurity/trivy-action@v0.36.0
         with:
-          image-ref: neo4j:5.26.25-community-ubi10
+          image-ref: neo4j:5.26.27-community-ubi10
           severity: HIGH,CRITICAL
           exit-code: "1"
           ignore-unfixed: true
-          # Waives only the 3 netty CVEs Neo4j bundles (no base variant can fix);
+          # Waives only CVEs in jars Neo4j bundles itself — netty, jetty,
+          # jackson, shiro — which no base variant or released tag can fix.
           # OS CVEs are not waived — the UBI-10 base is clean. See the file for
           # the per-CVE justification. Scoped to this step only.
           trivyignores: infra/trivy/neo4j.trivyignore

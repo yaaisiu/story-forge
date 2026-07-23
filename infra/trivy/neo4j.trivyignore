@@ -3,80 +3,117 @@
 # pgvector or ollama scans, which stay strict).
 #
 # Context (Issue #2): the neo4j base image is pinned to
-# neo4j:5.26.25-community-ubi10. Switching from the Debian (`-trixie`) base to
+# neo4j:5.26.27-community-ubi10. Switching from the Debian (`-trixie`) base to
 # Red Hat UBI-10 already eliminated all 14 HIGH/CRITICAL OS-package CVEs
 # (including 2 CRITICAL gnutls) — those are NOT waived, they are fixed by the
-# base choice. What remains are 6 HIGH CVEs in the netty jars that Neo4j 5.26.25
-# bundles itself (netty 4.1.132.Final), plus 1 HIGH in the bundled Apache Shiro
-# auth framework (shiro-core 2.1.0), plus 2 HIGH in the bundled Jackson databind
-# (jackson-databind 2.21.1, and the copy shaded into parquet-jackson 1.17.0).
-# They are identical across every base variant and cannot be fixed without a new
-# Neo4j release that bumps the bundled jars (netty >= 4.1.135.Final;
-# shiro-core >= 2.2.1; jackson-databind >= 2.21.4). The netty waivers are below;
-# the shiro waiver (CVE-2026-49268) and the jackson waivers
-# (CVE-2026-54512 / CVE-2026-54513) are in their own sections at the bottom.
+# base choice. What remains are CVEs in jars Neo4j bundles itself: 4 HIGH in
+# netty (4.1.135.Final), 1 HIGH in jetty (12.1.8), 1 HIGH in jackson-core
+# (2.21.1 + 2.21.3), 1 HIGH in the bundled Apache Shiro auth framework
+# (shiro-core 2.1.0), and 2 HIGH in the bundled Jackson databind
+# (jackson-databind 2.21.1 / 2.21.3). They are identical across every base
+# variant and cannot be fixed without a new Neo4j release that bumps the
+# bundled jars (netty >= 4.1.136.Final; jetty >= 12.1.10; jackson-core >= 2.21.4;
+# shiro-core >= 2.2.1; jackson-databind >= 2.21.4).
+#
+# 2026-07-23 — the 5.26.25 -> 5.26.27 bump moved netty 4.1.132 -> 4.1.135, which
+# FIXED the six netty CVEs previously waived here (CVE-2026-42583/42584/42587,
+# CVE-2026-44249/45416/50010). Their waivers were deleted rather than carried —
+# a fix always beats an ignore. The netty entries that remain below are a
+# *different*, newer wave (published 2026-07-21/22) that 4.1.135 does not fix.
 #
 # Why these are acceptable for THIS deployment (spec §6.7 accept-with-justification):
 #   - Story Forge runs Neo4j bound to 127.0.0.1 only, single trusted user,
 #     non-root container, no-new-privileges. There is no untrusted network peer.
-#   - None of the six is data-disclosure or RCE. Most are denial-of-service
-#     (resource exhaustion); one is an HTTP client-codec response-desync bug
-#     reachable only when Neo4j acts as an outbound HTTP client against a
-#     malicious server; one is an IPv6 subnet-*filter* bypass in netty's
-#     access-control filtering — a mechanism this deployment does not use as a
-#     security boundary (the loopback bind is the boundary); one silently disables
-#     TLS hostname verification (MITM) but only when netty terminates TLS for an
-#     untrusted peer — this deployment runs no public TLS. All require an untrusted
-#     network peer this single-user 127.0.0.1 deployment never has.
-#   - The first three are fixed in netty 4.1.133.Final (2026-05-04); the three
-#     added 2026-06-10/2026-06-16 are fixed in netty 4.1.135.Final. Drop this file
-#     the moment a Neo4j 5.26.x patch ships bundling >= 4.1.135.Final; a re-scan
-#     should then pass clean with no waiver.
+#   - None of them is RCE, and none discloses data. Most are denial-of-service
+#     (resource exhaustion: unbounded allocation, decompression amplification, a
+#     memory leak, an event-loop hang). Two are authentication/authorization
+#     bypasses — Jetty Digest auth (CVE-2026-10050) and Shiro's LDAP realm
+#     (CVE-2026-49268) — but both sit in authentication mechanisms this
+#     deployment does not enable: Neo4j Community uses its own native auth realm,
+#     with no Digest authenticator and no LDAP (Enterprise-only). Two are
+#     deserialization-allowlist bypasses (CVE-2026-54512/54513) that require
+#     attacker-controlled JSON, which never reaches Neo4j here.
+#   - Every one of them requires an untrusted network peer or untrusted input
+#     that this single-user, 127.0.0.1-bound deployment never has: the only
+#     client is the Story Forge backend on the same host.
+#   - Drop each entry the moment a Neo4j 5.26.x patch ships bundling the fixed
+#     jar version named in its justification; a re-scan should then pass clean.
+#     This has already paid out once — see the 2026-07-23 note above, where a
+#     tag bump retired six netty waivers outright.
 #
 # All waivers across images are also indexed in infra/trivy/WAIVERS.md (the
 # review register: fixed-in versions + drop conditions, checked periodically).
 #
 # Revisit: each Neo4j patch bump (next time the image tag is updated).
 
-# CVE-2026-42583 — netty-codec (Lz4FrameDecoder): a stream of small LZ4 frames
-# forces repeated large buffer allocation -> memory exhaustion (DoS). Fixed in
-# 4.1.133.Final by enforcing maxDecompressedLength.
-CVE-2026-42583
+# ── Bundled netty jars — wave published 2026-07-21/22, added 2026-07-23 ──
+# All four are fixed in netty 4.1.136.Final (4.2.16.Final on the 4.2.x line);
+# neo4j 5.26.27 bundles 4.1.135.Final and even 5.26.28 (2026-07-22) has not caught
+# up, so no released tag fixes them yet.
+# Drop when: a soaked (>= 7-day) Neo4j 5.26.x patch bundles netty >= 4.1.136.Final
+# (re-scan to confirm all four are gone); checked at each neo4j tag bump.
 
-# CVE-2026-42584 — netty-codec-http (HttpClientCodec): response desynchronization
-# mis-pairing pipelined HEAD/GET with 1xx responses (client-side parsing bug,
-# not DoS). Not reachable: we do not drive Neo4j as an HTTP client.
-CVE-2026-42584
+# CVE-2026-59901 — netty-codec (Bzip2Decoder): a malformed bzip2 stream traps the
+# run-length-encoding state machine in Bzip2BlockDecompressor.read() in an infinite
+# loop, permanently hanging the event-loop thread (DoS). NOT REACHABLE: reaching
+# Bzip2Decoder requires a bzip2-compressed stream through a netty pipeline that
+# installs the compression codec. Neo4j serves Bolt (7687) and HTTP (7474); neither
+# negotiates bzip2, so the handler is never in the pipeline — and both are bound to
+# 127.0.0.1 with a single trusted local client. (Verified vs GitHub Advisory DB,
+# GHSA-558v-64gr-wgg4.)
+CVE-2026-59901
 
-# CVE-2026-42587 — netty-codec-http (HttpContentDecompressor): maxAllocation
-# bypass via br/zstd/snappy Content-Encoding -> decompression-bomb DoS. Fixed in
-# 4.1.133.Final.
-CVE-2026-42587
+# CVE-2026-55831 — netty-codec-http (SPDY SETTINGS): a peer-declared SETTINGS entry
+# count is materialized into a TreeMap without a count cap, so one ~2 MiB SETTINGS
+# frame creates 262144 entries — network-input-to-heap amplification (DoS).
+# CVE-2026-55833 — netty-codec-http (SPDY zlib header block): header inflation
+# continues after maxHeaderSize is exceeded, so a 12 KiB compressed block forces
+# a 12 MiB decode (compression-amplified DoS).
+# CVE-2026-56745 — netty-codec-http (SpdyHttpDecoder): a pooled ByteBuf allocated for
+# a SYN_STREAM is never released when the peer sends RST_STREAM, permanently leaking
+# native memory (DoS).
+# NOT REACHABLE — all three are in netty's **SPDY** codec. SPDY is a deprecated
+# protocol (superseded by HTTP/2) that Neo4j does not implement or expose: no
+# SpdyFrameCodec / SpdyHttpDecoder is ever installed in its pipeline, so the
+# vulnerable code is unreachable regardless of input. Defence in depth: all three
+# need an untrusted remote peer, and Neo4j is bound to 127.0.0.1 with a single
+# trusted local client. (Verified vs GitHub Advisory DB: GHSA-6jqx-86gh-f27w,
+# GHSA-mvh2-crg5-v77c, GHSA-jppx-w49h-x2qq.)
+CVE-2026-55831
+CVE-2026-55833
+CVE-2026-56745
 
-# CVE-2026-44249 — netty-handler (IpSubnetFilterRule): IPv6 subnet-filter bypass
-# via incorrect comparator masking (CWE-284/697). An access-control filter is
-# evaded — not data-disclosure or RCE — and only matters where netty IP-filtering
-# gates untrusted peers. This deployment binds Neo4j to 127.0.0.1 and does not use
-# netty IP-filtering as a boundary, so there is nothing to bypass. Fixed in netty
-# 4.1.135.Final (4.1.x branch; also 4.2.15.Final). (Verified vs GitHub Advisory DB.)
-CVE-2026-44249
+# ── Bundled Eclipse Jetty (Neo4j's HTTP server stack) — added 2026-07-23 ──
+# CVE-2026-10050 — jetty-security / jetty-ee8-security (12.1.8): Jetty's
+# DigestAuthentication.apply() hashes credentials via getBytes(ISO_8859_1), which
+# silently replaces every character above U+00FF with '?'. An attacker who knows a
+# victim's username can then substitute '?' for each non-Latin-1 character in the
+# password and produce an identical MD5 Digest response — an authentication bypass
+# for passwords containing non-Latin-1 characters (CJK, Cyrillic, Arabic, emoji).
+# NOT REACHABLE here: the flaw is in **HTTP Digest** authentication, which this
+# deployment never uses. Neo4j Community authenticates via its own native realm
+# (`NEO4J_AUTH` basic auth over a 127.0.0.1-bound listener); Jetty's Digest
+# authenticator is not configured, and no outbound Digest client auth is performed.
+# There is also no untrusted client to mount the substitution: single trusted local
+# user, no LAN or public exposure.
+# Fixed in jetty 12.1.10 (12.0.36 on the 12.0.x line); neo4j 5.26.27 and .28 both
+# bundle 12.1.8. Drop when: a soaked (>= 7-day) Neo4j 5.26.x patch bundles
+# jetty >= 12.1.10. (Verified vs GitHub Advisory DB, GHSA-2fvj-hgj9-j2gr.)
+CVE-2026-10050
 
-# CVE-2026-45416 — netty-handler (SniHandler): nine attacker-controlled bytes in a
-# TLS ClientHello SNI trigger a pre-allocation of up to 16 MiB -> memory-exhaustion
-# DoS (CWE-770). Reachable only against a TLS listener terminated by netty's
-# SniHandler facing an untrusted client; Neo4j here runs without public TLS, bound
-# to 127.0.0.1, trusted local client only. Fixed in netty 4.1.135.Final (also
-# 4.2.15.Final). (Verified vs GitHub Advisory DB.)
-CVE-2026-45416
-
-# CVE-2026-50010 — netty-handler (SimpleTrustManagerFactory / X509TrustManagerWrapper):
-# wrapping a plain X509TrustManager silently disables TLS hostname verification
-# (GHSA-c653-97m9-rcg9), enabling MITM of a TLS peer. Reachable only where netty
-# terminates/initiates TLS against an untrusted peer using a plain trust manager;
-# Neo4j here runs without public TLS, bound to 127.0.0.1, single trusted local
-# client — there is no untrusted TLS peer to impersonate. Fixed in netty
-# 4.1.135.Final (also 4.2.15.Final). (Verified vs OSV / GitHub Advisory DB.)
-CVE-2026-50010
+# ── Bundled Jackson core (streaming JSON parser) — added 2026-07-23 ──
+# GHSA-r7wm-3cxj-wff9 — com.fasterxml.jackson.core:jackson-core (2.21.1 and 2.21.3):
+# the non-blocking/async parser's maxNumberLength guard can be bypassed by feeding
+# digits across many small chunks, so an unbounded number token accumulates —
+# a resource-exhaustion DoS. (An incomplete fix for GHSA-72hv-8253-57qq.)
+# NOT REACHABLE here: it needs UNTRUSTED JSON fed to Jackson's async parser. Neo4j
+# is bound to 127.0.0.1 with the Story Forge backend as its only client, and queries
+# travel over Bolt (a binary protocol), not JSON. No attacker-controlled JSON reaches
+# this parser. Resource exhaustion only — no data disclosure, no RCE.
+# Fixed in jackson-core 2.21.4 (2.22.1 on the 2.22.x line); neo4j 5.26.27 bundles
+# 2.21.1 + 2.21.3. Drop when: a soaked (>= 7-day) Neo4j 5.26.x patch bundles
+# jackson-core >= 2.21.4. (Verified vs GitHub Advisory DB; the advisory has no CVE id.)
+GHSA-r7wm-3cxj-wff9
 
 # ── Bundled Apache Shiro (Neo4j's auth framework) — added 2026-06-19 ──
 # CVE-2026-49268 — org.apache.shiro:shiro-core (shiro-core-2.1.0.jar): LDAP
