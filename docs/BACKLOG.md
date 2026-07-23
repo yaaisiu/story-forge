@@ -738,7 +738,132 @@ Surfaced by the slice's multi-agent `/code-review` (PR #130) and consciously def
 When picked up: add an `allStoryGraphsKey()` (or invalidate `["story-graph"]`) at the graph-writing
 hooks and update their invalidation assertions.
 
-## Normalise-names queue — refetch lag after a rename (post-PoC, surfaced S7 browser walk, Session 100)
+## Isolated "stray" nodes — no way to triage them in bulk (quantified S7 walk, Session 100)
+
+The over-extraction the PoC accepts by design has a **measurable shape** nobody had counted until
+now. On the real Oakhaven project graph (161 entities, 276 edges):
+
+| | count | share |
+|---|---|---|
+| degree 0 — completely isolated | **39** | 24% |
+| degree 1 — attached by a single edge | 68 | 42% |
+| degree 2+ — actually woven into the graph | 54 | 34% |
+
+**Two thirds of the graph is degree ≤ 1.** The isolated set is dominated by `OBJECT` (12),
+`LOCATION` (8) and `CONCEPT` (8), and reads exactly like what it is — scenery, props and
+abstractions promoted to entities: *pale moonlight · dark water · fear · polished steel · dim
+lantern light · slick cobblestones · ocean wind · kingdom's darkest secrets*.
+
+**The gap is the tool, not the diagnosis.** *Why* this happens is already covered above
+(*Entity-span granularity*, *Detail level is purpose-dependent*, *Entity-resolution limitations*) —
+don't re-litigate it here. What's missing is a way to **act on the strays in bulk**. Today the
+author can *hide* them (S2 shipped a min-connections filter) but cleaning them means the per-entity
+delete, one at a time, 39 times — so in practice they stay and the graph reads as noise. Owner's
+words on seeing the cloud: *"some of them should be merged into others, some most likely not."*
+That mix is the point — this is a triage surface, not a bulk delete: some strays are real entities
+the extractor simply failed to connect (`northern reefs`, `capital`, `docks`), some are aliases of
+existing nodes, and many are not entities at all.
+
+**When picked up**, the shape that fits the milestone's existing pattern is a **"suggest, then you
+decide" stray queue**: list degree-0 (and optionally degree-1) entities with the mention context
+that produced them, offering per-item *keep · merge into… · delete*, plus a multi-select for the
+obvious sweep. Everything needed exists — degree is a count over `get_relations`, the mention text
+is what the reader already renders, merge/delete/undo shipped in M4.S3a/S3b. Sibling of the
+duplicate-review (S4) and normalise-names (S6) queues, and it wants the **same evidence** the
+normalise-names item above asks for.
+
+**Note it interacts with the fork**: if the next phase improves *extraction*, some of these stop
+being created at all, which is the better fix. A triage queue curates the graph you have; better
+extraction stops producing the mess. Probably both, in that order of value.
+
+## Normalise-names queue — show the evidence behind each label (surfaced S7 walk, Session 100)
+
+The normalise-names card asks a question it doesn't give you the means to answer. It shows two
+labels, their use counts, and two similarity scores — `LOCATED_IN 7 uses` vs `PINPOINTED 1 use`,
+`name match 60 · embedding 0.41` — and then asks whether they are synonyms. **Nothing on the card
+says what either predicate actually connects**, so for any pair that isn't obvious from the strings
+(`STANDS_ON`/`STAND_ON`) the author is guessing. The owner's words on hitting exactly this pair:
+*"I don't really know :D"*.
+
+**This is the milestone's own thesis, unapplied to S6.** The Graph-quality goal statement says the
+human gate *"is only as good as the context it shows you"* and that bringing the source text to the
+decision point *"is mostly cheap — the data already exists"*. S3 did it for edges (predicate +
+source sentences), S4 did it for duplicate pairs (context quote + type + aliases). S6 shipped
+labels, counts and scores alone — the one curation surface with no evidence behind its decision.
+
+**The data is already there and the answer is instant once shown.** Dumping the bearing edges for
+that exact pair settled it in seconds:
+
+```
+LOCATED_IN (7 edges)                     PINPOINTED (1 edge)
+  Elara Vance       → ship interior        Garret Locke → exact dock
+  Garret Locke      → Blackwater Keep
+  The Brazen Kettle → Oakhaven
+  bounty hunters    → Oakhaven
+  Black Wax Letter  → leather satchel
+  Obsidian Cipher   → leather satchel
+```
+
+`LOCATED_IN` is a *state* (a thing is somewhere); `PINPOINTED` is an *action* someone performed.
+Not synonyms — and obvious the moment the edges are visible.
+
+**When picked up.** For a **predicate** label, show up to ~3 bearing edges as
+`Subject —PREDICATE→ Object`: `Neo4jRepo.get_relations(project_id)` already returns them, and the
+name lookup is the same one `domain/entity_summary` builds for the reader tooltip. For a **type**
+label, show a few entities carrying it (`list_entities` filtered by type). Both are read-only
+derivations of data the suggest pass already loads — no new storage, no new graph read in the
+common case. If a source quote is wanted beyond the triple, the S3a evidence machinery
+(`GET …/relations/{edge_id}/evidence`, `domain/edge_evidence.py`) already resolves paragraph text
+for an edge. Expanding on demand (fetch-on-tap, the DM-EE-1 pattern) avoids paying for 300 cards
+up front.
+
+**Strong candidate for promotion rather than post-PoC**: it is the same "suggest, then you decide"
+gate as S4, and a suggestion the author can't evaluate is a gate in name only.
+
+## ~~Normalise-names queue — refetch lag after a rename~~ ✅ FIXED 2026-07-23 (Session 100)
+
+> **Resolved the same session it was raised** — by the backend half only. The owner was about to
+> work the 300-item queue, so this went from "post-PoC polish" to blocking real use. The reader now
+> **caches label embeddings by string** (`LabelVocabularyReader`), taking one vocabulary load from
+> **~14–18 s to ~1.7 s** on the real Oakhaven graph. That removes the app-wide starvation, which
+> was the actual harm. Option (c) — an incremental suggest pass — stays unbuilt and unneeded.
+> Original analysis kept below.
+>
+> **The optimistic-drop half was built and then reverted** (see the follow-up item directly below):
+> `/code-review` found it introduced a worse bug than the latency it removed.
+
+## Instant queue repaint needs an identity-anchored cursor first (surfaced S7 walk `/code-review`, Session 100)
+
+Removing a decided row from the cached list the moment its mutation succeeds (rather than when the
+refetch lands) makes the review queues feel instant. It was **built and reverted** the same session
+because, on its own, it is unsafe — and the reason generalises to all four review queues.
+
+**`useReviewQueue`'s cursor is a bare index that is only clamped, never re-anchored.** When the
+list shrinks, every row below the removed one shifts up, and the cursor keeps pointing at a
+*position*, not at the item it was on. Before the optimistic drop the list only shrank when the
+refetch landed — 14–18 s later, long after the author had stopped reacting — so the hazard was
+latent. Dropping the row ~50 ms after the keypress moves it into the middle of rapid keyboard work,
+which is exactly how these queues are worked: press `D`, press `J` before the response lands, and
+the highlight silently jumps a row, so the next `D` persists a "not synonyms" decision against a
+pair the author never looked at, while the pair they *did* mean to reach is skipped. Reversible via
+the single-slot Undo banner — which by then names the wrong pair.
+
+Three smaller consequences, all fixed by the same groundwork: the drop fires on **any 2xx**,
+including renames the backend no-ops because it strips `to_label` while preserving `from_label`
+verbatim (the S95 guard) — so on exactly the whitespace pairs S6 exists to catch, rows vanish and
+flicker back. Surviving rows keep **stale use-counts**, so the armed-rename hint can quote a number
+wrong by a factor of four on the one screen whose contract is "nothing changes until you press
+Rename". And **un-dismiss** stays invalidate-only, so Undo looks like a no-op next to an instant
+dismiss.
+
+**When picked up, do the cursor first.** Give `useReviewQueue` an optional item-identity function
+and re-anchor `selectedIndex` to the previously-selected item when the list changes (falling back
+to clamping when it's gone). That is a genuine improvement for all four queues — the same
+shift-under-the-cursor exists today on every refetch, just rarely enough not to have bitten. Only
+then re-add the optimistic drop, with: a guard on the response (skip the drop when
+`renamed_count == 0`), count reconciliation on surviving rows or no count edit at all, and a
+matching optimistic re-insert for un-dismiss. The reverted implementation and its tests are in the
+git history of `fix/normalise-names-refetch-cost` if useful.
 
 Committing a rename in `/stories/:id/normalise-names` leaves a visible pause before the queue
 repaints without the renamed pair. `useRenameLabel` invalidates the label vocabulary, and the
