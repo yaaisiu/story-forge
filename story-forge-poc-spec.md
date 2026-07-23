@@ -216,7 +216,14 @@ Visualization requirements:
 ### 3.5 Text reader with highlights
 
 - Full story text in a single column
-- Entities highlighted inline (color by type), tooltip shows canonical_name + brief description
+- Entities highlighted inline (color by type). Hovering a highlight shows the entity's
+  canonical_name, type, and aliases, plus a **graph-derived summary**: up to three of its
+  connections rendered as `→ PREDICATE Neighbour` / `← PREDICATE Neighbour`, ordered by the
+  neighbour's connection count (most-connected first) so the most structurally significant links
+  surface, with a `+N more` line when it has more. **One line per distinct neighbour** — where a
+  pair is joined by several edges one represents them, so a single hub can't occupy every slot and
+  hide who else the entity touches. The summary is **derived at read time** from the accepted
+  graph — entities carry no stored `description` field, and none is authored or LLM-generated
 - Click on a highlighted entity → opens side panel with a local graph around that entity
 - Manual tagging available (select text → "this is an entity of type X" → add to graph)
 - Manual correction: right-click on a highlight → "not this entity" / "not an entity" / "change boundaries"

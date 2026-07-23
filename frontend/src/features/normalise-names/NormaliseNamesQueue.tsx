@@ -18,6 +18,8 @@ import { Link, useParams } from "react-router-dom";
 import { useLabelVocabulary } from "../../lib/api/useLabelVocabulary";
 import { useDismissLabel, useUndismissLabel } from "../../lib/api/useDismissLabel";
 import { useReviewQueue } from "../../hooks/useReviewQueue";
+import { EmptyQueueNext } from "../../components/ui/EmptyQueueNext";
+import { QueueProgress } from "../../components/ui/QueueProgress";
 import { LabelPairCard, type RenameOutcome } from "./LabelPairCard";
 import {
   flattenVocabulary,
@@ -186,6 +188,7 @@ export function NormaliseNamesQueue() {
             the same thing — keep one form and rename the other into it graph-wide, or dismiss the
             pair. Nothing changes until you press Rename. Keys: J/K move · D dismiss.
           </p>
+          <QueueProgress selectedIndex={selectedIndex} total={items.length} />
         </div>
         {storyId && (
           <Link
@@ -236,9 +239,12 @@ export function NormaliseNamesQueue() {
       )}
 
       {items.length === 0 ? (
-        <p data-testid="normalise-empty" className="text-sm text-gray-500">
-          No synonym suggestions — the predicate and type names all look distinct.
-        </p>
+        <EmptyQueueNext
+          testId="normalise-empty"
+          message="No synonym suggestions — the predicate and type names all look distinct."
+          to={`/stories/${storyId}/graph`}
+          label="See the knowledge graph"
+        />
       ) : (
         <div className="flex flex-col gap-6">
           <LabelSection

@@ -3892,6 +3892,18 @@
             },
             "type": "array",
             "title": "Aliases"
+          },
+          "relations": {
+            "items": {
+              "$ref": "#/components/schemas/RelationSummaryLine"
+            },
+            "type": "array",
+            "title": "Relations"
+          },
+          "relation_overflow": {
+            "type": "integer",
+            "title": "Relation Overflow",
+            "default": 0
           }
         },
         "type": "object",
@@ -3902,7 +3914,7 @@
           "aliases"
         ],
         "title": "ReaderEntity",
-        "description": "Tooltip data for an entity that appears in the reader (DM-IH-8: name + type + aliases)."
+        "description": "Tooltip data for an entity that appears in the reader (spec \u00a73.5).\n\nName + type + aliases, plus the **graph-derived summary** \u00a73.5 specifies in place of a\nstored description: up to three of the entity's relations, most-connected neighbour first,\nwith `relation_overflow` counting the rest (\"+N more\"). Derived at read time by\n`domain.entity_summary` \u2014 no stored description field, nothing LLM-generated."
       },
       "ReaderHighlight": {
         "properties": {
@@ -4070,6 +4082,34 @@
         ],
         "title": "RelationEditResponse",
         "description": "Outcome of adding a relation: the edge id + whether the add folded onto an edge that\nalready existed (the duplicate/re-predicate collision the UI warns on, DM-S3a-3)."
+      },
+      "RelationSummaryLine": {
+        "properties": {
+          "direction": {
+            "type": "string",
+            "enum": [
+              "out",
+              "in"
+            ],
+            "title": "Direction"
+          },
+          "predicate": {
+            "type": "string",
+            "title": "Predicate"
+          },
+          "neighbour_name": {
+            "type": "string",
+            "title": "Neighbour Name"
+          }
+        },
+        "type": "object",
+        "required": [
+          "direction",
+          "predicate",
+          "neighbour_name"
+        ],
+        "title": "RelationSummaryLine",
+        "description": "One relation as the tooltip renders it, oriented relative to the entity hovered.\n\n`direction` is `out` when the hovered entity is the relation's subject and `in` when it is\nthe object \u2014 the frontend draws these as `\u2192` / `\u2190`. Structured rather than pre-rendered:\npresentation belongs to the frontend."
       },
       "RelationView": {
         "properties": {

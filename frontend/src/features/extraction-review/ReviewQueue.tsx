@@ -19,6 +19,8 @@ import { ApiError } from "../../lib/api/client";
 import { useCandidates, type CandidateView } from "../../lib/api/useCandidates";
 import { useReviewCandidate } from "../../lib/api/useReviewCandidate";
 import { useReviewQueue } from "../../hooks/useReviewQueue";
+import { EmptyQueueNext } from "../../components/ui/EmptyQueueNext";
+import { QueueProgress } from "../../components/ui/QueueProgress";
 import { CandidateCard } from "./CandidateCard";
 import { reduceReviewKey, type NavState, type ReviewIntent } from "./reviewQueue";
 
@@ -89,6 +91,7 @@ export function ReviewQueue() {
           Accept, retarget, or reject each staged candidate. Nothing enters the graph until you
           decide. Keys: J/K move · A accept · N new · M merge · R reject.
         </p>
+        <QueueProgress selectedIndex={selectedIndex} total={candidates.length} />
       </header>
 
       {review.isError && (
@@ -98,9 +101,12 @@ export function ReviewQueue() {
       )}
 
       {candidates.length === 0 ? (
-        <p data-testid="queue-empty" className="text-sm text-gray-500">
-          Nothing to review — every candidate has been decided.
-        </p>
+        <EmptyQueueNext
+          testId="queue-empty"
+          message="Nothing to review — every candidate has been decided."
+          to={`/stories/${storyId}/relations`}
+          label="Decide relations"
+        />
       ) : (
         <ul className="flex flex-col gap-3">
           {candidates.map((candidate, index) => (

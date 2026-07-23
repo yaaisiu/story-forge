@@ -67,10 +67,25 @@ export function paragraphHighlightRanges(
 const BASE_CLASS = "sf-highlight cursor-pointer rounded-sm px-0.5";
 const FLASH_CLASS = "animate-pulse ring-2 ring-offset-1";
 
-/** Tooltip text for a highlight: "Name — type", plus an aliases line if the entity has any. */
+/**
+ * Tooltip text for a highlight (spec §3.5): "Name — type", an aliases line if the entity has
+ * any, then the **graph-derived summary** — up to three relations as `→ PREDICATE Neighbour` /
+ * `← PREDICATE Neighbour`, and a `+N more` line when the entity has more.
+ *
+ * The backend does the selecting and ordering (most-connected neighbour first) in
+ * `domain/entity_summary`; this only renders what it sent. `relations` is optional in the
+ * generated schema — it carries a server-side default — so a response cached from before the
+ * field existed degrades to the name/type/aliases tooltip rather than throwing.
+ */
 function tooltipText(entity: ReaderEntity): string {
-  const head = `${entity.canonical_name} — ${entity.type}`;
-  return entity.aliases.length > 0 ? `${head}\nAliases: ${entity.aliases.join(", ")}` : head;
+  const lines = [`${entity.canonical_name} — ${entity.type}`];
+  if (entity.aliases.length > 0) lines.push(`Aliases: ${entity.aliases.join(", ")}`);
+  for (const relation of entity.relations ?? []) {
+    const arrow = relation.direction === "out" ? "→" : "←";
+    lines.push(`${arrow} ${relation.predicate} ${relation.neighbour_name}`);
+  }
+  if (entity.relation_overflow > 0) lines.push(`+${entity.relation_overflow} more`);
+  return lines.join("\n");
 }
 
 /**

@@ -30,7 +30,7 @@ from story_forge.adapters.postgres_repo import (
     insert_story,
 )
 from story_forge.api.stories import get_neo4j_repo
-from story_forge.domain.graph import GraphEntity
+from story_forge.domain.graph import GraphEntity, GraphRelation
 from story_forge.domain.models import (
     Chapter,
     EntityMention,
@@ -46,15 +46,22 @@ pytestmark = pytest.mark.integration
 
 
 class _StubRepo:
-    """Returns canned project entities and records the project_id it was asked for."""
+    """Returns canned project entities + relations, recording the project_id it was asked for."""
 
-    def __init__(self, entities: list[GraphEntity]) -> None:
+    def __init__(
+        self, entities: list[GraphEntity], relations: list[GraphRelation] | None = None
+    ) -> None:
         self._entities = entities
+        self._relations = relations or []
         self.asked_project: UUID | None = None
 
     async def list_entities(self, project_id: UUID) -> list[GraphEntity]:
         self.asked_project = project_id
         return self._entities
+
+    async def get_relations(self, project_id: UUID) -> list[GraphRelation]:
+        """Feeds the §3.5 graph-derived tooltip summary (S7)."""
+        return self._relations
 
 
 async def _make_paragraphs(
@@ -156,6 +163,9 @@ async def test_reader_highlights_mentioned_entities(
         "canonical_name": "Maria",
         "type": "Character",
         "aliases": ["Marysia"],
+        # No relations in this story's graph → an empty §3.5 summary, never a stray "+0 more".
+        "relations": [],
+        "relation_overflow": 0,
     }
 
 
@@ -283,3 +293,63 @@ async def test_reader_subtracts_a_suppressed_search_hit(
     assert resp.status_code == 200, resp.text
     highlights = resp.json()["paragraphs"][0]["highlights"]
     assert [(h["start"], h["end"], h["entity_id"]) for h in highlights] == [(10, 15, str(maria.id))]
+
+
+async def test_reader_catalog_carries_the_graph_derived_relation_summary(
+    make_client: object, db_conn: psycopg.AsyncConnection
+) -> None:
+    # Spec §3.5: the tooltip's summary is derived from the accepted graph at read time, ordered
+    # by the neighbour's connection count so the hub link leads. Karczma is the hub here (2
+    # edges) and Maria a leaf (1), so Janek's summary must lead with Karczma despite the
+    # predicate tiebreak ordering them the other way.
+    story, (para,) = await _make_paragraphs(db_conn, "Janek met Maria.")
+    janek = GraphEntity(type="Character", canonical_name_pl="Janek", project_id=story.project_id)
+    maria = GraphEntity(type="Character", canonical_name_pl="Maria", project_id=story.project_id)
+    karczma = GraphEntity(type="Place", canonical_name_pl="Karczma", project_id=story.project_id)
+    await _mention(db_conn, para, janek)
+    await _mention(db_conn, para, maria)
+    relations = [
+        GraphRelation(type="LOVES", subject_id=janek.id, object_id=maria.id, confidence=0.9),
+        GraphRelation(type="DRINKS_AT", subject_id=janek.id, object_id=karczma.id, confidence=0.9),
+        GraphRelation(type="WORKS_AT", subject_id=maria.id, object_id=karczma.id, confidence=0.9),
+    ]
+    client: AsyncClient = make_client(  # type: ignore[operator]
+        _StubRepo([janek, maria, karczma], relations)
+    )
+
+    resp = await client.get(f"/stories/{story.id}/reader")
+
+    assert resp.status_code == 200, resp.text
+    catalog = {e["entity_id"]: e for e in resp.json()["entities"]}
+    # Karczma never appears in the prose, so it is not in the catalog — but it still counts as a
+    # neighbour in the summary of the entities that do appear.
+    assert set(catalog) == {str(janek.id), str(maria.id)}
+    assert catalog[str(janek.id)]["relations"] == [
+        {"direction": "out", "predicate": "DRINKS_AT", "neighbour_name": "Karczma"},
+        {"direction": "out", "predicate": "LOVES", "neighbour_name": "Maria"},
+    ]
+    assert catalog[str(janek.id)]["relation_overflow"] == 0
+
+
+async def test_reader_summary_caps_at_three_relations_and_counts_the_rest(
+    make_client: object, db_conn: psycopg.AsyncConnection
+) -> None:
+    story, (para,) = await _make_paragraphs(db_conn, "Janek met Maria.")
+    janek = GraphEntity(type="Character", canonical_name_pl="Janek", project_id=story.project_id)
+    await _mention(db_conn, para, janek)
+    others = [
+        GraphEntity(type="Place", canonical_name_pl=f"Miejsce{i}", project_id=story.project_id)
+        for i in range(5)
+    ]
+    relations = [
+        GraphRelation(type=f"VISITS_{i}", subject_id=janek.id, object_id=other.id, confidence=0.9)
+        for i, other in enumerate(others)
+    ]
+    client: AsyncClient = make_client(_StubRepo([janek, *others], relations))  # type: ignore[operator]
+
+    resp = await client.get(f"/stories/{story.id}/reader")
+
+    assert resp.status_code == 200, resp.text
+    entry = next(e for e in resp.json()["entities"] if e["entity_id"] == str(janek.id))
+    assert len(entry["relations"]) == 3
+    assert entry["relation_overflow"] == 2

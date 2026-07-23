@@ -1469,7 +1469,12 @@ export interface components {
         };
         /**
          * ReaderEntity
-         * @description Tooltip data for an entity that appears in the reader (DM-IH-8: name + type + aliases).
+         * @description Tooltip data for an entity that appears in the reader (spec §3.5).
+         *
+         *     Name + type + aliases, plus the **graph-derived summary** §3.5 specifies in place of a
+         *     stored description: up to three of the entity's relations, most-connected neighbour first,
+         *     with `relation_overflow` counting the rest ("+N more"). Derived at read time by
+         *     `domain.entity_summary` — no stored description field, nothing LLM-generated.
          */
         ReaderEntity: {
             /**
@@ -1483,6 +1488,13 @@ export interface components {
             type: string;
             /** Aliases */
             aliases: string[];
+            /** Relations */
+            relations?: components["schemas"]["RelationSummaryLine"][];
+            /**
+             * Relation Overflow
+             * @default 0
+             */
+            relation_overflow: number;
         };
         /**
          * ReaderHighlight
@@ -1572,6 +1584,25 @@ export interface components {
             edge_id: string;
             /** Merged Into Existing */
             merged_into_existing: boolean;
+        };
+        /**
+         * RelationSummaryLine
+         * @description One relation as the tooltip renders it, oriented relative to the entity hovered.
+         *
+         *     `direction` is `out` when the hovered entity is the relation's subject and `in` when it is
+         *     the object — the frontend draws these as `→` / `←`. Structured rather than pre-rendered:
+         *     presentation belongs to the frontend.
+         */
+        RelationSummaryLine: {
+            /**
+             * Direction
+             * @enum {string}
+             */
+            direction: "out" | "in";
+            /** Predicate */
+            predicate: string;
+            /** Neighbour Name */
+            neighbour_name: string;
         };
         /**
          * RelationView

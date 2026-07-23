@@ -19,6 +19,8 @@ import {
 } from "../../lib/api/useDuplicateSuggestions";
 import { useDismissDuplicate, useUndismissDuplicate } from "../../lib/api/useDismissDuplicate";
 import { useReviewQueue } from "../../hooks/useReviewQueue";
+import { EmptyQueueNext } from "../../components/ui/EmptyQueueNext";
+import { QueueProgress } from "../../components/ui/QueueProgress";
 import { DuplicatePairCard } from "./DuplicatePairCard";
 import {
   pairKey,
@@ -125,6 +127,7 @@ export function DuplicatesQueue() {
             like the same thing — pick which one to keep and merge, or dismiss the pair. Nothing is
             merged until you decide. Keys: J/K move · D dismiss.
           </p>
+          <QueueProgress selectedIndex={selectedIndex} total={items.length} />
         </div>
         {storyId && (
           <Link
@@ -169,9 +172,12 @@ export function DuplicatesQueue() {
       )}
 
       {items.length === 0 ? (
-        <p data-testid="duplicates-empty" className="text-sm text-gray-500">
-          No possible duplicates — the accepted entities all look distinct.
-        </p>
+        <EmptyQueueNext
+          testId="duplicates-empty"
+          message="No possible duplicates — the accepted entities all look distinct."
+          to={`/stories/${storyId}/normalise-names`}
+          label="Normalise names"
+        />
       ) : (
         <ul className="flex flex-col gap-3">
           {items.map((suggestion, index) => (
