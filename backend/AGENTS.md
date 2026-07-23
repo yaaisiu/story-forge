@@ -164,6 +164,19 @@ stores that hold the owner's actual work. Two rules so a throwaway test can neve
   real ones — deleting the exact test id `2d184fed…` was the safe path. The `llm_calls` cost ledger
   has no story/project column, so a test call's row isn't attributable — leave it rather than risk a
   real row.)
+- **An ad-hoc script that connects with `settings.database_url` must not let a traceback reach the
+  transcript — the URL embeds the password and psycopg prints the whole conninfo on error.** This is
+  not a logging leak (the backend emits no logs, see *Conventions*); it is the *exception* path, and
+  it fires on the most ordinary mistakes — a typo'd column name, a wrong table. `psycopg.ProgrammingError`
+  renders as `missing "=" after "postgresql+psycopg://storyforge:<the real password>@…"`, so one
+  throwaway query against a misremembered schema puts the credential in front of whoever is watching.
+  Redirect stderr (`2>/dev/null`) or wrap the connect+execute in `try/except` that prints only
+  `type(exc).__name__`, and check the column names against the migration first rather than guessing.
+  Two practical notes for such scripts: strip the SQLAlchemy driver prefix (`str(settings.database_url).replace("+psycopg", "")`)
+  because raw `psycopg.AsyncConnection.connect` rejects it, and prefer asserting a *property* of a
+  secret (length, shape, "does the repo contain it") over printing the value. (Earned Session 100:
+  a `label_a`-vs-`label_lo` column guess leaked the dev DB password into the session transcript;
+  `.env` was correctly untracked and gitignored, so nothing was committed and no rotation was needed.)
 
 ## Manual real-provider smoke (M2 close) + §6.7 key-leak check
 
