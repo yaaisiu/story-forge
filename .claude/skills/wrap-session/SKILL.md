@@ -149,7 +149,11 @@ move content out — both **move, not delete** (§4), into **`docs/PLAN_ARCHIVE.
   - **Then — move the just-closed milestone** to the archive — its
     `## Completed milestone:` task section, its Decided entries, its Done log, and the
     struck/resolved cross-cutting + Blocked items *that milestone raised* (the §3 re-curation is
-    the moment to sort those). Append them under a new dated `## Archived YYYY-MM-DD (Session N):
+    the moment to sort those). **Apply `docs/AGENTS.md` §3's two-roll rule as you curate:** an item
+    that has already survived two rolls untouched gets a *binary* call here — name it as a task in
+    the incoming milestone, or move it to `docs/BACKLOG.md`. "Carry forward" is not available a
+    third time; that free carry is what turned the list into a graveyard by the Graph-quality roll.
+    Append them under a new dated `## Archived YYYY-MM-DD (Session N):
     <milestone>` heading **at the top** of the archive (newest batch first; preserve each section's
     reverse-chronological order verbatim). Leave the pointers in `PLAN_SHORT.md`: the
     `> **Earlier milestones — archived.**` blockquote near the top and the `- _Earlier
