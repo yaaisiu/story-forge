@@ -117,10 +117,20 @@ specifically to stop the sweep from *leaking* that debt. When a third of the dat
 own age, "is this note current?" stops being answerable without git. Not a blocker — no *content* is
 wrong because of it — but the signal is decorative on those notes.
 
-*Not mass-fixed deliberately:* setting 13 dates without reading each diff would be guessing which edits
-were content-bearing. `invariants.md` was corrected because it is a core note and its diff was
-unambiguous. **Concrete next move:** either accept the git log as the real freshness source and drop
-`updated:` to a coarse signal, or make the bump a checked step wherever a note is edited outside a sweep.
+*Not mass-fixed deliberately:* setting a dozen dates without reading each diff would be guessing which
+edits were content-bearing. `invariants.md` and `learning-log.md` were corrected because their diffs were
+unambiguous. **State after this sweep: 12 notes still mismatched** (8 glossary terms, 3 proposals, 1 older
+report).
+
+*The detection method has its own false positive, and it matters.* The scan compares `updated:` against
+the note's **last commit date**, but a commit can touch a note without changing its content — a wikilink
+rename, a bulk tidy, or (as here) a *deliberate* date correction. `invariants.md` now re-trips the scan
+precisely because this sweep set it to 2026-07-15, its true content date, and then committed it today. So
+the count is a *smell*, not an inventory, and the finding is less "go fix N dates" than "the bump is
+unowned". **Concrete next move — pick one:** accept git as the real freshness source and demote
+`updated:` to a coarse signal (saying so in `architecture/AGENTS.md`), or make the bump a checked step
+wherever a note is edited outside a sweep. Doing neither leaves a third of the dated notes lying about
+their own age.
 
 ### Source-of-truth conflicts
 

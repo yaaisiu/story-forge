@@ -1139,12 +1139,15 @@ against; the rest are open here because nothing else owns them.
   revert removed the amplifier, not the cause. Tracked in `docs/BACKLOG.md` as the prerequisite gating any
   future optimistic-repaint work.
 
-**Open — no home yet:**
+**Open — no home yet** (the two `watch` items are mirrored here too, though §3c only walks blocker/risk — a `watch` with no home rots exactly like any other finding)**:**
 
-- **R-2 · the `updated:` frontmatter is unmaintained on 13 notes** (body newer than the freshness date).
-  `invariants.md` was corrected in the sweep; the other 12 were left rather than guessed at. **Next move:**
-  decide whether `updated:` stays a real signal (then make the bump a checked step wherever a note is
-  edited outside a sweep) or is demoted to coarse (then say so, and treat git as the freshness source).
+- **R-2 · the `updated:` frontmatter is unmaintained — 12 notes still mismatched** after the sweep
+  (8 glossary terms, 3 proposals, 1 older report); `invariants.md` + `learning-log.md` were corrected,
+  the rest left rather than guessed at. Note the detector itself has a false positive — it compares
+  against the last *commit* date, which a non-content commit also moves — so the count is a smell, not
+  an inventory. **Next move (pick one):** keep `updated:` as a real signal and make the bump a checked
+  step wherever a note is edited outside a sweep, **or** demote it to coarse and say so in
+  `architecture/AGENTS.md`, treating git as the freshness source.
 - ~~**S-1 · `architecture/AGENTS.md` still says "INV-1…INV-9"**; INV-10 shipped at Graph-quality S5b-be.
   A one-token fix — but **the architect skills cannot make it**: that file is a host-repo convention file,
   read-only to them by its own rule. Needs a human or a non-architect agent.~~ ✅ **Fixed 2026-07-23, same
@@ -1154,6 +1157,20 @@ against; the rest are open here because nothing else owns them.
   altitude. Possibly correct, but it is an unnamed empty box. **Next move:** either name the
   non-applicability in `architecture/AGENTS.md`, or populate the two that would pay — `LLMRouter`
   (failover / budget / tier fallback) and `EntityEditService` (eight witnessed INV-9 writer-paths).
+- **W-1 · the S7 label-embedding cache is unbounded and deliberately cross-project.**
+  `LabelVocabularyReader._embeddings` is an app-lifetime dict keyed on the **bare label**, shared across
+  projects, never evicted. The sharing is a *good* call (a vector depends only on the string) and it took
+  a vocabulary load ~14 s → ~1.4 s. Two consequences on record so they're found by design, not incident:
+  it is the first structure that deliberately spans the `project_id` tenancy key ([[multi-tenancy]]) —
+  harmless under the single-trusted-user persona, a shared mutable structure *below* the tenancy boundary
+  if multi-user ever lands; and its bound is a property of the data (tens–hundreds of labels), not of the
+  code. **Next move:** none now — revisit if the persona assumption changes.
+- **W-2 · the tooltip summary reads the whole project edge set per reader load.** `summarise_relations`
+  is fed by one `get_relations(project_id)` per reader load — no *new* query shape (`/graph` already does
+  it) and the honest cost of the deliberately project-scoped summary (spec §3.5), but it is O(project
+  edges) on a *per-story* read and grows with the whole world graph. **Next move:** the first thing to
+  measure if the reader ever feels slow on a large project — and per the Session-100 rule, *measure*
+  before classifying it.
 - **Foundational inputs due for owner re-confirmation** (§1b — not machine-verifiable): the single-persona
   full-trust boundary, the portfolio-primary business weighting, and — most likely stale — the operator's
   self-described **"novice"** architecture-vocabulary calibration, which sets the vault's teaching density
