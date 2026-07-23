@@ -750,6 +750,20 @@ On the real Oakhaven graph that is 264 predicate pairs + 36 type pairs from a 22
 **Correct but wasteful** — nothing is stale or wrong, it is purely latency, and the author feels it
 once per decision on a 300-item queue. Owner called it acceptable for now (S7 walk).
 
+**Measured (S7 walk, real Oakhaven graph): one `GET …/label-vocabulary` takes ~14 s.** That turns a
+per-decision annoyance into an app-wide stall as soon as the author works faster than the refetch.
+Deciding 18 pairs in quick succession queued 18 refetches; a browser allows only ~6 concurrent
+connections per origin, so **all six were occupied by 14-second requests for minutes and every
+other request in the app starved behind them** — the graph page appeared broken and the queue
+count froze at a stale value, while the backend was answering in 25–70 ms throughout and logged
+zero errors. Diagnosed live: the encode does *not* block the event loop (concurrent requests on a
+fresh connection stayed fast), so this is **browser connection-pool exhaustion**, not a server
+fault, and it self-heals once the backlog drains. Nothing is lost — the decisions all committed.
+
+That makes (a) and (b) below materially more valuable than "nice polish": either one removes the
+pile-up, because the cost is paid per *refetch*, and the fix is to stop refetching the whole
+vocabulary after every single decision.
+
 When picked up, the cheap wins in order: (a) **cache the label embeddings** keyed by the label
 string — labels are free strings but the vocabulary changes by one entry per rename, so almost
 every encode is recomputing an identical vector; (b) **optimistically drop the renamed pair from
