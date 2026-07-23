@@ -1,7 +1,7 @@
 ---
 type: project
 slug: project
-updated: 2026-06-25
+updated: 2026-07-23
 status: living
 related: ["[[overview]]", "[[invariants]]", "[[open-questions]]"]
 ---
@@ -20,8 +20,13 @@ objects, concepts) and their relations, and lets the author confirm every graph 
 hand. *V1 is **feature-complete** (M0–M4): upload → structure → LLM extraction → the §3.3 human-gated
 cascade → graph write → an inline-highlight reader with an editable entity side panel (edit, merge,
 delete, undo, manual tagging) → narrowed multi-story (a new story reuses the project graph). The
-multi-story live smoke passed (Session 54). The project is now in a **Public-readiness** milestone —
-portfolio/spec/doc polish before the next build milestone (Graph-quality, then V2 Editing).* It runs
+multi-story live smoke passed (Session 54). **Public-readiness** (portfolio/spec/doc polish) closed at
+the Session-68 roll, and the **Graph-quality** milestone — curating the over-extracted graph in place
+rather than re-running extraction — is **complete as of Session 100** (S0–S7: chunker data-loss fix,
+graph navigation, edge evidence, duplicate-entity suggestion, canvas editing, name normalisation, the
+reader correction loop). The next milestone is **not yet chosen** — the fork between deeper extraction
+work (spec §5) and **V2 Editing** (§4) is deliberately gated on running fresh sample text end-to-end
+first, since the working graph has been hand-curated and no longer shows what the pipeline produces.* It runs
 entirely on the author's machine and is **public from day one** — it doubles as a portfolio
 piece demonstrating clean modular architecture, agent-based LLM orchestration, multi-model
 routing, and secure-by-default infrastructure.

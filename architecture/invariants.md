@@ -1,7 +1,7 @@
 ---
 type: invariants
 slug: invariants
-updated: 2026-07-10
+updated: 2026-07-15
 status: living
 related: ["[[overview]]", "[[project]]", "[[open-questions]]", "[[2026-06-11-architecture-review]]", "[[candidate-lifecycle]]"]
 ---
