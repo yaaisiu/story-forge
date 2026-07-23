@@ -1141,13 +1141,18 @@ against; the rest are open here because nothing else owns them.
 
 **Open — no home yet** (the two `watch` items are mirrored here too, though §3c only walks blocker/risk — a `watch` with no home rots exactly like any other finding)**:**
 
-- **R-2 · the `updated:` frontmatter is unmaintained — 12 notes still mismatched** after the sweep
+- ~~**R-2 · the `updated:` frontmatter is unmaintained — 12 notes still mismatched** after the sweep
   (8 glossary terms, 3 proposals, 1 older report); `invariants.md` + `learning-log.md` were corrected,
   the rest left rather than guessed at. Note the detector itself has a false positive — it compares
   against the last *commit* date, which a non-content commit also moves — so the count is a smell, not
   an inventory. **Next move (pick one):** keep `updated:` as a real signal and make the bump a checked
   step wherever a note is edited outside a sweep, **or** demote it to coarse and say so in
-  `architecture/AGENTS.md`, treating git as the freshness source.
+  `architecture/AGENTS.md`, treating git as the freshness source.~~ ✅ **RESOLVED 2026-07-23 (owner,
+  Session 101): keep it honest.** *"There are no people to edit those notes — only you are taking care of
+  them, so you need to do it right."* All 12 mismatches corrected in the same pass (each set to the date
+  of its last content-bearing commit, verified by diff), and `architecture/AGENTS.md` now carries the
+  standing rule: **bump `updated:` in the same edit that changes a note's body, always** — with the
+  content-vs-commit distinction spelled out so a wikilink repoint doesn't trigger a false bump.
 - ~~**S-1 · `architecture/AGENTS.md` still says "INV-1…INV-9"**; INV-10 shipped at Graph-quality S5b-be.
   A one-token fix — but **the architect skills cannot make it**: that file is a host-repo convention file,
   read-only to them by its own rule. Needs a human or a non-architect agent.~~ ✅ **Fixed 2026-07-23, same
@@ -1157,6 +1162,10 @@ against; the rest are open here because nothing else owns them.
   altitude. Possibly correct, but it is an unnamed empty box. **Next move:** either name the
   non-applicability in `architecture/AGENTS.md`, or populate the two that would pay — `LLMRouter`
   (failover / budget / tier fallback) and `EntityEditService` (eight witnessed INV-9 writer-paths).
+  ✅ **RESOLVED 2026-07-23 (owner, Session 101): populate it — "we should keep it updated and usable."**
+  So the per-component altitude is *wanted*, not deliberately skipped. **Scheduled, not deferred:** the
+  two notes above are a named task in the handoff's vault-maintenance unit, not a "write them when
+  something touches that component" (which is the escape hatch `docs/AGENTS.md` §3 exists to kill).
 - **W-1 · the S7 label-embedding cache is unbounded and deliberately cross-project.**
   `LabelVocabularyReader._embeddings` is an app-lifetime dict keyed on the **bare label**, shared across
   projects, never evicted. The sharing is a *good* call (a vector depends only on the string) and it took
@@ -1175,6 +1184,27 @@ against; the rest are open here because nothing else owns them.
   full-trust boundary, the portfolio-primary business weighting, and — most likely stale — the operator's
   self-described **"novice"** architecture-vocabulary calibration, which sets the vault's teaching density
   and has never been revisited across 100 sessions, 36 glossary terms and 19 decompositions.
+  ✅ **ALL THREE ANSWERED 2026-07-23 (owner, Session 101)** — two confirmed, one substantially
+  recalibrated; `PROJECT.md` updated in the same pass:
+    - **Persona — confirmed:** still one person, own machine, fully trusted. **But now with a stated
+      expiry:** the owner wants the tool *"usable one day — and not only for me"*, so "single-user
+      forever" is no longer safe to build **irreversibly** against. Nothing changes today and no spec
+      amendment is needed (§2.3 is a *PoC* scope statement); what changes is that a shortcut which would
+      be *wrong* under many users, and expensive to undo, now deserves a note when it is taken — the live
+      example being **W-1** below.
+    - **Business — confirmed and sharpened:** mainly portfolio + learning; real use aspirational. The
+      aspiration is *broader* than the original framing (was "a tool for this author", now "a tool other
+      people could use").
+    - **Calibration — RECALIBRATED, the significant one.** The owner states he **does not read these
+      notes**, which retires the bootstrap assumption that the vault partly exists to teach *him*. The
+      two remaining readers are an outside visitor reading cold and the agents that orient from the
+      vault. The accessibility bar is **unchanged** (*"informative, usable for the beginner"*) — but the
+      **Polish glosses go**: they existed to teach the operator in his first language. No new Polish in
+      vault notes; the 22 existing glossary notes that carry it are a **named stripping task**, not a
+      when-touched carry. This also surfaced a leak in the now-shared `meta-architect` plugin: its
+      `templates/project.md` **hardcoded** "glossary always carries the Polish term too", and three more
+      files defaulted to "EN + PL" — all four neutralised to defer to each project's own calibration,
+      since the plugin now ships to repos with no connection to Polish.
 
 ## Referenced — owned by spec §10 (not duplicated)
 

@@ -1,7 +1,7 @@
 ---
 type: glossary-term
 slug: direct-manipulation
-updated: 2026-07-08
+updated: 2026-07-09
 status: living
 related:
   - "[[graph-canvas-editing]]"

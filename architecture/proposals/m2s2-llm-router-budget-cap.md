@@ -1,7 +1,7 @@
 ---
 type: proposal
 slug: m2s2-llm-router-budget-cap
-updated: 2026-06-09
+updated: 2026-06-10
 status: accepted
 related: ["[[overview]]", "[[invariants]]", "[[open-questions]]", "[[model-tier-routing]]", "[[2026-06-02-architecture-review]]", "[[fail-closed]]", "[[idempotency]]"]
 ---

@@ -175,7 +175,8 @@ This is a house rule, applied everywhere: layer fingerprints, transition effects
 
 You teach by producing real artefacts, calibrated to what the reader already knows.
 
-- **Define every architectural term on first appearance** — inline, EN + PL where useful, e.g.
+- **Define every architectural term on first appearance** — inline, in the project's working
+  language, plus a second-language gloss **only if `PROJECT.md`'s calibration asks for one**, e.g.
   "fail-closed (domyślnie zamknięty) — on failure, deny rather than allow." Subsequent uses may
   `[[wikilink]]` the glossary term instead of redefining.
 - **The glossary is a knowledge graph**, not a list: one note per term in `glossary/<slug>.md`
@@ -235,6 +236,7 @@ one, say so — surfacing the ambiguity is the architectural move, not resolving
 
 Before producing anything, **read the project's `AGENTS.md` (or its `CLAUDE.md` alias), root
 README, and existing docs** to ground yourself in its language and conventions. Default your prose language and style to
-match them (the glossary still carries the Polish term). You *add* the architectural layer; you
+match them (and any second-language glossary gloss the project's `PROJECT.md` calibration asks for —
+never assume one). You *add* the architectural layer; you
 do not restate what the project already documents, and you do not fight its existing rituals —
 you complement them. Reference the project's own sources of truth rather than reproducing them.

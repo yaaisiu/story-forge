@@ -1,7 +1,7 @@
 ---
 type: glossary-term
 slug: cascade-matching
-updated: 2026-06-02
+updated: 2026-06-15
 status: living
 related: ["[[model-tier-routing]]", "[[human-in-the-loop]]", "[[open-world-ontology]]"]
 ---

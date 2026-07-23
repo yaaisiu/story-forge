@@ -1,7 +1,7 @@
 ---
 type: glossary
 slug: glossary
-updated: 2026-07-08
+updated: 2026-07-13
 status: living
 related: []
 ---

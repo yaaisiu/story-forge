@@ -38,7 +38,8 @@ related:
 
 # <Human-readable title>
 
-<Body. The FIRST appearance of any architectural term is defined inline — EN + PL where
-useful, e.g. "trust boundary (granica zaufania) — the line at which data crosses between
-contexts of different trust levels." Subsequent appearances may link to the glossary with
-[[trust-boundary]] instead of redefining.>
+<Body. The FIRST appearance of any architectural term is defined inline, in the project's
+working language — e.g. "trust boundary — the line at which data crosses between contexts of
+different trust levels." Add a second-language gloss ONLY if this project's `PROJECT.md`
+calibration asks for one; it is a per-project choice, not a convention. Subsequent appearances
+may link to the glossary with [[trust-boundary]] instead of redefining.>

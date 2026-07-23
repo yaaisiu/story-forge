@@ -1,7 +1,7 @@
 ---
 type: glossary-term
 slug: poison-message
-updated: 2026-06-02
+updated: 2026-06-08
 status: living
 related: ["[[failover]]", "[[idempotency]]"]
 ---

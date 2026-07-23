@@ -54,6 +54,17 @@ local machine. A *persona* is a category of user defined by what they are truste
 different trust levels) normally separates personas of different privilege. Story Forge has
 **no human trust boundary**: no multi-user, no anonymous access, no remote callers (§2.3).
 
+**Re-confirmed by the owner 2026-07-23 (Session 101)** — still one person, their own machine, fully
+trusted. **But with a stated expiry, new at that re-confirmation:** the owner would like the tool to
+become *"usable one day — and not only for me"* (see Layer 2). That does **not** change anything today
+and needs no spec amendment (§2.3's "not multi-user" is a *PoC* scope statement and still holds), but it
+does change how the assumption should be *leaned on*: "single-user forever" is no longer a safe premise
+to build **irreversibly** against. Concretely — a shortcut that is merely *unused* under one user is
+fine; one that would be *wrong* under many, and expensive to undo, now deserves a note at the time it is
+taken. The live example is the S7 label-embedding cache, keyed on the bare label and deliberately shared
+across projects — harmless under one trusted user, a shared mutable structure sitting *below* the
+tenancy key if this aspiration is ever realised ([[open-questions]] OQ-35 W-1).
+
 This is the single most consequential architectural input, because it *removes* an entire
 class of concerns (authn/authz between users, tenant isolation, per-user rate limits) — and
 relocates the real trust boundary elsewhere. The boundary that *does* exist is **machine ↔
@@ -63,9 +74,14 @@ Security and Compliance/Audit layers do their work (see [[invariants]] #2, [[tru
 
 ## Business (Layer 2)
 
-Two drivers — today weighted toward the portfolio / architecture-exploration side, with the
-authoring use aspirational (the documentation still serves *both* readers — the future
-author-user and the outside visitor — equally):
+Two drivers — today weighted toward the portfolio / architecture-exploration side, with real use
+aspirational. **Re-confirmed and sharpened by the owner 2026-07-23 (Session 101):** *"mainly a portfolio
+and learning project, but one day I would like it to be usable — and not only for me."* Two things
+follow. The **weighting is unchanged** (portfolio/learning primary), so this is not a scope change. But
+the aspiration is now **broader than the original framing** — it was "a tool for *this* author"; it is
+now "a tool other people could use", which reaches past §2.3's single-user PoC scope and gives the
+Layer-1 persona assumption a stated expiry (see above). Nothing to build now; something to stop
+foreclosing.
 
 1. **An authoring tool — designed-for, currently aspirational.** Story Forge is *built for* a
    solo author working in a coherent fictional universe ("Wody Święte" / Holy Waters — the
@@ -119,13 +135,26 @@ exists to prevent (see [[source-of-truth]]).
 
 ## Calibration
 
-- **Architecture-vocabulary familiarity (operator, self-described):** **novice** — define every
-  architectural term inline, EN + PL, and narrate the layer/station reasoning. This sets the
-  initial progressive-disclosure tier to **Scaffolded (verbose)**. As the glossary fills, the
-  density tightens automatically (the agent counts glossary terms and learning-log lines to
-  choose tier; novice never bumps the tier *down*).
-- **Primary reader:** **both, equally** — a working design tool for the author *and* a
-  portfolio artefact an outsider reads cold. Every note is written so a stranger can open it
-  without prior context.
-- **Language:** English prose (matching the spec and `AGENTS.md` files); the glossary always
-  carries the Polish term alongside the English, per the project's bilingual PL/EN nature.
+**Recalibrated by the owner 2026-07-23 (Session 101), replacing the bootstrap-interview settings.**
+The honest correction is the first line below, and it retires the teaching layer's original *audience*
+— not the teaching itself.
+
+- **Primary reader: NOT the operator.** The owner states plainly that he does not read these notes.
+  That retires the bootstrap assumption that the vault is partly a tool for teaching *him* architecture
+  vocabulary. The two readers that remain are both real: **an outside visitor reading cold** (this is a
+  public portfolio repo) and **the agents that orient from the vault** before working. Write for those
+  two. Practically this means the notes should stay self-contained and jargon-explaining — a stranger
+  must be able to open any note without prior context — but they should stop being paced as a
+  curriculum for one specific person.
+- **Vocabulary level: still beginner-friendly, deliberately.** *"Informative, usable for the
+  beginner"* (owner). So the progressive-disclosure tier does **not** tighten to terse expert prose
+  just because the glossary is full: define a term on first appearance, keep the reasoning narrated
+  enough to follow. The audience changed; the accessibility bar did not.
+- **Language: English only.** *"For sure we don't need Polish there"* (owner). The bilingual EN + PL
+  glossary convention existed to teach the operator in his first language, and that purpose is retired
+  with the reader change above. **Going forward: no new Polish terms in vault notes.** The project
+  remains bilingual in its *content* domain — the stories are Polish, and spec App. A keeps its own
+  terminology — but that is a property of the text being analysed, not of the architecture notes
+  describing the system. The 36 existing glossary notes still carry their Polish terms; stripping them
+  is a named task, not a "fix it when the note is next touched" (which is precisely the escape hatch
+  `docs/AGENTS.md` §3's two-roll rule exists to kill).
