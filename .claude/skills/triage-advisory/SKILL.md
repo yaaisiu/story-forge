@@ -111,8 +111,36 @@ For every active waiver, check whether its drop-condition is now met:
 
 - **Date-based** (`ignoreUntil` / "fix soaks YYYY-MM-DD"): has the date passed? Re-run step 2's
   age check on the fixed version — if it now soaks, **drop it**.
-- **Condition-based** ("drop when neo4j ships netty ≥4.1.135"): re-run the gate against the
-  current image/lockfile — if the advisory no longer appears, the fix landed; **drop it**.
+- **Condition-based** ("drop when neo4j ships netty ≥4.1.135"): re-run the gate — but **against
+  the right target**, which differs by waiver kind:
+  - **Lockfile (OSV):** re-run against the current `backend/uv.lock` after a `uv lock`. A bump
+    changes the locked version, so the advisory genuinely disappears when the fix lands.
+  - **Image (Trivy): scan the NEWEST available soaked tag, NOT the pinned one.** This is the
+    trap. An image waiver's condition is "*a newer tag* ships the fixed jar", but the pinned tag
+    is frozen — it will carry that CVE forever. Re-scanning the *pinned* image therefore can
+    **never** show the condition met, so a waiver checked that way can only ever be cleared by
+    accident. Enumerate the newer tags, pick the newest that clears the ≥7-day soak, and scan
+    **that**:
+    ```bash
+    # 1. What newer tags exist, and when were they published?
+    curl -s "https://hub.docker.com/v2/repositories/<NS>/<REPO>/tags/?page_size=100&name=<SERIES>" \
+      | python3 -c "import sys,json;[print(t['name'],t['last_updated']) for t in
+          sorted(json.load(sys.stdin)['results'],key=lambda x:x['last_updated'],reverse=True)[:10]]"
+    # 2. Scan the newest SOAKED candidate with the CURRENT ignore file. Entries it no longer
+    #    needs are the ones the bump would let you delete.
+    docker run --rm -v /var/run/docker.sock:/var/run/docker.sock \
+      -v "$PWD/infra/trivy/<img>.trivyignore:/cfg/ignore:ro" aquasec/trivy:0.70.0 \
+      image --quiet --severity HIGH,CRITICAL --ignore-unfixed --scanners vuln \
+      --ignorefile /cfg/ignore <IMAGE>:<CANDIDATE-TAG>
+    # 3. Diff raw findings (NO ignore file) pinned-vs-candidate to see exactly what the bump
+    #    clears and — just as important — whether it introduces anything new.
+    ```
+    If the candidate clears entries the pin still needs waived, that is a **fix available now**:
+    bump via `/pin-image` and delete those waivers. (Earned Session 99, 2026-07-23: six neo4j
+    netty CVEs stayed waived for three weeks after `5.26.27` shipped netty 4.1.135 fixing all
+    six — the register had even noted the opportunity on 2026-06-19 — because both this step and
+    `/resume-session` §3b said to re-check by "running the gates", which only ever re-scanned the
+    frozen pin. An unrelated red forced the sweep that finally caught it.)
 
 To drop a waiver: **fix-first** (bump to the now-soaked fixed version via `/add-dependency` /
 `/pin-image`), then **delete its `[[IgnoredVulns]]` block / ignore line AND its `WAIVERS.md`

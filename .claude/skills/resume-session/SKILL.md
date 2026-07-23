@@ -69,9 +69,30 @@ a waiver is "due this week / should have soaked by now / fix-first next" is a st
 verdict, not a fact (the wrap that wrote it couldn't know today's date); a fix is droppable only
 once its floor date is **≤ today**, so a future floor date (e.g. 2026-06-26 read on 2026-06-20)
 is *not yet* actionable however the handoff phrased it. Acting on the stale framing means bumping
-a dep still inside its 14-day soak (a §6.7 misstep). Condition-based drop-whens ("drop when neo4j
-ships netty ≥4.1.135") aren't date-checkable here — `/triage-advisory` re-scans those by running
-the gates; just note they exist so the next sweep covers them.
+a dep still inside its 14-day soak (a §6.7 misstep).
+
+**Condition-based drop-whens ("drop when neo4j ships netty ≥4.1.135") need their own check — and
+"note that they exist" is not one.** They have no `ignoreUntil`, so CI never re-reds on them: left
+to chance they rot silently behind a green board. They aren't date-checkable, but the *proxy* is
+cheap — **a newer image tag is the only way the condition can become true**, so ask whether one
+exists. One Docker Hub query per image, no Trivy, no pull, ~2 seconds:
+
+```bash
+# For each image pinned in docker-compose.yml: is there a tag newer than the pin?
+curl -s "https://hub.docker.com/v2/repositories/<NS>/<REPO>/tags/?page_size=100&name=<SERIES>" \
+  | python3 -c "import sys,json;[print(t['name'],t['last_updated']) for t in
+      sorted(json.load(sys.stdin)['results'],key=lambda x:x['last_updated'],reverse=True)[:5]]"
+```
+
+If a tag **newer than the pin** exists and has cleared the ≥7-day image soak, flag it: *"neo4j
+pinned at X, soaked tag Y available — condition-based waivers may now be droppable."* Then
+recommend **`/triage-advisory`**, which scans that candidate properly (its step 3 owns the real
+check). Do **not** try to conclude from the tag alone whether the fix landed — a newer tag is a
+*signal to scan*, not evidence. If no newer soaked tag exists, the condition cannot have become
+true; say so and move on. (Earned Session 99, 2026-07-23: this step previously said condition-based
+waivers were re-scanned "by running the gates" and to just note them — but running the gate scans
+the *pinned* tag, which carries the CVE forever, so the condition was structurally undetectable.
+Six neo4j netty CVEs stayed waived three weeks past their fix as a result.)
 
 ## 3c. Triage the latest architecture report (don't let a finding rot)
 
