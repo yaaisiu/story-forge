@@ -259,6 +259,18 @@ deeper into extraction improvement (the spec §5 deferred work: re-extraction, e
 deep-modelling, predicate auto-suggestion) **or** move on to V2 Editing (PoC spec §4). After
 Graph-quality → **V2 Editing** either way.
 
+> **Before the fork: run fresh sample text end-to-end (owner, 2026-07-23, Session 100).** The
+> Oakhaven graph has now been hand-curated across S4–S7, so it no longer shows what the *pipeline*
+> produces — it shows what the pipeline produced plus a lot of human repair. Before committing to
+> either branch of the fork, write **new sample stories/articles** and take them through
+> upload → chunk → extract → review → curate **from scratch**, observing what actually needs
+> improving rather than inferring it from a graph that has been cleaned. This is the same move that
+> earned its keep in Session 33 (the first live end-to-end run surfaced ~12 real gaps and killed the
+> auto-commit idea outright) — and the S7 walk is fresh evidence for it, having turned up a 14 s
+> stall, a hub-monopolising tooltip, an evidence-free normalise-names card, and a 24 %-isolated
+> graph, none of which any green test suite had flagged. Treat the fork as *informed by* that run,
+> not decided before it.
+
 ---
 
 > **Earlier milestones — archived.** Milestones 1–4 (M0 Setup, M1, M2 Basic extraction, M3 Cascade matching, M4 V1 polish) **and Public readiness** (V1 → public portfolio) — their full task breakdowns, Decided entries, and Done logs — live in **[`docs/PLAN_ARCHIVE.md`](PLAN_ARCHIVE.md)** (dated, append-only). This file carries **only the current milestone**; the milestone-roll ritual (`/wrap-session`, `docs/AGENTS.md` §7) moves the just-closed milestone there.

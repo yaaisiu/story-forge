@@ -738,6 +738,44 @@ Surfaced by the slice's multi-agent `/code-review` (PR #130) and consciously def
 When picked up: add an `allStoryGraphsKey()` (or invalidate `["story-graph"]`) at the graph-writing
 hooks and update their invalidation assertions.
 
+## Isolated "stray" nodes — no way to triage them in bulk (quantified S7 walk, Session 100)
+
+The over-extraction the PoC accepts by design has a **measurable shape** nobody had counted until
+now. On the real Oakhaven project graph (161 entities, 276 edges):
+
+| | count | share |
+|---|---|---|
+| degree 0 — completely isolated | **39** | 24% |
+| degree 1 — attached by a single edge | 68 | 42% |
+| degree 2+ — actually woven into the graph | 54 | 34% |
+
+**Two thirds of the graph is degree ≤ 1.** The isolated set is dominated by `OBJECT` (12),
+`LOCATION` (8) and `CONCEPT` (8), and reads exactly like what it is — scenery, props and
+abstractions promoted to entities: *pale moonlight · dark water · fear · polished steel · dim
+lantern light · slick cobblestones · ocean wind · kingdom's darkest secrets*.
+
+**The gap is the tool, not the diagnosis.** *Why* this happens is already covered above
+(*Entity-span granularity*, *Detail level is purpose-dependent*, *Entity-resolution limitations*) —
+don't re-litigate it here. What's missing is a way to **act on the strays in bulk**. Today the
+author can *hide* them (S2 shipped a min-connections filter) but cleaning them means the per-entity
+delete, one at a time, 39 times — so in practice they stay and the graph reads as noise. Owner's
+words on seeing the cloud: *"some of them should be merged into others, some most likely not."*
+That mix is the point — this is a triage surface, not a bulk delete: some strays are real entities
+the extractor simply failed to connect (`northern reefs`, `capital`, `docks`), some are aliases of
+existing nodes, and many are not entities at all.
+
+**When picked up**, the shape that fits the milestone's existing pattern is a **"suggest, then you
+decide" stray queue**: list degree-0 (and optionally degree-1) entities with the mention context
+that produced them, offering per-item *keep · merge into… · delete*, plus a multi-select for the
+obvious sweep. Everything needed exists — degree is a count over `get_relations`, the mention text
+is what the reader already renders, merge/delete/undo shipped in M4.S3a/S3b. Sibling of the
+duplicate-review (S4) and normalise-names (S6) queues, and it wants the **same evidence** the
+normalise-names item above asks for.
+
+**Note it interacts with the fork**: if the next phase improves *extraction*, some of these stop
+being created at all, which is the better fix. A triage queue curates the graph you have; better
+extraction stops producing the mess. Probably both, in that order of value.
+
 ## Normalise-names queue — show the evidence behind each label (surfaced S7 walk, Session 100)
 
 The normalise-names card asks a question it doesn't give you the means to answer. It shows two
