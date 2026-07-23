@@ -738,6 +738,50 @@ Surfaced by the slice's multi-agent `/code-review` (PR #130) and consciously def
 When picked up: add an `allStoryGraphsKey()` (or invalidate `["story-graph"]`) at the graph-writing
 hooks and update their invalidation assertions.
 
+## Normalise-names queue — show the evidence behind each label (surfaced S7 walk, Session 100)
+
+The normalise-names card asks a question it doesn't give you the means to answer. It shows two
+labels, their use counts, and two similarity scores — `LOCATED_IN 7 uses` vs `PINPOINTED 1 use`,
+`name match 60 · embedding 0.41` — and then asks whether they are synonyms. **Nothing on the card
+says what either predicate actually connects**, so for any pair that isn't obvious from the strings
+(`STANDS_ON`/`STAND_ON`) the author is guessing. The owner's words on hitting exactly this pair:
+*"I don't really know :D"*.
+
+**This is the milestone's own thesis, unapplied to S6.** The Graph-quality goal statement says the
+human gate *"is only as good as the context it shows you"* and that bringing the source text to the
+decision point *"is mostly cheap — the data already exists"*. S3 did it for edges (predicate +
+source sentences), S4 did it for duplicate pairs (context quote + type + aliases). S6 shipped
+labels, counts and scores alone — the one curation surface with no evidence behind its decision.
+
+**The data is already there and the answer is instant once shown.** Dumping the bearing edges for
+that exact pair settled it in seconds:
+
+```
+LOCATED_IN (7 edges)                     PINPOINTED (1 edge)
+  Elara Vance       → ship interior        Garret Locke → exact dock
+  Garret Locke      → Blackwater Keep
+  The Brazen Kettle → Oakhaven
+  bounty hunters    → Oakhaven
+  Black Wax Letter  → leather satchel
+  Obsidian Cipher   → leather satchel
+```
+
+`LOCATED_IN` is a *state* (a thing is somewhere); `PINPOINTED` is an *action* someone performed.
+Not synonyms — and obvious the moment the edges are visible.
+
+**When picked up.** For a **predicate** label, show up to ~3 bearing edges as
+`Subject —PREDICATE→ Object`: `Neo4jRepo.get_relations(project_id)` already returns them, and the
+name lookup is the same one `domain/entity_summary` builds for the reader tooltip. For a **type**
+label, show a few entities carrying it (`list_entities` filtered by type). Both are read-only
+derivations of data the suggest pass already loads — no new storage, no new graph read in the
+common case. If a source quote is wanted beyond the triple, the S3a evidence machinery
+(`GET …/relations/{edge_id}/evidence`, `domain/edge_evidence.py`) already resolves paragraph text
+for an edge. Expanding on demand (fetch-on-tap, the DM-EE-1 pattern) avoids paying for 300 cards
+up front.
+
+**Strong candidate for promotion rather than post-PoC**: it is the same "suggest, then you decide"
+gate as S4, and a suggestion the author can't evaluate is a gate in name only.
+
 ## ~~Normalise-names queue — refetch lag after a rename~~ ✅ FIXED 2026-07-23 (Session 100)
 
 > **Resolved the same session it was raised.** The owner was about to work the 300-item queue, so
