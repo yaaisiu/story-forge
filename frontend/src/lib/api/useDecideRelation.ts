@@ -7,7 +7,8 @@
 //
 // On success it always invalidates the relation queue (so the decided relation drops off
 // the list); a *commit* additionally invalidates the story graph (so the new edge appears
-// in the §3.4 viewer), while a *reject* writes nothing to the graph and skips that refetch.
+// in the §3.4 viewer) **and the reader** (whose §3.5 tooltip summary is derived from the
+// project's edges — S7), while a *reject* writes nothing to the graph and skips both.
 // A 409 (already decided) or 404 bubbles as a typed `ApiError` the queue surfaces.
 //
 // Conventions (frontend/src/lib/api/CLAUDE.md): one file per logical operation,
@@ -17,6 +18,7 @@ import { useMutation, useQueryClient, type UseMutationResult } from "@tanstack/r
 
 import { ApiError, postJsonBody } from "./client";
 import type { components } from "./schema";
+import { readerQueryKey } from "./useReader";
 import { relationsQueryKey } from "./useRelations";
 import { storyGraphQueryKey } from "./useStoryGraph";
 
@@ -43,6 +45,10 @@ export function useDecideRelation(
       void queryClient.invalidateQueries({ queryKey: relationsQueryKey(storyId) });
       if (variables.action === "commit") {
         void queryClient.invalidateQueries({ queryKey: storyGraphQueryKey(storyId) });
+        // The reader's §3.5 tooltip summary is derived from the project's edges, so a committed
+        // edge dirties it too — without this the reader serves a stale summary for the length of
+        // its `staleTime`, disagreeing with the graph view of the same data.
+        void queryClient.invalidateQueries({ queryKey: readerQueryKey(storyId) });
       }
     },
   });

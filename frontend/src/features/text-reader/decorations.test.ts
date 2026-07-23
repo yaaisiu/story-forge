@@ -113,11 +113,15 @@ describe("paragraphHighlightRanges", () => {
 });
 
 describe("decorationAttrs", () => {
+  // `relations` is optional in the generated schema (no serialized default), while
+  // `relation_overflow` carries one — so the base fixture omits the former and sets the latter,
+  // which is exactly the shape a relationless entity arrives in.
   const entity: ReaderEntity = {
     entity_id: "e1",
     canonical_name: "Janek",
     type: "character",
     aliases: ["Jan"],
+    relation_overflow: 0,
   };
 
   it("carries the highlight identity, type colour, and a name+aliases tooltip", () => {
@@ -168,5 +172,58 @@ describe("decorationAttrs", () => {
     // Parity with the prior <mark> renderer, which titled a catalog-missing highlight with its text.
     const attrs = decorationAttrs(hl(0, 5, "e9", "place"), undefined, false, "Janek");
     expect(attrs.title).toBe("Janek");
+  });
+
+  // Spec §3.5: the tooltip carries a graph-derived summary in place of a stored description —
+  // the backend sends the lines already ordered (most-connected neighbour first) and capped.
+  it("appends the graph-derived relation summary, arrowed by direction", () => {
+    const attrs = decorationAttrs(
+      hl(0, 5),
+      {
+        ...entity,
+        relations: [
+          { direction: "out", predicate: "LIVES_IN", neighbour_name: "Oakhaven" },
+          { direction: "in", predicate: "BROTHER_OF", neighbour_name: "Bronisław" },
+        ],
+        relation_overflow: 0,
+      },
+      false,
+      "Janek",
+    );
+    expect(attrs.title).toBe(
+      "Janek — character\nAliases: Jan\n→ LIVES_IN Oakhaven\n← BROTHER_OF Bronisław",
+    );
+  });
+
+  it("adds a +N more line when the entity has more relations than were sent", () => {
+    const attrs = decorationAttrs(
+      hl(0, 5),
+      {
+        ...entity,
+        aliases: [],
+        relations: [{ direction: "out", predicate: "LIVES_IN", neighbour_name: "Oakhaven" }],
+        relation_overflow: 4,
+      },
+      false,
+      "Janek",
+    );
+    expect(attrs.title).toBe("Janek — character\n→ LIVES_IN Oakhaven\n+4 more");
+  });
+
+  it("shows no summary lines and no stray +0 more for a relationless entity", () => {
+    const attrs = decorationAttrs(
+      hl(0, 5),
+      { ...entity, aliases: [], relations: [], relation_overflow: 0 },
+      false,
+      "Janek",
+    );
+    expect(attrs.title).toBe("Janek — character");
+  });
+
+  it("tolerates a catalog entry with no relations field at all", () => {
+    // `relations` is optional in the generated schema (it carries a server-side default), so a
+    // cached response from before this field existed must not crash the tooltip.
+    const attrs = decorationAttrs(hl(0, 5), { ...entity, aliases: [] }, false, "Janek");
+    expect(attrs.title).toBe("Janek — character");
   });
 });

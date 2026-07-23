@@ -136,6 +136,7 @@ describe("NormaliseNamesQueue", () => {
     h.data.value = { predicate_suggestions: [], type_suggestions: [] };
     renderQueue();
     expect(screen.getByTestId("normalise-empty")).toBeInTheDocument();
+    expect(screen.getByTestId("normalise-empty-next")).toBeInTheDocument();
   });
 
   it("renders both grouped sections with counts and a back-link", () => {

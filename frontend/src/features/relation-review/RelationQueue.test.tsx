@@ -80,6 +80,7 @@ describe("RelationQueue", () => {
     renderQueue();
 
     expect(await screen.findByTestId("relations-empty")).toBeInTheDocument();
+    expect(screen.getByTestId("relations-empty-next")).toBeInTheDocument();
   });
 
   it("shows an error state when the relations fetch fails", async () => {

@@ -19,6 +19,8 @@ import { ApiError } from "../../lib/api/client";
 import { useDecideRelation } from "../../lib/api/useDecideRelation";
 import { useRelations, type RelationView } from "../../lib/api/useRelations";
 import { useReviewQueue } from "../../hooks/useReviewQueue";
+import { EmptyQueueNext } from "../../components/ui/EmptyQueueNext";
+import { QueueProgress } from "../../components/ui/QueueProgress";
 import { RelationCard } from "./RelationCard";
 import { reduceRelationKey, type DecideAction, type NavState } from "./relationQueue";
 
@@ -93,6 +95,7 @@ export function RelationQueue() {
             Commit or reject each relation between accepted entities. Nothing is written to the
             graph until you decide. Keys: J/K move · A commit · R reject.
           </p>
+          <QueueProgress selectedIndex={selectedIndex} total={relations.length} />
         </div>
         {storyId && (
           <Link
@@ -112,9 +115,13 @@ export function RelationQueue() {
       )}
 
       {relations.length === 0 ? (
-        <p data-testid="relations-empty" className="text-sm text-gray-500">
-          No relations to decide — every committable relation has been resolved.
-        </p>
+        <EmptyQueueNext
+          testId="relations-empty"
+          message="No relations to decide — every committable relation has been resolved."
+          storyId={storyId}
+          next="duplicates"
+          label="Review possible duplicates"
+        />
       ) : (
         <ul className="flex flex-col gap-3">
           {relations.map((relation, index) => (

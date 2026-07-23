@@ -19,7 +19,7 @@ import httpx
 from fastapi import APIRouter, Depends, HTTPException, Request, Response, UploadFile
 from neo4j.exceptions import ServiceUnavailable
 from psycopg import AsyncConnection, OperationalError
-from pydantic import BaseModel, field_validator, model_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
 
 from story_forge.adapters.accepted_entity_reader import AcceptedEntityReader
 from story_forge.adapters.db import get_connection
@@ -97,6 +97,7 @@ from story_forge.domain.duplicate_clusters import (
 from story_forge.domain.edge_evidence import EdgeEvidence, build_edge_evidence
 from story_forge.domain.entity_edits import EntityEditInvalid, EntityEditPatch
 from story_forge.domain.entity_merge import EntityMergeInvalid
+from story_forge.domain.entity_summary import RelationSummaryLine, summarise_relations
 from story_forge.domain.graph import GraphEntity
 from story_forge.domain.highlights import (
     HighlightTarget,
@@ -656,12 +657,22 @@ class ReaderParagraph(BaseModel):
 
 
 class ReaderEntity(BaseModel):
-    """Tooltip data for an entity that appears in the reader (DM-IH-8: name + type + aliases)."""
+    """Tooltip data for an entity that appears in the reader (spec §3.5).
+
+    Name + type + aliases, plus the **graph-derived summary** §3.5 specifies in place of a
+    stored description: up to three of the entity's connections, most-connected neighbour first.
+    One line per distinct *neighbour* — so `relation_overflow` counts unshown **neighbours**, not
+    unshown edges ("+N more" means "N more connections"; an entity with 3 neighbours joined by 30
+    edges reports 0). Derived at read time by `domain.entity_summary` — no stored description
+    field, nothing LLM-generated.
+    """
 
     entity_id: UUID
     canonical_name: str
     type: str
     aliases: list[str]
+    relations: list[RelationSummaryLine] = Field(default_factory=list)
+    relation_overflow: int = 0
 
 
 class ReaderResponse(BaseModel):
@@ -779,12 +790,28 @@ async def get_story_reader(
             )
         )
 
+    # The §3.5 graph-derived tooltip summary. One project-wide relation read (the same one
+    # `/graph` does) feeds a single pass that summarises every entity — no per-entity query.
+    # Names are resolved here because `canonical_for_language` lives in `agents/`, which the
+    # pure `domain` summariser must not import.
+    # Deliberately **project**-scoped, not story-scoped (owner, 2026-07-23; spec §3.5). The §3.4
+    # graph route filters the same read to the story (DM-MS-2); the tooltip does not, because
+    # summarising an entity's role across every story is the point of a shared world graph. A
+    # neighbour named in the summary may therefore not appear in the story being read.
+    names_by_entity = {e.id: canonical_for_language(e, language) for e in entities}
+    relations = await repo.get_relations(story.project_id)
+    # `only=appeared` — build summaries for the entities the catalog actually carries; ranking is
+    # still computed over the whole project graph, so a neighbour's significance is unaffected.
+    summaries = summarise_relations(relations, names_by_entity, only=appeared)
+
     catalog = [
         ReaderEntity(
             entity_id=e.id,
-            canonical_name=canonical_for_language(e, language),
+            canonical_name=names_by_entity[e.id],
             type=e.type,
             aliases=e.aliases,
+            relations=summaries[e.id].lines if e.id in summaries else [],
+            relation_overflow=summaries[e.id].overflow if e.id in summaries else 0,
         )
         for e in entities
         if e.id in appeared
