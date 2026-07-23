@@ -1,7 +1,7 @@
 ---
 type: glossary-term
 slug: compensating-transaction
-updated: 2026-06-20
+updated: 2026-07-23
 status: living
 related:
   - "[[idempotency]]"
@@ -30,7 +30,7 @@ audit log must *group* a command's writes (an `operation_id`) and each row must 
 before-image** (the merge re-pointed 20 edges but the log caught 19) is a non-reversible action
 *masquerading* as reversible — worse than no undo; and undo over **drifted state** (the merged entity
 was edited after the merge) is a [[lost-update]] in reverse — refuse rather than clobber the newer
-change. Each forward step and each inverse must also be [[idempotent]], so a crash mid-operation leaves
+change. Each forward step and each inverse must also be [[idempotency|idempotent]], so a crash mid-operation leaves
 a retryable state, never a half-applied one. (Story Forge M4.S3b: entity merge/delete consume the
 append-only `graph_edits` log this way — the spec's own §10-q2 "append-only log of changes", *executed*
 as undo, rather than full graph version snapshots.)

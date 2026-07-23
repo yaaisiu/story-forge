@@ -23,7 +23,8 @@ related: []
 ## Context and problem statement
 
 <What forces are at play, and why does a decision have to be made now? One or two short
-paragraphs. Define any architectural term on first appearance — EN + PL where useful, e.g.
+paragraphs. Define any architectural term on first appearance — in the project's working language,
+with a second-language gloss only if its `PROJECT.md` calibration asks for one, e.g.
 "idempotency (idempotentność) — the property that running an operation twice yields the same
 state as running it once." Name the source of truth for any fact you assert.>
 

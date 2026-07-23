@@ -1,7 +1,7 @@
 ---
 type: changelog
 slug: changelog
-updated: 2026-07-13
+updated: 2026-07-23
 status: living
 related: []
 ---
@@ -10,6 +10,45 @@ related: []
 
 Append-only audit trail of writes into the vault. Newest entries at the top. History also lives
 in `updated` fields (freshness) and git (diffs); this is the human-readable "what changed when".
+
+## 2026-07-23 (Session 101) — review: the Graph-quality → next-milestone MILESTONE-ROLL sweep
+
+First `review-architecture` run under the ADR-0002 §4 roll wiring, and the first since Session 90.
+Report: **`reports/2026-07-23-architecture-review.md`**. No blockers; 3 `risk`, 5 `watch`.
+
+- **`overview.md`** — **re-synced a whole stale milestone** (the sweep's headline `risk`). The note still
+  read "the project is in the *Public-readiness* milestone", so all of Graph quality (S0–S7, Sessions
+  68–100, PRs #164–#223, ADRs 0010/0011, INV-10) was missing from the as-built snapshot. Added a full
+  Graph-quality section — one bullet per slice with its defining finding — and rewrote "Next" to record the
+  milestone fork as **deliberately unchosen** and gated on running fresh sample text end-to-end first.
+  M4.S1's tooltip line now names the S7 summary. `updated:` 2026-06-25 → 2026-07-23.
+- **`PROJECT.md`** — same staleness, same fix at the identity altitude: Public-readiness closed at the
+  Session-68 roll, Graph quality complete at Session 100, next milestone unchosen. `updated:` → 2026-07-23.
+- **`proposals/m4-inline-highlights.md`** — **queued roll input 1, closed.** DM-IH-8 recorded as
+  **SUPERSEDED (not wrong)** by the S7 graph-derived relation summary across four homes in this note: the
+  register banner, the `### DM-IH-8` body (full supersession block — the (c) LLM-summary rejection still
+  stands, since the new summary is *derived*, not generated), the Mermaid node, and the design-time
+  Requirement prose (kept verbatim + an inline marker). Its "Open" line closed: the owner took the richer
+  tooltip, but sourced from the graph rather than from `properties`. Also corrected two **as-built
+  overclaims** the queued item's keyword grep could not see — "the real 'Wody Święte' draft/corpus" → named
+  as the App. B LLM-generated test fixture. `updated:` 2026-06-18 → 2026-07-23.
+- **`open-questions.md`** — DM-IH-8 bullet marked superseded with the spec §3.5 authority pointer; new
+  **OQ-35** files the sweep's findings for `/resume-session §3c` triage, split into *already tracked in
+  `docs/BACKLOG.md`* (the two INV-1 near-misses) and *open, no home yet* (the unmaintained `updated:`
+  frontmatter; the `INV-1…INV-9` line in the read-only `architecture/AGENTS.md`; the empty `components/`
+  altitude; the three foundational inputs due for owner re-confirmation per §1b).
+- **`proposals/m3-cascade-matching.md`** — **queued roll input 2, closed.** The one live "personal tool"
+  home softened to "the authoring tool (designed-for, currently aspirational)". The cross-cutting item
+  predicted ~6 such files; there was 1 — and 2 worse ones under different words (see above).
+- **`invariants.md`** — `updated:` corrected 2026-07-10 → **2026-07-15**, the date its S6a-2 body actually
+  landed. Content unchanged and verified honest (INV-9's eighth witnessed writer-path; INV-10's first
+  realized consumer). It was one of **13** notes found carrying a date older than its last content commit.
+- **`glossary/compensating-transaction.md`** — one genuine ghost reference repointed: `[[idempotent]]` →
+  `[[idempotency|idempotent]]`. The other slug-diff hits remain the known format-placeholder false positives.
+- **`INDEX.md`** — regenerated: Next-steps items **34** (S6 built across four slices → S7 built → milestone
+  complete) and **35** (this sweep); the new report row takes the **current health snapshot** marker.
+- **`learning-log.md`** — two lines: *nominal vs substantive controls* (the S6 gate finding) and *TOCTOU at
+  the human gate* (the index-anchored cursor).
 
 ## 2026-07-09 (Graph-quality Session 80) — resolve: S5 in-place-editing register (DM-S5-1..6) — owner, same session
 

@@ -1,7 +1,7 @@
 ---
 type: proposal
 slug: m4-inline-highlights
-updated: 2026-06-18
+updated: 2026-07-23
 status: accepted
 related:
   - "[[overview]]"
@@ -42,14 +42,18 @@ related:
 > - **DM-IH-7 → (a) highlight accepted-only — resolved-as-built** (the read-side echo of INV-1; mentions
 >   are written only by the human-accept path).
 > - **DM-IH-8 → (a) tooltip = canonical_name + type + aliases — resolved-as-built** (a tooltip catalog
->   of only the entities that appeared).
+>   of only the entities that appeared). **⟶ SUPERSEDED 2026-07-23 (Graph-quality S7)** by a
+>   *graph-derived relation summary* — see the DM-IH-8 entry below. (a) was correct for this
+>   read-only slice; the extension DM-IH-8 itself flagged as "cheap to add under (a)" is what landed.
 > - **DM-IH-5 (colour-by-type palette) + DM-IH-6 (whole-story render vs virtualise) → confirm-at-build
 >   in the M4.S1 FRONTEND slice** — still open-but-narrowed, not yet resolved (a fixed palette + a
 >   deterministic hash fallback honouring open-world INV-4 + a legend, and measure-then-virtualise).
 
 **Requirement.** Render the full story text and highlight **accepted** entities inline (colour by
 type), so the knowledge graph becomes *live over the prose*; hovering a highlight shows the entity's
-name + a brief description. Owner-chosen first slice of M4 ("V1 polish"), 2026-06-17 roll. Spec
+name + a brief description. Owner-chosen first slice of M4 ("V1 polish"), 2026-06-17 roll. *(Design-time
+requirement, kept as written. "Brief description" resolved to name+type+aliases at DM-IH-8 below, and
+was **superseded 2026-07-23** by a graph-derived relation summary — spec §3.5.)* Spec
 authority: **§3.5** ("Text reader with highlights") + §3.4 (the viewer it drills into). This is a
 **read-only projection** of the accepted graph — the click-to-side-panel, manual tagging, and manual
 correction that §3.5 also lists are the *next* M4 slices (side panel, manual annotation) and are
@@ -149,7 +153,7 @@ flowchart TD
     E -->|unresolvable / entity rejected| G[omit — degrade to plain text  *fail-closed*]
     F --> H[per-paragraph decorated ranges + type + name + description]
     H --> I[React reader renders raw_text  *DM-IH-3*  colour-by-type  *DM-IH-5*]
-    I --> J[hover → tooltip: canonical_name + brief description  *DM-IH-8*]
+    I --> J[hover → tooltip: canonical_name + type + aliases  *DM-IH-8*<br/>+ graph-derived relation summary — superseding S7]
     J -.next M4 slices.-> K[click → side panel / right-click → manual correct]
 ```
 
@@ -216,8 +220,9 @@ are later slices.
     *Cons:* two code paths to test; the legacy path still has (a)'s inflection gap.
 - **My proposal.** **(c) hybrid**, but treat it as **two sub-slices**: ship (a) render-time search
   *first* (it needs no backend change and proves the UI end-to-end), then add span persistence (b) as a
-  follow-up once the UI exists and we've measured how often (a) actually fails on the real "Wody Święte"
-  corpus. This keeps the owner's "low-risk first slice" intact while not pretending the inflection gap
+  follow-up once the UI exists and we've measured how often (a) actually fails on the "Wody Święte"
+  corpus (the project's **test fixture**, App. B — LLM-generated sample content, not a real manuscript;
+  honesty pass, Session 59). This keeps the owner's "low-risk first slice" intact while not pretending the inflection gap
   doesn't exist. **`verify-at-build`:** measure (a)'s hit-rate on real data before committing to whether
   (b) is needed at all.
 - **Open.** Does the accept path even still have the spaCy span available to persist, or is the
@@ -297,7 +302,7 @@ are later slices.
 > option (c)). A client-side concern that only exists once the React reader is built. Still
 > open-but-narrowed, not resolved.
 - **Context.** §3.4 demands the *graph* handle 500+ nodes; §3.5's reader must handle a **50k-word
-  story** (the real "Wody Święte" draft).
+  story** (a "Wody Święte" draft at fixture scale — App. B sample content, not a real manuscript).
 - **Options.** (a) render the whole story DOM at once; (b) virtualise/paginate by chapter or scene
   (render visible paragraphs only); (c) render whole, optimise only if it stutters.
 - **My proposal.** **(c) measure first** — render whole-story, profile on a real 50k draft, and add
@@ -323,6 +328,21 @@ are later slices.
 > no new field). Delivered as a tooltip catalog of only the entities that appeared; the frontend slice
 > renders it. A richer description stays the side-panel slice's job. *Rejected:* (c) an LLM-generated
 > summary in a read-only no-egress slice.
+>
+> **⟶ SUPERSEDED 2026-07-23 (Graph-quality S7, spec §3.5 amended).** The tooltip now *also* carries a
+> **graph-derived relation summary**: up to three of the entity's connections as `→ PREDICATE Neighbour` /
+> `← PREDICATE Neighbour`, **one line per distinct neighbour**, ordered by the neighbour's own connection
+> count (most-connected first), with a `+N more` line. It is **derived at read time** from the accepted
+> graph — still **no stored `description` field, no LLM, no egress**, so the (c) rejection above stands
+> and the slice's read-only shape is preserved. Scope is deliberately **project-wide** (unlike the §3.4
+> view's `scope=story` default) — the cross-story reach is the point of a shared world graph.
+>
+> **(a) was not wrong** — it was the correct call for a read-only slice with no derived-summary
+> machinery, and this entry itself flagged the extension as "cheap to add under (a)". What S7 found was
+> that the *spec line* had never been updated to match (a): §3.5 still promised a "brief description" no
+> entity has ever carried. The supersession closes that drift by making the spec's promise real from data
+> the graph already holds. Authority: **spec §3.5**; build record: `docs/PLAN_SHORT.md` Decided
+> 2026-07-23 (Session 100); code: `backend/src/story_forge/domain/entity_summary.py`.
 - **Context.** §3.5's tooltip shows "canonical_name + brief description", but an entity has no
   dedicated `description` field — it has `properties` (a free dict) and `aliases`.
 - **Options.** (a) show canonical_name + type + aliases (data we *have*) and defer a real description;
@@ -331,7 +351,9 @@ are later slices.
 - **My proposal.** **(a) for this slice** — name + type + aliases is honest and needs no new data; a
   richer description is the side-panel slice's job (it shows full properties + local graph). *Rejected:*
   (c) (an LLM call in a read-only projection contradicts the slice's no-egress shape).
-- **Open.** Owner may want one or two `properties` keys in the tooltip — cheap to add under (a).
+- **Open.** ~~Owner may want one or two `properties` keys in the tooltip — cheap to add under (a).~~
+  **Closed 2026-07-23 (S7):** the owner took the richer tooltip, but sourced from the *graph* (relations)
+  rather than from `properties` — see the supersession note above. No `properties` keys were added.
 
 ---
 

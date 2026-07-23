@@ -1,7 +1,7 @@
 ---
 type: open-questions
 slug: open-questions
-updated: 2026-07-13
+updated: 2026-07-23
 status: living
 related: ["[[overview]]", "[[project]]", "[[invariants]]", "[[2026-06-02-architecture-review]]", "[[m2s3-extraction-agent]]", "[[2026-06-09-architecture-review]]", "[[2026-06-11-architecture-review]]"]
 ---
@@ -530,6 +530,11 @@ spaCy `CandidateSpan` that has offsets is discarded at accept), so highlighting 
 - **DM-IH-7 — highlight accepted-only** (the read-side echo of INV-1; *rejected:* preview staged).
 - **DM-IH-8 — tooltip "brief description"** (name+type+aliases now; richer description is the
   side-panel slice's job; *rejected:* an LLM-generated summary in a read-only slice).
+  **⟶ SUPERSEDED 2026-07-23 (Graph-quality S7):** the tooltip now also carries a **graph-derived
+  relation summary** (up to three connections, one line per distinct neighbour, most-connected first,
+  `+N more`), derived at read time — still no stored field and no LLM, so the original rejection holds.
+  (a) was right for its read-only slice; what S7 fixed was that spec §3.5 had never been updated to
+  match it. Spec §3.5 is the authority; see [[m4-inline-highlights]] DM-IH-8.
 - **Latent coupling surfaced (not this slice's fix):** a future M4 entity↔entity merge must re-point
   `entity_mentions.entity_id` (and written edges — DM-Rel-5) onto the survivor, or the reader silently
   drops those highlights. Ties the cross-cutting re-point item. **Lands in:** M4.S1 (the first M4 slice).
@@ -1115,6 +1120,91 @@ resolves before code.**
   S6 + §4 first, the M4.S3b "delete → §3.5" miscue). **No ADR anticipated** (the predicate re-key/handle is
   ADR 0011's; the dismissal store is ADR 0010's; the type relabel crosses no new data-model boundary) — draft
   one only if the build surfaces a genuine boundary. Open.
+
+### OQ-35 — Graph-quality roll sweep findings (2026-07-23) — open items needing a home
+
+From [[2026-07-23-architecture-review]], the milestone-roll sweep. The `risk` findings that are
+**already tracked** in `docs/BACKLOG.md` are listed first for the `/resume-session §3c` triage to confirm
+against; the rest are open here because nothing else owns them.
+
+**Already tracked — confirm, don't re-open:**
+
+- **N-1 · the normalise-names human gate is nominal** (INV-1 near-miss). S6's cards show no evidence
+  behind a suggested label pair, so the author approves a graph-wide N-edge rename they cannot evaluate —
+  the milestone's own thesis ("the gate is only as good as the context it shows you") unapplied to its own
+  slice. Tracked in `docs/BACKLOG.md`, flagged in the Session-100 handoff as a **promotion candidate** for
+  the next milestone. **This sweep supports the promotion.**
+- **N-2 · the review-queue cursor is index-anchored, not identity-anchored** (INV-1 addressing near-miss;
+  a [[toctou]] at the human gate). Live on all four queues on every refetch; the S100 optimistic-repaint
+  revert removed the amplifier, not the cause. Tracked in `docs/BACKLOG.md` as the prerequisite gating any
+  future optimistic-repaint work.
+
+**Open — no home yet** (the two `watch` items are mirrored here too, though §3c only walks blocker/risk — a `watch` with no home rots exactly like any other finding)**:**
+
+- ~~**R-2 · the `updated:` frontmatter is unmaintained — 12 notes still mismatched** after the sweep
+  (8 glossary terms, 3 proposals, 1 older report); `invariants.md` + `learning-log.md` were corrected,
+  the rest left rather than guessed at. Note the detector itself has a false positive — it compares
+  against the last *commit* date, which a non-content commit also moves — so the count is a smell, not
+  an inventory. **Next move (pick one):** keep `updated:` as a real signal and make the bump a checked
+  step wherever a note is edited outside a sweep, **or** demote it to coarse and say so in
+  `architecture/AGENTS.md`, treating git as the freshness source.~~ ✅ **RESOLVED 2026-07-23 (owner,
+  Session 101): keep it honest.** *"There are no people to edit those notes — only you are taking care of
+  them, so you need to do it right."* All 12 mismatches corrected in the same pass (each set to the date
+  of its last content-bearing commit, verified by diff), and `architecture/AGENTS.md` now carries the
+  standing rule: **bump `updated:` in the same edit that changes a note's body, always** — with the
+  content-vs-commit distinction spelled out so a wikilink repoint doesn't trigger a false bump.
+- ~~**S-1 · `architecture/AGENTS.md` still says "INV-1…INV-9"**; INV-10 shipped at Graph-quality S5b-be.
+  A one-token fix — but **the architect skills cannot make it**: that file is a host-repo convention file,
+  read-only to them by its own rule. Needs a human or a non-architect agent.~~ ✅ **Fixed 2026-07-23, same
+  session** — corrected to "INV-1…INV-10" in the main loop (outside the architect's guardrail), as a
+  targeted hand-edit of the kind `architecture/AGENTS.md` itself sanctions.
+- **T-1 · `components/` is empty after 100 sessions** — the vault has never used the per-component
+  altitude. Possibly correct, but it is an unnamed empty box. **Next move:** either name the
+  non-applicability in `architecture/AGENTS.md`, or populate the two that would pay — `LLMRouter`
+  (failover / budget / tier fallback) and `EntityEditService` (eight witnessed INV-9 writer-paths).
+  ✅ **RESOLVED 2026-07-23 (owner, Session 101): populate it — "we should keep it updated and usable."**
+  So the per-component altitude is *wanted*, not deliberately skipped. **Scheduled, not deferred:** the
+  two notes above are a named task in the handoff's vault-maintenance unit, not a "write them when
+  something touches that component" (which is the escape hatch `docs/AGENTS.md` §3 exists to kill).
+- **W-1 · the S7 label-embedding cache is unbounded and deliberately cross-project.**
+  `LabelVocabularyReader._embeddings` is an app-lifetime dict keyed on the **bare label**, shared across
+  projects, never evicted. The sharing is a *good* call (a vector depends only on the string) and it took
+  a vocabulary load ~14 s → ~1.4 s. Two consequences on record so they're found by design, not incident:
+  it is the first structure that deliberately spans the `project_id` tenancy key ([[multi-tenancy]]) —
+  harmless under the single-trusted-user persona, a shared mutable structure *below* the tenancy boundary
+  if multi-user ever lands; and its bound is a property of the data (tens–hundreds of labels), not of the
+  code. **Next move:** none now — revisit if the persona assumption changes.
+- **W-2 · the tooltip summary reads the whole project edge set per reader load.** `summarise_relations`
+  is fed by one `get_relations(project_id)` per reader load — no *new* query shape (`/graph` already does
+  it) and the honest cost of the deliberately project-scoped summary (spec §3.5), but it is O(project
+  edges) on a *per-story* read and grows with the whole world graph. **Next move:** the first thing to
+  measure if the reader ever feels slow on a large project — and per the Session-100 rule, *measure*
+  before classifying it.
+- **Foundational inputs due for owner re-confirmation** (§1b — not machine-verifiable): the single-persona
+  full-trust boundary, the portfolio-primary business weighting, and — most likely stale — the operator's
+  self-described **"novice"** architecture-vocabulary calibration, which sets the vault's teaching density
+  and has never been revisited across 100 sessions, 36 glossary terms and 19 decompositions.
+  ✅ **ALL THREE ANSWERED 2026-07-23 (owner, Session 101)** — two confirmed, one substantially
+  recalibrated; `PROJECT.md` updated in the same pass:
+    - **Persona — confirmed:** still one person, own machine, fully trusted. **But now with a stated
+      expiry:** the owner wants the tool *"usable one day — and not only for me"*, so "single-user
+      forever" is no longer safe to build **irreversibly** against. Nothing changes today and no spec
+      amendment is needed (§2.3 is a *PoC* scope statement); what changes is that a shortcut which would
+      be *wrong* under many users, and expensive to undo, now deserves a note when it is taken — the live
+      example being **W-1** below.
+    - **Business — confirmed and sharpened:** mainly portfolio + learning; real use aspirational. The
+      aspiration is *broader* than the original framing (was "a tool for this author", now "a tool other
+      people could use").
+    - **Calibration — RECALIBRATED, the significant one.** The owner states he **does not read these
+      notes**, which retires the bootstrap assumption that the vault partly exists to teach *him*. The
+      two remaining readers are an outside visitor reading cold and the agents that orient from the
+      vault. The accessibility bar is **unchanged** (*"informative, usable for the beginner"*) — but the
+      **Polish glosses go**: they existed to teach the operator in his first language. No new Polish in
+      vault notes; the 22 existing glossary notes that carry it are a **named stripping task**, not a
+      when-touched carry. This also surfaced a leak in the now-shared `meta-architect` plugin: its
+      `templates/project.md` **hardcoded** "glossary always carries the Polish term too", and three more
+      files defaulted to "EN + PL" — all four neutralised to defer to each project's own calibration,
+      since the plugin now ships to repos with no connection to Polish.
 
 ## Referenced — owned by spec §10 (not duplicated)
 

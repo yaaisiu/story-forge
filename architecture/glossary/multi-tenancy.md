@@ -1,7 +1,7 @@
 ---
 type: glossary-term
 slug: multi-tenancy
-updated: 2026-06-23
+updated: 2026-06-24
 status: living
 related:
   - "[[source-of-truth]]"

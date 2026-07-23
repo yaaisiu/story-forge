@@ -1,7 +1,7 @@
 ---
 type: proposal
 slug: backend-dependency-advisory-scan
-updated: 2026-06-08
+updated: 2026-06-18
 status: accepted
 related: ["[[overview]]", "[[invariants]]", "[[open-questions]]", "[[project]]", "[[prefer-deterministic]]", "[[fail-closed]]", "[[trust-boundary]]", "[[toctou]]", "[[software-composition-analysis]]", "[[defense-in-depth]]"]
 ---

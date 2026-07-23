@@ -90,6 +90,35 @@ still honest. If you find yourself wanting to copy/paste the cross-cutting
 list from the M1 file unchanged, stop: the review hasn't actually happened
 yet.
 
+**The two-roll rule — "carry forward" is not available a third time.** An item
+that has now survived **two rolls untouched** does not get a third free carry.
+At its second roll it gets a **binary** decision, and the reviewer must pick one:
+
+- **Name it as a task in the incoming milestone** — it becomes a real, scheduled
+  slice or sub-task in that milestone's list, not a standing note.
+- **Move it to `docs/BACKLOG.md`** — it is honestly post-PoC; route it there per
+  the BACKLOG header's routing rule and strike it here with a pointer.
+
+**If the incoming milestone isn't chosen yet, BACKLOG is the branch** — don't let the missing
+milestone become a third free carry. The item is reconsidered when the milestone is planned,
+which is what `docs/BACKLOG.md` already promises ("reviewed at milestone rolls; promoted when
+picked up"). That is the *stronger* reconsideration, not a weaker one: a standing carry-forward
+never got reviewed at all. (Hit on the rule's first run, Session 101 — the Graph-quality roll
+closed with the next milestone deliberately unchosen, so all ten aged items took this branch.)
+
+There is no third option for that age band. The reason is evidence, not tidiness:
+by the Graph-quality roll **nine** items were 2+ rolls old and untouched, every one
+carrying the same escape hatch — *"fix when the relevant code is next touched."*
+That is not a forcing function. The code **was** touched and the items still didn't
+move: the per-screen error-mapper item's own trigger is "fold when one of these
+screens next needs an error-message change", and when Session 96 needed exactly
+that, it **added the seventh copy** and updated the item's count from 6 to 7. The
+`get_story`-outside-the-503-guard item promised "one focused pass over all the edit
+routes"; the pass never came and Session 100 found the debt had spread to the reader
+route. Meanwhile the items that *did* get fixed this milestone (`CandidateView`,
+`useReviewQueue`) were fixed because a **slice named them** — which is precisely
+what option one forces. (Earned at the Graph-quality roll, Session 101, 2026-07-23.)
+
 ### 4. Strikethroughs over deletions
 
 We never delete plan content. Obsolete items get `~~strikethrough~~` plus a

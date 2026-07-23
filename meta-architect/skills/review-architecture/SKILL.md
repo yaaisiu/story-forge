@@ -100,6 +100,15 @@ both.)
   into `open-questions.md`** (step 8) so it has a tracked home the triage can check against. A vague
   `risk` with no locus or action is one step 3c can't triage — and the filed-and-forgotten finding the
   pairing exists to prevent.
+- **Mirror `watch` findings into `open-questions.md` too — one line each with its next move.** Step 3c
+  *walks* blocker/risk but only *skims* watch, and a report older than the last session close is presumed
+  triaged and never reopened. So a `watch` left only in the report is read exactly once and then never
+  again — write-only, which is the same rot the pairing exists to prevent, just quieter. `open-questions.md`
+  is the note a future session actually opens ("check here before making a design call"), so a watch line
+  there is discoverable at the moment it would matter. Keep them visually subordinate to the blocker/risk
+  entries; the point is discoverability, not equal weight. (Earned Session 101: the roll sweep's two watch
+  findings — an unbounded cross-project cache and an O(project-edges) read — lived only in the report until
+  the owner asked whether *everything* had been fixed or marked. The process didn't catch it; a human did.)
 - **Report only — never auto-fix.** You describe and locate; the human acts.
 - End with **Concepts worth studying**: terms or patterns visible in the project the reader
   would benefit from reading more about — a brief why for each, and a pointer where useful. This

@@ -60,4 +60,9 @@ The vault's job is to ADD the architectural layer, not restate what's already wr
 - **Architecture-vocabulary familiarity (operator, self-described):** <novice | building |
   comfortable | advanced> — seeds the initial progressive-disclosure tier (see the agent's
   heuristic). After this, the glossary's growth drives density automatically.
-- **Language:** <the working language for prose; glossary always carries the Polish term too.>
+- **Primary reader:** <who actually reads these notes — the operator, an outside visitor reading
+  cold, the agents that orient from the vault, or some mix. Ask; don't assume the operator reads
+  them. This drives how much a note explains and whether it is paced as a curriculum.>
+- **Language:** <the working language for prose. If the project wants a second-language gloss on
+  glossary terms, name it here; otherwise the glossary is single-language. Do NOT default to one —
+  a bilingual glossary is a per-project choice, not a convention.>

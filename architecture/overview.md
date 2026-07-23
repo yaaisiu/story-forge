@@ -1,7 +1,7 @@
 ---
 type: overview
 slug: overview
-updated: 2026-06-25
+updated: 2026-07-23
 status: living
 related: ["[[project]]", "[[invariants]]", "[[open-questions]]", "[[cascade-matching]]", "[[model-tier-routing]]", "[[m3-cascade-matching]]"]
 ---
@@ -107,7 +107,8 @@ human's gated decision, not an automatic write.
 #81/#86, #89/#91, #96/#98, #102/#105/#107, #111/#115/#117, #128/#130:**
 - **M4.S1 — inline highlights** (#81 backend / #86 frontend). A **read-only projection** of the
   accepted graph: render the story text, highlight accepted entities inline (colour-by-type), hover →
-  tooltip. **DM-IH-1** resolved render-time string search over name+aliases (`entity_mentions` carry
+  tooltip (name + type + aliases; **since Graph-quality S7 also a graph-derived relation summary** —
+  DM-IH-8 superseded, spec §3.5). **DM-IH-1** resolved render-time string search over name+aliases (`entity_mentions` carry
   null char offsets — no stored span to render), exposed by a new story-scoped `GET …/reader` — the
   §3.4 per-story filter's first home. See [[m4-inline-highlights]].
 - **M4.S2 — entity side panel** (#89 backend / #91 frontend). Click a highlight → a read-only panel
@@ -146,13 +147,61 @@ human's gated decision, not an automatic write.
   Adds `scope=story|project` on the graph route (default `story`), `project_id`-on-upload, and project/
   story list endpoints; folds the vestigial `world_id` cleanup. No new invariant, no ADR. See [[m4-multi-story]].
 
-**Next — V1 is feature-complete; the project is in the *Public-readiness* milestone** (docs / spec /
-portfolio polish, little-to-no production code — `docs/PLAN_SHORT.md`). The roadmap after it
-(owner-DECIDED, Session 54, `docs/PLAN_LONG.md`): **Public-readiness → Graph-quality polish → V2
-Editing**. The **Graph-quality** milestone opens with a backlog triage over the 10 Session-54 findings
-(`docs/BACKLOG.md`) — the most serious is **auto-chunker silent content-loss** (a structuring pass that
-drops input text without a signal). The **world graph** (cross-story) is **post-PoC** (`docs/BACKLOG.md`),
-not upcoming PoC work. INV-2 consent gate stays **deferred past M3** (persona-justified, 2026-06-15).
+**Public-readiness — CLOSED at the Session-68 roll** (docs / spec / portfolio polish, little-to-no
+production code).
+
+**Graph quality — COMPLETE (S0–S7, Sessions 68–100; PRs #164–#223).** The milestone's premise: V1
+*deliberately over-extracts* — every graph write passes the human gate (INV-1/INV-9), so the working
+graph is dense with duplicates, near-synonym edges, and spurious nodes left *on purpose* for curation.
+The enabling insight, and the milestone's thesis: **the human gate is only as good as the context it
+shows you**, and bringing the source text to the decision point is mostly *cheap* — the data already
+exists. So this was largely a **UX-surfacing** milestone over shipped write plumbing, not net-new
+machinery. Scope authority: `docs/specs/graph-quality.md`.
+- **S0 — decompose** (#166 era; [[graph-curation-surface]], DM-GQ-1..7). Defining finding: the
+  edit/merge/delete/undo plumbing already shipped at M4.S3a/S3b but *only on the reader's panel*, so
+  the editing slices are canvas-surfacing. Reserved a stable **edge handle** (§4) for the write slices.
+- **S1 — stop silent data loss** (#164). The auto-chunker could drop trailing paragraphs and report
+  success. One canonical range invariant (`domain.paragraph_range_problem` — covers every paragraph
+  `[0, count)`, nothing past the end) folded into the agent's retried validation via a new `check`
+  hook, so **both** a coverage gap *and* an overshoot re-prompt, with the coordinator re-asserting it
+  as a terminal `OutlineCoverageError` backstop.
+- **S2 — navigate the graph** (#168). A dense real graph (186 nodes / 286 edges) was an unnavigable
+  `cose` hairball. Pure `graphFilters.ts` (type / degree / diacritic-folding name search) + a
+  `cytoscape-fcose` layout — **client-side over the payload already fetched**, no backend change
+  ([[graph-navigation]], DM-GN-1..4).
+- **S3 — edge evidence + verifiable merges** (#172 be / #174 fe). Edge **provenance** existed in
+  Postgres `staged_relations` but reached no client and had no by-`edge_id` read. Added a focused BFF
+  read `GET …/relations/{edge_id}/evidence` ([[backend-for-frontend]]) + an `edge_id` index, and
+  enriched every merge surface with type + aliases + a context quote + `target_canonical_name`. Writes
+  nothing ([[graph-edge-evidence]], DM-EE-1..6).
+- **S4 — suggest duplicate entities** (#179 be / #181 fe, **ADR 0010**). Re-points the §3.3 cascade
+  matcher **inward** as a self-join over the *already-accepted* graph — it **suggests, never
+  auto-merges** (INV-1/INV-9 hold), feeding the existing merge unchanged. Dismissals persist in a
+  reversible Postgres pair-store ([[graph-cluster-dedup]], DM-CD-1..6; [[entity-resolution]]).
+- **S5 — in-place editing on the canvas** (#186 S5a / #188 S5b-be **ADR 0011 + INV-10** / #190 S5b-fe).
+  A shared `EntityEditPanel` core the reader *and* canvas compose; then the first edge-**write** slice:
+  the §4 `edge_uid` surrogate handle ([[surrogate-key]]) + an atomic `retarget_relation`
+  ([[graph-canvas-editing]], DM-S5-1..6).
+- **S6 — predicate- and type-name normalisation** (#207 read / #212 apply / #214 fe / #216 tune).
+  Defining finding at the *storage* layer: a predicate **is** the Neo4j relationship type (part of the
+  content-addressed edge id) so renaming it **re-keys every bearing edge**, while an entity type **is**
+  a node property so renaming it is a bulk `SET n.type` ⇒ **one shared suggest engine, two forked apply
+  paths**. INV-10's first realized consumer ([[graph-name-normalisation]], DM-NN-1..6;
+  [[controlled-vocabulary]]).
+- **S7 — the reader as a correction surface** (#222, + a perf follow-up #223). The verify-first survey
+  found the §3.5 *correction* surface already complete, so the slice instead closed a **spec drift**:
+  §3.5 had promised a tooltip "brief description" **no entity has ever carried**. Resolved by deriving
+  it from the graph — up to three relations, one line per distinct neighbour, most-connected first,
+  `+N more`, read-time, no stored field, no LLM. This **supersedes DM-IH-8** (see
+  [[m4-inline-highlights]]). The follow-up cached label embeddings on the app-lifetime
+  `LabelVocabularyReader`, taking a vocabulary load ~14 s → ~1.4 s.
+
+**Next — the milestone is deliberately unchosen.** The fork is between deeper **extraction** work
+(spec §5: re-extraction, an eval baseline, relation deep-modelling) and **V2 Editing** (§4), and it is
+gated on a prerequisite: **run fresh sample text end-to-end first**, because the working graph has been
+hand-curated across S4–S7 and no longer shows what the *pipeline* produces — deciding from it reads the
+wrong evidence. The **world graph** (cross-story) remains **post-PoC** (`docs/BACKLOG.md`). INV-2's
+consent gate stays **deferred past M3** (persona-justified, 2026-06-15).
 
 ---
 

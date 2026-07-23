@@ -30,7 +30,8 @@ Start at **`INDEX.md`** — the regenerated map of the whole vault. From there:
 - **`PROJECT.md`** — the stable inputs: identity, personas/trust, business drivers, and the
   **source-of-truth registry** (the single most useful table — where each kind of fact authoritatively lives).
 - **`overview.md`** — the nine-layer system-altitude analysis, grounded in the as-built present.
-- **`invariants.md`** — the rules that must never break (INV-1…INV-9; INV-8 retired at M3.S4a) and **where each is
+- **`invariants.md`** — the rules that must never break (INV-1…INV-10; INV-8 retired at M3.S4a, INV-10
+  minted at Graph-quality S5b-be) and **where each is
   enforced** vs. where the guard is still planned. Read this before touching the LLM/agent/graph
   layers; it tells you which guarantees you're on the hook for.
 - **`open-questions.md`** — framed-but-unresolved decisions (OQ-N) + the operator's next-step
@@ -70,6 +71,17 @@ Start at **`INDEX.md`** — the regenerated map of the whole vault. From there:
   tracked the residual `proposals/` / `INDEX` for the next sweep — both correct.)
 - **This `AGENTS.md` is a host-repo convention file, not a vault note** — the architect skills treat
   it as read-only (it has no `type:` frontmatter and isn't one of the note kinds they manage).
+- **Bump a note's `updated:` in the same edit that changes its body — always, no exceptions.** The date
+  is the vault's only glance-able freshness signal, and it is worth keeping *only* if it is true: a wrong
+  date is worse than none, because it invites trust it hasn't earned. **There is no human maintaining
+  these notes** — the agent that edits one is the only thing that can keep its date honest — so treat the
+  bump as part of the edit, not as bookkeeping to do afterwards. Two practical notes: get the date from
+  `date +%F`, never guess it; and if you edit a note *without* changing its meaning (a wikilink repoint,
+  a typo), leave the date alone — `updated:` tracks **content**, not commits. (Owner decision 2026-07-23,
+  Session 101, after the roll sweep found 12 notes whose body was newer than their date because the bump
+  was nobody's job; all 12 were corrected in the same pass. The *detector* — comparing `updated:` against
+  the last commit date — has a false positive for exactly that content-vs-commit reason, so treat its
+  count as a smell, not an inventory.)
 - **When the vault drifts from reality, that's a bug to file, not a fact to trust** — the
   `review-architecture` sweep exists to catch exactly that; its latest `reports/` entry says how
   honest the vault currently is.

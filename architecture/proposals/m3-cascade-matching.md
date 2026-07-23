@@ -1,7 +1,7 @@
 ---
 type: proposal
 slug: m3-cascade-matching
-updated: 2026-06-15
+updated: 2026-07-23
 status: accepted
 related: ["[[cascade-matching]]", "[[invariants]]", "[[overview]]", "[[open-questions]]", "[[human-in-the-loop]]", "[[fail-closed]]", "[[model-tier-routing]]", "[[state-machine]]", "[[idempotency]]", "[[m2s3-extraction-agent]]", "[[candidate-lifecycle]]"]
 ---
@@ -41,7 +41,8 @@ boundary — but the existing machine ↔ provider boundary ([[trust-boundary]])
 Stage-3 JudgeAgent. (The §3.4 review-queue UI was floated as the home for **INV-2's consent gate**, but
 the owner **deferred INV-2 past M3** — 2026-06-15, DM7 below; the cascade wires with no consent prompt.)
 
-**2 · Business.** Ladders to *both* drivers (`[[project]]`): the personal tool gets a clean,
+**2 · Business.** Ladders to *both* drivers (`[[project]]`): the authoring tool (designed-for,
+currently aspirational — see [[project]] Layer 2) gets a clean,
 non-duplicated graph ("I control every decision, the graph is clean" — §9 M3 outcome); the portfolio
 gets its showpiece — a cheapest-first, fail-closed, human-in-the-loop cascade with four visibly distinct
 stages. This is the feature the repo exists to demonstrate.

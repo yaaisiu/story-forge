@@ -1,7 +1,7 @@
 ---
 type: glossary-term
 slug: prompt-injection
-updated: 2026-06-02
+updated: 2026-06-08
 status: living
 related: ["[[trust-boundary]]", "[[human-in-the-loop]]"]
 ---

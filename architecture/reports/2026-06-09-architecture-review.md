@@ -1,7 +1,7 @@
 ---
 type: review
 slug: 2026-06-09-architecture-review
-updated: 2026-06-09
+updated: 2026-06-10
 status: living
 related: ["[[overview]]", "[[invariants]]", "[[open-questions]]", "[[m2s3-extraction-agent]]", "[[2026-06-02-architecture-review-post-m2s2]]", "[[idempotency]]", "[[poison-message]]", "[[source-of-truth]]"]
 ---

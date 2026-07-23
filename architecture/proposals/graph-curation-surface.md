@@ -1,7 +1,7 @@
 ---
 type: proposal
 slug: graph-curation-surface
-updated: 2026-06-26
+updated: 2026-06-29
 status: accepted
 related:
   - "[[overview]]"
