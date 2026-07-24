@@ -16,10 +16,7 @@ import { Link } from "react-router-dom";
 
 import { useProjects, type ProjectSummary } from "../../lib/api/useProjects";
 import { useProjectStories } from "../../lib/api/useProjectStories";
-
-function isoDate(value: string): string {
-  return value.slice(0, 10);
-}
+import { isoDate } from "../../lib/utils";
 
 export function ProjectPicker() {
   const projects = useProjects();

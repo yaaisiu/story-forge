@@ -91,7 +91,24 @@ describe("StoryHub", () => {
     expect(screen.getByTestId("hub-title-loading")).toBeInTheDocument();
   });
 
-  it("stays navigable when the title fetch fails (links need only the id)", async () => {
+  it("stays navigable on a transient failure (503 — links need only the id)", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue(jsonResponse(503, { detail: "a data store is unavailable" })),
+    );
+
+    render(<StoryHub />, { wrapper: buildWrapper() });
+
+    // Fallback header instead of a title, but the screen links still render + resolve —
+    // a store hiccup shouldn't strand the author on a dead page.
+    expect(await screen.findByTestId("hub-title-error")).toBeInTheDocument();
+    expect(screen.getByTestId("hub-link-review")).toHaveAttribute(
+      "href",
+      `/stories/${STORY_ID}/review`,
+    );
+  });
+
+  it("shows a not-found state with no dead links when the story is gone (404)", async () => {
     vi.stubGlobal(
       "fetch",
       vi.fn().mockResolvedValue(jsonResponse(404, { detail: "story not found" })),
@@ -99,11 +116,11 @@ describe("StoryHub", () => {
 
     render(<StoryHub />, { wrapper: buildWrapper() });
 
-    // Fallback header instead of a title, but the screen links still render + resolve.
-    expect(await screen.findByTestId("hub-title-error")).toBeInTheDocument();
-    expect(screen.getByTestId("hub-link-review")).toHaveAttribute(
-      "href",
-      `/stories/${STORY_ID}/review`,
-    );
+    // A story that doesn't exist gets a clear message — not a generic header over seven
+    // working-looking links that each lead to their own error page.
+    expect(await screen.findByTestId("hub-title-notfound")).toBeInTheDocument();
+    expect(screen.queryByTestId("hub-link-review")).not.toBeInTheDocument();
+    // The way back up is still there.
+    expect(screen.getByTestId("hub-back-to-projects")).toBeInTheDocument();
   });
 });

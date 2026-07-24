@@ -4,7 +4,7 @@
 // (BrowserRouter in App.tsx) and the shell render test (MemoryRouter in
 // AppShell.test.tsx) mount AppShell, which mounts AppRoutes — so this module
 // is shared by both code paths.
-import { lazy, Suspense } from "react";
+import { lazy, Suspense, type ReactNode } from "react";
 
 import { Route, Routes } from "react-router-dom";
 
@@ -16,6 +16,7 @@ import { NormaliseNamesQueue } from "../features/normalise-names/NormaliseNamesQ
 import { RelationQueue } from "../features/relation-review/RelationQueue";
 import { StoryHub } from "../features/story-hub/StoryHub";
 import { StoryScreenLayout } from "../features/story-hub/StoryScreenLayout";
+import { STORY_SCREENS } from "../features/story-hub/storyScreens";
 import { TextReader } from "../features/text-reader/TextReader";
 import { UploadScreen } from "../features/upload/UploadScreen";
 
@@ -25,6 +26,25 @@ import { UploadScreen } from "../features/upload/UploadScreen";
 const GraphViewer = lazy(() =>
   import("../features/graph-viewer/GraphViewer").then((m) => ({ default: m.GraphViewer })),
 );
+
+// The element for each per-story screen, keyed by STORY_SCREENS[].key. The paths + hub
+// links come from STORY_SCREENS (one source of truth — see storyScreens.ts); this maps
+// each key to what it renders. Spec origins: structure (M1), graph (M2.S5), review
+// (M3.S4b, spec §3.3 Stage 4), relations (M3.S4f), reader (M4.S1, spec §3.5),
+// duplicates (graph-quality S4b), normalise-names (graph-quality S6b).
+const SCREEN_ELEMENTS: Record<string, ReactNode> = {
+  structure: <OutlineEditor />,
+  graph: (
+    <Suspense fallback={<p className="p-6 text-sm text-gray-500">Loading graph viewer…</p>}>
+      <GraphViewer />
+    </Suspense>
+  ),
+  review: <ReviewQueue />,
+  relations: <RelationQueue />,
+  reader: <TextReader />,
+  duplicates: <DuplicatesQueue />,
+  "normalise-names": <NormaliseNamesQueue />,
+};
 
 export function AppRoutes() {
   return (
@@ -42,34 +62,14 @@ export function AppRoutes() {
           exact /stories/:storyId path is the hub; the deeper screen paths render under
           StoryScreenLayout, which adds the "← Story hub" back-link so no screen is a
           one-way door. Two routes share the prefix: the leaf hub completes only the exact
-          path, the layout completes the deeper ones (react-router path ranking). */}
+          path, the layout completes the deeper ones (react-router path ranking). The
+          sub-routes are generated from STORY_SCREENS so they can't drift from the hub's
+          link grid (both derive from the same list). */}
       <Route path="/stories/:storyId" element={<StoryHub />} />
       <Route path="/stories/:storyId" element={<StoryScreenLayout />}>
-        <Route path="structure" element={<OutlineEditor />} />
-        {/* M2.S5: once structured, run extraction and view the entity graph. */}
-        <Route
-          path="graph"
-          element={
-            <Suspense fallback={<p className="p-6 text-sm text-gray-500">Loading graph viewer…</p>}>
-              <GraphViewer />
-            </Suspense>
-          }
-        />
-        {/* M3.S4b: review the staged candidates an extraction produced (the human gate
-            that commits entities to the graph — spec §3.3 Stage 4 / §8.3). */}
-        <Route path="review" element={<ReviewQueue />} />
-        {/* M3.S4f: decide on the staged relations between accepted entities (the human
-            gate that commits edges to the graph — spec §3.3's 5th human action). */}
-        <Route path="relations" element={<RelationQueue />} />
-        {/* M4.S1: read the story with accepted entities highlighted inline (spec §3.5).
-            Read-only — no editor dep, so it imports directly (no code-split needed). */}
-        <Route path="reader" element={<TextReader />} />
-        {/* Graph-quality S4b: work down the likely-duplicate entity pairs suggested over the
-            accepted graph — accept (→ the existing merge) or dismiss each (human-gated). */}
-        <Route path="duplicates" element={<DuplicatesQueue />} />
-        {/* Graph-quality S6b: work down the suggested synonymous predicate/type label pairs —
-            rename one form into the other graph-wide or dismiss each (human-gated). */}
-        <Route path="normalise-names" element={<NormaliseNamesQueue />} />
+        {STORY_SCREENS.map((screen) => (
+          <Route key={screen.key} path={screen.suffix} element={SCREEN_ELEMENTS[screen.key]} />
+        ))}
       </Route>
     </Routes>
   );
