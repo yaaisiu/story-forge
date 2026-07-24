@@ -9,7 +9,7 @@ related:
   - "[[human-in-the-loop]]"
 ---
 
-# intra-batch deduplication (deduplikacja wewnątrz partii)
+# intra-batch deduplication
 
 **Definition:** collapsing duplicate candidates produced *within a single extraction run* — or
 against entities accepted *during the same review session* — as opposed to **cross-pass** dedup (a

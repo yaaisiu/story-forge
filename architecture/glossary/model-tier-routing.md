@@ -6,7 +6,7 @@ status: living
 related: ["[[agent]]"]
 ---
 
-# model-tier routing (routing po poziomach modeli)
+# model-tier routing
 
 **Definition:** choosing *which* LLM to call per task by **tier** — `local_small` (cheap local)
 / `cloud_free` (free remote) / `cloud_strong` (paid) — behind one provider interface, with

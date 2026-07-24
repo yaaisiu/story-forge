@@ -10,7 +10,7 @@ related:
   - "[[m4-inline-highlights]]"
 ---
 
-# materialization (materializacja)
+# materialization
 
 **Definition:** turning a value that was **computed on demand** (a *derived* view / projection) into a
 **stored** record that durably exists — so it gains an identity that can be addressed, corrected, and

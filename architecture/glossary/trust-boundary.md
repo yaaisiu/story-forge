@@ -6,7 +6,7 @@ status: living
 related: ["[[fail-closed]]", "[[source-of-truth]]"]
 ---
 
-# trust boundary (granica zaufania)
+# trust boundary
 
 **Definition:** the line at which data crosses between two contexts that trust each other to
 different degrees — every such crossing is where validation and authorization must happen.

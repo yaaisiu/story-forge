@@ -6,7 +6,7 @@ status: living
 related: ["[[cascade-matching]]"]
 ---
 
-# open-world ontology (ontologia otwarta)
+# open-world ontology
 
 **Definition:** a type system where the set of kinds (entity types, relation types) is **not
 fixed up front** and is allowed to grow as real data demands — the opposite of a closed

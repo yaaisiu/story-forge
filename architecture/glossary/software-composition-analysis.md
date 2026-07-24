@@ -9,7 +9,7 @@ related:
   - "[[source-of-truth]]"
 ---
 
-# software composition analysis (SCA) (analiza składu oprogramowania)
+# software composition analysis (SCA)
 
 **Definition:** scanning a project's **dependency graph** against a known-vulnerability database
 (here **OSV**) to find third-party components carrying publicly-disclosed advisories (CVE / GHSA /

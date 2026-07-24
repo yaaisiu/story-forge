@@ -6,10 +6,10 @@ status: living
 related: ["[[human-in-the-loop]]"]
 ---
 
-# fail-closed (domyślnie zamknięty)
+# fail-closed
 
 **Definition:** when something fails or is uncertain, **deny / stop and ask** rather than
-proceed. Its opposite, *fail-open* (domyślnie otwarty), allows on failure — convenient but
+proceed. Its opposite, *fail-open*, allows on failure — convenient but
 unsafe where the wrong "allow" is costly.
 
 **Answers:** "when in doubt, do we proceed or stop?"

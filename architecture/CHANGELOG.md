@@ -1,7 +1,7 @@
 ---
 type: changelog
 slug: changelog
-updated: 2026-07-23
+updated: 2026-07-24
 status: living
 related: []
 ---
@@ -10,6 +10,31 @@ related: []
 
 Append-only audit trail of writes into the vault. Newest entries at the top. History also lives
 in `updated` fields (freshness) and git (diffs); this is the human-readable "what changed when".
+
+## 2026-07-24 (Session 103) — review + vault-maintenance: pre-milestone sweep, two component notes, glossary de-glossing
+
+`review-architecture` sweep run as the pre-milestone vault-maintenance unit (pulled forward out of the
+Grzymalin reality-check milestone, was slice S6). Report: **`reports/2026-07-24-architecture-review.md`**.
+No blockers; 3 `risk` (all reconciled on sight), some `watch`. No production code changed since S100.
+
+- **`project.md`** + **`overview.md`** — re-synced the milestone-framing drift on sight: both said the
+  next milestone was "not yet chosen / deliberately unchosen"; both now name the **Grzymalin reality
+  check** (opened Session 102), fork stays open until the milestone's last session. `overview.md` also
+  records the owner's *Story Forge → History Forge* framing as a fork input + spec-identity watch.
+- **`INDEX.md`** — fixed the stale "INV-1…INV-9" "Start here" line → "INV-1…INV-10" (INV-10 shipped at
+  Graph-quality S5b-be; AGENTS.md was fixed 2026-07-23 but INDEX was missed); added the two component
+  notes to the map, moved the "current health snapshot" pointer to the new report, appended next-steps.
+- **`components/llm-router.md`** (new) + **`components/entity-edit-service.md`** (new) — the vault's
+  first Component-altitude notes (closes OQ-35 T-1). `LLMRouter` = the machine↔provider trust-boundary +
+  budget cap + tier fallback; `EntityEditService` = the graph writer in the 3rd–8th witnessed INV-9
+  instances, enumerated from `invariants.md`.
+- **22→34 glossary notes** — stripped the Polish gloss from every term-note H1 (owner Decided-101(d),
+  English-only). Preserved the non-Polish parentheticals: `(BFF)`, `(SCA)`, and `agent — in Story Forge's
+  sense`. The strip scope was mis-recorded as "22" (a diacritics-only grep); the sweep established the
+  true set (OQ-36) before executing.
+- **`open-questions.md`** — OQ-35 N-1 updated (normalise-names *promoted* → milestone S2), T-1 marked
+  done, the "22" annotated; **OQ-36** added (this sweep's findings, mostly resolved same session).
+- **`learning-log.md`** — appended the C4 Component-altitude line.
 
 ## 2026-07-23 (Session 101) — review: the Graph-quality → next-milestone MILESTONE-ROLL sweep
 

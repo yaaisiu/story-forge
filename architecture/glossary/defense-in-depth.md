@@ -9,7 +9,7 @@ related:
   - "[[trust-boundary]]"
 ---
 
-# defense in depth (obrona w głąb)
+# defense in depth
 
 **Definition:** layering **multiple independent controls** over the same risk so that one control
 failing (or missing a case) is not a breach — each layer is a separate net, deliberately redundant,

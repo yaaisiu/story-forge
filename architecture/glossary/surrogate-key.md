@@ -10,11 +10,11 @@ related:
   - "[[graph-curation-surface]]"
 ---
 
-# surrogate key (klucz zastępczy)
+# surrogate key
 
 **Definition:** an identifier with **no meaning of its own** — a random/opaque id (a `uuid4`) minted to
-name a record, *independent of the record's content*. Its opposite is a **natural key** (klucz
-naturalny) — an id *derived from the data itself*, so the id changes whenever the data does. Story
+name a record, *independent of the record's content*. Its opposite is a **natural key** — an id
+*derived from the data itself*, so the id changes whenever the data does. Story
 Forge's edges use a natural key today: `relation_edge_id = uuid5(subject, predicate, object)`, so the id
 **is** the fact. That is elegant for [[idempotency]] (the same triple always MERGEs to the same id —
 automatic dedup, ADR 0005) but fragile for *addressing*: re-point an endpoint or rename the predicate

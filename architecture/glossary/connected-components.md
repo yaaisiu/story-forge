@@ -9,7 +9,7 @@ related:
   - "[[entity-resolution]]"
 ---
 
-# connected components (składowe spójne)
+# connected components
 
 **Definition:** in a graph of "these two look like duplicates" edges, a **connected component** is a
 maximal set of nodes all reachable from each other — computed by *union-find* (repeatedly union the

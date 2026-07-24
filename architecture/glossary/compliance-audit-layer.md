@@ -6,7 +6,7 @@ status: living
 related: ["[[trust-boundary]]"]
 ---
 
-# compliance / audit layer (warstwa zgodności / audytu)
+# compliance / audit layer
 
 **Definition:** the architectural axis asking *"can we prove what happened, and that we met our
 obligations?"* — the durable evidence trail that remains after the fact. Distinct from Security,

@@ -11,7 +11,7 @@ related:
   - "[[human-in-the-loop]]"
 ---
 
-# entity resolution (rozpoznawanie tożsamości encji)
+# entity resolution
 
 **Definition:** deciding which records refer to the *same real-world thing* and linking or merging
 them — the umbrella field that [[cascade-matching]] (match a new candidate against the graph),
