@@ -296,6 +296,70 @@
         }
       }
     },
+    "/stories/{story_id}": {
+      "get": {
+        "tags": [
+          "stories"
+        ],
+        "summary": "Get Story Detail",
+        "description": "A single story's listing fields (title + ingest time) for the story hub (Grzymalin S3).\n\nA light read \u2014 no `raw_text` body \u2014 so the hub header can name the story on a cold deep-link\nor reload, without loading the whole document. 404s an unknown story (fail-closed); a Postgres\noutage is a declared 503.",
+        "operationId": "get_story_detail_stories__story_id__get",
+        "parameters": [
+          {
+            "name": "story_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Story Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StorySummary"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Story not found.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "A data store is unavailable.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/stories/{story_id}/graph": {
       "get": {
         "tags": [

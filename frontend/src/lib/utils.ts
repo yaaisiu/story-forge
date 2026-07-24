@@ -16,3 +16,12 @@
 export function cn(...parts: Array<string | false | null | undefined>): string {
   return parts.filter(Boolean).join(" ");
 }
+
+/**
+ * Format an ISO timestamp as its `YYYY-MM-DD` date prefix — deterministic and
+ * locale-independent, no time-of-day precision. Shared by the project picker and the
+ * story hub so the same story's ingest date reads identically in both.
+ */
+export function isoDate(value: string): string {
+  return value.slice(0, 10);
+}

@@ -277,7 +277,7 @@ export function GraphViewer() {
   const noMatch = graph.isSuccess && nodeCount > 0 && visibleCount === 0;
 
   return (
-    <main className="flex h-screen flex-col gap-4 p-6">
+    <main className="flex h-full flex-col gap-4 p-6">
       <header className="flex items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl font-semibold">Knowledge graph</h1>
