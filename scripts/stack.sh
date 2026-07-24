@@ -2,15 +2,11 @@
 #
 # Dev stack helper — start/stop the whole local stack and tail the service logs,
 # so day-to-day development is one command instead of the README's three-terminal
-# dance (docker compose + uvicorn + npm run dev).
+# dance (docker compose + uvicorn + npm run dev). Run `scripts/stack.sh help` for
+# the command list.
 #
 # Local dev convenience only; it has no production role and touches no secrets.
 # Linux/WSL/macOS (bash) — same shells the README already assumes.
-#
-#   scripts/stack.sh up       infra (docker compose -d) + backend + frontend
-#   scripts/stack.sh down     stop backend + frontend, then docker compose down
-#   scripts/stack.sh logs     tail the neo4j + postgres service logs
-#   scripts/stack.sh status   show what is running
 #
 # Backend and frontend run in the background; their output goes to the gitignored
 # .stack/ dir (one .log + .pid per process). Each is launched in its own process
@@ -42,6 +38,12 @@ is_alive() {
   [[ -f $pidfile ]] || return 1
   pid=$(cat "$pidfile") || return 1
   [[ -n $pid ]] && kill -0 "$pid" 2>/dev/null
+}
+
+# port_busy <port> — true if something is already listening on 127.0.0.1:<port>.
+# Uses bash's /dev/tcp so it needs no ss/lsof (portable across Linux/WSL/macOS bash).
+port_busy() {
+  (exec 3<>"/dev/tcp/127.0.0.1/$1") 2>/dev/null
 }
 
 # start_bg <name> <workdir> <cmd...> — launch cmd in <workdir>, backgrounded in its
@@ -92,12 +94,25 @@ stop_bg() {
   rm -f "$pidfile"
 }
 
+# up_app <name> <port> <workdir> <cmd...> — start_bg the process, but if its port is
+# already taken by something this script didn't start (e.g. a hand-launched server),
+# warn and skip rather than spawn a duplicate that dies silently into the log.
+up_app() {
+  local name=$1 port=$2
+  shift 2
+  if ! is_alive "$name" && port_busy "$port"; then
+    echo "  ! $name: port $port already in use by a process stack.sh didn't start — skipping"
+    return 0
+  fi
+  start_bg "$name" "$@"
+}
+
 cmd_up() {
   echo "▶ infra — docker compose up -d"
   docker compose up -d
   echo "▶ app"
-  start_bg backend "$repo_root/backend" uv run uvicorn story_forge.main:app --reload --port 8000
-  start_bg frontend "$repo_root/frontend" npm run dev
+  up_app backend 8000 "$repo_root/backend" uv run uvicorn story_forge.main:app --reload --port 8000
+  up_app frontend 5173 "$repo_root/frontend" npm run dev
   echo
   echo "  backend  → http://localhost:8000  (health: /health)"
   echo "  frontend → http://localhost:5173"
