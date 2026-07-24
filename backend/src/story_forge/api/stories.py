@@ -37,6 +37,7 @@ from story_forge.adapters.postgres_repo import (
     get_story,
     get_story_for_update,
     get_story_paragraph,
+    get_story_summary,
     insert_chapter,
     insert_paragraph,
     insert_project,
@@ -113,7 +114,7 @@ from story_forge.domain.label_synonyms import (
     suggest_label_synonyms,
 )
 from story_forge.domain.language import detect_language
-from story_forge.domain.models import Paragraph, Project, Story
+from story_forge.domain.models import Paragraph, Project, Story, StorySummary
 from story_forge.domain.neighbourhood import EgoGraph, build_ego_graph
 from story_forge.domain.parsing import ParseError, parse_document
 from story_forge.domain.story_scope import filter_graph_to_story
@@ -520,6 +521,32 @@ class EntitySearchResponse(BaseModel):
     """The handpick search hits, ranked best-first (spec §3.3 *Manual handpick*)."""
 
     entities: list[EntitySearchResult]
+
+
+@router.get(
+    "/{story_id}",
+    responses={
+        404: {"model": ErrorResponse, "description": "Story not found."},
+        503: {"model": ErrorResponse, "description": "A data store is unavailable."},
+    },
+)
+async def get_story_detail(
+    story_id: UUID,
+    conn: Annotated[AsyncConnection, Depends(get_connection)],
+) -> StorySummary:
+    """A single story's listing fields (title + ingest time) for the story hub (Grzymalin S3).
+
+    A light read — no `raw_text` body — so the hub header can name the story on a cold deep-link
+    or reload, without loading the whole document. 404s an unknown story (fail-closed); a Postgres
+    outage is a declared 503.
+    """
+    try:
+        story = await get_story_summary(conn, story_id)
+    except OperationalError as exc:
+        raise HTTPException(status_code=503, detail="a data store is unavailable") from exc
+    if story is None:
+        raise HTTPException(status_code=404, detail="story not found")
+    return story
 
 
 @router.get(
