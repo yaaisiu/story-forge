@@ -97,6 +97,30 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/stories/{story_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Story Detail
+         * @description A single story's listing fields (title + ingest time) for the story hub (Grzymalin S3).
+         *
+         *     A light read — no `raw_text` body — so the hub header can name the story on a cold deep-link
+         *     or reload, without loading the whole document. 404s an unknown story (fail-closed); a Postgres
+         *     outage is a declared 503.
+         */
+        get: operations["get_story_detail_stories__story_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/stories/{story_id}/graph": {
         parameters: {
             query?: never;
@@ -2108,6 +2132,55 @@ export interface operations {
                 };
             };
             /** @description A data store (Postgres/Neo4j) is unavailable. */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    get_story_detail_stories__story_id__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                story_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StorySummary"];
+                };
+            };
+            /** @description Story not found. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+            /** @description A data store is unavailable. */
             503: {
                 headers: {
                     [name: string]: unknown;

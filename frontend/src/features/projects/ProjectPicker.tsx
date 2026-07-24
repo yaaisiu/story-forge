@@ -2,8 +2,9 @@
 //
 // The navigation hub multi-story needs: list every project (GET /projects), select
 // one to list its stories (GET /projects/{id}/stories), and from there open a story's
-// graph or reader — or add another story to the same project (which routes back to the
-// upload screen carrying the project id, so the new story joins the shared graph).
+// hub (Grzymalin S3 — the per-story landing page linking all its screens) — or add
+// another story to the same project (which routes back to the upload screen carrying
+// the project id, so the new story joins the shared graph).
 //
 // Components render and dispatch; the data lives in the query hooks (frontend/src/CLAUDE.md).
 // Selection is local UI state. Dates are sliced to YYYY-MM-DD (the ISO prefix) to keep
@@ -129,10 +130,14 @@ export function ProjectPicker() {
               )}
               {stories.isSuccess &&
                 stories.data.map((story) => (
-                  <div
+                  // The row opens the story's hub (S3), from which every screen
+                  // (structure/reader/graph/review/relations/duplicates/normalise-names)
+                  // is one click — so the picker no longer needs per-screen quick-links.
+                  <Link
                     key={story.id}
                     data-testid={`story-row-${story.id}`}
-                    className="flex items-center justify-between gap-2 rounded border border-gray-200 px-4 py-3"
+                    to={`/stories/${story.id}`}
+                    className="flex items-center justify-between gap-2 rounded border border-gray-200 px-4 py-3 hover:border-blue-400 hover:bg-gray-50"
                   >
                     <div className="min-w-0">
                       <span className="block truncate font-medium text-gray-900">
@@ -142,23 +147,8 @@ export function ProjectPicker() {
                         {isoDate(story.ingested_at)}
                       </span>
                     </div>
-                    <div className="flex shrink-0 gap-2">
-                      <Link
-                        data-testid={`story-graph-link-${story.id}`}
-                        to={`/stories/${story.id}/graph`}
-                        className="rounded border border-gray-300 px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-50"
-                      >
-                        Graph
-                      </Link>
-                      <Link
-                        data-testid={`story-reader-link-${story.id}`}
-                        to={`/stories/${story.id}/reader`}
-                        className="rounded border border-gray-300 px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-50"
-                      >
-                        Read
-                      </Link>
-                    </div>
-                  </div>
+                    <span className="shrink-0 text-sm font-medium text-blue-600">Open →</span>
+                  </Link>
                 ))}
             </>
           )}

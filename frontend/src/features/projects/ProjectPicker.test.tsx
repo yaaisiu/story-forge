@@ -76,21 +76,17 @@ describe("ProjectPicker", () => {
     expect(screen.getByTestId("stories-placeholder")).toBeInTheDocument();
   });
 
-  it("loads the selected project's stories with graph + reader links", async () => {
+  it("loads the selected project's stories, each row opening the story hub", async () => {
     stubFetch();
     render(<ProjectPicker />, { wrapper: buildWrapper() });
 
     fireEvent.click(await screen.findByTestId(`project-row-${PROJECT_ID}`));
 
-    expect(await screen.findByTestId(`story-row-${STORY_ID}`)).toHaveTextContent("Chapter one");
-    expect(screen.getByTestId(`story-graph-link-${STORY_ID}`)).toHaveAttribute(
-      "href",
-      `/stories/${STORY_ID}/graph`,
-    );
-    expect(screen.getByTestId(`story-reader-link-${STORY_ID}`)).toHaveAttribute(
-      "href",
-      `/stories/${STORY_ID}/reader`,
-    );
+    // The row itself links to the story hub, from which every screen is reachable —
+    // no per-screen quick-links on the picker anymore.
+    const row = await screen.findByTestId(`story-row-${STORY_ID}`);
+    expect(row).toHaveTextContent("Chapter one");
+    expect(row).toHaveAttribute("href", `/stories/${STORY_ID}`);
   });
 
   it("offers an add-a-story link carrying the project context in the URL (survives reload)", async () => {

@@ -139,6 +139,21 @@ async def update_story_raw_text(conn: AsyncConnection, story_id: UUID, raw_text:
     )
 
 
+async def get_story_summary(conn: AsyncConnection, story_id: UUID) -> StorySummary | None:
+    """A single story's listing fields (title + ingest time), no `raw_text` body.
+
+    The light read the story hub's header needs on a cold deep-link — mirrors
+    `list_stories_for_project`'s projection so naming a story never loads its whole body.
+    Returns `None` for an unknown id (the route fail-closes that to a 404).
+    """
+    async with conn.cursor(row_factory=class_row(StorySummary)) as cur:
+        await cur.execute(
+            "SELECT id, title, ingested_at FROM stories WHERE id = %s",
+            (story_id,),
+        )
+        return await cur.fetchone()
+
+
 async def list_stories_for_project(conn: AsyncConnection, project_id: UUID) -> list[StorySummary]:
     """A project's stories, newest first (the picker read, DM-MS-4).
 

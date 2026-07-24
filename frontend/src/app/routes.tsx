@@ -14,6 +14,7 @@ import { ReviewQueue } from "../features/extraction-review/ReviewQueue";
 import { ProjectPicker } from "../features/projects/ProjectPicker";
 import { NormaliseNamesQueue } from "../features/normalise-names/NormaliseNamesQueue";
 import { RelationQueue } from "../features/relation-review/RelationQueue";
+import { StoryHub } from "../features/story-hub/StoryHub";
 import { TextReader } from "../features/text-reader/TextReader";
 import { UploadScreen } from "../features/upload/UploadScreen";
 
@@ -35,6 +36,9 @@ export function AppRoutes() {
       {/* M4 multi-story: browse projects + their stories; pick one to open its graph/
           reader, or add another story into the same shared-graph project (spec §3.4). */}
       <Route path="/projects" element={<ProjectPicker />} />
+      {/* Grzymalin S3: a story's landing hub — links to every one of its screens so a
+          raw :storyId UUID never has to be typed to reach review/relations/etc. */}
+      <Route path="/stories/:storyId" element={<StoryHub />} />
       <Route path="/stories/:storyId/structure" element={<OutlineEditor />} />
       {/* M2.S5: once structured, run extraction and view the entity graph. */}
       <Route
