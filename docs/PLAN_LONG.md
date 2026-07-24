@@ -68,8 +68,11 @@ features — to make the public repo read cleanly to an outside visitor:
 > milestone **roll** (opens it in `PLAN_SHORT.md`) and the **S61 plan-trim prep** — separate units.~~
 > ✅ Both done: the S61 plan-trim prep landed Session 67; the milestone **roll** landed Session 68.
 > **Graph quality then ran Sessions 68–100 and closed at the Session-101 roll** — its full record is in
-> [`docs/PLAN_ARCHIVE.md`](PLAN_ARCHIVE.md). A **second prep gate of the same shape is now due**: the
-> next milestone is deliberately unchosen, and choosing it has a recorded prerequisite (below).
+> [`docs/PLAN_ARCHIVE.md`](PLAN_ARCHIVE.md). ~~A **second prep gate of the same shape is now due**: the
+> next milestone is deliberately unchosen, and choosing it has a recorded prerequisite (below).~~ **✅ The
+> second planning pass ran Session 102** — it opened the small **"Grzymalin reality check"** milestone
+> (`docs/PLAN_SHORT.md`) that *executes* the fork prerequisite; the **fork itself stays unchosen** until
+> that milestone's last session (S7).
 
 Before committing to the next build work (i.e. before the Graph-quality milestone below), run a
 deliberate **cleaning / preparation pass** — the PoC's spec and plans were written for the PoC and

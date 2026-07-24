@@ -10,9 +10,9 @@ backend, and secure-by-default container infrastructure. Everything — the spec
 architecture decisions, the per-layer conventions, the plans — is in the open.
 
 > **Status.** V1 — the ingest → graph → viewer PoC — is **feature-complete**. The
-> public-readiness documentation pass is done; the repo is now in a **graph-quality**
-> milestone (curate the existing graph in place), then editing (V2). See
-> [`docs/PLAN_LONG.md`](docs/PLAN_LONG.md).
+> public-readiness and **graph-quality** milestones are done; the repo is now validating the
+> pipeline on a fresh real-world corpus before forking to either deeper extraction or editing
+> (V2). See [`docs/PLAN_LONG.md`](docs/PLAN_LONG.md).
 
 **Contents:** [What is this](#what-is-this) · [Demo](#demo) · [Architecture](#architecture) · [Quickstart](#quickstart) · [Development](#development) · [Project map](#project-map) · [License](#license) · [Security](#security)
 
@@ -94,8 +94,9 @@ characters, ships, and objects together:
 > signal (the boarding axe is a genuine object; "harbor" is a shared destination for both
 > ships); some is over-eager; and the *right* level of entity granularity is case-dependent,
 > not a flat "less is better." Curating that density in place — verifiable merges, edge evidence,
-> entity de-duplication — is the **current milestone** (graph-quality); tightening *extraction*
-> precision is a later pass. The open items are tracked in [`docs/BACKLOG.md`](docs/BACKLOG.md).
+> entity de-duplication — was the **graph-quality milestone** (now complete); tightening *extraction*
+> precision is one of the two paths the project is now choosing between. The open items are tracked in
+> [`docs/BACKLOG.md`](docs/BACKLOG.md).
 
 You can also read the story with accepted entities highlighted inline and open an entity's side
 panel with its 1-hop neighbourhood (spec §3.4–§3.5).
