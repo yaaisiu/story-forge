@@ -65,6 +65,13 @@ Two gotchas that look like app bugs but aren't:
 
 ## Manual browser verification (e.g. `/verify` on a UI feature)
 
+**Required before merging any user-facing slice — run it proactively, don't wait to be
+asked.** A change to what the user sees or clicks is not merge-ready until you've walked it
+in the browser yourself and folded what it surfaces; CI, `/review-pr`, and `/code-review` are
+all blind to interaction-level defects (S3 / Session 104: a slice green through all of them
+still had a one-way-door nav gap and an empty-editor Structure screen the walk caught). This
+is a merge gate, mirrored in root `AGENTS.md` Merge flow — not just a how-to.
+
 Don't re-scout the stack each time — it's already set up. The Docker services (Neo4j,
 Postgres, Ollama) are **long-running** (`docker ps`), and **`.env` is user-managed and
 populated** — the backend reads its own DB/Neo4j/LLM creds from it; you **never** read or

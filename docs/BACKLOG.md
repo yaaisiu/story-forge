@@ -408,6 +408,24 @@ the folded edge's rows onto the survivor), so a curated edge keeps its evidence.
 fix would hang on. Revisit when edge provenance durability matters (post-PoC). (Surfaced S83
 `/code-review`, verified against `agents/entity_edit.py` + `domain/relation_rekey.py`.)
 
+## Structure screen — show an already-structured story's outline (post-PoC, surfaced S3 browser walk, Session 104)
+
+The `/stories/:storyId/structure` screen (`OutlineEditor`) is a **build** editor: it expects the
+story text handed to it in-memory by the upload flow (`location.state.rawText`). Reached **cold** —
+the new S3 story-hub link, a deep-link, or a refresh — it has no text and opens **empty** ("Editor
+is empty — paste your story source…"). For an **already-structured** story (e.g. `oakhaven-3`, which
+has an extracted graph) this is doubly wrong: even repopulated, "Build outline" would **409**
+(re-structure is blocked), so what the author actually wants is to *see the existing outline*, not a
+build editor. Today's behaviour is **data-safe** (the empty-submit footgun is guarded — Build is
+disabled when the editor is empty, `OutlineEditor.tsx:73`), just unhelpful.
+
+**Follow-up:** make Structure show the **existing** outline (chapters / scenes / paragraphs, read-only)
+for a structured story, and keep the build editor only for an unstructured one. Now **unblocked** by
+the `GET /stories/{id}` endpoint S3 added — extend it with `raw_text` (or add a dedicated outline
+read) so a cold-reached editor can repopulate, and add an outline read for the already-structured
+case. Deferred by the owner at the S3 browser walk (Session 104) rather than crammed into the
+navigation slice — it's a small read *feature*, not a nav fix. A real slice, not a cross-cutting nit.
+
 ## Ingest & review UX feedback
 
 Several "where am I / how much is left" gaps surfaced in the Session-33 smoke test. All
