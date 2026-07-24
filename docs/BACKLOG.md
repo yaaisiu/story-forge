@@ -776,7 +776,10 @@ normalise-names item above asks for.
 being created at all, which is the better fix. A triage queue curates the graph you have; better
 extraction stops producing the mess. Probably both, in that order of value.
 
-## Normalise-names queue — show the evidence behind each label (surfaced S7 walk, Session 100)
+## ~~Normalise-names queue — show the evidence behind each label~~ ✅ PROMOTED 2026-07-24 (Session 102) → `docs/PLAN_SHORT.md` "Grzymalin reality check" **S2**
+
+> **Promoted to the current milestone** as the Graph-quality coda (fork-independent). Original analysis
+> kept below for the rationale that earned the promotion.
 
 The normalise-names card asks a question it doesn't give you the means to answer. It shows two
 labels, their use counts, and two similarity scores — `LOCATED_IN 7 uses` vs `PINPOINTED 1 use`,
