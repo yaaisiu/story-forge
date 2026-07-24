@@ -264,6 +264,21 @@ cd backend && uv run uvicorn story_forge.main:app --reload --port 8000
 cd frontend && npm run dev
 ```
 
+Or, in one terminal, `scripts/stack.sh` wraps all three:
+
+```bash
+scripts/stack.sh up       # infra (detached) + backend + frontend, backgrounded
+scripts/stack.sh logs     # tail the neo4j + postgres service logs
+scripts/stack.sh status   # what is running
+scripts/stack.sh down     # stop backend + frontend, then docker compose down
+```
+
+Backend and frontend run in the background with output in the gitignored `.stack/`
+(`tail -f .stack/backend.log .stack/frontend.log`). `status`/`down` only track what
+`up` started — if you launch the backend or frontend by hand, manage those yourself.
+A real extract/curate run still needs the model + embedding groups (see
+[`backend/AGENTS.md`](backend/AGENTS.md) "Running locally").
+
 ### Running tests
 
 The backend suite splits into two tiers, separated by the `integration` marker:

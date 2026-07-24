@@ -51,6 +51,9 @@ desktop.ini
 *.log
 logs/
 
+# --- Dev stack runtime (scripts/stack.sh: backgrounded backend/frontend logs + pids) ---
+.stack/
+
 # --- Local databases / model artifacts ---
 *.db
 *.sqlite
