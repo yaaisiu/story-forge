@@ -114,6 +114,11 @@ the deferred app capabilities this exposed — **re-structure / delete-story**.
 
 ## ◀ THE FORK — next milestone, deliberately unchosen (opened at the Session-101 roll)
 
+> **▶ Prerequisite now running (Session 102, 2026-07-24).** The prerequisite below is being executed as
+> its own small milestone — **"Grzymalin reality check"** (`docs/PLAN_SHORT.md`). The fork stays **open**;
+> it is locked in that milestone's last session (S5) on the run's evidence. The corpus that settles it is
+> chosen (see *Corpus & the History-Forge direction* below).
+
 Graph quality is done, and the roadmap now reaches a genuine **fork**: go **deeper on extraction**
 (the deferred pass just above — re-extraction, the eval baseline, relation deep-modelling) or move to
 **V2 Editing** (below). Both are legitimate next milestones; nothing in the roadmap decides between them.
@@ -124,12 +129,38 @@ what the **pipeline** produces unaided — deciding the fork from it would read 
 extraction is materially worse than the curated graph suggests, the extraction pass wins; if it holds up,
 V2 wins. That run is a session of its own and comes *before* the fork is locked.
 
-Two `docs/BACKLOG.md` items are flagged as **promotion candidates** for whichever branch wins, both
-surfaced by real use in Session 100: the **normalise-names cards show no evidence** behind their labels
-(a suggestion the author cannot evaluate is a human gate in name only — the Graph-quality thesis left
-unapplied to its own S6 slice; the Session-101 architecture sweep independently reached the same finding
-and supports promotion), and **24 % of the graph is isolated** (39 of 161 entities; two thirds at degree
-≤ 1) with no bulk triage surface.
+### Corpus & the History-Forge direction (owner, Session 102)
+
+The prerequisite run uses **real material, not synthetic fiction**: half-synthetic (Gemini Deep Research
+over PL/DE/EN sources, delivered as **English** text) **non-fiction** research about **Grzymalin**, a
+village near Legnica. This replaces the overextracted Oakhaven sample as the project's working/demo
+corpus — the owner rejected Oakhaven as a fork baseline outright ("chaotic, first pass, oversaturated").
+
+Two owner signals reshape what the fork is *choosing between*, and weight it — **without locking it**:
+
+- **More documents will follow.** The owner researches by diving into topics, so the Grzymalin corpus
+  grows over time. That directly exercises **cross-document entity joining** (the same entity across
+  separate research docs) — today's post-PoC world-graph territory (`docs/BACKLOG.md`).
+- **Timeline is first-class.** *"Where important things happen — timeline, very important in historical
+  research."* Temporal qualification / event ordering of relations moves from a backlog curiosity to a
+  core need of the emerging use-case.
+
+**"Story Forge → History Forge."** The owner frames the tool's real use as **historical research**, not
+only narrative authoring ("that's how I work … our tooling should handle this well anyway"). Both signals
+push toward the **deeper-extraction / relation-deep-modelling** branch (timeline ordering + entity joining
+live there, spec §5), but the fork is still settled by S1's *evidence*, not by this framing. **Spec-identity
+watch:** spec §2 frames Story Forge around *long-form narrative text*; a durable pivot to historical
+research would need the stop-and-amend flow. Not now — this is a directional signal that should shape
+**reversible** decisions (same posture as `PLAN_SHORT.md` Decided 101(c)), recorded so S5 and the winning
+branch's decompose read it.
+
+Two `docs/BACKLOG.md` items were flagged as **promotion candidates**, both surfaced by real use in
+Session 100. **One is now promoted:** the **normalise-names cards show no evidence** behind their labels
+(a human gate in name only — the Graph-quality thesis left unapplied to its own S6 slice; the Session-101
+architecture sweep independently supports promotion) → **"Grzymalin reality check" S2** (fork-independent).
+**One stays a candidate:** **24 % of the graph is isolated** (39 of 161 entities; two thirds at degree ≤ 1)
+with no bulk triage surface — deferred because it *interacts with the fork* (better extraction may stop
+producing strays), so it belongs to whichever branch wins, not before the decision.
 
 **Sizing note (Session-101 milestone-roll retro).** Graph quality was **8 slices but 33 sessions** — the
 slice sizing was sound; the ~40 % that went to security-treadmill maintenance and one out-of-sequence
@@ -167,6 +198,16 @@ produced the M2 backend SCA gate (`osv-scanner` vs `uv.lock`); the items below e
   `meta-architect:review-architecture` drift sweep.
 
 ## Operational logging & observability — later
+
+> **Owner directive (Session 102, 2026-07-24): confirmed deferred — "backlog it", not the Grzymalin
+> milestone.** The "view backend logs easily" ask was weighed and *split*: the cheap **service** log-tail
+> (neo4j/postgres via `docker compose logs`) ships as that milestone's S4 dev-ergonomics script, but real
+> **backend** operational logging stays here, deferred — it needs logging config + request/error
+> middleware + the §6.7 key-redaction guard, not a script. The owner tied it to *"start gathering data to
+> finetune smaller models"*; that motive is the **data flywheel**, a **distinct** concern (see the next
+> paragraph and the *Data flywheel* section): the finetuning substrate is the persisted
+> `candidate_decisions` + `llm_calls` records — **already captured**, not scraped from log lines — and the
+> Grzymalin runs are where it starts accumulating in earnest. Keep the two separate.
 
 The backend currently emits **no operational logs** (no `logging` config, no request/
 error log lines) — surfaced 2026-06-11 while scoping the M2.S6 §6.7 key-redaction smoke.
