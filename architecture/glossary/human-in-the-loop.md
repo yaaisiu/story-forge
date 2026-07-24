@@ -6,7 +6,7 @@ status: living
 related: ["[[cascade-matching]]"]
 ---
 
-# human-in-the-loop (człowiek w pętli)
+# human-in-the-loop
 
 **Definition:** a design where an automated process *proposes* but a human *commits* the
 consequential decision — the machine never finalizes the irreversible step alone.

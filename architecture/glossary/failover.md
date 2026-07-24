@@ -6,7 +6,7 @@ status: living
 related: ["[[model-tier-routing]]", "[[fail-closed]]"]
 ---
 
-# failover (przełączanie awaryjne)
+# failover
 
 **Definition:** when one provider in a tier errors or rate-limits, transparently retrying the
 *same call* against the **next configured provider in that same tier** — the caller never sees the

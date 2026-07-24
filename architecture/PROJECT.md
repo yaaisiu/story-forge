@@ -1,7 +1,7 @@
 ---
 type: project
 slug: project
-updated: 2026-07-23
+updated: 2026-07-24
 status: living
 related: ["[[overview]]", "[[invariants]]", "[[open-questions]]"]
 ---
@@ -24,9 +24,13 @@ multi-story live smoke passed (Session 54). **Public-readiness** (portfolio/spec
 the Session-68 roll, and the **Graph-quality** milestone — curating the over-extracted graph in place
 rather than re-running extraction — is **complete as of Session 100** (S0–S7: chunker data-loss fix,
 graph navigation, edge evidence, duplicate-entity suggestion, canvas editing, name normalisation, the
-reader correction loop). The next milestone is **not yet chosen** — the fork between deeper extraction
-work (spec §5) and **V2 Editing** (§4) is deliberately gated on running fresh sample text end-to-end
-first, since the working graph has been hand-curated and no longer shows what the pipeline produces.* It runs
+reader correction loop). The next milestone is the **Grzymalin reality check** (opened Session 102, 2026-07-24):
+run the pipeline **unaided** on a *real*, English, non-fiction research corpus (about the village of
+Grzymalin near Legnica; half-synthetic Gemini Deep Research), replacing the synthetic/over-extracted
+Oakhaven sample as the working material. It **realises the prerequisite** the fork was gated on — the fork
+between deeper extraction work (spec §5) and **V2 Editing** (§4) stays deliberately **open**, to be locked in
+the milestone's last session on the run's evidence, because the working graph has been hand-curated and no
+longer shows what the pipeline produces.* It runs
 entirely on the author's machine and is **public from day one** — it doubles as a portfolio
 piece demonstrating clean modular architecture, agent-based LLM orchestration, multi-model
 routing, and secure-by-default infrastructure.
@@ -155,6 +159,8 @@ The honest correction is the first line below, and it retires the teaching layer
   with the reader change above. **Going forward: no new Polish terms in vault notes.** The project
   remains bilingual in its *content* domain — the stories are Polish, and spec App. A keeps its own
   terminology — but that is a property of the text being analysed, not of the architecture notes
-  describing the system. The 36 existing glossary notes still carry their Polish terms; stripping them
-  is a named task, not a "fix it when the note is next touched" (which is precisely the escape hatch
-  `docs/AGENTS.md` §3's two-roll rule exists to kill).
+  describing the system. **The Polish glosses were stripped in Session 103 (2026-07-24):** all 36
+  glossary term-notes are now English-only (the two non-Polish parentheticals — `agent (…)` and
+  `backend-for-frontend (BFF)` — and the `(SCA)` acronym were preserved), the `glossary.md` index and
+  two inline body glosses too. The strip scope had been mis-recorded as "22" from a diacritics-only
+  grep; the true set was ~34 of the 36 (see [[open-questions]] OQ-36).

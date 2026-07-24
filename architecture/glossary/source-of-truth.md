@@ -6,7 +6,7 @@ status: living
 related: ["[[compliance-audit-layer]]"]
 ---
 
-# source of truth (źródło prawdy)
+# source of truth
 
 **Definition:** the **one** authoritative home for a given fact. Everywhere else that needs the
 fact *references* it rather than copying it.

@@ -11,7 +11,7 @@ related:
   - "[[graph-name-normalisation]]"
 ---
 
-# controlled vocabulary (kontrolowany słownik)
+# controlled vocabulary
 
 **Definition:** a **curated, deliberately-small set of preferred labels** for a category of thing, that
 different surface forms are normalised *toward* — so one concept isn't split across `PERSON`/`Person` or a

@@ -9,7 +9,7 @@ related:
   - "[[cascade-matching]]"
 ---
 
-# blocking (blokowanie)
+# blocking
 
 **Definition:** the standard way to make entity-resolution affordable: instead of comparing every
 record against every other (**O(n²)**), first partition records into *blocks* by a cheap key (a name

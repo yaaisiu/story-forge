@@ -6,7 +6,7 @@ status: living
 related: ["[[idempotency]]", "[[invariant]]"]
 ---
 
-# state machine (maszyna stanów)
+# state machine
 
 **Definition:** a model of a thing's life as a fixed set of named **states** plus the *only*
 legal **transitions** between them — including terminal states and explicitly impossible moves.

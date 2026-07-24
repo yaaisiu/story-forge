@@ -9,7 +9,7 @@ related:
   - "[[graph-curation-surface]]"
 ---
 
-# reification (reifikacja)
+# reification
 
 **Definition:** turning a **relationship into a thing** — promoting an edge (a plain `subject —predicate→
 object` triple) into a first-class object that can itself carry properties, be pointed at, and be

@@ -1,7 +1,7 @@
 ---
 type: overview
 slug: overview
-updated: 2026-07-23
+updated: 2026-07-24
 status: living
 related: ["[[project]]", "[[invariants]]", "[[open-questions]]", "[[cascade-matching]]", "[[model-tier-routing]]", "[[m3-cascade-matching]]"]
 ---
@@ -196,12 +196,20 @@ machinery. Scope authority: `docs/specs/graph-quality.md`.
   [[m4-inline-highlights]]). The follow-up cached label embeddings on the app-lifetime
   `LabelVocabularyReader`, taking a vocabulary load ~14 s → ~1.4 s.
 
-**Next — the milestone is deliberately unchosen.** The fork is between deeper **extraction** work
-(spec §5: re-extraction, an eval baseline, relation deep-modelling) and **V2 Editing** (§4), and it is
-gated on a prerequisite: **run fresh sample text end-to-end first**, because the working graph has been
-hand-curated across S4–S7 and no longer shows what the *pipeline* produces — deciding from it reads the
-wrong evidence. The **world graph** (cross-story) remains **post-PoC** (`docs/BACKLOG.md`). INV-2's
-consent gate stays **deferred past M3** (persona-justified, 2026-06-15).
+**Next — the Grzymalin reality check** (opened Session 102, 2026-07-24). The fork is between deeper
+**extraction** work (spec §5: re-extraction, an eval baseline, relation deep-modelling) and **V2 Editing**
+(§4), and it was gated on a prerequisite: **run fresh sample text end-to-end first**, because the working
+graph has been hand-curated across S4–S7 and no longer shows what the *pipeline* produces — deciding from
+it reads the wrong evidence. This milestone *is* that run: the pipeline **unaided** over a real, English,
+non-fiction research corpus about the village of Grzymalin (half-synthetic Gemini Deep Research), replacing
+the synthetic Oakhaven sample. Deliberately small; the fork stays **open** and is locked only in the
+milestone's last session, on the run's evidence. A related direction is on record as a *fork input* — the
+owner's *"Story Forge → History Forge"* framing (more research documents to come; timeline/temporal ordering
+and cross-document entity joining become first-class), which weights the fork toward deeper extraction
+without locking it, and raises a **spec-identity watch** (spec §2 is narrative-framed, the corpus is
+non-fiction — a *reversible*-decisions signal, not a stop-and-amend yet). The **world graph** (cross-story)
+remains **post-PoC** (`docs/BACKLOG.md`). INV-2's consent gate stays **deferred past M3** (persona-justified,
+2026-06-15).
 
 ---
 
@@ -225,9 +233,8 @@ itself an architectural force — it pushes toward small, named, individually-te
 visible decision records rather than clever density.
 
 ### 3. Domain — the ubiquitous language
-The nouns and verbs the system lives in (a *ubiquitous language* — **język wszechobecny** — is
-one shared vocabulary used identically in conversation, spec, and code, so there is no
-translation layer to drift). Core nouns: **Story → Chapter → Scene → Paragraph** (the document
+The nouns and verbs the system lives in (a *ubiquitous language* is one shared vocabulary used
+identically in conversation, spec, and code, so there is no translation layer to drift). Core nouns: **Story → Chapter → Scene → Paragraph** (the document
 tree); **Entity** (a character/place/object/concept), **Relation** (a typed edge between
 entities), **Candidate** (a proposed entity *before* a human accepts it), **Mention** (where an
 entity appears in a paragraph). Core verbs: *chunk, extract, match, judge, review, merge*.
@@ -252,8 +259,8 @@ adds is the *architectural reading* of that split:
 
 ### 5. Behavior — state machines, not statuses
 The system's life is a **pipeline with a human gate**, best modelled as state machines
-(**maszyny stanów** — explicit states + the *only* legal transitions between them; see
-[[state-machine]]), not loose status flags. Two are worth modelling explicitly later
+(explicit states + the *only* legal transitions between them; see [[state-machine]]), not loose
+status flags. Two are worth modelling explicitly later
 (queued in [[open-questions]], not drawn in this seed run):
 - **Candidate lifecycle:** `extracted → matched(auto) | ambiguous → judged → {merge-proposed |
   new-proposed} → (human) → {merged | created | rejected}`. The terminal states and the
@@ -266,8 +273,8 @@ or audit row). Effect is mandatory on every transition — that is the Complianc
 happening in real time.
 
 ### 6. Errors — failure modes, fail-open vs fail-closed
-The governing choice: on uncertainty, **fail-closed** (**domyślnie zamknięty** — on failure or
-doubt, *stop and ask the human* rather than proceed; see [[fail-closed]]). The cascade is
+The governing choice: on uncertainty, **fail-closed** (on failure or doubt, *stop and ask the
+human* rather than proceed; see [[fail-closed]]). The cascade is
 designed exactly this way: anything the automated stages can't resolve with high confidence
 **falls through to the human** (Stage 4), never auto-merges (§3.3). Other failure modes the
 architecture must answer (some still open):

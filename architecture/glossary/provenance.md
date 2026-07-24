@@ -10,7 +10,7 @@ related:
   - "[[referential-integrity]]"
 ---
 
-# provenance (proweniencja / pochodzenie)
+# provenance
 
 **Definition:** the recorded trail of *where a piece of derived data came from* — for a graph edge,
 the source paragraph(s) and the model's supporting quote(s) that assert the fact the edge states.

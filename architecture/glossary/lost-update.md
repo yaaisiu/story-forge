@@ -9,7 +9,7 @@ related:
   - "[[m4-entity-editing]]"
 ---
 
-# lost update (zgubiona aktualizacja)
+# lost update
 
 **Definition:** a concurrency anomaly where two writers each read a value, then each write back based
 on what they read — and the second write **silently overwrites** the first, which it never saw. The

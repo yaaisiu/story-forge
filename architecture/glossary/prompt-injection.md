@@ -6,7 +6,7 @@ status: living
 related: ["[[trust-boundary]]", "[[human-in-the-loop]]"]
 ---
 
-# prompt injection (wstrzyknięcie promptu)
+# prompt injection
 
 **Definition:** when untrusted text fed to an LLM tries to act as *instructions* rather than
 *data* — either forging the prompt's structure, or steering the model away from its task.

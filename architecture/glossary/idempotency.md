@@ -6,7 +6,7 @@ status: living
 related: ["[[state-machine]]"]
 ---
 
-# idempotency (idempotentność)
+# idempotency
 
 **Definition:** a property where doing an operation twice has the same effect as doing it once —
 re-running is safe.

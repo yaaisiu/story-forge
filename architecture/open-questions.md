@@ -1,7 +1,7 @@
 ---
 type: open-questions
 slug: open-questions
-updated: 2026-07-23
+updated: 2026-07-24
 status: living
 related: ["[[overview]]", "[[project]]", "[[invariants]]", "[[2026-06-02-architecture-review]]", "[[m2s3-extraction-agent]]", "[[2026-06-09-architecture-review]]", "[[2026-06-11-architecture-review]]"]
 ---
@@ -1132,8 +1132,10 @@ against; the rest are open here because nothing else owns them.
 - **N-1 · the normalise-names human gate is nominal** (INV-1 near-miss). S6's cards show no evidence
   behind a suggested label pair, so the author approves a graph-wide N-edge rename they cannot evaluate —
   the milestone's own thesis ("the gate is only as good as the context it shows you") unapplied to its own
-  slice. Tracked in `docs/BACKLOG.md`, flagged in the Session-100 handoff as a **promotion candidate** for
-  the next milestone. **This sweep supports the promotion.**
+  slice. ✅ **PROMOTED → the Grzymalin reality-check milestone, slice S2** (owner, Session 102, 2026-07-24):
+  it is now a *scheduled slice* (show up to ~3 bearing edges / carrying entities per label, read-only
+  derivations of data the suggest pass already loads), no longer a bare `docs/BACKLOG.md` candidate. The
+  2026-07-23 sweep supported the promotion; the 2026-07-24 sweep confirms it is now scheduled.
 - **N-2 · the review-queue cursor is index-anchored, not identity-anchored** (INV-1 addressing near-miss;
   a [[toctou]] at the human gate). Live on all four queues on every refetch; the S100 optimistic-repaint
   revert removed the amplifier, not the cause. Tracked in `docs/BACKLOG.md` as the prerequisite gating any
@@ -1166,6 +1168,10 @@ against; the rest are open here because nothing else owns them.
   So the per-component altitude is *wanted*, not deliberately skipped. **Scheduled, not deferred:** the
   two notes above are a named task in the handoff's vault-maintenance unit, not a "write them when
   something touches that component" (which is the escape hatch `docs/AGENTS.md` §3 exists to kill).
+  ✅ **DONE Session 103 (2026-07-24):** both notes written — [[llm-router]] and [[entity-edit-service]] —
+  in the pre-milestone vault-maintenance unit. (`EntityEditService` is the graph writer in the **third
+  through eighth** witnessed INV-9 instances — six paths, not "eight writer-paths"; the note enumerates
+  them from `invariants.md` rather than restating a count.)
 - **W-1 · the S7 label-embedding cache is unbounded and deliberately cross-project.**
   `LabelVocabularyReader._embeddings` is an app-lifetime dict keyed on the **bare label**, shared across
   projects, never evicted. The sharing is a *good* call (a vector depends only on the string) and it took
@@ -1200,11 +1206,46 @@ against; the rest are open here because nothing else owns them.
       two remaining readers are an outside visitor reading cold and the agents that orient from the
       vault. The accessibility bar is **unchanged** (*"informative, usable for the beginner"*) — but the
       **Polish glosses go**: they existed to teach the operator in his first language. No new Polish in
-      vault notes; the 22 existing glossary notes that carry it are a **named stripping task**, not a
-      when-touched carry. This also surfaced a leak in the now-shared `meta-architect` plugin: its
+      vault notes; the existing glossary notes that carry it are a **named stripping task**, not a
+      when-touched carry. *(The count was recorded as "22" here from a diacritics-only grep; the
+      2026-07-24 sweep found the true scope is **~34 of the 36** — see OQ-36.)* This also surfaced a leak in the now-shared `meta-architect` plugin: its
       `templates/project.md` **hardcoded** "glossary always carries the Polish term too", and three more
       files defaulted to "EN + PL" — all four neutralised to defer to each project's own calibration,
       since the plugin now ships to repos with no connection to Polish.
+
+### OQ-36 — Vault-maintenance sweep findings (2026-07-24) — mostly resolved same session
+
+From [[2026-07-24-architecture-review]], the pre-milestone vault-maintenance sweep (Session 103). This
+sweep found no blockers; every finding was resolved in the same unit (this is a maintenance pass, not a
+discovery pass). Recorded here so the `/resume-session §3c` triage has a home to confirm against.
+
+- ✅ **Milestone-framing drift (risk) — reconciled on sight.** [[project]] ("next milestone not yet
+  chosen") and [[overview]] ("deliberately unchosen") both predated the Session-102 opening of the
+  **Grzymalin reality check** milestone. Both re-synced to name it (fork stays open, locked in the
+  milestone's last session; the *Story Forge → History Forge* fork input recorded in [[overview]]).
+- ✅ **`INDEX.md` said "INV-1…INV-9" (risk) — fixed.** INV-10 shipped at Graph-quality S5b-be;
+  `architecture/AGENTS.md` was corrected 2026-07-23 (OQ-35 S-1) but the INDEX "Start here" line was
+  missed. Now "INV-1…INV-10".
+- ✅ **Glossary Polish-strip scope was mis-counted (risk) — corrected + executed.** The strip task was
+  recorded as **22** notes (a diacritics-only grep, which misses diacritic-free Polish like
+  `(granica zaufania)`, `(model C4)`); [[project]] §Calibration said **36**. The true state: **all 36**
+  term notes carry a parenthetical, of which **~34 are Polish glosses to strip** and **2 are not** and
+  must be **preserved** — `agent (agent — in Story Forge's sense)` (an English disambiguation) and
+  `backend-for-frontend (BFF)` (an acronym) — plus `software-composition-analysis (SCA) (…)` keeps its
+  `(SCA)` acronym and drops only the second (Polish) parenthetical. Executed in the Session-103 strip.
+- ✅ **`components/` populated (was T-1 watch, resolved 2026-07-23).** [[llm-router]] + [[entity-edit-service]]
+  written this session (see OQ-35 T-1).
+- **`watch` — inline Polish glosses remain outside the glossary (out of the Session-103 committed
+  scope).** The strip covered the glossary term-notes + index + the two headline notes ([[project]]'s
+  only Polish is the *content-domain* fixture name "Wody Święte", correctly kept; [[overview]]'s three
+  architectural glosses were stripped). Still carrying inline Polish: the **~11 `proposals/` notes**
+  (per-feature decomposition records) and the append-only **`CHANGELOG.md` / older `reports/`**
+  (historical, correctly left verbatim). "English-only going forward" holds for *new* writing; a
+  retroactive proposals cleanup is a *possible* later pass, deliberately **not** bundled into this unit
+  (it would expand a maintenance unit into an 11-file edit for no functional gain). No forcing need.
+- **Unchanged, still tracked:** OQ-35 **W-1** (cross-project label-embedding cache) and **W-2** (O(project
+  edges) tooltip read) stand as before — no code changed this session, so neither moved. **N-2** (index-
+  anchored review-queue cursor) stays tracked in `docs/BACKLOG.md`.
 
 ## Referenced — owned by spec §10 (not duplicated)
 

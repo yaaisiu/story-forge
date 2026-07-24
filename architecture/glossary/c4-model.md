@@ -6,7 +6,7 @@ status: living
 related: ["[[agent]]"]
 ---
 
-# C4 model / altitude (model C4)
+# C4 model / altitude
 
 **Definition:** a standard way to describe software at four zoom levels — **System → Container →
 Component → Code** — so a diagram or note is explicit about *how far zoomed in* it is.

@@ -6,7 +6,7 @@ status: living
 related: ["[[fail-closed]]", "[[idempotency]]"]
 ---
 
-# TOCTOU — time-of-check to time-of-use (sprawdzenie-a-użycie)
+# TOCTOU — time-of-check to time-of-use
 
 **Definition:** a race where the condition a piece of code *checked* is no longer true by the time
 it *acts* on it, because a concurrent actor changed the state in between. The check and the use are

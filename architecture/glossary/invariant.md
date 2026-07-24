@@ -6,7 +6,7 @@ status: living
 related: ["[[state-machine]]", "[[fail-closed]]"]
 ---
 
-# invariant (niezmiennik)
+# invariant
 
 **Definition:** a rule the system must never break, across every edge case, race, and partial
 failure — a design contract, not a preference.

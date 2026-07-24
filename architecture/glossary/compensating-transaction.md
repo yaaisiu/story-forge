@@ -10,7 +10,7 @@ related:
   - "[[m4-s3b-graph-mutations]]"
 ---
 
-# compensating transaction (transakcja kompensująca)
+# compensating transaction
 
 **Definition:** when a single logical operation spans several writes that **cannot share one atomic
 transaction** (e.g. a Neo4j change *and* a Postgres change, or N separate edge writes), you make it

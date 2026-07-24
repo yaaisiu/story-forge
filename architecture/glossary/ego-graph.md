@@ -9,7 +9,7 @@ related:
   - "[[open-world-ontology]]"
 ---
 
-# ego-graph (graf egocentryczny)
+# ego-graph
 
 **Definition:** the subgraph "around" a single focal node (the *ego*) — that node plus its
 neighbours and the edges connecting them. A **1-hop** ego-graph keeps only the focal node, the nodes

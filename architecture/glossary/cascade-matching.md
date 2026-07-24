@@ -6,7 +6,7 @@ status: living
 related: ["[[model-tier-routing]]", "[[human-in-the-loop]]", "[[open-world-ontology]]"]
 ---
 
-# cascade matching (kaskadowe dopasowanie)
+# cascade matching
 
 **Definition:** Story Forge's multi-stage decision for "is this extracted candidate a *new*
 entity or one that already exists?" — cheap deterministic checks first, expensive ones only when

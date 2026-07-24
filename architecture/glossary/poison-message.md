@@ -6,7 +6,7 @@ status: living
 related: ["[[failover]]", "[[idempotency]]"]
 ---
 
-# poison message / dead-letter (zatruta wiadomość / martwa kolejka)
+# poison message / dead-letter
 
 **Definition:** an input that breaks the consumer the *same way on every retry* — so retrying it is
 futile and a naïve retry-forever loop wedges the whole pipeline on one bad item. The discipline is

@@ -10,7 +10,7 @@ related:
   - "[[m4-multi-story]]"
 ---
 
-# multi-tenancy / tenancy key (wielodostępność / klucz dzierżawy)
+# multi-tenancy / tenancy key
 
 **Definition:** a single shared store serves many isolated logical owners (*tenants*), and every row/
 node carries a **tenancy key** — the column or property that says which tenant it belongs to — so a

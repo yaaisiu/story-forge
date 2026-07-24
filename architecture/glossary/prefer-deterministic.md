@@ -6,7 +6,7 @@ status: living
 related: ["[[cascade-matching]]"]
 ---
 
-# deterministic-first (najpierw deterministycznie)
+# deterministic-first
 
 **Definition:** a design preference to solve with deterministic or user-assisted methods
 *before* reaching for an LLM — use the model only where cheaper, repeatable means genuinely fall

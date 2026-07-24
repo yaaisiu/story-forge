@@ -9,7 +9,7 @@ related:
   - "[[backend-for-frontend]]"
 ---
 
-# direct manipulation (bezpośrednia manipulacja)
+# direct manipulation
 
 **Definition:** a UI pattern where the user acts on the **object itself, in place** — select the thing on
 screen and edit it *there* — rather than describing the change in a separate form, dialog, or command

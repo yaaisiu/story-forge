@@ -1,7 +1,7 @@
 ---
 type: index
 slug: index
-updated: 2026-07-23
+updated: 2026-07-24
 status: living
 related: []
 ---
@@ -16,7 +16,7 @@ related: []
 ## Start here
 - [[project]] — identity, personas, business, **source-of-truth registry**, calibration (the stable inputs)
 - [[overview]] — nine-layer system-altitude analysis, grounded in the as-built present
-- [[invariants]] — the named "never break" rules (INV-1…INV-9; INV-8 retired at M3.S4a) and where each is enforced
+- [[invariants]] — the named "never break" rules (INV-1…INV-10; INV-8 retired at M3.S4a, INV-10 minted at Graph-quality S5b-be) and where each is enforced
 - [[open-questions]] — framed-but-unresolved decisions + the operator's next-step priority queue
 
 ## Core notes
@@ -29,6 +29,12 @@ related: []
 | [[glossary]] | glossary (index) | regenerated |
 | [[learning-log]] | learning-log | append-only |
 | [[changelog]] | changelog | append-only |
+
+## Components (C4 Component altitude)
+| Note | Component | What it guards |
+|---|---|---|
+| [[llm-router]] | `adapters/llm/router.py` `LLMRouter` | the only [[trust-boundary]] crossing + fail-closed budget + error-discriminated [[failover]] |
+| [[entity-edit-service]] | `agents/entity_edit.py` `EntityEditService` | the human-reached committed-graph writer (INV-9 instances 3–8), grouped-reversible (INV-3) |
 
 ## Glossary (36 terms — see [[glossary]])
 [[trust-boundary]] · [[invariant]] · [[state-machine]] · [[fail-closed]] ·
@@ -64,7 +70,8 @@ related: []
 | [[m3-relation-write]] | proposal | **M3 relation-write step-0 — graph edges under human control (✅ ACCEPTED, register resolved / OQ-19 struck; built M3.S4e, ADR 0005)** — completes §9 M3's "clean graph" for *relations*. The *reframe* held: a relation endpoint is a surface string with no entity id until accept → edges write **lazily** (resolve each endpoint to its candidate's *committed* id), so re-point-on-merge dissolved (only an M4 accepted-entity↔entity merge re-points a written edge — DM-Rel-5). **DM-Rel-1 = explicit human gate** (the §3.3 5th action, not auto-write) + slice split backend-now (S4e) / UI-next (S4f); **DM-Rel-2/4/5/6/7** confirmed at build as proposed; `create_relation` now idempotent `MERGE`-on-id (DM-Rel-6). INV-1 broadened to edges (not INV-10). Added [[referential-integrity]]. Carried follow-up: per-mention provenance for triple-deduped edges. |
 | [[m3s4c-intra-batch-rematch]] | proposal | **M3.S4c step-0 — intra-batch dedup (✅ accepted, register resolved / OQ-18)** — triggered by the S4b browser walk (a first pass staged `Janek` ×3 → duplicate nodes the queue couldn't merge). Two additive mechanisms on S4a/S4b: **(a) on-accept live re-match** (deterministic Stage 1/2 over still-pending candidates each accept → dupes flip `new → merge`; backend-only, no LLM) + **(b) manual handpick** (entity-search endpoint + picker for matcher false negatives). Writes **only the staging table** — INV-1/INV-9 *hold*. **Resolved (owner S25):** split **S4c** (re-match) + **S4d** (handpick); auto-flip **Stage 1 `>85%` OR Stage 2 `cosine >0.85`** (no live judge); **monotone** (guard, no INV-10); handpick **project-scoped** (supersedes the deferred arbitrary-search item). Spec §3.3 amended. Build test-first (the re-match flip test). |
 | [[m2s2-llm-router-budget-cap]] | proposal | M2.S2 nine-layer pass: paid adapters + router + budget cap + status endpoint |
-| [[2026-07-23-architecture-review]] | review | **current health snapshot** — the Graph-quality → next-milestone **milestone-roll** sweep (Session 101), the first under the ADR-0002 §4 roll wiring. **No blockers.** `risk`: [[overview]] + [[project]] were a **whole milestone stale** (both still read "now in a Public-readiness milestone"), so the entire Graph-quality S0–S7 as-built record was absent — **re-synced on sight**; the **normalise-names human gate is nominal** (cards show no evidence behind a label, so the author cannot evaluate what they approve — the milestone's own thesis unapplied to its own slice; tracked in `docs/BACKLOG.md`); the **review-queue cursor is a bare index, only clamped, never re-anchored**, so any refetch that reorders rows can shift the highlight under the author on all four queues (tracked, INV-1 addressing near-miss). `watch`: 13 notes carry an `updated:` older than their last content commit (the freshness signal is decorative on those); `components/` is still empty after 100 sessions (the vault has no per-component altitude); the S7 label-embedding cache is unbounded and deliberately **cross-project** (benign at PoC, a cross-tenant structure if multi-user ever lands). Queued roll inputs both **closed**: DM-IH-8 superseded across four homes; the Session-59 motivation residue cleared — and the "~6 files" estimate was wrong in both directions (1 live "personal tool" home, plus 2 "real Wody Święte draft" as-built overclaims a keyword grep missed). |
+| [[2026-07-24-architecture-review]] | review | **current health snapshot** — the pre-milestone **vault-maintenance** sweep (Session 103; pulled forward out of the Grzymalin milestone). **No blockers**; 3 `risk`, all reconciled on sight — the milestone-framing drift ([[project]]/[[overview]] still "unchosen" → named the Grzymalin reality check), a stale `INDEX` "INV-1…INV-9" (→ INV-10), and the glossary Polish-strip scope mis-recorded as "22" (true: ~34 of 36; OQ-36). Populated `components/` for the first time ([[llm-router]], [[entity-edit-service]]) and stripped the Polish glosses. No code changed since S100. |
+| [[2026-07-23-architecture-review]] | review | (superseded as snapshot by 2026-07-24) — the Graph-quality → next-milestone **milestone-roll** sweep (Session 101), the first under the ADR-0002 §4 roll wiring. **No blockers.** `risk`: [[overview]] + [[project]] were a **whole milestone stale** (both still read "now in a Public-readiness milestone"), so the entire Graph-quality S0–S7 as-built record was absent — **re-synced on sight**; the **normalise-names human gate is nominal** (cards show no evidence behind a label, so the author cannot evaluate what they approve — the milestone's own thesis unapplied to its own slice; tracked in `docs/BACKLOG.md`); the **review-queue cursor is a bare index, only clamped, never re-anchored**, so any refetch that reorders rows can shift the highlight under the author on all four queues (tracked, INV-1 addressing near-miss). `watch`: 13 notes carry an `updated:` older than their last content commit (the freshness signal is decorative on those); `components/` is still empty after 100 sessions (the vault has no per-component altitude); the S7 label-embedding cache is unbounded and deliberately **cross-project** (benign at PoC, a cross-tenant structure if multi-user ever lands). Queued roll inputs both **closed**: DM-IH-8 superseded across four homes; the Session-59 motivation residue cleared — and the "~6 files" estimate was wrong in both directions (1 live "personal tool" home, plus 2 "real Wody Święte draft" as-built overclaims a keyword grep missed). |
 | [[2026-06-25-architecture-review]] | review |  V1-complete → Public-readiness vault re-sync. **No blockers.** `risk` (fixed on sight): the vault framed **PreNER as a live pipeline stage** (`PROJECT.md`/`overview.md`) though spec §7 Step 3 was amended to *deferred/dormant* (PR #138) — code-verified dormant (`extraction_agent.py` passes empty hints) and **reconciled**; `overview.md` as-built stopped at **M4.S3a** + framed M4 "in progress" though S3b/S3c/multi-story shipped and V1 is feature-complete (the 4th recurrence of doc-freshness drift) — **refreshed**, world-graph reframed post-PoC. `watch` (folded): `invariants.md` frontmatter date lagged its S3b/S3c body (**bumped**, body code-verified honest — INV-9 six writer-paths, INV-3 executed); `m4-multi-story` read build-pending (**BUILT banner**); INDEX regenerated. Forward "but what if" → the Graph-quality milestone (auto-chunker silent content-loss; membership-derivation under delete) — OQ-28. |
 | [[2026-06-20-architecture-review]] | review | pre-M4.S3b re-sync (superseded as snapshot by 2026-06-25). M4.S1/S2/S3a all shipped since the roll (S3a = the first M4 *write* slice, ADR 0006). **No blockers.** `risk`: `overview.md` as-built stopped at M3 (lists every M4 slice as "Next" though all shipped) — **fixed on sight**. `watch`: three state/invariant notes' frontmatter dates lagged current bodies (**bumped**); `m4-entity-editing` read build-pending (**BUILT banner added**); INDEX item 21 stale (**regenerated**). The invariant/lifecycle layer (INV-9 rewording, candidate/relation edit-path extensions, OQ-23) was already honest — folded at the S36 decompose + S37 build. Forward "what if" over the S3b boundary: compound-undo before-image granularity (a merge is N writes), MERGE-collision on edge re-point, the `entity_mentions` re-point cross-store seam — inputs to the S3b decompose. |
 | [[2026-06-17-architecture-review]] | review | M3→M4 roll re-sync (superseded as snapshot by 2026-06-20) — M3 feature-complete (S4b–S4f all shipped) → M3→M4 roll. No blockers. `risk`: `overview.md` as-built ~5 sessions stale (lists the relation graph-write + review UI as "planned, not yet built" — both shipped) (**✅ resolved 2026-06-18 — refreshed at the S31 M3→M4 roll: `overview.md` now `2026-06-17`, M3 feature-complete + "Next — M4", no "planned, not yet built"**); the relation lifecycle has no state-machine note (entity twin does → OQ-20 — **✅ resolved 2026-06-18, [[relation-lifecycle]] drawn**). `watch`: `invariants.md` frontmatter date lags its correct body; edge-id provenance collapse (ADR-0005 follow-up); held-relation visibility (**now tracked in [[relation-lifecycle]] Open points (a)**); M4 forward flags (§3.4 graph scoping now live work; DM-Rel-5 re-point becomes real; OQ-14/OQ-15 open). |
@@ -77,7 +84,10 @@ related: []
 ## Awaiting content (populated by later runs)
 - `decisions/` — ADRs (host-project ADRs live in `docs/decisions/`; this folder is for
   vault-framed decisions once confirmed). Empty — the M2.S2 router/budget decision (D6) was authored as a **host-project** ADR (`docs/decisions/0003`), where product ADRs live; this vault folder stays empty until a vault-framed decision arises.
-- `components/` — per-component (C4 Component altitude) notes. Empty.
+- `components/` — per-component (C4 Component altitude) notes. **Two written (Session 103):**
+  [[llm-router]] (the machine↔provider [[trust-boundary]] + budget cap + tier fallback) and
+  [[entity-edit-service]] (the human-reached graph writer — INV-9 instances 3–8). More added as a
+  component earns a risk-bearing note.
 - `state-machines/` — **three drawn:** **[[candidate-lifecycle]]** (the **node** gate, `living`, M3
   step-0): `extracted → {auto-merge|ambiguous|new}-proposed → judged → review-queued → (human) →
   {merged|created|rejected}`; commit guard = INV-1. **[[relation-lifecycle]]** (the **edge** gate,
@@ -394,6 +404,15 @@ related: []
     reconciled the queued DM-IH-8 supersession across its four homes, and closed the Session-59 motivation
     residue. **Next:** the owner triages this report's blocker/risk findings at the next `/resume-session`
     (§3c), and picks the milestone fork.
+36. **Pre-milestone vault-maintenance sweep (2026-07-24, Session 103) → [[2026-07-24-architecture-review]].**
+    The milestone fork was made concrete as the **Grzymalin reality check** (opened Session 102); this
+    maintenance unit — pulled forward out of it (was slice S6) — brought the vault current *before* the
+    milestone's build slices read it. No blockers, no code changed since S100. Re-synced the milestone-framing
+    drift ([[project]]/[[overview]] "unchosen" → named), fixed the stale `INDEX` INV range, corrected +
+    executed the glossary Polish-strip (22→~34 notes, OQ-36), and **populated `components/` for the first
+    time** ([[llm-router]], [[entity-edit-service]] — closes OQ-35 T-1). **Next:** the milestone proper —
+    S1 (the Grzymalin end-to-end run, once the owner starts it) and the fork-independent slices (S2–S5), any
+    order; the fork is locked only in the milestone's last session on S1's evidence.
 
 _Run log: see [[changelog]]. Seeded by `initialize-project-architecture`; extended by
 `review-architecture` + `decompose-requirement`, 2026-06-02._

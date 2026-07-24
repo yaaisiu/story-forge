@@ -10,7 +10,7 @@ related:
   - "[[candidate-lifecycle]]"
 ---
 
-# referential integrity (integralność referencyjna)
+# referential integrity
 
 **Definition:** the rule that a reference always points at something that exists — an edge may join
 only two nodes that are both present, never a "half" edge into the void. A *dangling reference* is
