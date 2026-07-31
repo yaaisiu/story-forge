@@ -63,11 +63,10 @@ grep -nE "[Dd]rop when.*soaks|soaks 2026|2026-[0-9]{2}-[0-9]{2}" infra/osv/WAIVE
 
 **Every** `infra/npm/audit-waivers.toml` entry carries a mandatory `ignoreUntil` (that gate's
 waivers are always dated — unlike the OSV toml, where the date is an optional backstop behind a
-condition-based drop-when), so this grep is the complete picture for the frontend gate. Note the
-npm gate only re-reds on expiry when the `frontend` job actually runs — it is path-scoped to
-code-bearing changes and **skipped on the nightly schedule**, so a docs-only stretch can hide an
-expired frontend waiver until the next code PR. That makes this proactive check the primary
-signal there, not the backstop it is for OSV.
+condition-based drop-when), so this grep is the complete picture for the frontend gate. All three
+gates run in the **`security`** CI job, which force-runs on the daily schedule, so an expiry
+re-reds `main` on its own — this proactive check buys you the days *before* the break, which is
+the point: fixing it on purpose beats fixing it because the board went red.
 
 Compare each dated drop-when / `ignoreUntil` against **today**. If any is **due or overdue**
 (or within ~3 days), flag it in the report and recommend **`/triage-advisory`** to fix-first

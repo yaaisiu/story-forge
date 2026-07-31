@@ -102,6 +102,12 @@ mechanism, so such an advisory could only be handled by relaxing the whole gate 
 **mandatory expiry date**, so an ignore re-reds on its own instead of rotting behind a green
 board, and the script flags a waiver that no longer matches anything as stale.
 
+That gate runs in the **`security`** job, not `frontend`, and the placement is load-bearing:
+`security` force-runs on the daily schedule while `frontend` is path-scoped to code-bearing
+changes. A dated waiver in a path-scoped job would sail past its expiry through any docs-only
+stretch — the mandatory date only means something if a job actually evaluates it. `npm audit`
+reads `frontend/package-lock.json`, so it needs no `npm ci` there.
+
 The OSV scanner is itself a supply-chain surface, so it is pinned by **immutable image digest**
 (`ghcr.io/google/osv-scanner@sha256:…`), not a floating tag or a third-party Action — the gate
 meant to catch supply-chain risk must not be one.
@@ -157,8 +163,8 @@ One workflow (`.github/workflows/ci.yml`) runs on every push to `main`, every pu
 |---|---|---|
 | `secret-scan` | **always** (docs included) | `detect-secrets` against the committed baseline |
 | `backend` | code-bearing | ruff lint + format, mypy `--strict`, pytest (against throwaway Postgres + Neo4j service containers) |
-| `frontend` | code-bearing | eslint, prettier, `tsc` build, vitest, `npm audit` (shipped deps, via `scripts/check_npm_audit.py`) |
-| `security` | code-bearing **or** daily | dependency-age sweep, OSV SCA, `docker compose config`, Trivy ×3 images |
+| `frontend` | code-bearing | eslint, prettier, `tsc` build, vitest |
+| `security` | code-bearing **or** daily | dependency-age sweep, OSV SCA, frontend npm-audit gate, `docker compose config`, Trivy ×3 images |
 | `ollama-cloud-smoke` | code-bearing | cloud-tier reachability (passes if the key is unset, e.g. on forks) |
 
 **Path-scoping with two backstops.** The repo is public (unlimited Actions minutes), and the

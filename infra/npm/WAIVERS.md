@@ -3,7 +3,7 @@
 Single reference for **every** advisory we waive in the frontend npm-audit gate, so they
 can be reviewed for upstream fixes from time to time. This file is **documentation only**
 — the **functional** waiver lives in `infra/npm/audit-waivers.toml` (`[[IgnoredVulns]]`),
-read by `scripts/check_npm_audit.py`, which the `frontend` CI job runs (spec §6.7 keeps
+read by `scripts/check_npm_audit.py`, which the **`security`** CI job runs (spec §6.7 keeps
 waivers *scoped*, never gate-wide). This is the npm analogue of `infra/osv/WAIVERS.md`
 (backend Python lockfile) and `infra/trivy/WAIVERS.md` (Docker images).
 

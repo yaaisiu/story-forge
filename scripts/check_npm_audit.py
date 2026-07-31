@@ -31,7 +31,7 @@ import subprocess
 import sys
 import tomllib
 from dataclasses import dataclass, field
-from datetime import date, datetime, timezone
+from datetime import UTC, date, datetime
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
@@ -128,9 +128,22 @@ def load_waivers(text: str) -> list[Waiver]:
     except tomllib.TOMLDecodeError as exc:
         raise ValueError(f"waiver file is not valid TOML: {exc}") from exc
 
+    entries = data.get("IgnoredVulns") or []
+    if not isinstance(entries, list):
+        # `[IgnoredVulns]` (single table) instead of `[[IgnoredVulns]]` (array of tables) —
+        # a one-bracket typo. Iterating the dict would yield its keys as strings and blow up
+        # with an AttributeError that main()'s `except ValueError` cannot catch, replacing
+        # this file's diagnostics with a traceback.
+        raise ValueError(
+            "`IgnoredVulns` must be an array of tables — write `[[IgnoredVulns]]`, not "
+            "`[IgnoredVulns]`, once per waived advisory"
+        )
+
     waivers = []
     seen: set[str] = set()
-    for entry in data.get("IgnoredVulns") or []:
+    for entry in entries:
+        if not isinstance(entry, dict):
+            raise ValueError(f"a waiver entry is {type(entry).__name__}, expected a table")
         advisory_id = entry.get("id")
         if not advisory_id:
             raise ValueError("a waiver entry is missing `id`")
@@ -185,7 +198,11 @@ def parse_audit_payload(stdout: str) -> dict:
     registry error) it prints `{"error": {...}}` and exits **0**. That payload parses cleanly
     and contains no `vulnerabilities`, so treating "no vulnerabilities found" as "nothing to
     report" would let the gate pass green having audited nothing — a fail-*open* security gate.
-    So the `vulnerabilities` key must be present; its absence is an error, not an empty result.
+
+    So a real report must carry BOTH `vulnerabilities` and `metadata` as objects. Checking the
+    key is merely *present* is not enough: `{"vulnerabilities": null}` would pass that check and
+    then be coerced to an empty mapping downstream — the same fail-open by a different route.
+    `metadata` is npm's own summary of what it audited; a report that omits it is not a report.
     """
     try:
         payload = json.loads(stdout)
@@ -193,10 +210,12 @@ def parse_audit_payload(stdout: str) -> dict:
         raise ValueError(f"npm audit produced no parseable JSON: {stdout[:300]}") from exc
     if not isinstance(payload, dict):
         raise ValueError(f"npm audit returned {type(payload).__name__}, expected an object")
-    if "vulnerabilities" not in payload:
-        error = payload.get("error") or {}
-        detail = error.get("summary") or error.get("code") or json.dumps(payload)[:300]
-        raise ValueError(f"npm audit reported no vulnerabilities set — it did not audit: {detail}")
+
+    error = payload.get("error") or {}
+    detail = error.get("summary") or error.get("code") or json.dumps(payload)[:300]
+    for key in ("vulnerabilities", "metadata"):
+        if not isinstance(payload.get(key), dict):
+            raise ValueError(f"npm audit reported no `{key}` object — it did not audit: {detail}")
     return payload
 
 
@@ -207,10 +226,21 @@ def _run_npm_audit() -> dict:
         capture_output=True,
         text=True,
     )
+    # npm exits 1 whenever advisories exist, so a non-zero code is not itself a failure —
+    # but anything outside {0, 1} is npm reporting an operational error, and the raw
+    # `npm audit` step this replaced treated that as a red. Keep that guard: a partial or
+    # truncated report that still happens to carry the right keys must not pass as clean.
+    if proc.returncode not in (0, 1):
+        raise SystemExit(
+            f"FAIL: npm audit exited {proc.returncode} (an operational failure, not an "
+            f"advisory count).\nstderr: {proc.stderr[:300]}"
+        )
     try:
         return parse_audit_payload(proc.stdout)
     except ValueError as exc:
-        raise SystemExit(f"FAIL: {exc}\n(npm exit {proc.returncode}) stderr: {proc.stderr[:300]}")
+        raise SystemExit(
+            f"FAIL: {exc}\n(npm exit {proc.returncode}) stderr: {proc.stderr[:300]}"
+        ) from exc
 
 
 def main() -> int:
@@ -223,7 +253,7 @@ def main() -> int:
 
     # UTC, not local time: the CI runner is UTC and advisory/publication dates are too, so a
     # local-time `today()` could expire a waiver hours early or late depending on the machine.
-    today = datetime.now(timezone.utc).date()
+    today = datetime.now(UTC).date()
     verdict = evaluate(collect_findings(_run_npm_audit()), waivers, today)
 
     for finding, waiver in verdict.waived:
