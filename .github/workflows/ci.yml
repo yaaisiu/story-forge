@@ -95,7 +95,7 @@ jobs:
       # Pinned to the same pgvector image the security job Trivy-scans and that
       # docker-compose runs locally.
       postgres:
-        image: pgvector/pgvector:0.8.2-pg17-trixie
+        image: pgvector/pgvector:0.8.5-pg17-trixie
         env:
           POSTGRES_USER: storyforge
           POSTGRES_PASSWORD: ci_only_throwaway_pw
@@ -183,7 +183,18 @@ jobs:
         # --omit=dev: audit only what ships in the SPA bundle, not the build/test
         # toolchain (jsdom, vitest, eslint, …). A dev-only advisory can't reach a
         # user, so it shouldn't red main on un-shipped code (spec §6.7, 2026-06-18).
-        run: npm audit --omit=dev --audit-level=high
+        #
+        # Runs through scripts/check_npm_audit.py rather than `npm audit` directly
+        # (spec §6.7, 2026-07-30): same `--omit=dev` scope and same HIGH/CRITICAL
+        # threshold, but it can suppress an advisory that is assessed unreachable here
+        # AND has no soaked fix — which `npm audit` itself cannot express, leaving
+        # "relax the whole gate to --audit-level=critical" as the only alternative.
+        # Waivers are scoped to infra/npm/audit-waivers.toml (register: WAIVERS.md),
+        # each with a mandatory expiry date so an ignore re-reds instead of rotting.
+        # Prefer a fix (bump via /add-dependency); /triage-advisory owns the lifecycle.
+        # Repo-root working dir: the script resolves frontend/ and infra/ from its own path.
+        working-directory: ${{ github.workspace }}
+        run: python3 scripts/check_npm_audit.py
 
   # Dependency-age + advisory (OSV) + image (Trivy) scans. Path-scoped to code-bearing
   # changes (a docs-only PR changes no deps/images), and force-run on the daily schedule
@@ -253,7 +264,7 @@ jobs:
       - name: Trivy scan — pgvector
         uses: aquasecurity/trivy-action@v0.36.0
         with:
-          image-ref: pgvector/pgvector:0.8.2-pg17-trixie
+          image-ref: pgvector/pgvector:0.8.5-pg17-trixie
           severity: HIGH,CRITICAL
           exit-code: "1"
           ignore-unfixed: true

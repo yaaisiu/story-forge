@@ -78,7 +78,7 @@ in CI (every code-bearing change **and** daily):
 |---|---|---|
 | Backend lockfile (`backend/uv.lock`) | `osv-scanner` (SCA) | **fail on *any* advisory** |
 | Container images (neo4j, pgvector, ollama) | Trivy | fail on HIGH/CRITICAL, fixed-only |
-| Frontend shipped deps | `npm audit --omit=dev` | fail on high/critical |
+| Frontend shipped deps | `npm audit --omit=dev` (via `scripts/check_npm_audit.py`) | fail on high/critical |
 
 The backend SCA gate is deliberately **fail-on-any**, not just HIGH/CRITICAL: the advisory that
 first motivated it (`starlette` 1.0.0, GHSA-86qp-5c8j-p5mr) was a MEDIUM that a severity-gated
@@ -91,6 +91,16 @@ static SPA bundle, so a build/test-only dependency (jsdom, vitest, eslint) never
 and shouldn't red `main` on un-shipped code. This narrows the gate to actual shipped risk — it
 does not relax it; runtime deps stay gated, and a dev-tool advisory is still visible to a plain
 `npm audit` and to Dependabot.
+
+Since 2026-07-31 that gate runs through `scripts/check_npm_audit.py` rather than `npm audit`
+directly. The threshold is unchanged — any unwaived HIGH/CRITICAL in a shipped dependency still
+fails — but an advisory that is **assessed unreachable here and has no soaked fix** can now be
+waived scoped, in `infra/npm/audit-waivers.toml` (enforced) with the rationale and drop-when in
+`infra/npm/WAIVERS.md` (register). Before this, `npm audit` was the one gate with no waiver
+mechanism, so such an advisory could only be handled by relaxing the whole gate to
+`--audit-level=critical` — which would stop gating every future HIGH. Each waiver carries a
+**mandatory expiry date**, so an ignore re-reds on its own instead of rotting behind a green
+board, and the script flags a waiver that no longer matches anything as stale.
 
 The OSV scanner is itself a supply-chain surface, so it is pinned by **immutable image digest**
 (`ghcr.io/google/osv-scanner@sha256:…`), not a floating tag or a third-party Action — the gate
@@ -147,7 +157,7 @@ One workflow (`.github/workflows/ci.yml`) runs on every push to `main`, every pu
 |---|---|---|
 | `secret-scan` | **always** (docs included) | `detect-secrets` against the committed baseline |
 | `backend` | code-bearing | ruff lint + format, mypy `--strict`, pytest (against throwaway Postgres + Neo4j service containers) |
-| `frontend` | code-bearing | eslint, prettier, `tsc` build, vitest, `npm audit` (shipped deps) |
+| `frontend` | code-bearing | eslint, prettier, `tsc` build, vitest, `npm audit` (shipped deps, via `scripts/check_npm_audit.py`) |
 | `security` | code-bearing **or** daily | dependency-age sweep, OSV SCA, `docker compose config`, Trivy ×3 images |
 | `ollama-cloud-smoke` | code-bearing | cloud-tier reachability (passes if the key is unset, e.g. on forks) |
 

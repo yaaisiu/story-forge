@@ -7,7 +7,8 @@ description: Triage a security-gate advisory (OSV backend SCA / Trivy image / fr
 
 Story Forge's `security` CI job is **fail-on-any** across three gates — the backend OSV
 lockfile SCA (`infra/osv/osv-scanner.toml` vs `backend/uv.lock`), the per-image **Trivy**
-scans (`infra/trivy/*.trivyignore`), and the frontend **npm-audit** (`--omit=dev --audit-level=high`
+scans (`infra/trivy/*.trivyignore`), and the frontend **npm-audit** (`scripts/check_npm_audit.py`,
+waivers in `infra/npm/audit-waivers.toml`; `--omit=dev` at HIGH/CRITICAL
 — prod-scoped to shipped deps; spec §6.7, 2026-06-18).
 Fresh advisories land against *unchanged* pinned deps/images all the time (the treadmill),
 so this gate reds on branches that touched none of them — and fixing one gate can **unmask**
@@ -50,14 +51,16 @@ docker run --rm -v /var/run/docker.sock:/var/run/docker.sock \
   aquasec/trivy:0.70.0 image --quiet --severity HIGH,CRITICAL --ignore-unfixed \
   --ignorefile /cfg/ignore "<IMAGE:TAG>"
 
-# Frontend npm-audit (prod-scoped, exactly as CI; a bare `npm audit` also shows
-# dev-only advisories for awareness — they don't gate, see spec §6.7):
-cd frontend && npm audit --omit=dev --audit-level=high
+# Frontend npm-audit (prod-scoped, exactly as CI — applies infra/npm/audit-waivers.toml
+# and reports waived/stale/expired; a bare `npm audit` also shows dev-only advisories
+# for awareness — they don't gate, see spec §6.7):
+python3 scripts/check_npm_audit.py
 ```
 
-Then list every **active waiver** and its drop-condition: `infra/osv/osv-scanner.toml`
+Then list every **active waiver** and its drop-condition: `infra/npm/audit-waivers.toml`
+(mandatory `ignoreUntil` on each entry), `infra/osv/osv-scanner.toml`
 (`[[IgnoredVulns]]` + `ignoreUntil`), the three `infra/trivy/*.trivyignore`, and their
-registers (`infra/osv/WAIVERS.md`, `infra/trivy/WAIVERS.md`).
+registers (`infra/npm/WAIVERS.md`, `infra/osv/WAIVERS.md`, `infra/trivy/WAIVERS.md`).
 
 ## 2. Each NEW advisory — fix-first, then (only if you must) waive
 

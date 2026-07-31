@@ -484,6 +484,16 @@ The repo is public; every line is read by a stranger.
   (a wrong/typo'd id silently suppresses nothing — confirm it matches the one CI actually
   reported); (4) the **reachability rationale is real** (not "low-risk on localhost" boilerplate)
   and a condition-based **"drop when"** is recorded. Prefer pushing back toward a fix.
+- **A frontend npm-audit waiver (`infra/npm/audit-waivers.toml` + `infra/npm/WAIVERS.md`).**
+  Apply the same four checks as the SCA waiver above, plus two specific to this gate: (5) the
+  **`ignoreUntil` is mandatory here** and must be a real horizon, not a year out — this gate's
+  waivers are always dated, and the date is the *primary* expiry, not a backstop; (6) confirm
+  **no soaked forward bump clears it**, because a partial bump can look like a fix while leaving
+  the advisory in place (the react-router case: `7.18.1` cleared four of five advisories, and the
+  fifth needed a major version that the depended-on package had no release of). A waiver whose
+  advisory a soaked bump *would* clear is an `/add-dependency` bump in disguise. Also watch for a
+  **STALE** line in the gate's own output — it means a waiver is suppressing nothing and should
+  have been deleted in this PR.
 - **The SCA scanner pin itself drifted.** The `osv-scanner` step pins the scanner by **immutable
   image digest** (not a tag — a tag can move; the gate that catches supply-chain risk must not be
   one). Flag a PR that swaps the digest for a tag, bumps the digest without a ≥7-day soak, or

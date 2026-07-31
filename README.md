@@ -316,6 +316,9 @@ POSTGRES_USER=v POSTGRES_PASSWORD=v POSTGRES_DB=v NEO4J_AUTH=neo4j/v \
 # dependency-age + non-exact-pin sweep
 python3 scripts/check_dependency_age.py
 
+# frontend advisory gate (shipped deps only; applies infra/npm/audit-waivers.toml)
+python3 scripts/check_npm_audit.py
+
 # backend dependency-advisory scan (osv-scanner vs uv.lock, fail-on-any; requires docker)
 docker run --rm -v "$PWD/backend:/src:ro" -v "$PWD/infra/osv/osv-scanner.toml:/cfg/osv.toml:ro" \
   ghcr.io/google/osv-scanner:v2.3.8@sha256:64e86bec6df2466feea5137fc7c78fb3b7c21ec077f014d7130f64810e50676b \
