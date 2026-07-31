@@ -127,6 +127,21 @@ path the tests assert — find the cases nobody wrote a test for. Check, concret
   real bug **both** this skill's pass and `/code-review` missed; external review caught it.
   The fix: write the checkpoint last. Self-review had even noted the entity→mention window
   but framed it benign and never examined the mention→relation window.)
+- **A caveat that contradicts a guarantee in its own diff** — the PR ships a mechanism *and*
+  prose explaining why the mechanism doesn't fully work. Grep the diff's prose (comments, skill
+  edits, `AGENTS.md`, register/README text) for hedges — "note that", "only re-runs when", "does
+  not self-…", "so X is the primary signal", "unlike Y, this doesn't" — and check each against
+  what the *same diff* promises elsewhere. When they conflict, the caveat is usually the true
+  one and the guarantee is aspirational, which means the code is wrong, not the docs. Ask what
+  it would cost to make the guarantee hold; a cheap answer is a blocking finding. **This is
+  distinct from a tracked deferral** (a BACKLOG entry, a cross-cutting item) — those document a
+  limitation the change never claimed to fix. The defect is *self*-contradiction inside one
+  change. (Session 106 PR #233: the new npm-audit gate's mandatory expiry "re-reds
+  automatically" per spec §6.7, SECURITY_POSTURE and its own register — while the same PR added
+  a note to `AGENTS.md` + `/resume-session` explaining the expiry couldn't fire, because the job
+  it ran in was skipped on the nightly schedule. The fix was a two-line job move. The self-review
+  missed it; this lens exists so the next one doesn't. Authoring-side mirror: root `AGENTS.md` §1
+  "Don't document around a hole you could close".)
 - **External I/O contracts** — request/response shape vs the real API (Ollama `/api/chat`,
   psycopg, httpx); headers, timeouts, status handling; what happens on a 4xx/5xx/timeout.
 - **Output-schema strength** — does the Pydantic/validation schema for LLM (or any external)
