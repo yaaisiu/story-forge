@@ -1,0 +1,18 @@
+# Ruff config for repo-root Python that is NOT part of the backend package — today the
+# gate scripts in `scripts/` (dependency-age sweep, npm-audit gate).
+#
+# Why this file exists: ruff resolves config by walking up from each file, so without it
+# `scripts/` would fall back to ruff's *defaults* (line-length 88) while `backend/` uses
+# its own `[tool.ruff]` (line-length 100). The pre-commit hook runs from the repo root and
+# CI runs `ruff` from `backend/` over `../scripts` — the two would format the same file
+# differently and fight each other, reddening CI on a file pre-commit had just "fixed".
+# Keeping these settings identical to `backend/pyproject.toml` makes both paths agree.
+#
+# `backend/` is unaffected: its own pyproject is nearer, so it still wins there.
+
+target-version = "py312"
+line-length = 100
+
+[lint]
+# Same set as the backend: pyflakes, pycodestyle, isort, bugbear, pyupgrade, simplify, walrus.
+select = ["E", "F", "I", "B", "UP", "SIM", "W", "C4"]

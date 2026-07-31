@@ -57,9 +57,16 @@ it *before* the break, on purpose.
 Cheap, **date-only** check (no network — today's date is in your session context):
 
 ```bash
-grep -n "ignoreUntil" infra/osv/osv-scanner.toml
-grep -nE "[Dd]rop when.*soaks|soaks 2026|2026-[0-9]{2}-[0-9]{2}" infra/osv/WAIVERS.md infra/trivy/WAIVERS.md
+grep -n "ignoreUntil" infra/osv/osv-scanner.toml infra/npm/audit-waivers.toml
+grep -nE "[Dd]rop when.*soaks|soaks 2026|2026-[0-9]{2}-[0-9]{2}" infra/osv/WAIVERS.md infra/trivy/WAIVERS.md infra/npm/WAIVERS.md
 ```
+
+**Every** `infra/npm/audit-waivers.toml` entry carries a mandatory `ignoreUntil` (that gate's
+waivers are always dated — unlike the OSV toml, where the date is an optional backstop behind a
+condition-based drop-when), so this grep is the complete picture for the frontend gate. All three
+gates run in the **`security`** CI job, which force-runs on the daily schedule, so an expiry
+re-reds `main` on its own — this proactive check buys you the days *before* the break, which is
+the point: fixing it on purpose beats fixing it because the board went red.
 
 Compare each dated drop-when / `ignoreUntil` against **today**. If any is **due or overdue**
 (or within ~3 days), flag it in the report and recommend **`/triage-advisory`** to fix-first

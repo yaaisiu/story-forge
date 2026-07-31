@@ -60,8 +60,7 @@ chosen version and its age to the user.
   (`"ecosystem":"npm"` for JS.) An empty `{}` means no known vulnerabilities for that
   version. If advisories come back, read severity; do not pin a version with an
   unfixed HIGH/CRITICAL — choose a patched version (re-run step 2 for its age).
-- Frontend additionally gets `npm audit --omit=dev --audit-level=high` in step 5 (the
-  prod-scoped CI gate; spec §6.7).
+- Frontend additionally gets the prod-scoped npm-audit gate in step 5 (spec §6.7).
 
 ## 4. Add the exact pin
 
@@ -75,9 +74,13 @@ chosen version and its age to the user.
 
 - Backend: `cd backend && uv lock` (then `uv sync` to install).
 - Frontend: `cd frontend && npm install` (updates `package-lock.json`), then
-  `npm audit --omit=dev --audit-level=high` — must report no high/critical (the
-  prod-scoped CI gate; spec §6.7). For a **dev**-only dep, also glance at a bare
-  `npm audit` — a dev advisory won't gate CI but you should know it's there.
+  `python3 scripts/check_npm_audit.py` from the repo root — must exit 0 (the exact
+  prod-scoped CI gate; spec §6.7). It applies `infra/npm/audit-waivers.toml`, so read
+  its output rather than just the exit code: a **waived** line means an advisory is
+  being suppressed by a dated exception, and a **STALE** line means your bump just
+  fixed a waived advisory — delete that waiver and its `infra/npm/WAIVERS.md` section
+  in the same PR. For a **dev**-only dep, also glance at a bare `npm audit` — a dev
+  advisory won't gate CI but you should know it's there.
 
 ## 6. Verify
 

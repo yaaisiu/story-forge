@@ -10,17 +10,17 @@ repos:
       - id: detect-secrets
         args: ["--baseline", ".secrets.baseline"]
 
-  # --- Backend Python: ruff (lint) + ruff (format) ---
+  # --- Python: ruff (lint) + ruff (format) — backend/ and the repo-root scripts/ ---
   - repo: https://github.com/astral-sh/ruff-pre-commit
     rev: v0.15.12
     hooks:
       - id: ruff
-        name: ruff check (backend)
+        name: ruff check (backend + scripts)
         args: ["--fix"]
-        files: ^backend/.+\.py$
+        files: ^(backend|scripts)/.+\.py$
       - id: ruff-format
-        name: ruff format (backend)
-        files: ^backend/.+\.py$
+        name: ruff format (backend + scripts)
+        files: ^(backend|scripts)/.+\.py$
 
   # --- Whitespace / EOL hygiene ---
   - repo: https://github.com/pre-commit/pre-commit-hooks

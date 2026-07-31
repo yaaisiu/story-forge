@@ -19,7 +19,33 @@ docker run --rm -v /var/run/docker.sock:/var/run/docker.sock \
   --ignorefile /tmp/ignore <IMAGE>:<TAG>
 ```
 
-**Last reviewed:** 2026-07-23 — **bumped neo4j `5.26.25` → `5.26.27` (pub 2026-07-01, 22 days
+**Last reviewed:** 2026-07-31 — **bumped pgvector `0.8.2-pg17-trixie` → `0.8.5-pg17-trixie`
+(pub 2026-07-08, 23 days soaked) and dropped ELEVEN waivers; added ollama `x/text` wave 8.**
+The pgvector rebuild ships Debian's fixed packages and **fixes nine** waived CVEs — gnutls
+`CVE-2026-42010/33845/33846/3833/42009` (→ 3.8.9-3+deb13u4), krb5 `CVE-2026-40355/40356`
+(→ 1.21.3-5+deb13u1), openssl `CVE-2026-45447` (→ 3.5.6-1~deb13u2) and libcap2 `CVE-2026-4878`
+(→ 1:2.75-10+deb13u1). Two further entries, `CVE-2026-42011` (gnutls) and `CVE-2026-29111`
+(systemd), were found **already stale** — a raw scan of the *outgoing* `0.8.2` pin no longer
+reported them, so they had been waiving nothing; removed in the same pass. That empties the
+pgvector OS block entirely and **closes the atypical "OS CVEs waived here" exception** that pin
+had carried since Issue #4: `0.8.5-pg17-trixie` now scans **completely clean** (0 Debian, 0 gosu
+findings) with only the bundled gosu Go-stdlib waivers left in the file. A raw findings diff
+across both tags confirms the bump introduces **nothing new**. Deliberately **not** `0.8.6`
+(pub 2026-07-29, 2 days — inside the 7-day soak). Separately, **added ollama wave 8**:
+`CVE-2026-56852` / GHSA-jpjm-c3r5-q96r (`golang.org/x/text` v0.30.0, fixed 0.39.0 — a `norm.Iter`
+infinite loop on invalid UTF-8), which reddened the scheduled `main` run on 2026-07-29 and
+2026-07-30. Availability-only (`C:N/I:N/A:H`) and unreachable here: 127.0.0.1-bound, non-root,
+the backend is the only client, so the sole actor who could feed it malformed UTF-8 is the
+trusted local user hanging their own server. Owner-approved HIGH waiver (§6.7). **The ollama pin
+stayed at `0.24.0` by explicit decision:** a raw diff against the newest soaked candidate
+`0.32.3` (pub 2026-07-23) showed the two tags are **identical** but for one OS CVE
+(`CVE-2026-45447`) — same Go 1.26.0 stdlib, same `x/crypto` v0.43.0, same `x/image` v0.22.0,
+same `x/text` v0.30.0 — so the bump would clear **no** bundled waiver, would **not** fix wave 8,
+and an eight-minor-version jump was not worth taking for one OS CVE. This corrects the plan's
+expectation that the ollama re-scan would retire the wave-6/7 batch: it would not.
+**Drop when** an upstream ollama rebuild ships `x/text` ≥ 0.39.0. Verified locally with
+dockerized `aquasec/trivy:0.70.0`: neo4j / pgvector / ollama all exit 0 with the updated waivers.
+**Prior (2026-07-23):** **bumped neo4j `5.26.25` → `5.26.27` (pub 2026-07-01, 22 days
 soaked) and took the long-pending netty partial-drop in full.** The bump moves netty
 `4.1.132.Final` → `4.1.135.Final`, which **fixes all six** previously-waived netty CVEs
 (`CVE-2026-42583/42584/42587`, `CVE-2026-44249/45416/50010`) — their `.trivyignore` entries and
@@ -206,33 +232,39 @@ checked at each neo4j tag bump.
 | CVE-2026-54512 | com.fasterxml.jackson.core:jackson-databind | HIGH | PolymorphicTypeValidator bypass via generic type params (deserialization gadget) | jackson-databind 2.21.4 / 2.18.8 / 3.1.4 | no untrusted-JSON deserialization path; Bolt not JSON; 127.0.0.1, single trusted user |
 | CVE-2026-54513 | com.fasterxml.jackson.core:jackson-databind | HIGH | array subtype allowlist bypass (deserialization gadget) | jackson-databind 2.21.4 / 2.18.8 / 3.1.4 | same — no untrusted polymorphic deserialization; loopback, trusted client |
 
-## pgvector — `pgvector/pgvector:0.8.2-pg17-trixie`
+## pgvector — `pgvector/pgvector:0.8.5-pg17-trixie`
 
 Scoped file: `infra/trivy/pgvector.trivyignore` · Issue #4 · added 2026-05-21,
 extended 2026-05-26 (PR #19, second CVE wave) and 2026-05-27 (PR for third CVE
-wave — pattern threshold tripped, evaluation tracked in [Issue #22](https://github.com/yaaisiu/story-forge/issues/22)).
-Pinned at 6 days old (§6.7 age-bend for a CVE-fix release — see scoped file
-header). None reachable as RCE on a 127.0.0.1 single-user non-root container.
+wave — pattern threshold tripped, evaluation tracked in [Issue #22](https://github.com/yaaisiu/story-forge/issues/22));
+**bumped `0.8.2` → `0.8.5` on 2026-07-31, retiring the whole OS block.**
+None reachable as RCE on a 127.0.0.1 single-user non-root container.
 
-**OS packages (Debian 13.4) — atypical waiver.** Normally OS CVEs are *fixed* by
-a fresher rebuild, not waived; here `0.8.2-pg17-trixie` is already the newest
-pgvector image (all tags rebuilt 2026-05-15) and these are freshly-disclosed
-advisories not yet baked in. **Drop the moment a rebuilt pgvector image ships
-the fixed packages** (re-scan should clear them without the waiver).
+**OS packages — NO ACTIVE WAIVERS (all eleven dropped 2026-07-31).** The
+`0.8.5-pg17-trixie` rebuild (pub 2026-07-08) ships Debian's fixed packages, and the
+image now scans **completely clean**: 0 Debian findings, 0 gosu findings. Nine
+waivers were retired by a genuine fix; two more (`CVE-2026-42011`, `CVE-2026-29111`)
+turned out to be **already stale** — a raw scan of the outgoing `0.8.2` pin no longer
+reported them, so they had been waiving nothing. This also **closes the atypical
+"OS CVEs waived here" exception** the `0.8.2` pin carried since Issue #4: with a
+fresher rebuild finally available, the normal rule (fix OS CVEs, never waive them)
+applies again. The table is kept as history — every row below is **DROPPED**, not
+active. Re-waiving an OS CVE requires the same explicit justification as the first
+time, and should be the exception.
 
-| CVE | Pkg | Sev | Class | Fixed in (Debian) | Why not reachable here |
+| CVE | Pkg | Sev | Class | Fixed in (Debian) | Status |
 |---|---|---|---|---|---|
-| CVE-2026-42010 | gnutls | CRIT | TLS auth bypass (NUL in username) | 3.8.9-3+deb13u4 | Postgres TLS uses OpenSSL; gnutls transitive/unused |
-| CVE-2026-33845 | gnutls | CRIT | DoS (DTLS zero-len fragment) | 3.8.9-3+deb13u4 | DoS only; no DTLS path |
-| CVE-2026-33846 | gnutls | HIGH | DoS (DTLS heap overflow) | 3.8.9-3+deb13u4 | DoS; no DTLS |
-| CVE-2026-3833 | gnutls | HIGH | nameConstraints policy bypass | 3.8.9-3+deb13u4 | not RCE; gnutls unused for our TLS |
-| CVE-2026-42009 | gnutls | HIGH | DoS (DTLS reordering) | 3.8.9-3+deb13u4 | DoS; no DTLS |
-| CVE-2026-42011 | gnutls | HIGH | name-constraint bypass | 3.8.9-3+deb13u4 | not RCE; gnutls unused for our TLS |
-| CVE-2026-29111 | systemd (libsystemd0/libudev1) | HIGH | DoS via spurious IPC (assert+freeze on v250+, stack corruption on v249-; not arbitrary code execution per NVD) | 257.13-1~deb13u1 | no systemd/D-Bus daemon in container; libs only — description tightened 2026-05-27 after waiver audit |
-| CVE-2026-4878 | libcap2 | HIGH | local privesc (TOCTOU race) | 1:2.75-10+deb13u1 | needs local attacker already inside container |
-| CVE-2026-40356 | krb5 (libgssapi-krb5-2/libk5crypto3/libkrb5-3/libkrb5support0) | HIGH | DoS via integer *underflow* in NegoEx → OOB read (corrected from "overflow" 2026-05-27) | 1.21.3-5+deb13u1 | no Kerberos service in container; linked libs only — added 2026-05-26 |
-| CVE-2026-40355 | krb5 (libgssapi-krb5-2/libk5crypto3/libkrb5-3/libkrb5support0) | HIGH | DoS via NULL-pointer dereference (krb5 <1.22.3; process crash) — Debian/Trivy HIGH, NVD/GHSA-8qgv-wm66-hrmc rate MEDIUM | 1.21.3-5+deb13u1 | no Kerberos service in container; linked libs only — sibling of CVE-2026-40356, same deb13u1 fix; added 2026-07-09 |
-| CVE-2026-45447 | openssl (libssl3t64/openssl/openssl-provider-legacy) | HIGH | heap UAF in PKCS7_verify() (potential RCE) | 3.5.6-1~deb13u2 | Postgres uses OpenSSL for TLS, never PKCS#7/S-MIME verify; loopback, trusted client — added 2026-06-10 |
+| CVE-2026-42010 | gnutls | CRIT | TLS auth bypass (NUL in username) | 3.8.9-3+deb13u4 | **dropped 2026-07-31** — fixed by the 0.8.5 rebuild |
+| CVE-2026-33845 | gnutls | CRIT | DoS (DTLS zero-len fragment) | 3.8.9-3+deb13u4 | **dropped 2026-07-31** — fixed by the 0.8.5 rebuild |
+| CVE-2026-33846 | gnutls | HIGH | DoS (DTLS heap overflow) | 3.8.9-3+deb13u4 | **dropped 2026-07-31** — fixed by the 0.8.5 rebuild |
+| CVE-2026-3833 | gnutls | HIGH | nameConstraints policy bypass | 3.8.9-3+deb13u4 | **dropped 2026-07-31** — fixed by the 0.8.5 rebuild |
+| CVE-2026-42009 | gnutls | HIGH | DoS (DTLS reordering) | 3.8.9-3+deb13u4 | **dropped 2026-07-31** — fixed by the 0.8.5 rebuild |
+| CVE-2026-42011 | gnutls | HIGH | name-constraint bypass | 3.8.9-3+deb13u4 | **dropped 2026-07-31** — *already stale*: absent from the 0.8.2 scan too |
+| CVE-2026-29111 | systemd (libsystemd0/libudev1) | HIGH | DoS via spurious IPC (assert+freeze on v250+, stack corruption on v249-; not arbitrary code execution per NVD) | 257.13-1~deb13u1 | **dropped 2026-07-31** — *already stale*: absent from the 0.8.2 scan too |
+| CVE-2026-4878 | libcap2 | HIGH | local privesc (TOCTOU race) | 1:2.75-10+deb13u1 | **dropped 2026-07-31** — fixed by the 0.8.5 rebuild |
+| CVE-2026-40356 | krb5 (libgssapi-krb5-2/libk5crypto3/libkrb5-3/libkrb5support0) | HIGH | DoS via integer *underflow* in NegoEx → OOB read (corrected from "overflow" 2026-05-27) | 1.21.3-5+deb13u1 | **dropped 2026-07-31** — fixed by the 0.8.5 rebuild |
+| CVE-2026-40355 | krb5 (libgssapi-krb5-2/libk5crypto3/libkrb5-3/libkrb5support0) | HIGH | DoS via NULL-pointer dereference (krb5 <1.22.3; process crash) — Debian/Trivy HIGH, NVD/GHSA-8qgv-wm66-hrmc rate MEDIUM | 1.21.3-5+deb13u1 | **dropped 2026-07-31** — fixed by the 0.8.5 rebuild |
+| CVE-2026-45447 | openssl (libssl3t64/openssl/openssl-provider-legacy) | HIGH | heap UAF in PKCS7_verify() (potential RCE) | 3.5.6-1~deb13u2 | **dropped 2026-07-31** — fixed by the 0.8.5 rebuild |
 
 **Bundled — `gosu` Go stdlib (gobinary).** gosu is a setuid step-down wrapper
 that drops root and `exec`s Postgres: no sockets, no TLS, no URL/archive/mail
@@ -286,7 +318,29 @@ Reachability: ollama is 127.0.0.1-bound, single trusted user, backend is the onl
 client; CVEs are mostly DoS (self-inflicted only) plus a few outbound-TLS
 cert-validation issues (need MITM). **Drop when** upstream rebuilds ollama on
 patched Go **and** on the patched `golang.org/x/crypto` (≥0.52.0) /
-`golang.org/x/net` (≥0.55.0) / `golang.org/x/image` (≥0.43.0) modules.
+`golang.org/x/net` (≥0.55.0) / `golang.org/x/image` (≥0.43.0) /
+`golang.org/x/text` (≥0.39.0) modules.
+
+**Wave 8 (2026-07-31):** 1 HIGH in the compiled-in `golang.org/x/text` module
+(v0.30.0) — `CVE-2026-56852` / GHSA-jpjm-c3r5-q96r, a `norm.Iter` that enters an
+**infinite loop** on input containing invalid UTF-8 bytes. Published 2026-07-21;
+reddened the *scheduled* `main` run on 2026-07-29 and again 2026-07-30 (pure
+treadmill — nothing in the repo changed). Availability-only by CVSS
+(`C:N/I:N/A:H`): nothing is disclosed or altered, and the worst case is the ollama
+process spinning until restarted. Unreachable here for the usual reason — ollama is
+127.0.0.1-bound, non-root, and the Story Forge backend is its only client, so the
+only actor who could feed it malformed UTF-8 is the trusted local user, who would be
+hanging their own inference server. Owner-approved HIGH waiver (§6.7).
+
+**Why this was waived rather than fixed — checked, not assumed.** The plan expected an
+ollama re-scan to retire the wave-6/7 batch. It does not. Raw Trivy findings for the
+pinned `0.24.0` were diffed against the newest **soaked** candidate `0.32.3` (pub
+2026-07-23) and the two tags are **identical but for one OS CVE** (`CVE-2026-45447`,
+openssl): same Go 1.26.0 stdlib, same `x/crypto` v0.43.0, same `x/image` v0.22.0, and
+the same `x/text` v0.30.0 — so the candidate carries wave 8 too. The pin therefore
+**stayed at `0.24.0`** by explicit owner decision: an eight-minor-version jump needing
+full stack re-verification, in exchange for one OS CVE and no waiver drops, was not
+worth it. **Drop when** an upstream ollama rebuild ships `x/text` ≥ 0.39.0.
 
 **Wave 7 (2026-07-21):** 2 freshly-disclosed HIGHs in the compiled-in
 `golang.org/x/image` module (v0.22.0) — both TIFF-decoder resource-exhaustion bugs
@@ -348,3 +402,4 @@ Rows below; rationale per CVE in `infra/trivy/ollama.trivyignore` wave-6 block.
 | CVE-2026-42506 | x/net/html | HIGH | arbitrary HTML via `Render` (wave 6) | x/net 0.55.0 | renders no HTML → unreachable |
 | CVE-2026-46602 | x/image (image/tiff) | HIGH | TIFF decoder sets no limit on tile size → excessive memory allocation (DoS; GHSA-pwfv-328h-75x9; wave 7, added 2026-07-21) | x/image 0.43.0 | reachable only by decoding a crafted TIFF fed to a multimodal model; 127.0.0.1 single trusted user → only the trusted local user could supply one, self-inflicted |
 | CVE-2026-46604 | x/image (image/tiff) | HIGH | TIFF decoder panics on an invalid image (DoS; sibling of CVE-2026-46602; wave 7, added 2026-07-21) | x/image 0.43.0 | reachable only by decoding a crafted TIFF fed to a multimodal model; 127.0.0.1 single trusted user → self-inflicted only |
+| CVE-2026-56852 | x/text (unicode/norm) | HIGH | a `norm.Iter` enters an **infinite loop** on input containing invalid UTF-8 bytes (GHSA-jpjm-c3r5-q96r; CVSS `AV:N/AC:L/PR:N/UI:N/S:U/C:N/I:N/A:H` — availability only; wave 8, added 2026-07-31) | x/text 0.39.0 | reddened the scheduled `main` run 2026-07-29 + 07-30. No disclosure (C:N) or tampering (I:N) — worst case the ollama process spins until restarted. 127.0.0.1-bound, non-root, backend is the only client, so the only actor who can feed it malformed UTF-8 is the trusted local user, hanging their own server. **Confirmed unfixable by bump:** candidate `0.32.3` ships the same x/text v0.30.0 |

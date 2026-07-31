@@ -95,7 +95,7 @@ jobs:
       # Pinned to the same pgvector image the security job Trivy-scans and that
       # docker-compose runs locally.
       postgres:
-        image: pgvector/pgvector:0.8.2-pg17-trixie
+        image: pgvector/pgvector:0.8.5-pg17-trixie
         env:
           POSTGRES_USER: storyforge
           POSTGRES_PASSWORD: ci_only_throwaway_pw
@@ -137,9 +137,12 @@ jobs:
       - name: Install dependencies
         run: uv sync --frozen
       - name: Ruff (lint)
-        run: uv run ruff check .
+        # ../scripts too: the repo-root gate scripts are Python the repo ships and one of
+        # them (check_npm_audit.py) decides whether advisories block `main`, so it gets the
+        # same lint/format bar as backend code rather than sitting outside every check.
+        run: uv run ruff check . ../scripts
       - name: Ruff (format check)
-        run: uv run ruff format --check .
+        run: uv run ruff format --check . ../scripts
       - name: Mypy (strict)
         run: uv run mypy
       - name: Pytest
@@ -179,11 +182,10 @@ jobs:
         # Component/unit tests under src/**/*.test.{ts,tsx}. Runs after Build so
         # a type error fails first with a clearer message than a vitest crash.
         run: npm test
-      - name: npm audit (high/critical, shipped deps)
-        # --omit=dev: audit only what ships in the SPA bundle, not the build/test
-        # toolchain (jsdom, vitest, eslint, …). A dev-only advisory can't reach a
-        # user, so it shouldn't red main on un-shipped code (spec §6.7, 2026-06-18).
-        run: npm audit --omit=dev --audit-level=high
+      # NOTE: the frontend advisory gate deliberately does NOT live here — it runs in the
+      # `security` job below, which force-runs on the daily schedule. This job is
+      # path-scoped to code-bearing changes, so a waiver expiry would never fire on a
+      # docs-only stretch. See the "npm audit" step there.
 
   # Dependency-age + advisory (OSV) + image (Trivy) scans. Path-scoped to code-bearing
   # changes (a docs-only PR changes no deps/images), and force-run on the daily schedule
@@ -231,6 +233,27 @@ jobs:
             -v "${{ github.workspace }}/infra/osv/osv-scanner.toml:/cfg/osv.toml:ro" \
             ghcr.io/google/osv-scanner:v2.3.8@sha256:64e86bec6df2466feea5137fc7c78fb3b7c21ec077f014d7130f64810e50676b \
             scan source -L /src/uv.lock --config=/cfg/osv.toml
+      - name: npm audit — frontend shipped deps (high/critical, scoped waivers)
+        # --omit=dev: audit only what ships in the SPA bundle, not the build/test
+        # toolchain (jsdom, vitest, eslint, …). A dev-only advisory can't reach a
+        # user, so it shouldn't red main on un-shipped code (spec §6.7, 2026-06-18).
+        #
+        # Runs through scripts/check_npm_audit.py rather than `npm audit` directly
+        # (spec §6.7, 2026-07-31): same --omit=dev scope and same HIGH/CRITICAL
+        # threshold, but it can suppress an advisory that is assessed unreachable here
+        # AND has no soaked fix — which `npm audit` itself cannot express, leaving
+        # "relax the whole gate to --audit-level=critical" as the only alternative.
+        # Waivers are scoped to infra/npm/audit-waivers.toml (register: WAIVERS.md),
+        # each with a MANDATORY expiry date. Prefer a fix (bump via /add-dependency);
+        # /triage-advisory owns the lifecycle.
+        #
+        # It lives in THIS job, not `frontend`, precisely because of that expiry: this
+        # job force-runs on the daily schedule (see the `if:` above), so a lapsed waiver
+        # re-reds `main` on its own. The `frontend` job is path-scoped to code-bearing
+        # changes, so a docs-only stretch past an expiry date would have kept a lapsed
+        # ignore silently suppressed — the exact rot the mandatory date exists to prevent.
+        # Needs no `npm ci`: `npm audit` reads frontend/package-lock.json, not node_modules.
+        run: python3 scripts/check_npm_audit.py
       - name: docker compose config (syntax + env interpolation)
         env:
           POSTGRES_USER: cival
@@ -253,13 +276,16 @@ jobs:
       - name: Trivy scan — pgvector
         uses: aquasecurity/trivy-action@v0.36.0
         with:
-          image-ref: pgvector/pgvector:0.8.2-pg17-trixie
+          image-ref: pgvector/pgvector:0.8.5-pg17-trixie
           severity: HIGH,CRITICAL
           exit-code: "1"
           ignore-unfixed: true
-          # Waives residual Debian OS CVEs (no fresher pgvector rebuild exists
-          # yet) and the bundled gosu/Go-stdlib CVEs, each with a per-CVE RCE
-          # assessment. See the file for justification. Scoped to this step only.
+          # Waives ONLY the bundled gosu/Go-stdlib CVEs, each with a per-CVE RCE
+          # assessment — fixable solely by an upstream gosu rebuild. The OS-package
+          # block is empty as of the 0.8.5 bump (2026-07-31): that rebuild shipped
+          # Debian's fixes, so the atypical "waive OS CVEs" exception is CLOSED and
+          # the normal rule applies — fix an OS CVE with a fresher tag, never waive
+          # it. See the file before adding anything. Scoped to this step only.
           trivyignores: infra/trivy/pgvector.trivyignore
       - name: Trivy scan — ollama (upstream base for our wrapper)
         uses: aquasecurity/trivy-action@v0.36.0

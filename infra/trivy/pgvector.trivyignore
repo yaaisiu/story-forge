@@ -2,101 +2,57 @@
 # .github/workflows/ci.yml via the `trivyignores:` input; NOT applied to the
 # neo4j or ollama scans, which stay strict).
 #
-# Context (Issue #4): the relational store is pinned to
-# pgvector/pgvector:0.8.2-pg17-trixie. 0.8.2 is the CVE-fix release that
-# supersedes the original 0.8.1 pin; trixie (Debian 13.4) is the cleanest base
-# pgvector ships — 9 OS CVEs vs bookworm's 13, and pgvector has no UBI variant.
+# Context: the relational store is pinned to pgvector/pgvector:0.8.5-pg17-trixie
+# (published 2026-07-08, pinned 2026-07-31 at 23 days old — a clean §6.7 image
+# soak). trixie (Debian 13.4) is the cleanest base pgvector ships; there is no
+# UBI variant.
 #
-# Two unusual things about this waiver, both deliberate and pre-approved:
+# Everything waived below is a BUNDLED dependency — the Go stdlib compiled into
+# the `gosu` binary the image ships. Bundled CVEs are identical across base
+# variants and fixable only by an upstream rebuild, which is exactly the class
+# §6.7 allows waiving (the same shape as the neo4j netty/jetty waivers).
+#
+# HISTORY — the two unusual things about the OUTGOING 0.8.2 pin, both now resolved:
 #
 #   1. AGE BEND (spec §6.7, "no exceptions without explicit conversation").
-#      Every pgvector tag — all PG majors, both bases — was rebuilt 2026-05-15.
-#      0.8.2-pg17-trixie was therefore 6 days old at pin time (2026-05-21),
-#      inside the 7-day image soak. Pinned anyway, by explicit user decision:
-#      it is a CVE-*fix* release from a known official publisher, a serious
-#      flaw in a ~6-day-old rebuild would most likely already be public, and
-#      waiting only prolongs exposure to the *known* CVEs the bump addresses.
+#      0.8.2-pg17-trixie was 6 days old when pinned on 2026-05-21, inside the
+#      7-day image soak — taken by explicit user decision because it was a
+#      CVE-*fix* release (Issue #4). RESOLVED: the 0.8.5 pin needed no bend.
 #
-#   2. OS-PACKAGE CVEs ARE WAIVED HERE (atypical — normally we *fix* OS CVEs by
-#      choosing a fresher rebuild or a cleaner base, never waive them). There
-#      is no fresher rebuild to move to: 0.8.2-pg17-trixie IS the newest pgvector
-#      image, and these are freshly-disclosed Debian advisories whose fixes
-#      (deb13u1/deb13u4/257.13 etc.) upstream has not yet baked into a rebuild.
-#      Going *older* is strictly worse (0.8.1-pg17-trixie carries 42 OS CVEs).
-#      So the only choices were "wait for an upstream rebuild" or "pin now and
-#      waive with justification"; the latter was chosen after a per-CVE RCE
-#      assessment (below) confirmed none is a network-reachable RCE in this
-#      127.0.0.1-bound, single-user, non-root, no-new-privileges deployment.
+#   2. OS-PACKAGE CVEs WERE WAIVED HERE (atypical — normally we *fix* OS CVEs by
+#      moving to a fresher rebuild, never waive them). That exception was forced
+#      by there being no fresher rebuild to move to: every pgvector tag had been
+#      rebuilt 2026-05-15, and going older was strictly worse. RESOLVED 2026-07-31:
+#      the 0.8.5 rebuild ships Debian's fixed packages, so all eleven OS entries
+#      were dropped (see the section below) and the normal fix-don't-waive rule
+#      applies again.
 #
 # All waivers across images are also indexed in infra/trivy/WAIVERS.md (the
 # review register: fixed-in versions + drop conditions, checked periodically).
 #
-# Revisit: every pgvector tag bump. Drop the OS entries the moment a rebuilt
-# pgvector image ships Debian's fixed packages (re-scan should pass without
-# them); drop the gosu/stdlib entries when upstream rebuilds gosu on a patched
-# Go toolchain.
+# Revisit: every pgvector tag bump. Drop the gosu/stdlib entries when upstream
+# rebuilds gosu on a patched Go toolchain. If an OS-package CVE ever reappears,
+# FIX it with a fresher tag — re-waiving is the exception, not the default.
 
 # ───────────────────────── OS packages (Debian 13.4) ─────────────────────────
-# None reachable as RCE here. Postgres's own TLS uses OpenSSL, not gnutls;
-# gnutls is only a transitive library. DTLS is never used. No systemd/D-Bus
-# daemon runs in the container (Postgres is PID 1 via gosu). Bound to 127.0.0.1,
-# single trusted user. See per-CVE notes.
-
-# CVE-2026-42010 — gnutls (CRITICAL): TLS authentication bypass via NUL byte in
-# username. Not reachable: Postgres TLS is OpenSSL-based; gnutls handles no auth
-# path we expose.
-CVE-2026-42010
-# CVE-2026-33845 — gnutls (CRITICAL): DoS via DTLS zero-length fragment. DoS
-# only, and no DTLS endpoint exists.
-CVE-2026-33845
-# CVE-2026-33846 — gnutls (HIGH): DoS via heap buffer overflow in DTLS
-# handshake. DoS, no DTLS path.
-CVE-2026-33846
-# CVE-2026-3833 — gnutls (HIGH): policy bypass, case-sensitive nameConstraints
-# comparison. Cert-validation correctness bug, not RCE; gnutls unused for our TLS.
-CVE-2026-3833
-# CVE-2026-42009 — gnutls (HIGH): DoS via DTLS packet reordering. DoS, no DTLS.
-CVE-2026-42009
-# CVE-2026-42011 — gnutls (HIGH): security bypass via incorrect name-constraint
-# handling. Not RCE; gnutls unused for our TLS.
-CVE-2026-42011
-# CVE-2026-29111 — systemd/libsystemd0+libudev1 (HIGH): unprivileged IPC API call with
-# malformed data causes systemd to assert and freeze (v250+) or corrupt the stack
-# (v249-) — DoS, not arbitrary code execution (earlier description over-claimed exec).
-# This image runs no systemd init and no D-Bus, so the IPC attack surface is absent —
-# libsystemd0/libudev1 are linked libraries only.
-CVE-2026-29111
-# CVE-2026-4878 — libcap2 (HIGH): local privilege escalation via TOCTOU race in
-# cap_set_file(). Requires an already-present local unprivileged attacker inside
-# the container; no remote vector.
-CVE-2026-4878
-# CVE-2026-40356 — krb5 (HIGH): MIT Kerberos 5 integer *underflow* in NegoEx
-# mechanism causes OOB read → DoS (process crash on gss_accept_sec_context). Applies
-# to libgssapi-krb5-2 / libk5crypto3 / libkrb5-3 / libkrb5support0 (linked libs
-# only — this image runs no Kerberos service and Postgres uses OpenSSL for TLS).
-# Fixed in Debian 1.21.3-5+deb13u1; not yet baked into a pgvector rebuild.
-# Disclosed in the wave after the Issue #4 waivers landed (2026-05-26). Earlier
-# description said "integer overflow" — actually underflow (corrected 2026-05-27
-# during the post-PR-23 audit).
-CVE-2026-40356
-# CVE-2026-40355 — krb5 (Debian/Trivy HIGH; NVD/GHSA-8qgv-wm66-hrmc rate it MEDIUM): MIT
-# Kerberos 5 NULL-pointer dereference (krb5 before 1.22.3) → process crash (DoS) when an
-# application exercises the affected GSSAPI accept path. Sibling of CVE-2026-40356 — same krb5
-# libs (libgssapi-krb5-2 / libk5crypto3 / libkrb5-3 / libkrb5support0, linked libs only), same
-# reachability: this image runs no Kerberos service and Postgres uses OpenSSL for TLS, so the
-# vulnerable path is never executed; 127.0.0.1-bound, single trusted user. Fixed in Debian
-# 1.21.3-5+deb13u1 (the same update that fixes -40356); not yet baked into a pgvector rebuild.
-# Surfaced by the Trivy DB 2026-07-09. Drop when a rebuilt pgvector image ships deb13u1 krb5.
-CVE-2026-40355
-# CVE-2026-45447 — openssl/libssl3t64 (HIGH): heap use-after-free in PKCS7_verify()
-# when a PKCS#7 SignedData carries an empty digestAlgorithms SET — OpenSSL frees a
-# caller-owned BIO, a later use crashes (potential RCE). Reachable ONLY by apps that
-# verify attacker-supplied PKCS#7 / S-MIME messages via OpenSSL's PKCS7 APIs;
-# Postgres uses OpenSSL for TLS, never PKCS#7 message verification, and is bound to
-# 127.0.0.1 with a trusted local client — the vulnerable path is never executed.
-# Fixed in Debian openssl 3.5.6-1~deb13u2 (upstream 3.5.7); not yet baked into a
-# pgvector rebuild. Disclosed 2026-06-10. (Verified vs the OpenSSL advisory.)
-CVE-2026-45447
+# NONE — all eleven OS-package waivers were DROPPED on 2026-07-31 by the
+# 0.8.2-pg17-trixie → 0.8.5-pg17-trixie bump (Grzymalin S5). Nine of them the
+# rebuild genuinely fixed, by shipping Debian's patched packages:
+#   * gnutls    CVE-2026-42010, CVE-2026-33845, CVE-2026-33846, CVE-2026-3833,
+#               CVE-2026-42009                  (→ 3.8.9-3+deb13u4)
+#   * krb5      CVE-2026-40355, CVE-2026-40356  (→ 1.21.3-5+deb13u1)
+#   * openssl   CVE-2026-45447                  (→ 3.5.6-1~deb13u2)
+#   * libcap2   CVE-2026-4878                   (→ 1:2.75-10+deb13u1)
+# The other two — CVE-2026-42011 (gnutls) and CVE-2026-29111 (systemd) — were
+# already STALE: a raw scan of the *outgoing* 0.8.2 pin no longer reported them,
+# so they had been waiving nothing. Removed in the same pass rather than carried.
+# Verified by diffing raw Trivy HIGH/CRITICAL findings (no ignore file) across
+# both tags: the bump clears these and introduces nothing new.
+#
+# This closes the "OS-PACKAGE CVEs ARE WAIVED HERE" exception described in note 2
+# of the header above. The normal rule applies again: OS CVEs get FIXED by moving
+# to a fresher rebuild, never waived. Restore an OS waiver only if that situation
+# recurs — no fresher rebuild exists — and say so explicitly.
 
 # ──────────────── Bundled dependency: gosu Go stdlib (gobinary) ───────────────
 # gosu is a setuid step-down wrapper: it drops root and exec()s Postgres. It

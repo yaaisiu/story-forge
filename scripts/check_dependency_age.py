@@ -23,7 +23,7 @@ from pathlib import Path
 
 # 14-day threshold, applied at script run-time.
 MIN_AGE = dt.timedelta(days=14)
-NOW = dt.datetime.now(tz=dt.timezone.utc)
+NOW = dt.datetime.now(tz=dt.UTC)
 CUTOFF = NOW - MIN_AGE
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
