@@ -16,13 +16,17 @@
 #         jetty, jackson, shiro) which no base variant or released tag can fix;
 #         those are waived with justification in infra/trivy/neo4j.trivyignore.
 #         (Issue #2.)
-#       * pgvector/pgvector:0.8.2-pg17-trixie — CVE-fix release over 0.8.1;
-#         all pgvector tags were rebuilt 2026-05-15 (6 days old at pin time, a
-#         §6.7 age-bend taken by explicit decision for a CVE-fix release — see
-#         Issue #4). trixie (Debian 13.4) is the cleanest base pgvector ships
-#         (9 OS CVEs vs bookworm's 13; no UBI variant exists). Residual OS CVEs
-#         and the bundled gosu/Go-stdlib CVEs are waived with per-CVE RCE
-#         justification in infra/trivy/pgvector.trivyignore.
+#       * pgvector/pgvector:0.8.5-pg17-trixie — published 2026-07-08, 23 days
+#         old at pin time (clears the 7-day image soak with room; the newer
+#         0.8.6 was 2 days old and stayed out). trixie (Debian 13.4) is the
+#         cleanest base pgvector ships (no UBI variant exists). This rebuild
+#         ships Debian's fixed gnutls/krb5/openssl/libcap packages, which
+#         retired NINE waivers the 0.8.2 pin had needed; the only residual
+#         HIGHs are the bundled gosu/Go-stdlib CVEs (identical in both tags,
+#         fixable only by an upstream gosu rebuild), waived with per-CVE RCE
+#         justification in infra/trivy/pgvector.trivyignore. Bumped from
+#         0.8.2-pg17-trixie, itself a §6.7 age-bend taken for a CVE-fix
+#         release (Issue #4).
 #       * ollama/ollama:0.24.0 (consumed via the wrapper in infra/ollama/) —
 #         built 2026-05-14, 7 days old at pin time. Bumped from 0.22.1, which
 #         went CVE-stale; residual compiled-in Go-stdlib CVEs (no tag fixes
@@ -118,7 +122,7 @@ services:
   # Postgres + pgvector — relational store for document tree, edit_history, embeddings
   # -------------------------------------------------------------------------
   postgres:
-    image: pgvector/pgvector:0.8.2-pg17-trixie
+    image: pgvector/pgvector:0.8.5-pg17-trixie
     container_name: storyforge-postgres
     restart: unless-stopped
     networks: [storyforge_net]

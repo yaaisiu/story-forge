@@ -208,3 +208,31 @@ CVE-2026-46602
 # CVE-2026-46604 — image/tiff: the decoder can panic when decoding an invalid image
 # (DoS). Sibling of CVE-2026-46602; same module + fix (x/image 0.43.0).
 CVE-2026-46604
+
+# ─── Wave 8: golang.org/x/text module (surfaced by the Trivy DB 2026-07-21;
+#     reddened the scheduled `main` run on 2026-07-29 and 2026-07-30) ───
+#
+# The compiled-in `golang.org/x/text` module (v0.30.0, fixed 0.39.0) in the ollama
+# server binary. Same class as waves 6 and 7: a bundled Go module, not the stdlib,
+# fixable only by an upstream ollama rebuild — no tag we can pin fixes it.
+#
+# CONFIRMED unfixable-by-bump, not assumed: raw Trivy findings were diffed for the
+# pinned 0.24.0 against the newest soaked candidate 0.32.3 (published 2026-07-23),
+# and both ship x/text v0.30.0. The candidate bump would clear exactly one OS CVE
+# (CVE-2026-45447, openssl) and nothing else — so it was not taken here, and this
+# advisory would have survived it regardless. (Grzymalin S5, 2026-07-31.)
+#
+# CVE-2026-56852 (GHSA-jpjm-c3r5-q96r) — x/text/unicode/norm (HIGH): a `norm.Iter`
+# can enter an INFINITE LOOP when handling input containing invalid UTF-8 bytes.
+# CVSS 3.1 AV:N/AC:L/PR:N/UI:N/S:U/C:N/I:N/A:H — availability-only: no data is
+# disclosed (C:N) and none is altered (I:N); the worst case is the ollama process
+# spinning until it is restarted.
+#
+# Reachability here: ollama is 127.0.0.1-bound, runs non-root under our wrapper, and
+# the Story Forge backend is its ONLY client — there is no untrusted network peer who
+# could supply the malformed UTF-8. The only actor who can feed ollama text is the
+# single trusted local user, who would be hanging their own inference server and can
+# fix it with a container restart. No availability guarantee is owed to anyone else:
+# this is a single-user local tool, not a service. Fixed in x/text 0.39.0.
+# Drop when an upstream ollama rebuild ships golang.org/x/text >= 0.39.0.
+CVE-2026-56852
