@@ -72,6 +72,17 @@ all blind to interaction-level defects (S3 / Session 104: a slice green through 
 still had a one-way-door nav gap and an empty-editor Structure screen the walk caught). This
 is a merge gate, mirrored in root `AGENTS.md` Merge flow — not just a how-to.
 
+**No browser available? Write the checklist, don't skip the gate.** Where the agent can't
+drive a browser, it still owes a _targeted_ checklist handed over **before** the PR is
+surfaced as ready — derived from the actual routes/components the change touches (read
+`app/routes.tsx` + the relevant feature dir; name the real screens), scoped to what this
+change could plausibly break, highest-risk item first with a one-line why, short enough to
+run in a few minutes. Then fold what it finds. Say plainly that the walk wasn't agent-run —
+never let green CI imply it was. (Earned Session 106, a router-library bump: 8 checks built
+from `routes.tsx` + `storyScreens.ts`, led by the two routes sharing `/stories/:storyId`
+since route ranking is what a router release most likely changes; it surfaced three real
+issues.)
+
 Don't re-scout the stack each time — it's already set up. The Docker services (Neo4j,
 Postgres, Ollama) are **long-running** (`docker ps`), and **`.env` is user-managed and
 populated** — the backend reads its own DB/Neo4j/LLM creds from it; you **never** read or

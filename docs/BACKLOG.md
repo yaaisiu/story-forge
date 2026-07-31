@@ -408,6 +408,38 @@ the folded edge's rows onto the survivor), so a curated edge keeps its evidence.
 fix would hang on. Revisit when edge provenance durability matters (post-PoC). (Surfaced S83
 `/code-review`, verified against `agents/entity_edit.py` + `domain/relation_rekey.py`.)
 
+## Upload screen is a one-way door when reached with project context (post-PoC, surfaced S5 browser walk, Session 106)
+
+`UploadScreen.tsx` renders **either** the "Adding to project X" banner **or** the "Browse existing
+projects →" link — an `if`/`else` on `targetProjectId`. So arriving from a project via
+`/?project_id=…&project_name=…` (the "add a story" path) **replaces the screen's only navigation
+link with a static banner**: there is no way back to the project you came from without editing the
+URL or using browser back. Same class as the S104 back-link gap the story hub fixed, one screen
+further out.
+
+The project context itself is fine — it rides the **query string**, so it survives a reload (this
+is the S53 `location.state` bug staying fixed, and the browser walk confirmed it). Only the
+*navigation* is missing. Fix: keep a link back to the project (`/projects/:id` or the project's
+story list) *alongside* the banner rather than instead of it. Cheap and self-contained. Not a
+regression from the Session-106 router bump — pre-existing, and unrelated to that security PR, so
+split out here per the merge-flow rule. (Surfaced by the owner's S5 browser walk, verified against
+`frontend/src/features/upload/UploadScreen.tsx:94-101`.)
+
+## Graph filters don't survive a reload (post-PoC, surfaced S5 browser walk, Session 106)
+
+`GraphViewer.tsx` holds all four filter axes — `scope`, `selectedTypes`, `minDegree`, `searchTerm` —
+in `useState`, so a refresh or a shared/bookmarked URL drops them and the graph reopens unfiltered.
+On a large graph that means re-doing the narrowing by hand every time.
+
+Worth more than a UX nit because it contradicts **this repo's own recorded convention**:
+`frontend/AGENTS.md` (State management) says *"Anything that defines what the screen is doing — a
+target id, a mode, **a filter the user could reasonably reload into** — belongs in the query
+string."* A `grep -rn useSearchParams frontend/src` finds exactly **one** consumer
+(`UploadScreen.tsx`); the graph viewer never adopted the pattern. Fix: move the four axes to
+`useSearchParams`, which also makes a filtered view **shareable/deep-linkable** — the same property
+that made the S3 story hub worth building. Pre-existing, not a regression from the router bump.
+(Surfaced by the owner's S5 browser walk, verified against `GraphViewer.tsx:51,77-79`.)
+
 ## Structure screen — show an already-structured story's outline (post-PoC, surfaced S3 browser walk, Session 104)
 
 The `/stories/:storyId/structure` screen (`OutlineEditor`) is a **build** editor: it expects the
