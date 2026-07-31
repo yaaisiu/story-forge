@@ -20,8 +20,8 @@ and the backend OSV SCA use. Every waiver **must** carry an `ignoreUntil` date, 
 ignore re-reds on its own rather than rotting behind a green board. `/triage-advisory` owns
 the lifecycle, including dropping a waiver once its fix lands.
 
-Fails closed: an unparseable waiver file, or an `npm audit` that emits no usable JSON, is
-an error — never a silent pass.
+Fails closed: an unparseable waiver file, or an `npm audit` that did not actually audit
+anything, is an error — never a silent pass.
 """
 
 from __future__ import annotations
@@ -31,7 +31,7 @@ import subprocess
 import sys
 import tomllib
 from dataclasses import dataclass, field
-from datetime import date
+from datetime import date, datetime, timezone
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
@@ -129,10 +129,17 @@ def load_waivers(text: str) -> list[Waiver]:
         raise ValueError(f"waiver file is not valid TOML: {exc}") from exc
 
     waivers = []
+    seen: set[str] = set()
     for entry in data.get("IgnoredVulns") or []:
         advisory_id = entry.get("id")
         if not advisory_id:
             raise ValueError("a waiver entry is missing `id`")
+        if advisory_id in seen:
+            # Two entries for one advisory means two different reasons/expiries, and only one
+            # would win. Reject rather than silently pick — the losing expiry could be the
+            # earlier one, quietly extending a waiver nobody agreed to extend.
+            raise ValueError(f"duplicate waiver for {advisory_id} — keep exactly one entry")
+        seen.add(advisory_id)
         reason = entry.get("reason")
         if not reason:
             raise ValueError(f"waiver {advisory_id} is missing `reason` — an ignore needs a why")
@@ -170,9 +177,30 @@ def evaluate(findings: list[Finding], waivers: list[Waiver], today: date) -> Ver
     return verdict
 
 
+def parse_audit_payload(stdout: str) -> dict:
+    """Validate that npm actually performed an audit, and return the payload.
+
+    npm's exit code carries no signal here — it is non-zero whenever advisories exist. But it
+    is *also* not the failure signal: when npm cannot audit at all (a missing lockfile, a
+    registry error) it prints `{"error": {...}}` and exits **0**. That payload parses cleanly
+    and contains no `vulnerabilities`, so treating "no vulnerabilities found" as "nothing to
+    report" would let the gate pass green having audited nothing — a fail-*open* security gate.
+    So the `vulnerabilities` key must be present; its absence is an error, not an empty result.
+    """
+    try:
+        payload = json.loads(stdout)
+    except json.JSONDecodeError as exc:
+        raise ValueError(f"npm audit produced no parseable JSON: {stdout[:300]}") from exc
+    if not isinstance(payload, dict):
+        raise ValueError(f"npm audit returned {type(payload).__name__}, expected an object")
+    if "vulnerabilities" not in payload:
+        error = payload.get("error") or {}
+        detail = error.get("summary") or error.get("code") or json.dumps(payload)[:300]
+        raise ValueError(f"npm audit reported no vulnerabilities set — it did not audit: {detail}")
+    return payload
+
+
 def _run_npm_audit() -> dict:
-    """Run npm audit and parse its JSON. npm exits non-zero when it finds anything, so the
-    exit code carries no signal here — only unparseable output is an error."""
     proc = subprocess.run(
         ["npm", "audit", "--omit=dev", "--json"],
         cwd=FRONTEND_DIR,
@@ -180,12 +208,9 @@ def _run_npm_audit() -> dict:
         text=True,
     )
     try:
-        return json.loads(proc.stdout)
-    except json.JSONDecodeError as exc:
-        raise SystemExit(
-            f"npm audit produced no parseable JSON (exit {proc.returncode}).\n"
-            f"stdout: {proc.stdout[:500]}\nstderr: {proc.stderr[:500]}"
-        ) from exc
+        return parse_audit_payload(proc.stdout)
+    except ValueError as exc:
+        raise SystemExit(f"FAIL: {exc}\n(npm exit {proc.returncode}) stderr: {proc.stderr[:300]}")
 
 
 def main() -> int:
@@ -196,7 +221,10 @@ def main() -> int:
         print(f"FAIL: {WAIVER_FILE.relative_to(REPO_ROOT)}: {exc}")
         return 1
 
-    verdict = evaluate(collect_findings(_run_npm_audit()), waivers, date.today())
+    # UTC, not local time: the CI runner is UTC and advisory/publication dates are too, so a
+    # local-time `today()` could expire a waiver hours early or late depending on the machine.
+    today = datetime.now(timezone.utc).date()
+    verdict = evaluate(collect_findings(_run_npm_audit()), waivers, today)
 
     for finding, waiver in verdict.waived:
         print(

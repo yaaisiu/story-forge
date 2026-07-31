@@ -214,3 +214,59 @@ def test_malformed_toml_is_rejected() -> None:
 
 def test_empty_waiver_file_is_no_waivers() -> None:
     assert gate.load_waivers("# nothing waived\n") == []
+
+
+def test_duplicate_waivers_for_one_advisory_are_rejected() -> None:
+    """Two entries mean two expiries, and the loser might be the earlier one."""
+    with pytest.raises(ValueError, match="duplicate"):
+        gate.load_waivers(
+            """
+            [[IgnoredVulns]]
+            id = "GHSA-qwww-vcr4-c8h2"
+            reason = "First."
+            ignoreUntil = 2026-08-31
+
+            [[IgnoredVulns]]
+            id = "GHSA-qwww-vcr4-c8h2"
+            reason = "Second, with a later date."
+            ignoreUntil = 2027-08-31
+            """
+        )
+
+
+# --- npm audit payload validation (the fail-OPEN trap) ---------------------------------
+
+
+def test_accepts_a_real_audit_payload() -> None:
+    payload = gate.parse_audit_payload('{"vulnerabilities": {}}')
+    assert payload == {"vulnerabilities": {}}
+
+
+def test_an_npm_error_payload_is_rejected_rather_than_read_as_clean() -> None:
+    """`npm audit` prints this and exits **0** when it cannot audit at all.
+
+    It parses cleanly and carries no `vulnerabilities`, so treating it as "nothing found"
+    would pass the gate green having audited nothing. Regression test for a real fail-open
+    bug found reviewing this script: a missing lockfile silently disabled the gate.
+    """
+    payload = (
+        '{"error": {"code": "ENOLOCK", "summary": "This command requires an existing lockfile.",'
+        ' "detail": "Try creating one first"}}'
+    )
+    with pytest.raises(ValueError, match="did not audit"):
+        gate.parse_audit_payload(payload)
+
+
+def test_a_payload_without_vulnerabilities_is_rejected() -> None:
+    with pytest.raises(ValueError, match="did not audit"):
+        gate.parse_audit_payload('{"metadata": {"totals": 0}}')
+
+
+def test_unparseable_output_is_rejected() -> None:
+    with pytest.raises(ValueError, match="no parseable JSON"):
+        gate.parse_audit_payload("npm ERR! something went very wrong")
+
+
+def test_a_non_object_payload_is_rejected() -> None:
+    with pytest.raises(ValueError, match="expected an object"):
+        gate.parse_audit_payload("[]")
