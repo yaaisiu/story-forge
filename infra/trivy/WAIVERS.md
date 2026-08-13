@@ -318,8 +318,38 @@ Reachability: ollama is 127.0.0.1-bound, single trusted user, backend is the onl
 client; CVEs are mostly DoS (self-inflicted only) plus a few outbound-TLS
 cert-validation issues (need MITM). **Drop when** upstream rebuilds ollama on
 patched Go **and** on the patched `golang.org/x/crypto` (≥0.52.0) /
-`golang.org/x/net` (≥0.55.0) / `golang.org/x/image` (≥0.43.0) /
-`golang.org/x/text` (≥0.39.0) modules.
+`golang.org/x/net` (**≥0.56.0** — raised from 0.55.0 by wave 9, below) /
+`golang.org/x/image` (≥0.43.0) / `golang.org/x/text` (≥0.39.0) modules.
+
+**Wave 9 (2026-08-13):** 1 HIGH in the compiled-in `golang.org/x/net` module
+(v0.46.0) — `CVE-2026-46600` / `GO-2026-5942` / GHSA-gg3m-vvp2-p2c5, a **panic** in
+`x/net/dns/dnsmessage` when parsing an invalid SVCB or HTTPS resource record whose
+parameter-value size overflows the message length. Published 2026-07-21; reddened
+the *scheduled* `main` run on 2026-08-13 (pure treadmill — `main` was green the
+previous morning and nothing in the repo changed). Note this is a **newer** x/net
+advisory than the wave-6 x/net entries and needs a **higher** fix — 0.56.0, not the
+0.55.0 recorded there — so the section's drop-condition above was raised to match.
+Single OSV range (introduced 0, fixed 0.56.0); no multiple-range ambiguity.
+Availability-only: the parser crashes the process, nothing is disclosed or altered.
+
+Unreachable here: `dnsmessage` parses DNS *responses*, so an attacker must be the
+DNS responder or actively MITM the DNS path for ollama's **outbound** lookups
+(model-registry pulls, Ollama Cloud). It is not reachable from the inference API at
+all — ollama is 127.0.0.1-bound, non-root under our wrapper, and the Story Forge
+backend is its only client. Worst case for the trusted local user is their own
+inference container crashing on a hostile network, cured by a restart.
+Owner-approved HIGH waiver (§6.7).
+
+**Why waived rather than fixed — checked, not assumed.** Raw Trivy findings for the
+pinned `0.24.0` were diffed against **both** the newest soaked candidate `0.32.6`
+(pub 2026-08-05, 8 days) **and** the newest stable `0.32.9` (pub 2026-08-11, only 2
+days — not soaked). All three ship the **identical** `x/net` v0.46.0, `x/crypto`
+v0.43.0, `x/image` v0.22.0 and `x/text` v0.30.0; across the whole eight-minor-version
+span the only difference is one OS CVE (`CVE-2026-45447`, openssl), and nothing new
+is introduced. So no pinnable tag clears this, and the pin **stayed at `0.24.0`** by
+explicit owner decision — the same conclusion Session 106 reached against `0.32.3`,
+re-verified against fresher candidates rather than inherited. **Drop when** an
+upstream ollama rebuild ships `x/net` ≥ 0.56.0.
 
 **Wave 8 (2026-07-31):** 1 HIGH in the compiled-in `golang.org/x/text` module
 (v0.30.0) — `CVE-2026-56852` / GHSA-jpjm-c3r5-q96r, a `norm.Iter` that enters an
