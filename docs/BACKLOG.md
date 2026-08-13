@@ -458,6 +458,43 @@ read) so a cold-reached editor can repopulate, and add an outline read for the a
 case. Deferred by the owner at the S3 browser walk (Session 104) rather than crammed into the
 navigation slice — it's a small read *feature*, not a nav fix. A real slice, not a cross-cutting nit.
 
+## Chunking fails on a Markdown document with YAML frontmatter (post-PoC, surfaced Session 107 browser walk)
+
+Uploading an Obsidian-vault Markdown note — one opening with a large `---` YAML frontmatter block —
+and building an outline **fails in both `auto` and `hybrid` mode** with *"The chunking agent failed
+to produce a usable outline. Try a different mode."* That string is the frontend's mapping of an
+HTTP **502** (`OutlineEditor.tsx:43`), i.e. the backend is reporting a genuine chunking-agent
+failure, not a client-side artifact.
+
+**Not yet diagnosed — the frontmatter is the owner's hypothesis, and it is a good one:** a repo-wide
+grep finds **no frontmatter handling anywhere** in `backend/src` or the spec. Nothing strips, skips,
+or accounts for a leading `---` block, so the agent sees a wall of `key: value` metadata before any
+prose and has to infer chapters/scenes from it. Worth confirming before fixing (re-run with the
+frontmatter manually removed; check the agent's raw output in the `llm_calls` ledger, spec §6.6) —
+it may equally be document length or the note's heading structure.
+
+**Why this is more than an edge case.** The Grzymalin corpus is **non-fiction research notes kept in
+an Obsidian vault**, so frontmatter-bearing Markdown is likely the *normal* input for the direction
+the project is heading, not an exotic one. This connects to the standing **spec-identity** open
+question (`PLAN_SHORT.md` handoff: spec §2 frames Story Forge around *narrative* text while the
+corpus is historical research) — if that pivot is taken, ingestion of vault-style Markdown stops
+being a bug fix and becomes a named requirement. Route accordingly when the fork closes (S6).
+(Surfaced Session 107, 2026-08-13, during the PR #236 browser walk — unrelated to that PR.)
+
+## No progress feedback while an outline is being built (post-PoC, surfaced Session 107 browser walk)
+
+Triggering an outline build in `auto` or `hybrid` mode gives **no visible indication that work is
+happening** — no spinner, stage, or elapsed time — until it either returns an outline or errors out.
+On a long LLM chunking run the screen simply looks inert, and the owner had no way to tell a slow
+run from a hung one.
+
+This is the **same gap already recorded for extraction** (see *"Extraction progress bar"* under
+*Ingest & review UX feedback*), with the **same root cause**: the trigger is one synchronous call
+and the backend does not report progress mid-run, so the frontend has nothing to render. Recorded
+separately because that entry is scoped to extraction only — chunking needs the same treatment, and
+a fix that adds mid-run reporting should cover both rather than one endpoint. (Surfaced Session 107,
+2026-08-13, during the PR #236 browser walk — unrelated to that PR.)
+
 ## Ingest & review UX feedback
 
 Several "where am I / how much is left" gaps surfaced in the Session-33 smoke test. All
