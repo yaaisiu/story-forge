@@ -32,25 +32,45 @@ python3 scripts/check_npm_audit.py
 cd frontend && npm audit --omit=dev
 ```
 
-**Last reviewed:** 2026-07-30 — register created (Grzymalin S5, PR pending). One waiver,
-below. Same session bumped `react-router-dom` `7.16.0 → 7.18.1`, which cleared **four** of
-the five React Router advisories (`GHSA-chx6-hx7r-mcp5` HIGH DoS, plus three MEDIUMs
-`GHSA-wrjc-x8rr-h8h6`, `GHSA-h8fp-f39c-q6mh`, `GHSA-337j-9hxr-rhxg`) — fix-first applied
-as far as a soaked version allows.
+**Last reviewed:** 2026-08-13 — **the register is now empty: the sole waiver was DROPPED by a
+fix.** `react-router-dom` bumped `7.18.1 → 7.18.2` (published 2026-07-28, 15 days soaked; OSV
+reports no advisories against it), which clears `GHSA-qwww-vcr4-c8h2` outright — the prod-scoped
+audit goes to **0 vulnerabilities** with no waiver in place.
+
+**The reason this is worth reading:** the waiver below argued, correctly and with empirical
+evidence, that *no forward bump could ever clear this*. When it was written on 2026-07-30 the
+advisory listed **8.3.0** as the only patched version, and `react-router-dom` has no v8 — a
+scratch install of both 7.18.1 and 7.18.2 still reported the advisory, and npm's own
+`audit fix --force` proposed a *downgrade*. The advisory has since been **amended** to record a
+**7.x backport**, moving the vulnerable range from `>= 7.12.0, < 8.3.0` to
+`>= 7.12.0, < 7.18.2`. Nothing about our code changed; the upstream advisory did.
+
+The lesson: **"no fix available" is a point-in-time fact, not a permanent property.** A waiver
+rationale that forecloses a fix ("only a major migration clears this") must still be re-checked
+against the live advisory on review, not taken on trust — otherwise it becomes self-sealing, and
+a fixable HIGH sits behind a green board until its expiry. Here the drop was surfaced by a
+**Dependabot** alert (which tracks the amended range) cross-checked against the gate's own
+**STALE** report; the scheduled expiry would not have fired until 2026-08-31. It also means the
+v8 migration is **no longer security-driven** — it can be scheduled on its own merits.
 
 ---
 
-## React Router — RSC-mode CSRF bypass · added 2026-07-30
+## ~~React Router — RSC-mode CSRF bypass~~ · added 2026-07-30 · **DROPPED 2026-08-13 (fixed in 7.18.2)**
+
+> Retained as history per the register convention — the waiver is gone from
+> `infra/npm/audit-waivers.toml` and no longer suppresses anything. The reachability analysis
+> below remains accurate for the period it was live; only the "cannot be fixed" conclusion was
+> overtaken by the amended advisory.
 
 | Field | Value |
 | --- | --- |
 | Advisory | [`GHSA-qwww-vcr4-c8h2`](https://github.com/advisories/GHSA-qwww-vcr4-c8h2) |
 | Severity | HIGH (npm/GitHub) |
 | Package | `react-router` (also reported transitively via `react-router-dom`) |
-| Vulnerable range | `>= 7.12.0, < 8.3.0` |
-| First patched | `react-router` **8.3.0** (published 2026-07-22) |
-| Our version | `react-router-dom` 7.18.1 → `react-router` 7.18.1 |
-| `ignoreUntil` | **2026-08-31** |
+| Vulnerable range | ~~`>= 7.12.0, < 8.3.0`~~ → **amended upstream to `>= 7.12.0, < 7.18.2`** |
+| First patched | ~~`react-router` **8.3.0** (published 2026-07-22)~~ → **`7.18.2` (published 2026-07-28)**, via a 7.x backport recorded after this waiver was written |
+| Our version | `react-router-dom` 7.18.1 when waived → **7.18.2 as of 2026-08-13 (fixed)** |
+| `ignoreUntil` | ~~**2026-08-31**~~ — never reached; dropped by a fix on 2026-08-13 |
 
 **Why it is not reachable here.** The advisory is explicit: *"This only affects your
 application if you are using the unstable RSC APIs."* It is a follow-up to CVE-2026-22030
@@ -70,13 +90,19 @@ still report it). npm's own `audit fix --force` suggests *downgrading* to `7.11.
 drops below the vulnerable floor but reintroduces `GHSA-chx6-hx7r-mcp5` (the HIGH DoS) —
 a net regression, not a fix.
 
-**Drop when:** the frontend migrates to **React Router v8** (`react-router` ≥ 8.3.0),
+**Drop when:** ~~the frontend migrates to **React Router v8** (`react-router` ≥ 8.3.0),
 which means switching the 28 `react-router-dom` imports to `react-router` and handling the
 v7→v8 breaking changes — a scoped piece of work that needs its own session, not a bump.
 Availability is *not* the blocker: 8.3.0 cleared its 14-day soak on **2026-08-06** (floor =
-publication 2026-07-22 + 15 days). The blocker is the migration itself.
+publication 2026-07-22 + 15 days). The blocker is the migration itself.~~
+**Superseded 2026-08-13** — the 7.x backport in `7.18.2` cleared the advisory, so no migration
+was needed. The v8 migration is no longer security-driven and can be scheduled on its own merits.
 
-**On the date.** 2026-08-31 gives room to schedule the v8 migration as its own session
+**On the date.** ~~2026-08-31 gives room to schedule the v8 migration as its own session
 while keeping a HIGH waiver on a short leash. If the migration has not landed by then the
 gate re-reds — at which point `/triage-advisory` either takes the fix or extends the
-waiver with a fresh, written rationale. Extending is a deliberate decision, not a default.
+waiver with a fresh, written rationale. Extending is a deliberate decision, not a default.~~
+**The date was never reached** — the fix landed 18 days early. Note the expiry was *not* what
+caught this: a Dependabot alert tracking the amended range was, cross-checked against the gate's
+own STALE report. A dated expiry bounds how long an ignore can rot; it does not detect a fix
+arriving early. Both signals earn their place.
