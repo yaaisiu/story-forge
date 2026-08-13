@@ -55,6 +55,18 @@ docker run --rm -v /var/run/docker.sock:/var/run/docker.sock \
 # and reports waived/stale/expired; a bare `npm audit` also shows dev-only advisories
 # for awareness — they don't gate, see spec §6.7):
 python3 scripts/check_npm_audit.py
+
+# Dependabot cross-check — a SECOND opinion our own gates structurally cannot give.
+# Our three gates audit the version we have INSTALLED against the advisory as it reads
+# TODAY. Dependabot instead tracks each advisory's *current patched range*, so it sees a
+# fix that appeared after we assessed one — including a backport recorded upstream long
+# after the fact. Scan the `runtime`-scope rows especially: a `development` row is
+# out of scope by spec §6.7 (never ships), but a runtime row that our gates call clean
+# or waived is a signal to re-open that assessment (step 3).
+gh api /repos/<OWNER>/<REPO>/dependabot/alerts --paginate \
+  -q '.[] | select(.state=="open") | [.security_advisory.severity, .dependency.package.name,
+      .dependency.scope, (.security_vulnerability.first_patched_version.identifier // "NO-FIX"),
+      .security_vulnerability.vulnerable_version_range] | @tsv' | sort
 ```
 
 Then list every **active waiver** and its drop-condition: `infra/npm/audit-waivers.toml`
@@ -116,8 +128,34 @@ For every active waiver, check whether its drop-condition is now met:
   age check on the fixed version — if it now soaks, **drop it**.
 - **Condition-based** ("drop when neo4j ships netty ≥4.1.135"): re-run the gate — but **against
   the right target**, which differs by waiver kind:
-  - **Lockfile (OSV):** re-run against the current `backend/uv.lock` after a `uv lock`. A bump
-    changes the locked version, so the advisory genuinely disappears when the fix lands.
+  - **Lockfile (OSV) / npm:** re-run against the current `backend/uv.lock` (after a `uv lock`) or
+    `frontend/package-lock.json`. A bump changes the locked version, so the advisory genuinely
+    disappears when the fix lands — **but the gate alone cannot tell you a fix has become
+    available.** It audits the version you have **installed** against the advisory as it reads
+    **today**, so a waived advisory reports "waived" whether or not a newer release now clears it.
+    This is the **package-side twin of the image trap below**: there, re-scanning the frozen *pin*
+    can never show the condition met; here, re-auditing the frozen *lockfile* can never show a fix
+    exists. So on every revisit also check the advisory's **current patched version** against yours:
+    ```bash
+    gh api /advisories -f cve_id=<CVE> --jq '.[].vulnerabilities[] |
+      {pkg: .package.name, range: .vulnerable_version_range, patched: .first_patched_version}'
+    # or, for npm, let the resolver answer directly:
+    cd frontend && npm audit --omit=dev            # read the "fix available via…" line
+    ```
+    **And treat a recorded "no fix exists" rationale as a snapshot, never a standing fact.** An
+    advisory's patched-version list is **mutable**: maintainers backport to an older release branch
+    and the advisory is amended *afterwards*, so a waiver that was correct — and empirically
+    verified — when written can be one patch bump away from droppable weeks later, with **nothing
+    in our repo having changed**. A rationale that forecloses a fix ("only a major migration clears
+    this") is the most dangerous kind, because it reads as a reason to stop looking. Re-verify the
+    claim itself, not just the gate result. (Earned Session 107, 2026-08-13: the sole npm waiver,
+    `GHSA-qwww-vcr4-c8h2`, was written 2026-07-30 arguing correctly that no forward bump could clear
+    it — patched only in `react-router` 8.3.0, and `react-router-dom` has no v8; both 7.18.1 and
+    7.18.2 were installed in a scratch project and still reported it. A 7.x backport was recorded
+    upstream soon after, moving the range to `< 7.18.2`. The `ignoreUntil` was still 18 days out,
+    the recorded drop-condition was about *our* code — "migrate to v8" — and re-running the gate
+    reported it dutifully as *waived*. **Nothing in our own machinery could surface it**; the
+    Dependabot cross-check in step 1 is what did.)
   - **Image (Trivy): scan the NEWEST available soaked tag, NOT the pinned one.** This is the
     trap. An image waiver's condition is "*a newer tag* ships the fixed jar", but the pinned tag
     is frozen — it will carry that CVE forever. Re-scanning the *pinned* image therefore can
