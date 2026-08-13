@@ -236,3 +236,33 @@ CVE-2026-46604
 # this is a single-user local tool, not a service. Fixed in x/text 0.39.0.
 # Drop when an upstream ollama rebuild ships golang.org/x/text >= 0.39.0.
 CVE-2026-56852
+
+# ─── Wave 9: golang.org/x/net/dns/dnsmessage (surfaced by the Trivy DB
+#     2026-08-13; reddened the scheduled `main` run that morning) ───
+#
+# The compiled-in `golang.org/x/net` module (v0.46.0) again — a NEWER advisory than
+# the wave-6 x/net entries above, needing a HIGHER fix (0.56.0, vs 0.55.0 there).
+# Same class as waves 6-8: a bundled Go module, not the stdlib, fixable only by an
+# upstream ollama rebuild.
+#
+# CONFIRMED unfixable-by-bump, not assumed: raw Trivy findings for the pinned 0.24.0
+# were diffed against BOTH the newest soaked candidate 0.32.6 (pub 2026-08-05) and
+# the newest stable 0.32.9 (pub 2026-08-11, not yet soaked). All three ship the
+# identical x/net v0.46.0, and the only difference across the eight-minor-version
+# span is one OS CVE (CVE-2026-45447, openssl). No pinnable tag clears this.
+#
+# CVE-2026-46600 (GO-2026-5942, GHSA-gg3m-vvp2-p2c5) — x/net/dns/dnsmessage (HIGH):
+# parsing an invalid SVCB or HTTPS resource record can PANIC when the size of a
+# parameter value overflows the message length. Availability-only: the parser
+# crashes the process; nothing is disclosed and nothing is altered. Single OSV
+# range (introduced 0, fixed 0.56.0) — no multiple-range ambiguity.
+#
+# Reachability here: this is a DNS *response* parser, so exploiting it requires
+# being the DNS responder (or actively MITM-ing the DNS path) for ollama's OUTBOUND
+# lookups — model-registry pulls and Ollama Cloud. It is not reachable from the
+# inference API at all: ollama is 127.0.0.1-bound, runs non-root under our wrapper,
+# and the Story Forge backend is its only client, so no untrusted peer can reach it.
+# The worst case for the trusted local user is their own inference container
+# crashing on a hostile network, fixed by a restart. Fixed in x/net 0.56.0.
+# Drop when an upstream ollama rebuild ships golang.org/x/net >= 0.56.0.
+CVE-2026-46600

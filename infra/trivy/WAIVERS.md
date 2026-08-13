@@ -19,7 +19,27 @@ docker run --rm -v /var/run/docker.sock:/var/run/docker.sock \
   --ignorefile /tmp/ignore <IMAGE>:<TAG>
 ```
 
-**Last reviewed:** 2026-07-31 — **bumped pgvector `0.8.2-pg17-trixie` → `0.8.5-pg17-trixie`
+**Last reviewed:** 2026-08-13 — **added ollama `x/net` wave 9; no pin moved.** The scheduled
+`main` run reddened on `CVE-2026-46600` / `GO-2026-5942` (`golang.org/x/net/dns/dnsmessage`
+v0.46.0, fixed **0.56.0**) — a **panic** parsing an invalid SVCB/HTTPS resource record, against
+the unchanged `ollama/ollama:0.24.0` pin. Pure treadmill: `main` was green the previous morning
+and nothing in the repo changed. Availability-only, and unreachable from the inference API —
+`dnsmessage` parses DNS *responses*, so it needs a hostile DNS responder or an active MITM on
+ollama's **outbound** lookups, while the server itself is 127.0.0.1-bound, non-root, with the
+backend as its only client. Owner-approved HIGH waiver (§6.7). Note the drop threshold **moved**:
+this needs `x/net` ≥ 0.56.0, above the ≥ 0.55.0 the wave-6 x/net rows record, so a rebuild that
+satisfies wave 6 may still leave this one live — the ollama section's drop-when was raised to match.
+**The ollama pin stayed at `0.24.0`, re-verified rather than inherited:** raw findings for the pin
+were diffed against **both** the newest soaked candidate `0.32.6` (pub 2026-08-05, 8 days) and the
+newest stable `0.32.9` (pub 2026-08-11, 2 days — unsoaked), and all three ship identical `x/net`
+v0.46.0, `x/crypto` v0.43.0, `x/image` v0.22.0 and `x/text` v0.30.0. Across the whole
+eight-minor-version span the only difference is one OS CVE (`CVE-2026-45447`, openssl), with
+nothing new introduced — so the bump would still retire **zero** bundled waivers. That openssl
+waiver remains the one standing reason to bump, and is tracked in `docs/PLAN_SHORT.md`
+cross-cutting to be folded in whenever ollama next moves for a reason that carries the jump on its
+own. Verified locally with dockerized `aquasec/trivy:0.70.0`: ollama exits 0 with the updated
+waiver; the backend OSV and frontend npm-audit gates were independently clean.
+**Prior (2026-07-31):** **bumped pgvector `0.8.2-pg17-trixie` → `0.8.5-pg17-trixie`
 (pub 2026-07-08, 23 days soaked) and dropped ELEVEN waivers; added ollama `x/text` wave 8.**
 The pgvector rebuild ships Debian's fixed packages and **fixes nine** waived CVEs — gnutls
 `CVE-2026-42010/33845/33846/3833/42009` (→ 3.8.9-3+deb13u4), krb5 `CVE-2026-40355/40356`
@@ -318,8 +338,38 @@ Reachability: ollama is 127.0.0.1-bound, single trusted user, backend is the onl
 client; CVEs are mostly DoS (self-inflicted only) plus a few outbound-TLS
 cert-validation issues (need MITM). **Drop when** upstream rebuilds ollama on
 patched Go **and** on the patched `golang.org/x/crypto` (≥0.52.0) /
-`golang.org/x/net` (≥0.55.0) / `golang.org/x/image` (≥0.43.0) /
-`golang.org/x/text` (≥0.39.0) modules.
+`golang.org/x/net` (**≥0.56.0** — raised from 0.55.0 by wave 9, below) /
+`golang.org/x/image` (≥0.43.0) / `golang.org/x/text` (≥0.39.0) modules.
+
+**Wave 9 (2026-08-13):** 1 HIGH in the compiled-in `golang.org/x/net` module
+(v0.46.0) — `CVE-2026-46600` / `GO-2026-5942` / GHSA-gg3m-vvp2-p2c5, a **panic** in
+`x/net/dns/dnsmessage` when parsing an invalid SVCB or HTTPS resource record whose
+parameter-value size overflows the message length. Published 2026-07-21; reddened
+the *scheduled* `main` run on 2026-08-13 (pure treadmill — `main` was green the
+previous morning and nothing in the repo changed). Note this is a **newer** x/net
+advisory than the wave-6 x/net entries and needs a **higher** fix — 0.56.0, not the
+0.55.0 recorded there — so the section's drop-condition above was raised to match.
+Single OSV range (introduced 0, fixed 0.56.0); no multiple-range ambiguity.
+Availability-only: the parser crashes the process, nothing is disclosed or altered.
+
+Unreachable here: `dnsmessage` parses DNS *responses*, so an attacker must be the
+DNS responder or actively MITM the DNS path for ollama's **outbound** lookups
+(model-registry pulls, Ollama Cloud). It is not reachable from the inference API at
+all — ollama is 127.0.0.1-bound, non-root under our wrapper, and the Story Forge
+backend is its only client. Worst case for the trusted local user is their own
+inference container crashing on a hostile network, cured by a restart.
+Owner-approved HIGH waiver (§6.7).
+
+**Why waived rather than fixed — checked, not assumed.** Raw Trivy findings for the
+pinned `0.24.0` were diffed against **both** the newest soaked candidate `0.32.6`
+(pub 2026-08-05, 8 days) **and** the newest stable `0.32.9` (pub 2026-08-11, only 2
+days — not soaked). All three ship the **identical** `x/net` v0.46.0, `x/crypto`
+v0.43.0, `x/image` v0.22.0 and `x/text` v0.30.0; across the whole eight-minor-version
+span the only difference is one OS CVE (`CVE-2026-45447`, openssl), and nothing new
+is introduced. So no pinnable tag clears this, and the pin **stayed at `0.24.0`** by
+explicit owner decision — the same conclusion Session 106 reached against `0.32.3`,
+re-verified against fresher candidates rather than inherited. **Drop when** an
+upstream ollama rebuild ships `x/net` ≥ 0.56.0.
 
 **Wave 8 (2026-07-31):** 1 HIGH in the compiled-in `golang.org/x/text` module
 (v0.30.0) — `CVE-2026-56852` / GHSA-jpjm-c3r5-q96r, a `norm.Iter` that enters an
@@ -403,3 +453,4 @@ Rows below; rationale per CVE in `infra/trivy/ollama.trivyignore` wave-6 block.
 | CVE-2026-46602 | x/image (image/tiff) | HIGH | TIFF decoder sets no limit on tile size → excessive memory allocation (DoS; GHSA-pwfv-328h-75x9; wave 7, added 2026-07-21) | x/image 0.43.0 | reachable only by decoding a crafted TIFF fed to a multimodal model; 127.0.0.1 single trusted user → only the trusted local user could supply one, self-inflicted |
 | CVE-2026-46604 | x/image (image/tiff) | HIGH | TIFF decoder panics on an invalid image (DoS; sibling of CVE-2026-46602; wave 7, added 2026-07-21) | x/image 0.43.0 | reachable only by decoding a crafted TIFF fed to a multimodal model; 127.0.0.1 single trusted user → self-inflicted only |
 | CVE-2026-56852 | x/text (unicode/norm) | HIGH | a `norm.Iter` enters an **infinite loop** on input containing invalid UTF-8 bytes (GHSA-jpjm-c3r5-q96r; CVSS `AV:N/AC:L/PR:N/UI:N/S:U/C:N/I:N/A:H` — availability only; wave 8, added 2026-07-31) | x/text 0.39.0 | reddened the scheduled `main` run 2026-07-29 + 07-30. No disclosure (C:N) or tampering (I:N) — worst case the ollama process spins until restarted. 127.0.0.1-bound, non-root, backend is the only client, so the only actor who can feed it malformed UTF-8 is the trusted local user, hanging their own server. **Confirmed unfixable by bump:** candidate `0.32.3` ships the same x/text v0.30.0 |
+| CVE-2026-46600 | x/net (dns/dnsmessage) | HIGH | parsing an invalid SVCB or HTTPS resource record **panics** when the parameter-value size overflows the message length (GO-2026-5942 / GHSA-gg3m-vvp2-p2c5; availability-only; wave 9, added 2026-08-13) | **x/net 0.56.0** (higher than the ≥0.55.0 of the wave-6 x/net rows above) | reddened the scheduled `main` run 2026-08-13. `dnsmessage` parses DNS **responses**, so it needs a hostile DNS responder or an active MITM on ollama's *outbound* lookups (registry pulls, Ollama Cloud) — not reachable from the inference API at all: 127.0.0.1-bound, non-root, backend is the only client. Worst case the trusted local user's own container crashes on a hostile network; a restart cures it. **Confirmed unfixable by bump:** candidates `0.32.6` (soaked) and `0.32.9` (newest) both ship the same x/net v0.46.0 |
