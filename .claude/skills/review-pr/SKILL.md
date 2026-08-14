@@ -506,7 +506,13 @@ The repo is public; every line is read by a stranger.
   **no soaked forward bump clears it**, because a partial bump can look like a fix while leaving
   the advisory in place (the react-router case: `7.18.1` cleared four of five advisories, and the
   fifth needed a major version that the depended-on package had no release of). A waiver whose
-  advisory a soaked bump *would* clear is an `/add-dependency` bump in disguise. Also watch for a
+  advisory a soaked bump *would* clear is an `/add-dependency` bump in disguise. **And check that
+  claim against the *live* advisory, not the recorded rationale** — that same react-router case
+  was overturned two weeks later when the advisory was **amended upstream** to record a 7.x
+  backport, making a one-patch bump the fix after the waiver had argued (correctly, and with
+  empirical evidence) that none existed. Patched-version metadata is mutable; a rationale that
+  forecloses a fix is exactly the one to re-verify, because it reads as a reason to stop looking.
+  Also watch for a
   **STALE** line in the gate's own output — it means a waiver is suppressing nothing and should
   have been deleted in this PR.
 - **The SCA scanner pin itself drifted.** The `osv-scanner` step pins the scanner by **immutable

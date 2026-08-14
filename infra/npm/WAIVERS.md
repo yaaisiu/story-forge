@@ -82,13 +82,17 @@ code path is compiled in but never executed. On top of that, the app is single-u
 loopback-bound with no public surface, so there is no third-party origin to mount a CSRF
 from in the first place.
 
-**Why it cannot simply be fixed.** The fix exists only in `react-router` **8.3.0**, and
+**Why it cannot simply be fixed.** ~~The fix exists only in `react-router` **8.3.0**, and
 **`react-router-dom` has no v8 release** — its latest is `7.18.2`. So no forward bump of
 the package we actually depend on clears this advisory; verified empirically by installing
 `7.18.1` and `7.18.2` in a scratch project and re-running `npm audit --omit=dev` (both
 still report it). npm's own `audit fix --force` suggests *downgrading* to `7.11.0`, which
 drops below the vulnerable floor but reintroduces `GHSA-chx6-hx7r-mcp5` (the HIGH DoS) —
-a net regression, not a fix.
+a net regression, not a fix.~~
+**Overturned 2026-08-13** — this paragraph was accurate against the advisory *as published on
+2026-07-30*, and the empirical check was real. The amended advisory records the 7.x backport, so
+`7.18.2` — the very version tested above and found still-vulnerable — became the fix. The
+downgrade analysis stands; only the "no forward bump" conclusion fell.
 
 **Drop when:** ~~the frontend migrates to **React Router v8** (`react-router` ≥ 8.3.0),
 which means switching the 28 `react-router-dom` imports to `react-router` and handling the
