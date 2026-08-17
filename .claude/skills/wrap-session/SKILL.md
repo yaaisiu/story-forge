@@ -46,6 +46,10 @@ report failures clearly, but do not refuse to wrap — the user decides whether 
   ```
   (`npm run test` only if a test script exists yet.)
 - **Dependency age** (if any dep changed) — cwd-independent path so it runs from `backend/` too (a recurring foot-gun): `python3 "$(git rev-parse --show-toplevel)/scripts/check_dependency_age.py"`
+  - This applies to **any** `scripts/` invocation in this skill, not just the age check — the
+    shell's cwd persists across calls, and the backend checks above leave you in `backend/`, where
+    a bare `python3 scripts/…` fails with "No such file". Use the `git rev-parse` prefix (or an
+    absolute path) every time. (Recurred Session 108 on `check_npm_audit.py`.)
 
 Summarize each as pass/fail with the failing output. If something is red, say so plainly
 in the wrap-up and in the handoff block — never record a red session as cleanly closed.

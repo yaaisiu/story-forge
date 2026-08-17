@@ -459,6 +459,21 @@ The repo is public; every line is read by a stranger.
 
 - CI: all jobs green? If red, is it *pre-existing, unrelated, and diagnosed* (the only
   allowed exception per the green-main bar), and is that stated + tracked?
+- **Before calling a red gate non-blocking, check *both* protection systems — a 404 from one is
+  not evidence of none.** GitHub enforces merge requirements through two independent mechanisms:
+  classic **branch protection** (`gh api repos/{o}/{r}/branches/main/protection`) and **rulesets**
+  (`gh api repos/{o}/{r}/rulesets`, then per id `.rules[] | select(.type=="required_status_checks")
+  | .parameters.required_status_checks[].context`). A repo protected by a *ruleset* returns
+  **404 `Branch not protected`** from the classic endpoint — a message that reads like a positive
+  finding and is not one. Query both before telling the owner that a diagnosed pre-existing red can
+  be merged past: the green-main bar's exception is a **project** rule about what *we* consider
+  acceptable, and GitHub will still refuse the merge if the check is required. The two answers are
+  different questions — "may we merge this?" and "can we?" — and only the second is a fact about the
+  repo. (Earned Session 108: a spec-docs PR was reported mergeable on the 404 alone; the
+  squash-merge was rejected by the `main-protection` ruleset, which requires `security` — costing a
+  second decision round on a question the owner had already answered. Root `AGENTS.md`
+  "Establish the facts that constrain the options *before* you put the decision to me" is the
+  general form; this is the checkable instance.)
 - Are deferred items tracked (a GitHub issue, a `docs/PLAN_SHORT.md` cross-cutting note, or — for
   a post-PoC feature/UX/refinement — a `docs/BACKLOG.md` entry), not silently dropped? Unrelated
   discoveries split out rather than scope-crept in?
