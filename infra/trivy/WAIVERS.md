@@ -311,8 +311,10 @@ strictly worse (same CVE unfixed, plus ~14 more; it only looks clean because
 | CVE-2026-6473 | postgresql-17, postgresql-client-17 | HIGH (CVSS 8.8) | **FALSE POSITIVE** — upstream fixed it in **17.10** (pub 2026-05-14) and the image runs 17.10; Trivy compares our PGDG build `17.10-1.pgdg13+1` against Debian's `17.11-0+deb13u1`. A packaging-version artifact, not an exposure | already fixed in the running code | **active** — added 2026-08-17. **Drop at the `0.8.6` bump** (ships 17.11, verified); soak clears **2026-08-21** |
 
 **History — the eleven waivers dropped 2026-07-31.** The
-`0.8.5-pg17-trixie` rebuild (pub 2026-07-08) ships Debian's fixed packages, and the
-image now scans **completely clean**: 0 Debian findings, 0 gosu findings. Nine
+`0.8.5-pg17-trixie` rebuild (pub 2026-07-08) ships Debian's fixed packages, and **as
+of that date** the image scanned **completely clean**: 0 Debian findings, 0 gosu
+findings. (That is no longer true — the 2026-08-15 Trivy DB additions put 2 OS and 7
+gosu findings back on this same unchanged pin; see the reopened block above.) Nine
 waivers were retired by a genuine fix; two more (`CVE-2026-42011`, `CVE-2026-29111`)
 turned out to be **already stale** — a raw scan of the outgoing `0.8.2` pin no longer
 reported them, so they had been waiving nothing. This also **closes the atypical

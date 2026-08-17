@@ -34,8 +34,13 @@
 # rebuilds gosu on a patched Go toolchain. If an OS-package CVE ever reappears,
 # FIX it with a fresher tag — re-waiving is the exception, not the default.
 
-# ───────────────────────── OS packages (Debian 13.4) ─────────────────────────
-# NONE — all eleven OS-package waivers were DROPPED on 2026-07-31 by the
+# ───────────────────────── OS packages (Debian 13.5) ─────────────────────────
+# 2 ACTIVE — see "REOPENED 2026-08-17" at the end of this section. The paragraphs
+# immediately below are HISTORY (the 2026-07-31 drop that emptied this block); they
+# describe what was true then, not the current state. Do not read them as "no OS
+# waivers are active".
+#
+# History — all eleven OS-package waivers were DROPPED on 2026-07-31 by the
 # 0.8.2-pg17-trixie → 0.8.5-pg17-trixie bump (Grzymalin S5). Nine of them the
 # rebuild genuinely fixed, by shipping Debian's patched packages:
 #   * gnutls    CVE-2026-42010, CVE-2026-33845, CVE-2026-33846, CVE-2026-3833,
