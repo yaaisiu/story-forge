@@ -266,3 +266,46 @@ CVE-2026-56852
 # crashing on a hostile network, fixed by a restart. Fixed in x/net 0.56.0.
 # Drop when an upstream ollama rebuild ships golang.org/x/net >= 0.56.0.
 CVE-2026-46600
+
+# ─── Wave 10: Go stdlib again (surfaced by the Trivy DB 2026-08-15; reddened the
+#     scheduled `main` run on 2026-08-15, 08-16 and 08-17) ───
+#
+# Back to the compiled-in Go STDLIB (v1.26.0 in the ollama server binary), not an
+# x/* module: one Go-toolchain advisory batch fixed in Go 1.25.13 / 1.26.6 /
+# 1.27.0-rc.3. This is the SAME batch that hit pgvector's bundled gosu binary the
+# same night — see the seventh wave in infra/trivy/pgvector.trivyignore. Seven CVEs
+# there, six here: CVE-2026-39821 (x/net/idna Punycode) is the seventh, and it is
+# already waived above as a wave-6 golang.org/x/net entry, so it needs no new line.
+#
+# CONFIRMED unfixable by bump, not assumed: raw findings for the pinned 0.24.0 were
+# diffed against the newest SOAKED candidate 0.32.6 (pub 2026-08-05) and against
+# 0.32.9 (pub 2026-08-11). All three ship the identical Go stdlib v1.26.0 and report
+# this same six-CVE set, so no pinnable tag clears it — only an upstream ollama
+# rebuild on a patched Go toolchain does. (Newer tags exist — 0.32.12/13/14, pub
+# 2026-08-14 and 08-16 — but none had cleared the 7-day image soak on 2026-08-17,
+# and the two soaked ones establish that the whole 0.32.x line carries Go 1.26.0.)
+#
+# Reachability here is the standing story: ollama is 127.0.0.1-bound, runs non-root
+# under our wrapper, and the Story Forge backend is its ONLY client — there is no
+# untrusted network peer. Five of the six are availability-only (DoS) that a single
+# trusted caller could inflict only on itself; the sixth renders HTML, which ollama
+# never does.
+
+# CVE-2026-33818 — encoding/asn1 (HIGH): DoS via excessive recursion in Unmarshal.
+# Reached only via certificate/DER parsing on ollama's outbound TLS; no untrusted peer.
+CVE-2026-33818
+# CVE-2026-56853 — net/http (HIGH): unencrypted HTTP/2 (h2c) connections vulnerable
+# to DoS. ollama's API listener is bound to 127.0.0.1 with one trusted client.
+CVE-2026-56853
+# CVE-2026-56858 — html/template (HIGH): XSS via pathological input. ollama serves a
+# JSON inference API and renders no HTML templates — unreachable.
+CVE-2026-56858
+# CVE-2026-56859 — encoding/xml (HIGH): DoS via XML decoding recursion depth.
+# ollama parses no XML.
+CVE-2026-56859
+# CVE-2026-56860 — net/url (HIGH): DoS from quadratic complexity in path handling.
+# URLs come from the trusted local backend; self-inflicted at worst.
+CVE-2026-56860
+# CVE-2026-56862 — crypto/tls (HIGH): DoS via indefinite KeyUpdate messages. Applies
+# to ollama's outbound TLS (Ollama Cloud, model registry); needs an active MITM.
+CVE-2026-56862
