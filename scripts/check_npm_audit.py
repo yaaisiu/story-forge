@@ -14,6 +14,13 @@ justified exception is strictly narrower. The trigger was GHSA-qwww-vcr4-c8h2 (R
 RSC-mode CSRF), patched only in `react-router` 8.3.0 while `react-router-dom` has no v8 —
 no forward bump could clear it, and this SPA uses no RSC APIs.
 
+That trigger was overtaken on 2026-08-13: the advisory was amended upstream to record a 7.x
+backport, so `react-router-dom` 7.18.1 → 7.18.2 cleared it and the waiver was dropped by a
+fix, with nothing in this repo having changed. The rationale for the mechanism is unaffected
+— but note what it means for anything this script reports: an advisory's "no fix available"
+is a point-in-time fact, not a permanent property, and auditing the *installed* version can
+never reveal that a fix has since become available. See `infra/npm/WAIVERS.md` and spec §6.7.
+
 Waivers live in `infra/npm/audit-waivers.toml` (enforced) with the human-readable register
 in `infra/npm/WAIVERS.md` — the same scoped-ignore + register split the Trivy image scans
 and the backend OSV SCA use. Every waiver **must** carry an `ignoreUntil` date, so an

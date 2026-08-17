@@ -116,8 +116,8 @@ meant to catch supply-chain risk must not be one.
 
 ## The waiver lifecycle: fix-first, time-boxed, dropped
 
-A scanner gate is fail-on-any (OSV) or fail-on-HIGH/CRITICAL (Trivy), so the *only* way to go
-green without a code change is a waiver. A waiver is therefore a deliberate **"ignore — for
+A scanner gate is fail-on-any (OSV) or fail-on-HIGH/CRITICAL (Trivy, npm audit), so the *only*
+way to go green without a code change is a waiver. A waiver is therefore a deliberate **"ignore — for
 now,"** and it is dangerous exactly when nobody comes back to remove it: a known-vulnerable
 dependency shipping behind a green board. The discipline that prevents that:
 
@@ -128,13 +128,25 @@ dependency shipping behind a green board. The discipline that prevents that:
    boilerplate) **and** a dated or conditional **"drop when"** (when the fix will clear its
    soak, or "when upstream rebuilds").
 3. **Scoped, never repo-wide.** A waiver lives in a scoped file wired to exactly one scan step
-   — `infra/osv/osv-scanner.toml` for SCA, the per-image `infra/trivy/*.trivyignore` for images
-   — with the full rationale mirrored in a human register (`infra/osv/WAIVERS.md`,
-   `infra/trivy/WAIVERS.md`). The enforced file and the register must mirror each other; a row
-   in one and not the other is drift the review catches.
+   — `infra/osv/osv-scanner.toml` for SCA, the per-image `infra/trivy/*.trivyignore` for images,
+   `infra/npm/audit-waivers.toml` for the frontend audit — with the full rationale mirrored in a
+   human register (`infra/osv/WAIVERS.md`, `infra/trivy/WAIVERS.md`, `infra/npm/WAIVERS.md`). The
+   enforced file and the register must mirror each other; a row in one and not the other is drift
+   the review catches.
 4. **Drop it when the condition is met.** The often-skipped half. Date-based waivers carry an
    `ignoreUntil` so the daily scan **re-reds on its own** once the date passes — a backstop, on
    top of the proactive `/resume-session` check that flags a waiver coming due.
+5. **Re-verify the rationale, not just the date.** A waiver's own reasoning is a snapshot, and
+   the dangerous kind is the rationale that *forecloses* a fix ("only a major migration clears
+   this") — it reads as a reason to stop looking. Advisory metadata is **mutable**: maintainers
+   backport to an older release branch and the advisory is amended afterwards, so a waiver that
+   was correct and empirically verified when written can be one patch bump from droppable weeks
+   later, with nothing in this repo having changed. Neither the expiry nor re-running the gate
+   can see that — a date bounds how long an ignore may rot but cannot detect a fix arriving
+   early, and the gate audits the version we have *installed*, so it reports "waived" faithfully.
+   The cross-check that does see it is a source tracking each advisory's *current* patched range
+   (Dependabot for packages; for images, scanning the newest soaked **tag** rather than the
+   frozen pin). Both are steps in `/triage-advisory`.
 
 The `/triage-advisory` skill owns this whole lifecycle — assess, fix-or-waive, *and* the
 drop-revisit — so an "ignore" is never silent or forgotten.
