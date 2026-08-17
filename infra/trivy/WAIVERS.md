@@ -19,7 +19,43 @@ docker run --rm -v /var/run/docker.sock:/var/run/docker.sock \
   --ignorefile /tmp/ignore <IMAGE>:<TAG>
 ```
 
-**Last reviewed:** 2026-08-13 — **added ollama `x/net` wave 9; no pin moved.** The scheduled
+**Last reviewed:** 2026-08-17 — **one Go-toolchain advisory batch hit two images at once; added
+pgvector wave 7 (7), ollama wave 10 (6), and REOPENED the pgvector OS block (2); no pin moved.**
+The scheduled `main` run had been red **three nights running** (08-15, 08-16, 08-17; last green
+08-14) against completely unchanged pins — pure treadmill. Trivy DB additions on 2026-08-15
+surfaced a single Go batch (fixed Go 1.25.13 / 1.26.6 / 1.27.0-rc.3) that landed in **both**
+bundled Go binaries we ship: 7 CVEs in pgvector's `gosu` (Go v1.24.6) and the same 6 of them in
+the `ollama` server binary (Go v1.26.0) — the seventh, `CVE-2026-39821`, was already waived on
+ollama as a wave-6 x/net entry. All unreachable on the standing rationale (gosu opens no
+sockets/TLS/templates and only `exec`s Postgres; ollama is 127.0.0.1-bound with the backend as
+sole client). Owner-approved HIGH waivers (§6.7).
+
+**The pgvector OS block was REOPENED**, which reverses this file's own default (fix OS CVEs, never
+waive) and so carries the explicit justification that rule demands — the "no fresher rebuild
+exists" condition genuinely recurred, **verified rather than assumed**:
+* `CVE-2026-53615` (util-linux family, 9 packages) — integer overflow in `libblkid`'s **DOS
+  partition-table** parser. Debian 13 published the fix as `2.41.5-0+deb13u1`, but **no pgvector
+  image carries it yet**: the newest tag of any age, `0.8.6-pg17-trixie` (pub 2026-08-13), was
+  pulled and scanned and still ships `2.41-5`. The `bookworm` variant was checked too and is
+  **strictly worse** — same CVE at status `affected` (Debian 12 has published *no* fix) plus ~14
+  further unfixed HIGHs; it merely *looks* clean because `--ignore-unfixed` hides everything the
+  distro hasn't patched. Unreachable here: nothing in this container probes an untrusted block
+  device's partition table. **Drop when** a pgvector rebuild ships util-linux ≥ `2.41.5-0+deb13u1`.
+* `CVE-2026-6473` (postgresql-17/-client-17, CVSS 8.8) — **a FALSE POSITIVE**, waived only to clear
+  the gate. The upstream advisory fixes it in **17.10** (pub 2026-05-14) and this image runs
+  **17.10** (`postgres --version` → `17.10 (Debian 17.10-1.pgdg13+1)`), so the fix is already in the
+  running code. Trivy flags it because our build comes from the **PGDG** apt repo while Trivy matches
+  **Debian's** tracker, whose fixed version is `17.11-0+deb13u1` — a packaging-version comparison, not
+  an exposure. **Drop at the `0.8.6` bump** (ships 17.11, verified), whose 7-day image soak clears
+  **2026-08-21**.
+
+**No fix-first path existed** — every avenue was checked and closed before waiving: newest pgvector
+tag (0.8.6), the alternative `bookworm` base, and both soaked ollama candidates (`0.32.6`, `0.32.9`,
+identical Go stdlib v1.26.0). Verified locally with dockerized `aquasec/trivy:0.70.0`; the backend
+OSV and frontend npm-audit gates were independently clean, and the Dependabot cross-check showed
+only `development`-scope rows (out of scope per §6.7).
+
+**Prior (2026-08-13):** **added ollama `x/net` wave 9; no pin moved.** The scheduled
 `main` run reddened on `CVE-2026-46600` / `GO-2026-5942` (`golang.org/x/net/dns/dnsmessage`
 v0.46.0, fixed **0.56.0**) — a **panic** parsing an invalid SVCB/HTTPS resource record, against
 the unchanged `ollama/ollama:0.24.0` pin. Pure treadmill: `main` was green the previous morning
@@ -260,7 +296,21 @@ wave — pattern threshold tripped, evaluation tracked in [Issue #22](https://gi
 **bumped `0.8.2` → `0.8.5` on 2026-07-31, retiring the whole OS block.**
 None reachable as RCE on a 127.0.0.1 single-user non-root container.
 
-**OS packages — NO ACTIVE WAIVERS (all eleven dropped 2026-07-31).** The
+**OS packages — 2 ACTIVE WAIVERS, block REOPENED 2026-08-17.** The exception this
+block had closed on 2026-07-31 (below) recurred: a Go-toolchain-unrelated Debian
+advisory landed with **no pgvector rebuild carrying the fix**. Per the rule stated
+at the end of this block, the justification is given explicitly rather than assumed —
+`0.8.6-pg17-trixie` (pub 2026-08-13, newest tag of any age) was pulled and scanned
+and still ships the vulnerable `util-linux 2.41-5`, and the `bookworm` variant is
+strictly worse (same CVE unfixed, plus ~14 more; it only looks clean because
+`--ignore-unfixed` hides what the distro hasn't patched).
+
+| CVE | Pkg | Sev | Class | Fixed in | Status |
+|---|---|---|---|---|---|
+| CVE-2026-53615 | util-linux family — bsdutils, libblkid1, liblastlog2-2, libmount1, libsmartcols1, libuuid1, login, mount, util-linux (9 pkgs) | HIGH | integer overflow in `libblkid/src/partitions/dos.c` (DOS partition-table parser). Unreachable: nothing here probes an untrusted block device — Postgres reads a filesystem in a Docker volume | Debian 2.41.5-0+deb13u1 (published; **not in any pgvector image yet**) | **active** — added 2026-08-17. **Drop when** a pgvector rebuild ships util-linux ≥ 2.41.5-0+deb13u1 |
+| CVE-2026-6473 | postgresql-17, postgresql-client-17 | HIGH (CVSS 8.8) | **FALSE POSITIVE** — upstream fixed it in **17.10** (pub 2026-05-14) and the image runs 17.10; Trivy compares our PGDG build `17.10-1.pgdg13+1` against Debian's `17.11-0+deb13u1`. A packaging-version artifact, not an exposure | already fixed in the running code | **active** — added 2026-08-17. **Drop at the `0.8.6` bump** (ships 17.11, verified); soak clears **2026-08-21** |
+
+**History — the eleven waivers dropped 2026-07-31.** The
 `0.8.5-pg17-trixie` rebuild (pub 2026-07-08) ships Debian's fixed packages, and the
 image now scans **completely clean**: 0 Debian findings, 0 gosu findings. Nine
 waivers were retired by a genuine fix; two more (`CVE-2026-42011`, `CVE-2026-29111`)
@@ -323,6 +373,13 @@ parsing — all of these sit in unreachable code. Same class as the netty waiver
 | CVE-2026-42504 | HIGH | mime (quadratic `WordDecoder.DecodeHeader` on crafted encoded-words → CPU DoS; CWE-407, GO-2026-5038) | 1.25.11 / 1.26.4 — added 2026-06-08 (wave 4) |
 | CVE-2026-27145 | HIGH | crypto/x509 (`VerifyHostname` → `matchHostnames` hostname-match correctness) | 1.25.11 / 1.26.4 — added 2026-06-23 (wave 5); gosu opens no TLS / verifies no certs → `VerifyHostname` never called |
 | CVE-2026-39822 | HIGH | os (`os.Root` follows a trailing-slash symlink out of the confined root → directory traversal; CVSS 7.8, AV:L local) | 1.25.12 / 1.26.5 — added 2026-07-13 (wave 6); gosu opens no untrusted paths via os.Root; local AV, 127.0.0.1 single trusted user → unreachable |
+| CVE-2026-33818 | HIGH | encoding/asn1 (DoS via excessive recursion in `Unmarshal`) | 1.25.13 / 1.26.6 — added 2026-08-17 (wave 7); gosu parses no ASN.1 |
+| CVE-2026-39821 | HIGH | golang.org/x/net/idna, vendored into net/http (privilege escalation via incorrect Punycode label processing; Trivy attributes it to `stdlib`) | 1.25.13 / 1.26.6 — added 2026-08-17 (wave 7); gosu resolves no hostnames, makes no outbound request |
+| CVE-2026-56853 | HIGH | net/http (unencrypted HTTP/2 h2c connections vulnerable to DoS) | 1.25.13 / 1.26.6 — added 2026-08-17 (wave 7); gosu runs no HTTP server or client |
+| CVE-2026-56858 | HIGH | html/template (XSS via pathological input) | 1.25.13 / 1.26.6 — added 2026-08-17 (wave 7); gosu renders no HTML templates |
+| CVE-2026-56859 | HIGH | encoding/xml (DoS via XML decoding recursion depth) | 1.25.13 / 1.26.6 — added 2026-08-17 (wave 7); gosu parses no XML |
+| CVE-2026-56860 | HIGH | net/url (DoS from quadratic complexity in path handling) | 1.25.13 / 1.26.6 — added 2026-08-17 (wave 7); gosu parses no URLs |
+| CVE-2026-56862 | HIGH | crypto/tls (DoS via indefinite KeyUpdate messages) | 1.25.13 / 1.26.6 — added 2026-08-17 (wave 7); gosu makes no TLS connection |
 
 ## ollama — `ollama/ollama:0.24.0` (scanned upstream; consumed via `infra/ollama/` wrapper)
 
@@ -337,9 +394,39 @@ Bumped 0.22.1 → 0.24.0 to minimise residual (dropped the CRITICAL + 6 others).
 Reachability: ollama is 127.0.0.1-bound, single trusted user, backend is the only
 client; CVEs are mostly DoS (self-inflicted only) plus a few outbound-TLS
 cert-validation issues (need MITM). **Drop when** upstream rebuilds ollama on
-patched Go **and** on the patched `golang.org/x/crypto` (≥0.52.0) /
+patched Go (**≥1.26.6** — raised by wave 10, below) **and** on the patched
+`golang.org/x/crypto` (≥0.52.0) /
 `golang.org/x/net` (**≥0.56.0** — raised from 0.55.0 by wave 9, below) /
 `golang.org/x/image` (≥0.43.0) / `golang.org/x/text` (≥0.39.0) modules.
+
+**Wave 10 (2026-08-17):** 6 HIGH back in the compiled-in **Go stdlib** (v1.26.0),
+not an x/* module — one Go-toolchain advisory batch fixed in Go 1.25.13 / 1.26.6 /
+1.27.0-rc.3. Surfaced by the Trivy DB on 2026-08-15 and reddened the *scheduled*
+`main` run three nights running (08-15, 08-16, 08-17; last green 08-14) against a
+completely unchanged pin — pure treadmill. **The same batch hit pgvector's bundled
+`gosu` binary the same night** (wave 7 there): 7 CVEs in gosu, the same 6 here —
+the seventh, `CVE-2026-39821`, was already waived on ollama as a wave-6 x/net entry,
+so it needed no new line. This is the fourth consecutive sequential-unmask: the
+ollama scan sits behind pgvector's `exit-code: 1` and had been hidden since 08-15.
+
+| CVE | Stdlib area | Reachability here |
+|---|---|---|
+| CVE-2026-33818 | encoding/asn1 (DoS via recursion in `Unmarshal`) | DER parsing on outbound TLS only; no untrusted peer |
+| CVE-2026-56853 | net/http (h2c HTTP/2 DoS) | listener is 127.0.0.1-bound, one trusted client |
+| CVE-2026-56858 | html/template (XSS) | ollama serves JSON, renders no HTML → unreachable |
+| CVE-2026-56859 | encoding/xml (recursion-depth DoS) | ollama parses no XML |
+| CVE-2026-56860 | net/url (quadratic path-handling DoS) | URLs come from the trusted local backend |
+| CVE-2026-56862 | crypto/tls (indefinite KeyUpdate DoS) | outbound TLS only; needs an active MITM |
+
+Five of the six are availability-only, self-inflicted at worst by the single trusted
+local user; the sixth is in code ollama never executes. Owner-approved HIGH waivers (§6.7).
+**Why waived rather than fixed — checked, not assumed.** Raw findings for the pinned
+`0.24.0` were diffed against the newest **soaked** candidate `0.32.6` (pub 2026-08-05)
+and against `0.32.9` (pub 2026-08-11); all three ship the identical Go stdlib **v1.26.0**
+and report this same six-CVE set. Newer tags exist (`0.32.12`/`13`/`14`, pub 2026-08-14
+and 08-16) but none had cleared the 7-day image soak on 2026-08-17 — and the two soaked
+ones establish the whole `0.32.x` line is on Go 1.26.0, so the bump would retire nothing.
+**Drop when** an upstream ollama rebuild ships Go ≥ 1.26.6.
 
 **Wave 9 (2026-08-13):** 1 HIGH in the compiled-in `golang.org/x/net` module
 (v0.46.0) — `CVE-2026-46600` / `GO-2026-5942` / GHSA-gg3m-vvp2-p2c5, a **panic** in

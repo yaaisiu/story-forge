@@ -54,6 +54,52 @@
 # to a fresher rebuild, never waived. Restore an OS waiver only if that situation
 # recurs — no fresher rebuild exists — and say so explicitly.
 
+# ─── REOPENED 2026-08-17: the situation recurred. Saying so explicitly. ───
+#
+# The rule above requires that re-waiving an OS CVE be justified by "no fresher
+# rebuild exists". That is now the case, and it was VERIFIED, not assumed: the
+# newest pgvector tag of any age — 0.8.6-pg17-trixie (pub 2026-08-13) — was pulled
+# and scanned, and it still ships util-linux 2.41-5, carrying CVE-2026-53615
+# unchanged. The bookworm variant was checked too and is strictly worse: it carries
+# the same CVE with status "affected" (Debian 12 has published NO fix at all) plus
+# ~14 further unfixed HIGHs in perl/ncurses/libxml2/zlib. It only *appears* clean
+# under --ignore-unfixed, which hides every CVE the distro has not patched — a
+# scanner artifact, not a security improvement. trixie remains the right base.
+#
+# So there is no fresher rebuild to move to, exactly as in the Issue #4 situation
+# that opened this exception the first time. These two entries are time-boxed by
+# the drop conditions recorded against each; both are also in infra/trivy/WAIVERS.md.
+
+# CVE-2026-53615 — util-linux family, 9 packages (bsdutils, libblkid1,
+# liblastlog2-2, libmount1, libsmartcols1, libuuid1, login, mount, util-linux)
+# (HIGH): integer overflow/wraparound in libblkid/src/partitions/dos.c — the DOS
+# partition-table parser. Reached only by code that PROBES A BLOCK DEVICE's
+# partition table (blkid/lsblk/mount against untrusted media or a disk image).
+# Postgres does none of that: it reads a filesystem path inside a Docker volume,
+# and nothing in this container probes an attacker-supplied block device. The
+# container is 127.0.0.1-bound, non-root, single trusted user. Unreachable here.
+# Fixed in Debian 13 as 2.41.5-0+deb13u1 — published, but not yet present in ANY
+# pgvector image build (0.8.6 verified above).
+# Drop when a pgvector rebuild ships util-linux >= 2.41.5-0+deb13u1.
+CVE-2026-53615
+# CVE-2026-6473 — postgresql-17 / postgresql-client-17 (HIGH, CVSS 8.8): integer
+# wraparound in multiple PostgreSQL server features lets an unprivileged database
+# user undersize an allocation and write out of bounds, potentially executing code
+# as the OS user running the database.
+#
+# FALSE POSITIVE — this is a version-comparison artifact, not an exposure. The
+# upstream PostgreSQL advisory (postgresql.org/support/security/CVE-2026-6473/,
+# read 2026-08-17) lists the fix as landing in 18.4 / **17.10** / 16.14 / 15.18 /
+# 14.23, published 2026-05-14. This image ships PostgreSQL **17.10** (verified:
+# `postgres --version` → "17.10 (Debian 17.10-1.pgdg13+1)"), so the running code
+# ALREADY CONTAINS THE FIX. Trivy reports it because our build comes from the PGDG
+# apt repo (17.10-1.pgdg13+1) while Trivy matches Debian's own security tracker,
+# whose fixed version is 17.11-0+deb13u1 — and 17.10-1.pgdg13+1 sorts below that.
+# Waived only to clear the gate, NOT because a real vulnerability is being accepted.
+# Drop at the 0.8.6-pg17-trixie bump (ships PostgreSQL 17.11, verified; tag pub
+# 2026-08-13, clears the 7-day image soak on 2026-08-21), which makes it disappear.
+CVE-2026-6473
+
 # ──────────────── Bundled dependency: gosu Go stdlib (gobinary) ───────────────
 # gosu is a setuid step-down wrapper: it drops root and exec()s Postgres. It
 # opens no sockets, makes no TLS connection, and parses no URLs, archives, or
@@ -183,3 +229,45 @@ CVE-2026-27145
 # so the vulnerable path is unreachable. Fixed in Go 1.25.12 / 1.26.5; gosu ships
 # Go 1.24.6. Only an upstream gosu rebuild on a patched Go toolchain clears it.
 CVE-2026-39822
+
+# ─── Seventh wave (surfaced by the Trivy DB 2026-08-15, same gosu binary) ───
+# Reddened the scheduled `main` run three nights running (08-15, 08-16, 08-17)
+# against an unchanged pin — pure treadmill, nothing in the repo moved.
+#
+# All seven are one Go-toolchain advisory batch, fixed in Go 1.25.13 / 1.26.6 /
+# 1.27.0-rc.3; gosu still ships Go v1.24.6. CONFIRMED unfixable by any tag, not
+# assumed: 0.8.6-pg17-trixie (pub 2026-08-13, the newest tag of any age) was pulled
+# and scanned and carries the identical 22-CVE gosu set. Only an upstream gosu
+# rebuild on a patched Go toolchain clears them.
+#
+# Reachability is the same story as waves 1-6, and it is the whole justification:
+# gosu is a setuid step-down wrapper that drops root and exec()s Postgres. It opens
+# no sockets, serves no HTTP, makes no TLS connection, renders no templates, and
+# parses no XML, URLs, ASN.1 or Punycode. Every path below is compiled in but never
+# executed. The container is additionally 127.0.0.1-bound, non-root, single trusted
+# user. The SAME seven-CVE batch also hits the ollama binary — see wave 10 in
+# infra/trivy/ollama.trivyignore (six of the seven; -39821 was already waived there).
+
+# CVE-2026-33818 — encoding/asn1 (HIGH): DoS via excessive recursion in Unmarshal
+# on a crafted DER payload. gosu parses no ASN.1.
+CVE-2026-33818
+# CVE-2026-39821 — golang.org/x/net/idna, vendored into net/http (HIGH): privilege
+# escalation via incorrect Punycode label processing of internationalized hostnames.
+# Trivy attributes it to `stdlib` because Go vendors x/net/idna into the standard
+# library. gosu resolves no hostnames and makes no outbound request.
+CVE-2026-39821
+# CVE-2026-56853 — net/http (HIGH): unencrypted HTTP/2 (h2c) connections are
+# vulnerable to DoS. gosu runs no HTTP server or client.
+CVE-2026-56853
+# CVE-2026-56858 — html/template (HIGH): XSS via pathological input. gosu renders
+# no HTML templates.
+CVE-2026-56858
+# CVE-2026-56859 — encoding/xml (HIGH): DoS via an XML decoding recursion-depth
+# issue. gosu parses no XML.
+CVE-2026-56859
+# CVE-2026-56860 — net/url (HIGH): DoS from quadratic complexity in path handling.
+# gosu parses no URLs.
+CVE-2026-56860
+# CVE-2026-56862 — crypto/tls (HIGH): DoS via indefinite KeyUpdate messages. gosu
+# makes no TLS connection.
+CVE-2026-56862
