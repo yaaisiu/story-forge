@@ -176,6 +176,14 @@ For every active waiver, check whether its drop-condition is now met:
     # 3. Diff raw findings (NO ignore file) pinned-vs-candidate to see exactly what the bump
     #    clears and — just as important — whether it introduces anything new.
     ```
+    **If you reach for a different base *variant* as the escape (`-trixie` → `-bookworm`,
+    `-ubi10`), do not judge it on the `--ignore-unfixed` count** — that flag hides every CVE
+    the distro has not yet published a fix for, so an *older* base can score lower simply by
+    being **behind** on patching. Re-scan the variants **without** the flag and compare
+    like for like, reading each `Status` (`fixed` / `affected` / `fix_deferred`). A CVE that
+    is `fixed` on the newer base and `affected` on the older one means the newer base is
+    ahead. Full rationale + the worked example in `/pin-image` step 3.
+
     If the candidate clears entries the pin still needs waived, that is a **fix available now**:
     bump via `/pin-image` and delete those waivers. (Earned Session 99, 2026-07-23: six neo4j
     netty CVEs stayed waived for three weeks after `5.26.27` shipped netty 4.1.135 fixing all
