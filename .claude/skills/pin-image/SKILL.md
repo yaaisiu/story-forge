@@ -49,6 +49,30 @@ These flags mirror `.github/workflows/ci.yml` exactly. If the image is CVE-heavy
 other OS variants of the same version (`-trixie` vs `-ubi10` vs `-bookworm`) and pick the
 cleanest base — variant choice can swing the OS-package count from dozens to zero.
 
+**But do NOT compare variants on the `--ignore-unfixed` count — that number is not
+comparable across distros.** The flag hides every CVE the distro has **not yet published a
+fix for**, so a variant can score *lower* precisely because its distro is **behind** on
+patching, not because it is safer. The comparison you actually want is "which base carries
+fewer real vulnerabilities", and `--ignore-unfixed` answers a different question: "which base
+has fewer *actionable* ones today". Before concluding a variant is cleaner, **re-scan the
+candidates without the flag** and compare like for like, reading each finding's `Status`
+(`fixed` / `affected` / `fix_deferred` / `will_not_fix`):
+
+```bash
+# Same command minus --ignore-unfixed; compare the FULL picture across variants.
+docker run --rm -v /var/run/docker.sock:/var/run/docker.sock aquasec/trivy:latest \
+  image --quiet --severity HIGH,CRITICAL --scanners vuln --format json <IMAGE>:<TAG>
+```
+
+A CVE showing as `fixed` on the newer base and `affected` on the older one means the newer
+base is **ahead**, not dirtier — the fix exists and its rebuild simply hasn't landed yet.
+(Earned Session 109, 2026-08-17: hunting a `util-linux` HIGH on `pgvector 0.8.6-pg17-trixie`,
+the `-bookworm` variant scanned **0 OS findings vs trixie's 11** and looked like the obvious
+escape. Without the flag it carried the *same* CVE at status `affected` — Debian 12 had
+published no fix at all — **plus ~14 further unfixed HIGHs** in perl/ncurses/libxml2/zlib.
+Trixie showed the CVE *because* Debian 13 had fixed it. Recommending bookworm on the count
+alone would have moved us to a strictly worse base to make a number go down.)
+
 **If the scan output can't be read back, stop iterating locally — let CI scan.** Large
 images (multi-GB, e.g. `ollama`) make the `docker run` slow enough that the harness
 auto-backgrounds it, and a backgrounded shell is sandboxed: its stdout *and* even
@@ -69,7 +93,10 @@ images before declaring the job will go green.
 
 - **OS-package CVEs** are fixed by choosing a fresher rebuild or a cleaner base variant —
   fix them, do **not** waive. Going *down* a version usually means an older rebuild = more
-  CVEs, so it rarely helps.
+  CVEs, so it rarely helps. Verify "cleaner" **without** `--ignore-unfixed` (step 3) — an
+  older base can post a lower count purely because its distro has published fewer fixes.
+  If no rebuild of any age carries the fix, an OS waiver becomes the stated exception:
+  say so explicitly and record the drop-when (see the pgvector block reopened 2026-08-17).
 - **Bundled-dependency CVEs** (a library the image ships, e.g. neo4j's netty jars, the
   Go `stdlib` inside postgres's `gosu`) are identical across base variants and fixable only
   by an upstream rebuild. Waive these — and only these — in a **scoped** ignore file:
